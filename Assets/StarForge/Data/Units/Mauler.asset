@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Mauler
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 2
+  displayName: Mauler
+  blurb: Heavy tank. Long-range splash artillery that outranges Sentinels.
+  building: 0
+  neutral: 0
+  radius: 1.5
+  hp: 180
+  speed: 4.1
+  turnRate: 2.6
+  range: 24
+  damage: 32
+  cooldown: 2.2
+  splash: 4.5
+  sight: 34
+  bonusVsWorkers: 1
+  buildTime: 30
+  cost: 150
+  supplyCost: 3
+  supplyGive: 0
+  hotkey: 77
+  producer: 6
+  requires: -1
+  prefabs:
+  - {fileID: 4653062575351625607, guid: afe08ecc005464769a5d1ab6e9244c33, type: 3}
+  - {fileID: 1513860151927667181, guid: aaf266b125e0e45b08aef7a362e704d3, type: 3}
+  icon: {fileID: 2800000, guid: 1d035211bcf0348b7a1fdbc4e933dad4, type: 3}
+  visualRadius: 2.4
+  visualHeight: 2.175

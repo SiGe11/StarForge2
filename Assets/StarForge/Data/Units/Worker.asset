@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Worker
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 0
+  displayName: Digger
+  blurb: Harvests ore and constructs structures.
+  building: 0
+  neutral: 0
+  radius: 0.7
+  hp: 60
+  speed: 6.6
+  turnRate: 7
+  range: 2
+  damage: 5
+  cooldown: 1
+  splash: 0
+  sight: 22
+  bonusVsWorkers: 1
+  buildTime: 12
+  cost: 50
+  supplyCost: 1
+  supplyGive: 0
+  hotkey: 68
+  producer: 4
+  requires: -1
+  prefabs:
+  - {fileID: 1688003871347676813, guid: 93bb89f9341444e03a93c0fd82ca0a33, type: 3}
+  - {fileID: 9118647939654798330, guid: 9a0725a07d6cf402d8645287d94d56d1, type: 3}
+  icon: {fileID: 2800000, guid: c97c74964d72e4ae1bb3c0365a3be818, type: 3}
+  visualRadius: 1.12
+  visualHeight: 1.98

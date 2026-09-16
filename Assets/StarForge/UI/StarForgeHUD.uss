@@ -1,0 +1,752 @@
+:root {
+    --accent: #4fd1ff;
+    --accent-dim: rgba(79, 209, 255, 0.35);
+    --accent-faint: rgba(79, 209, 255, 0.12);
+    --amber: #ffb547;
+    --danger: #ff5a4f;
+    --ok: #59e38c;
+    --text: #dfe8f0;
+    --muted: #8ea3b6;
+    --panel: rgba(7, 12, 19, 0.84);
+    --panel-edge: rgba(79, 209, 255, 0.30);
+    --screen-dim: rgba(3, 6, 10, 0.72);
+    --radius: 6px;
+}
+
+.root {
+    flex-grow: 1;
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-Regular.ttf");
+    color: var(--text);
+    font-size: 15px;
+}
+
+/* ------------------------------------------------------------ shared */
+.panel {
+    background-color: var(--panel);
+    border-width: 1px;
+    border-color: var(--panel-edge);
+    border-radius: var(--radius);
+    padding: 10px;
+}
+
+.section-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-top: 10px;
+    margin-bottom: 4px;
+}
+
+.screen {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--screen-dim);
+    display: none;
+}
+
+.screen--visible {
+    display: flex;
+}
+
+.primary-button,
+.secondary-button,
+.link-button,
+.top-button,
+.segment {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    border-radius: 4px;
+    border-width: 1px;
+    margin: 4px;
+    padding: 8px 18px;
+    color: var(--text);
+    letter-spacing: 1px;
+    transition-duration: 0.12s;
+}
+
+.primary-button {
+    background-color: rgba(79, 209, 255, 0.22);
+    border-color: var(--accent);
+    color: #ffffff;
+    font-size: 17px;
+    padding: 11px 34px;
+}
+
+.primary-button:hover {
+    background-color: rgba(79, 209, 255, 0.42);
+    scale: 1.03 1.03;
+}
+
+.secondary-button {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.secondary-button:hover,
+.top-button:hover,
+.segment:hover {
+    background-color: var(--accent-faint);
+    border-color: var(--accent-dim);
+}
+
+.link-button {
+    background-color: rgba(0, 0, 0, 0);
+    border-color: rgba(0, 0, 0, 0);
+    color: var(--muted);
+    font-size: 13px;
+    padding: 4px 10px;
+}
+
+.link-button:hover {
+    color: var(--accent);
+}
+
+.button-row {
+    flex-direction: row;
+    justify-content: center;
+    margin-top: 12px;
+}
+
+.blurb {
+    color: var(--muted);
+    font-size: 13px;
+    white-space: normal;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    -unity-text-align: middle-center;
+}
+
+/* ------------------------------------------------------------ HUD */
+.hud {
+    flex-grow: 1;
+    justify-content: space-between;
+}
+
+.screen-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.top-bar {
+    flex-direction: row;
+    align-items: center;
+    height: 42px;
+    padding: 0 14px;
+    background-color: var(--panel);
+    border-bottom-width: 1px;
+    border-color: var(--panel-edge);
+}
+
+.resource {
+    flex-direction: row;
+    align-items: center;
+    margin-right: 26px;
+}
+
+.resource-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: 8px;
+    border-radius: 3px;
+    rotate: 45deg;
+}
+
+.resource-icon--ore {
+    background-color: #62e0ff;
+    border-width: 1px;
+    border-color: #d8f8ff;
+}
+
+.resource-icon--supply {
+    background-color: var(--amber);
+    border-radius: 7px;
+    rotate: 0deg;
+}
+
+.resource-value {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 18px;
+    min-width: 70px;
+}
+
+.resource-value--warn {
+    color: var(--danger);
+}
+
+.clock {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    color: var(--muted);
+    font-size: 16px;
+}
+
+.top-bar-spacer {
+    flex-grow: 1;
+}
+
+.intel {
+    color: var(--muted);
+    font-size: 13px;
+    margin-right: 18px;
+}
+
+.perf {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    color: rgba(142, 163, 182, 0.7);
+    font-size: 12px;
+    margin-right: 12px;
+}
+
+.top-button {
+    background-color: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.14);
+    font-size: 12px;
+    padding: 5px 12px;
+}
+
+.top-button--active {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.alerts {
+    position: absolute;
+    top: 58px;
+    left: 0;
+    right: 0;
+    align-items: center;
+}
+
+.alert {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    background-color: rgba(7, 12, 19, 0.78);
+    border-width: 1px;
+    border-color: var(--accent-dim);
+    border-radius: 4px;
+    padding: 6px 18px;
+    margin-bottom: 6px;
+    font-size: 15px;
+    opacity: 1;
+    translate: 0 0;
+    transition-duration: 0.35s;
+}
+
+.alert--warn {
+    border-color: rgba(255, 90, 79, 0.7);
+    color: #ffd2cf;
+}
+
+.alert--good {
+    border-color: rgba(89, 227, 140, 0.6);
+    color: #d6ffe4;
+}
+
+.alert--fading {
+    opacity: 0;
+    translate: 0 -10px;
+}
+
+.bottom-bar {
+    flex-direction: row;
+    align-items: flex-end;
+    padding: 10px;
+}
+
+.minimap-frame {
+    width: 250px;
+    height: 250px;
+    padding: 4px;
+}
+
+.minimap {
+    flex-grow: 1;
+    overflow: hidden;
+    border-radius: 3px;
+}
+
+.minimap-image,
+.minimap-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.selection-panel {
+    flex-grow: 1;
+    height: 170px;
+    margin: 0 10px;
+    justify-content: center;
+}
+
+.single-info {
+    flex-direction: row;
+    align-items: center;
+    display: none;
+}
+
+.single-info--visible {
+    display: flex;
+}
+
+.portrait {
+    width: 132px;
+    height: 132px;
+    background-color: rgba(79, 209, 255, 0.06);
+    border-width: 1px;
+    border-color: var(--accent-faint);
+    border-radius: 4px;
+    margin-right: 16px;
+}
+
+.single-text {
+    flex-grow: 1;
+}
+
+.unit-name {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 20px;
+    color: #ffffff;
+}
+
+.unit-stats {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 2px;
+}
+
+.hp-bar {
+    height: 12px;
+    margin-top: 8px;
+    margin-bottom: 6px;
+    max-width: 420px;
+}
+
+.unit-status {
+    color: var(--accent);
+    font-size: 14px;
+}
+
+.queue {
+    flex-direction: row;
+    margin-top: 8px;
+}
+
+.queue-slot {
+    width: 42px;
+    height: 42px;
+    margin-right: 6px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.12);
+    border-radius: 3px;
+}
+
+.queue-slot--active {
+    border-color: var(--accent);
+}
+
+.queue-progress {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    bottom: 2px;
+    height: 4px;
+}
+
+.multi-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+    display: none;
+}
+
+.multi-grid--visible {
+    display: flex;
+}
+
+.unit-tile {
+    width: 50px;
+    height: 58px;
+    margin: 2px;
+    padding: 2px;
+    background-color: rgba(255, 255, 255, 0.04);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.10);
+    border-radius: 3px;
+    transition-duration: 0.1s;
+}
+
+.unit-tile:hover {
+    border-color: var(--accent);
+    background-color: var(--accent-faint);
+}
+
+.unit-tile-icon {
+    flex-grow: 1;
+}
+
+.unit-tile-bar {
+    height: 5px;
+}
+
+.selection-hint {
+    color: var(--muted);
+    -unity-text-align: middle-center;
+    font-size: 14px;
+}
+
+.command-card {
+    width: 290px;
+    height: 230px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    padding: 6px;
+}
+
+.card-button {
+    width: 64px;
+    height: 64px;
+    margin: 3px;
+    padding: 0;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.14);
+    border-radius: 4px;
+    transition-duration: 0.1s;
+}
+
+.card-button:hover {
+    border-color: var(--accent);
+    background-color: var(--accent-faint);
+    scale: 1.04 1.04;
+}
+
+.card-button--disabled {
+    opacity: 0.42;
+}
+
+.card-button--empty {
+    opacity: 0;
+}
+
+.card-icon {
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    right: 4px;
+    bottom: 4px;
+}
+
+.card-glyph {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    -unity-text-align: middle-center;
+    font-size: 24px;
+    color: var(--text);
+}
+
+.card-hotkey {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    position: absolute;
+    left: 4px;
+    top: 2px;
+    font-size: 13px;
+    color: var(--amber);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.card-cost {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    position: absolute;
+    right: 4px;
+    bottom: 2px;
+    font-size: 12px;
+    color: #9be9ff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.tooltip {
+    position: absolute;
+    right: 12px;
+    bottom: 256px;
+    width: 300px;
+    padding: 10px 12px;
+    background-color: rgba(5, 9, 15, 0.95);
+    border-width: 1px;
+    border-color: var(--accent-dim);
+    border-radius: 5px;
+    display: none;
+}
+
+.tooltip--visible {
+    display: flex;
+}
+
+.tooltip-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 16px;
+    color: #ffffff;
+}
+
+.tooltip-cost {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 13px;
+    color: var(--amber);
+    margin-top: 2px;
+}
+
+.tooltip-body {
+    font-size: 13px;
+    color: var(--muted);
+    white-space: normal;
+    margin-top: 6px;
+}
+
+.inspector {
+    position: absolute;
+    top: 52px;
+    right: 10px;
+    width: 380px;
+    display: none;
+}
+
+.inspector--visible {
+    display: flex;
+}
+
+.insp-strategy {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 22px;
+    color: var(--amber);
+}
+
+.insp-reason {
+    font-size: 13px;
+    color: var(--muted);
+    white-space: normal;
+}
+
+.chart {
+    margin-bottom: 4px;
+}
+
+.chart-row {
+    flex-direction: row;
+    align-items: center;
+    height: 19px;
+}
+
+.chart-row--hidden {
+    display: none;
+}
+
+.chart-label {
+    width: 118px;
+    margin: 0;
+    padding: 0;
+    font-size: 12px;
+    -unity-text-align: middle-left;
+    overflow: hidden;
+}
+
+.chart-bar {
+    flex-grow: 1;
+    height: 8px;
+    margin: 0 8px;
+}
+
+.chart-value {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    width: 56px;
+    margin: 0;
+    padding: 0;
+    font-size: 11px;
+    color: var(--muted);
+    -unity-text-align: middle-right;
+}
+
+.chart-row--highlight > .chart-label,
+.chart-row--highlight > .chart-value {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    color: var(--amber);
+}
+
+.chart-row--locked > .chart-label,
+.chart-row--locked > .chart-value {
+    color: rgba(142, 163, 182, 0.45);
+}
+
+.insp-stats {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+    white-space: normal;
+}
+
+/* ------------------------------------------------------------ title */
+.title-screen {
+    background-color: rgba(3, 6, 10, 0.35);
+}
+
+.title-card {
+    width: 620px;
+    padding: 34px 40px;
+    align-items: center;
+    background-color: rgba(5, 9, 15, 0.82);
+    border-width: 1px;
+    border-color: var(--panel-edge);
+    border-radius: 10px;
+}
+
+.logo {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 64px;
+    letter-spacing: 16px;
+    color: #ffffff;
+    text-shadow: 0 0 18px rgba(79, 209, 255, 0.85);
+    margin-left: 16px;
+}
+
+.tagline {
+    color: var(--muted);
+    font-size: 15px;
+    white-space: normal;
+    -unity-text-align: middle-center;
+    margin-bottom: 22px;
+}
+
+.field-label {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent);
+}
+
+.segmented {
+    flex-direction: row;
+    margin-top: 6px;
+}
+
+.segment {
+    background-color: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.14);
+    font-size: 14px;
+    margin: 0 3px;
+    padding: 8px 16px;
+}
+
+.segment--active {
+    background-color: rgba(255, 181, 71, 0.18);
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
+.memory-toggle {
+    margin-top: 14px;
+}
+
+.memory-toggle > Label {
+    color: var(--text);
+    min-width: 0;
+    margin-right: 10px;
+}
+
+.memory-toggle #unity-checkmark {
+    border-color: var(--accent-dim);
+    background-color: rgba(255, 255, 255, 0.06);
+    -unity-background-image-tint-color: var(--accent);
+}
+
+.controls-text {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 12px;
+    color: var(--muted);
+    white-space: normal;
+    margin-top: 10px;
+    display: none;
+}
+
+.controls-text--visible {
+    display: flex;
+}
+
+/* ------------------------------------------------------------ pause & end */
+.menu-card {
+    width: 340px;
+    padding: 26px;
+    align-items: stretch;
+    background-color: rgba(5, 9, 15, 0.9);
+    border-width: 1px;
+    border-color: var(--panel-edge);
+    border-radius: 10px;
+}
+
+.menu-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 30px;
+    letter-spacing: 8px;
+    -unity-text-align: middle-center;
+    margin-bottom: 14px;
+}
+
+.end-card {
+    width: 900px;
+    padding: 30px 36px;
+    background-color: rgba(5, 9, 15, 0.92);
+    border-width: 1px;
+    border-color: var(--panel-edge);
+    border-radius: 10px;
+}
+
+.end-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 54px;
+    letter-spacing: 14px;
+    -unity-text-align: middle-center;
+    color: var(--ok);
+    text-shadow: 0 0 20px rgba(89, 227, 140, 0.7);
+}
+
+.end-title--defeat {
+    color: var(--danger);
+    text-shadow: 0 0 20px rgba(255, 90, 79, 0.7);
+}
+
+.end-subtitle {
+    color: var(--muted);
+    -unity-text-align: middle-center;
+    margin-bottom: 16px;
+}
+
+.end-columns {
+    flex-direction: row;
+}
+
+.end-column {
+    flex-grow: 1;
+    flex-basis: 0;
+    margin: 0 10px;
+}
+
+.end-column--wide {
+    flex-grow: 1.6;
+}
+
+.end-text {
+    font-size: 14px;
+    white-space: normal;
+    margin-top: 6px;
+}

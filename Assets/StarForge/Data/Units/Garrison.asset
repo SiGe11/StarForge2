@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Garrison
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 5
+  displayName: Garrison
+  blurb: Trains Troopers and Skimmers.
+  building: 1
+  neutral: 0
+  radius: 4.3
+  hp: 1000
+  speed: 0
+  turnRate: 0
+  range: 0
+  damage: 0
+  cooldown: 0
+  splash: 0
+  sight: 26
+  bonusVsWorkers: 1
+  buildTime: 30
+  cost: 150
+  supplyCost: 0
+  supplyGive: 0
+  hotkey: 71
+  producer: -1
+  requires: -1
+  prefabs:
+  - {fileID: 4399862617799916130, guid: 7a15dc65de2b846a2935eb39d9dbf41f, type: 3}
+  - {fileID: 7887787896757613549, guid: 425c6c518ae9d466abe16d42db52fe6e, type: 3}
+  icon: {fileID: 2800000, guid: f4ed944412f1e4fa38646ee8041acdf3, type: 3}
+  visualRadius: 4.863
+  visualHeight: 5.17

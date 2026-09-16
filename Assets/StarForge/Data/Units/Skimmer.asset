@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Skimmer
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 3
+  displayName: Skimmer
+  blurb: Fast hover raider with wide sensors. Double damage against Diggers.
+  building: 0
+  neutral: 0
+  radius: 0.85
+  hp: 75
+  speed: 11
+  turnRate: 8
+  range: 13
+  damage: 6
+  cooldown: 0.5
+  splash: 0
+  sight: 38
+  bonusVsWorkers: 2
+  buildTime: 16
+  cost: 75
+  supplyCost: 2
+  supplyGive: 0
+  hotkey: 75
+  producer: 5
+  requires: -1
+  prefabs:
+  - {fileID: 3834657345919861476, guid: e3f0e69b2a62e4bf6b0f46247cb67436, type: 3}
+  - {fileID: 514581672723151063, guid: ffe6c2468b2954326be4e26fdd4be03a, type: 3}
+  icon: {fileID: 2800000, guid: 5a3fa5cb56cac4a9ba28c0fe5dcbefcf, type: 3}
+  visualRadius: 1.36
+  visualHeight: 1.855

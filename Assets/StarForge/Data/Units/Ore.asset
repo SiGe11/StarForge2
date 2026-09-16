@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Ore
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 9
+  displayName: Ore Seam
+  blurb: Crystal ore. Diggers carry 8 per trip.
+  building: 0
+  neutral: 1
+  radius: 1.6
+  hp: 1
+  speed: 0
+  turnRate: 0
+  range: 0
+  damage: 0
+  cooldown: 0
+  splash: 0
+  sight: 0
+  bonusVsWorkers: 1
+  buildTime: 0
+  cost: 0
+  supplyCost: 0
+  supplyGive: 0
+  hotkey: 32
+  producer: -1
+  requires: -1
+  prefabs:
+  - {fileID: 7266216176260636108, guid: e75af8b90ca8341618dc371d3e365626, type: 3}
+  - {fileID: 7266216176260636108, guid: e75af8b90ca8341618dc371d3e365626, type: 3}
+  icon: {fileID: 2800000, guid: 76b10c01655694d66a09735b9b402bd0, type: 3}
+  visualRadius: 1.068
+  visualHeight: 1.895

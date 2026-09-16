@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Bunkhouse
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 7
+  displayName: Bunkhouse
+  blurb: Crew quarters. +8 supply.
+  building: 1
+  neutral: 0
+  radius: 2.4
+  hp: 400
+  speed: 0
+  turnRate: 0
+  range: 0
+  damage: 0
+  cooldown: 0
+  splash: 0
+  sight: 20
+  bonusVsWorkers: 1
+  buildTime: 20
+  cost: 100
+  supplyCost: 0
+  supplyGive: 8
+  hotkey: 66
+  producer: -1
+  requires: -1
+  prefabs:
+  - {fileID: 8369336823043547104, guid: d07ff91681b2242d1928309e3b44734a, type: 3}
+  - {fileID: 3289200420873061250, guid: 900504abbac41451db934e7d0b294ca1, type: 3}
+  icon: {fileID: 2800000, guid: 646c2503af0664ee1960afea56982e25, type: 3}
+  visualRadius: 2.59
+  visualHeight: 1.75

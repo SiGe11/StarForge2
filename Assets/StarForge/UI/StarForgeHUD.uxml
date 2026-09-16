@@ -1,0 +1,137 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:sf="StarForge.UI">
+  <ui:Style src="StarForgeHUD.uss" />
+  <ui:VisualElement name="root" class="root" picking-mode="Ignore">
+
+    <ui:VisualElement name="hud" class="hud" picking-mode="Ignore">
+      <sf:OverlayElement name="screenOverlay" class="screen-overlay" picking-mode="Ignore" />
+      <ui:VisualElement name="topBar" class="top-bar">
+        <ui:VisualElement class="resource">
+          <ui:VisualElement class="resource-icon resource-icon--ore" />
+          <ui:Label name="oreLabel" class="resource-value" text="150" />
+        </ui:VisualElement>
+        <ui:VisualElement class="resource">
+          <ui:VisualElement class="resource-icon resource-icon--supply" />
+          <ui:Label name="supplyLabel" class="resource-value" text="5 / 10" />
+        </ui:VisualElement>
+        <ui:Label name="clockLabel" class="clock" text="0:00" />
+        <ui:VisualElement class="top-bar-spacer" picking-mode="Ignore" />
+        <ui:Label name="intelLabel" class="intel" text="" />
+        <ui:Label name="perfLabel" class="perf" text="" />
+        <ui:Button name="inspectorButton" class="top-button" text="AI INSPECTOR  I" />
+        <ui:Button name="menuButton" class="top-button" text="MENU  ESC" />
+      </ui:VisualElement>
+
+      <ui:VisualElement name="alerts" class="alerts" picking-mode="Ignore" />
+
+      <ui:VisualElement name="inspector" class="panel inspector">
+        <ui:Label class="section-title" text="AI INSPECTOR" />
+        <ui:Label name="inspStrategy" class="insp-strategy" text="" />
+        <ui:Label name="inspReason" class="insp-reason" text="" />
+        <ui:Label class="section-title" text="WHAT IT BELIEVES YOU ARE DOING" />
+        <sf:BarChartElement name="beliefChart" class="chart chart--six" />
+        <ui:Label class="section-title" text="PLAN SCORES · CONTEXTUAL BANDIT" />
+        <sf:BarChartElement name="strategyChart" class="chart chart--eight" />
+        <ui:Label class="section-title" text="YOUR BEHAVIOUR PROFILE" />
+        <sf:BarChartElement name="profileChart" class="chart chart--five" />
+        <ui:Label name="inspStats" class="insp-stats" text="" />
+      </ui:VisualElement>
+
+      <ui:VisualElement name="bottomBar" class="bottom-bar" picking-mode="Ignore">
+        <ui:VisualElement name="minimapFrame" class="panel minimap-frame">
+          <sf:MinimapElement name="minimap" class="minimap" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="selectionPanel" class="panel selection-panel">
+          <ui:VisualElement name="singleInfo" class="single-info">
+            <ui:Image name="portrait" class="portrait" />
+            <ui:VisualElement class="single-text">
+              <ui:Label name="unitName" class="unit-name" text="" />
+              <ui:Label name="unitStats" class="unit-stats" text="" />
+              <sf:BarElement name="hpBar" class="hp-bar" />
+              <ui:Label name="unitStatus" class="unit-status" text="" />
+              <ui:VisualElement name="queue" class="queue" />
+            </ui:VisualElement>
+          </ui:VisualElement>
+          <ui:VisualElement name="multiGrid" class="multi-grid" />
+          <ui:Label name="selectionHint" class="selection-hint" text="Drag to select units · right-click to command" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="commandCard" class="panel command-card" />
+      </ui:VisualElement>
+
+      <ui:VisualElement name="tooltip" class="tooltip" picking-mode="Ignore">
+        <ui:Label name="tooltipTitle" class="tooltip-title" text="" />
+        <ui:Label name="tooltipCost" class="tooltip-cost" text="" />
+        <ui:Label name="tooltipBody" class="tooltip-body" text="" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <ui:VisualElement name="titleScreen" class="screen title-screen">
+      <ui:VisualElement class="title-card">
+        <ui:Label class="logo" text="STARFORGE" />
+        <ui:Label class="tagline" text="Real-time strategy against an opponent that scouts, reads and remembers you." />
+        <ui:Label class="field-label" text="OPPONENT" />
+        <ui:VisualElement class="segmented">
+          <ui:Button name="diffRecruit" class="segment" text="RECRUIT" />
+          <ui:Button name="diffVeteran" class="segment" text="VETERAN" />
+          <ui:Button name="diffCommander" class="segment" text="COMMANDER" />
+        </ui:VisualElement>
+        <ui:Label name="difficultyBlurb" class="blurb" text="" />
+        <ui:Toggle name="memoryToggle" class="memory-toggle" label="The AI remembers me between matches" />
+        <ui:Label name="memoryStatus" class="blurb" text="" />
+        <ui:Label class="field-label" text="GRAPHICS" />
+        <ui:VisualElement class="segmented">
+          <ui:Button name="qualityHigh" class="segment" text="HIGH" />
+          <ui:Button name="qualityBalanced" class="segment" text="BALANCED" />
+          <ui:Button name="qualityBattery" class="segment" text="BATTERY" />
+        </ui:VisualElement>
+        <ui:Label name="qualityBlurb" class="blurb" text="" />
+        <ui:VisualElement class="button-row">
+          <ui:Button name="playButton" class="primary-button" text="DEPLOY" />
+          <ui:Button name="spectateButton" class="secondary-button" text="WATCH AI VS AI" />
+        </ui:VisualElement>
+        <ui:VisualElement class="button-row">
+          <ui:Button name="controlsButton" class="link-button" text="Controls" />
+          <ui:Button name="resetMemoryButton" class="link-button" text="Make the AI forget me" />
+          <ui:Button name="quitButton" class="link-button" text="Quit" />
+        </ui:VisualElement>
+        <ui:Label name="controlsText" class="controls-text" text="" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <ui:VisualElement name="pauseMenu" class="screen pause-screen">
+      <ui:VisualElement class="menu-card">
+        <ui:Label class="menu-title" text="PAUSED" />
+        <ui:Button name="resumeButton" class="primary-button" text="RESUME" />
+        <ui:Button name="restartButton" class="secondary-button" text="RESTART" />
+        <ui:Button name="surrenderButton" class="secondary-button" text="SURRENDER" />
+        <ui:Button name="fullscreenButton" class="secondary-button" text="TOGGLE FULL SCREEN" />
+        <ui:Button name="menuReturnButton" class="secondary-button" text="MAIN MENU" />
+        <ui:Button name="quitButton2" class="link-button" text="Quit to desktop" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <ui:VisualElement name="endScreen" class="screen end-screen">
+      <ui:VisualElement class="end-card">
+        <ui:Label name="endTitle" class="end-title" text="VICTORY" />
+        <ui:Label name="endSubtitle" class="end-subtitle" text="" />
+        <ui:VisualElement class="end-columns">
+          <ui:VisualElement class="end-column">
+            <ui:Label class="section-title" text="MATCH REPORT" />
+            <ui:Label name="endStats" class="end-text" text="" />
+          </ui:VisualElement>
+          <ui:VisualElement class="end-column end-column--wide">
+            <ui:Label class="section-title" text="THE AI'S DOSSIER ON YOU" />
+            <sf:BarChartElement name="endStyleChart" class="chart chart--six" />
+            <ui:Label name="endDossier" class="end-text" text="" />
+          </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement class="button-row">
+          <ui:Button name="rematchButton" class="primary-button" text="REMATCH" />
+          <ui:Button name="endMenuButton" class="secondary-button" text="MAIN MENU" />
+        </ui:VisualElement>
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+  </ui:VisualElement>
+</ui:UXML>

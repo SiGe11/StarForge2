@@ -1,0 +1,42 @@
+// InfluenceField.compute — every grid cell accumulates a falloff term from every
+// unit. Channel layout matches InfluenceMap: 0 friendly, 1 enemy, 2 threat, 3
+// information age (filled on the CPU, which owns the visibility grid).
+#pragma kernel CSMain
+
+struct InfluenceUnit
+{
+    float x, z, strength, range;
+    float team, pad0, pad1, pad2;
+};
+
+StructuredBuffer<InfluenceUnit> _Units;
+RWStructuredBuffer<float> _Field;
+int _Count;
+int _N;
+float _Cell;
+
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_N || id.y >= (uint)_N) return;
+    float cx = (id.x + 0.5) * _Cell;
+    float cz = (id.y + 0.5) * _Cell;
+    float friendly = 0.0;
+    float enemy = 0.0;
+    for (int i = 0; i < _Count; i++)
+    {
+        InfluenceUnit u = _Units[i];
+        float dx = cx - u.x;
+        float dz = cz - u.z;
+        float d2 = dx * dx + dz * dz;
+        float reach = u.range * 2.0;
+        if (d2 > reach * reach) continue;
+        float f = u.strength / (1.0 + d2 / (u.range * u.range));
+        if (u.team > 0.0) friendly += f; else enemy += f;
+    }
+    uint idx = (id.y * (uint)_N + id.x) * 4;
+    _Field[idx] = friendly;
+    _Field[idx + 1] = enemy;
+    _Field[idx + 2] = enemy;
+    _Field[idx + 3] = 0.0;
+}

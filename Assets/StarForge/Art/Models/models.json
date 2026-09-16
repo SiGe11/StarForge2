@@ -1,0 +1,323 @@
+{
+  "WORKER": {
+    "radius": 1.369,
+    "height": 1.98,
+    "triangles": 3588,
+    "materials": [
+      "rubber",
+      "dark",
+      "steel",
+      "armor_dark",
+      "armor",
+      "shadowed",
+      "armor_lit",
+      "team",
+      "glow_warm",
+      "glow_dim"
+    ],
+    "groups": {
+      "Drum": [
+        0.0,
+        1.28,
+        -0.46
+      ],
+      "Arm": [
+        0.34,
+        0.86,
+        0.34
+      ],
+      "Arm/Cutter": [
+        0.34,
+        0.44,
+        1.14
+      ]
+    },
+    "chunks": 0
+  },
+  "TROOPER": {
+    "radius": 1.06,
+    "height": 2.003,
+    "triangles": 2604,
+    "materials": [
+      "dark",
+      "armor",
+      "armor_dark",
+      "team",
+      "steel",
+      "shadowed",
+      "armor_lit",
+      "glow_warm",
+      "glow_cyan"
+    ],
+    "groups": {
+      "LegR": [
+        0.27,
+        0.8,
+        0.0
+      ],
+      "LegL": [
+        -0.27,
+        0.8,
+        0.0
+      ],
+      "Gun": [
+        0.3,
+        1.14,
+        0.1
+      ]
+    },
+    "chunks": 0
+  },
+  "MAULER_HULL": {
+    "radius": 2.504,
+    "height": 1.867,
+    "triangles": 3732,
+    "materials": [
+      "rubber",
+      "dark",
+      "steel",
+      "armor_dark",
+      "armor",
+      "shadowed",
+      "armor_lit",
+      "team",
+      "rust",
+      "glow_dim"
+    ],
+    "groups": {},
+    "chunks": 0
+  },
+  "MAULER_TURRET": {
+    "radius": 2.905,
+    "height": 0.775,
+    "triangles": 1620,
+    "materials": [
+      "armor",
+      "armor_lit",
+      "armor_dark",
+      "shadowed",
+      "team",
+      "steel",
+      "dark",
+      "glow_cyan"
+    ],
+    "groups": {
+      "Barrel": [
+        0.0,
+        0.3,
+        0.66
+      ]
+    },
+    "chunks": 0
+  },
+  "FOUNDRY": {
+    "radius": 4.538,
+    "height": 5.05,
+    "triangles": 3788,
+    "materials": [
+      "armor_dark",
+      "dark",
+      "armor",
+      "glow_warm",
+      "team",
+      "steel",
+      "glow_dim",
+      "glow_cyan"
+    ],
+    "groups": {
+      "Head": [
+        0.0,
+        3.16,
+        0.0
+      ]
+    },
+    "chunks": 12
+  },
+  "GARRISON": {
+    "radius": 4.863,
+    "height": 5.17,
+    "triangles": 2552,
+    "materials": [
+      "dark",
+      "armor_dark",
+      "armor",
+      "shadowed",
+      "armor_lit",
+      "team",
+      "glow_amber",
+      "steel",
+      "glow_warm"
+    ],
+    "groups": {},
+    "chunks": 10
+  },
+  "WORKSHOP": {
+    "radius": 5.568,
+    "height": 4.15,
+    "triangles": 2576,
+    "materials": [
+      "dark",
+      "armor_dark",
+      "armor",
+      "glow_amber",
+      "steel",
+      "team",
+      "glow_dim"
+    ],
+    "groups": {
+      "Trolley": [
+        -1.15,
+        3.62,
+        -0.6
+      ]
+    },
+    "chunks": 10
+  },
+  "BUNKHOUSE": {
+    "radius": 2.59,
+    "height": 1.75,
+    "triangles": 1132,
+    "materials": [
+      "dark",
+      "armor",
+      "armor_dark",
+      "shadowed",
+      "steel",
+      "glow_cyan",
+      "team",
+      "glow_warm"
+    ],
+    "groups": {},
+    "chunks": 7
+  },
+  "ORE": {
+    "radius": 1.068,
+    "height": 1.895,
+    "triangles": 450,
+    "materials": [
+      "rock",
+      "crystal",
+      "glow_cyan"
+    ],
+    "groups": {},
+    "chunks": 0
+  },
+  "BOULDER": {
+    "radius": 1.193,
+    "height": 1.23,
+    "triangles": 124,
+    "materials": [
+      "rock"
+    ],
+    "groups": {},
+    "chunks": 0
+  },
+  "SKIMMER": {
+    "radius": 1.518,
+    "height": 1.505,
+    "triangles": 1200,
+    "materials": [
+      "armor",
+      "armor_lit",
+      "dark",
+      "team",
+      "armor_dark",
+      "glow_cyan",
+      "steel",
+      "team_dark",
+      "glow_amber"
+    ],
+    "groups": {},
+    "chunks": 0
+  },
+  "SENTINEL_BASE": {
+    "radius": 1.734,
+    "height": 1.4,
+    "triangles": 1024,
+    "materials": [
+      "dark",
+      "armor",
+      "armor_dark",
+      "glow_amber",
+      "team",
+      "glow_cyan",
+      "steel"
+    ],
+    "groups": {},
+    "chunks": 6
+  },
+  "SENTINEL_HEAD": {
+    "radius": 1.752,
+    "height": 1.04,
+    "triangles": 976,
+    "materials": [
+      "armor",
+      "armor_lit",
+      "armor_dark",
+      "steel",
+      "dark",
+      "glow_amber",
+      "team"
+    ],
+    "groups": {
+      "Barrels": [
+        0.0,
+        0.38,
+        0.45
+      ]
+    },
+    "chunks": 0
+  },
+  "ROCK_SPIRE": {
+    "radius": 3.341,
+    "height": 7.313,
+    "triangles": 442,
+    "materials": [
+      "rock"
+    ],
+    "groups": {},
+    "chunks": 0
+  },
+  "ROCK_SHELF": {
+    "radius": 5.431,
+    "height": 1.573,
+    "triangles": 280,
+    "materials": [
+      "rock"
+    ],
+    "groups": {},
+    "chunks": 0
+  },
+  "WRECK": {
+    "radius": 5.916,
+    "height": 2.873,
+    "triangles": 896,
+    "materials": [
+      "armor_dark",
+      "rust",
+      "armor",
+      "dark",
+      "steel",
+      "glow_amber",
+      "rock"
+    ],
+    "groups": {},
+    "chunks": 0
+  },
+  "RUIN_PYLON": {
+    "radius": 2.983,
+    "height": 5.936,
+    "triangles": 560,
+    "materials": [
+      "rock",
+      "rust",
+      "shadowed",
+      "glow_cyan"
+    ],
+    "groups": {},
+    "chunks": 0
+  },
+  "_mounts": {
+    "SENTINEL_HEAD_Y": 1.4
+  }
+}

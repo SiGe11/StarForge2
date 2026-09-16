@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d8a9552dee0924e0db805e47bf85b004, type: 3}
+  m_Name: UnitCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitCatalog
+  defs:
+  - {fileID: 11400000, guid: cc3bfd30973574a1988174f25afd6942, type: 2}
+  - {fileID: 11400000, guid: 60b524dd07b054f238b4ac7fafddeb14, type: 2}
+  - {fileID: 11400000, guid: 4d7a5e348f7a94d83b55578ad95d8a93, type: 2}
+  - {fileID: 11400000, guid: 1796b5e02cb1f473f9fe9cdd2694c933, type: 2}
+  - {fileID: 11400000, guid: fd25bd29d1c1e47c5a2d66f0e61d5768, type: 2}
+  - {fileID: 11400000, guid: f4db4d5ced7bb4f378a8caf7db1a11d1, type: 2}
+  - {fileID: 11400000, guid: 603948bc6f3a945fd9c2b510a01e7cd4, type: 2}
+  - {fileID: 11400000, guid: dae2355ce562447b08c8ea5eeba419fd, type: 2}
+  - {fileID: 11400000, guid: 9a0d20064f522413ca3939ffcddcdbe8, type: 2}
+  - {fileID: 11400000, guid: ea654b6afd4c244febf498e7cdb6f26a, type: 2}
+  - {fileID: 11400000, guid: 3baef2ded93cd426cacb1d07ca0549e1, type: 2}

@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Foundry
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 4
+  displayName: Foundry
+  blurb: Command hub. Trains Diggers, accepts ore, +10 supply.
+  building: 1
+  neutral: 0
+  radius: 5
+  hp: 1500
+  speed: 0
+  turnRate: 0
+  range: 0
+  damage: 0
+  cooldown: 0
+  splash: 0
+  sight: 32
+  bonusVsWorkers: 1
+  buildTime: 55
+  cost: 400
+  supplyCost: 0
+  supplyGive: 10
+  hotkey: 70
+  producer: -1
+  requires: -1
+  prefabs:
+  - {fileID: 1430494285360870319, guid: ce1269fa20b9a418c87e749a48b2d4d4, type: 3}
+  - {fileID: 908226060174519847, guid: 6cf553bd76a404f3fa3954bbf1dc412e, type: 3}
+  icon: {fileID: 2800000, guid: a5579a9ebfd884b78bb993ab8d51f0b5, type: 3}
+  visualRadius: 4.538
+  visualHeight: 5.05

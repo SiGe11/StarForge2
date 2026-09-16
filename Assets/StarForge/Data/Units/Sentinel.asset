@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Sentinel
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 8
+  displayName: Sentinel
+  blurb: Defensive gun turret. Requires a Garrison.
+  building: 1
+  neutral: 0
+  radius: 1.7
+  hp: 500
+  speed: 0
+  turnRate: 3.5
+  range: 20
+  damage: 13
+  cooldown: 0.85
+  splash: 0
+  sight: 28
+  bonusVsWorkers: 1
+  buildTime: 25
+  cost: 125
+  supplyCost: 0
+  supplyGive: 0
+  hotkey: 78
+  producer: -1
+  requires: 5
+  prefabs:
+  - {fileID: 1684683299863730078, guid: 22c9aa8dcb9204cc892a58b97202862d, type: 3}
+  - {fileID: 41796641083394143, guid: d69edec44cf9b48da8b134ec794228ff, type: 3}
+  icon: {fileID: 2800000, guid: ee21594c1eaa448e3a3bad205610236c, type: 3}
+  visualRadius: 1.734
+  visualHeight: 2.44
