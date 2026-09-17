@@ -120,11 +120,14 @@ def track_unit(m, x, wheel_r, wheel_n, half_len, y_axle, width, tread=True):
         # these are 1-segment chamfers, not rounded blocks. The top run matters
         # as much as the bottom because the game's camera looks down at the
         # vehicle -- the bottom run is the one the player never sees.
+        #
+        # The top run's shoes stand proud of the band: sunk flush, their tops
+        # were coplanar with the band's and z-fought on every tracked vehicle.
         n = max(4, int(half_len * 2.6))
         run = half_len - wheel_r
         for i in range(n):
             t = (i + 0.5) / n * 2.0 - 1.0
-            for y_run in (0.04, y_axle * 2.0 - 0.04):
+            for y_run in (0.04, y_axle + outer_r + 0.01):
                 blk = box((x, y_run, t * run * 0.98),
                           (width * 0.53, 0.04, run / n * 0.40),
                           'dark', bevel_w=0.012, bevel_seg=1)
@@ -205,16 +208,47 @@ def build_worker():
     drum = cyl((-0.50, 1.28, -0.46), 0.42, 0.42, 1.00, 12, 'armor_dark',
                axis='x', bevel_w=0.05)
     m.add(drum)
+    # Rims straddle the drum's ends. Starting at the end instead buried the left
+    # rim inside the drum with its face flush against the drum's cap.
     for k in (-1, 1):
-        m.add(cyl((k * 0.50, 1.28, -0.46), 0.45, 0.45, 0.07, 12, 'steel',
+        m.add(cyl((k * 0.50 - 0.035, 1.28, -0.46), 0.45, 0.45, 0.07, 12, 'steel',
                   axis='x', bevel_w=0.025))
+    # Glass bands round the drum: dark when empty, lit by the ore inside when
+    # hauling (UnitView drives the glow with the load).
+    for x0 in (-0.30, 0.18):
+        m.add(cyl((x0, 1.28, -0.46), 0.435, 0.435, 0.11, 12, 'ore_glow',
+                  axis='x', caps=False, bevel_w=0.0))
     m.group('')
-    # Hopper mouth on top of the drum, open and dark.
-    mouth = box((0, 1.64, -0.46), (0.36, 0.10, 0.30), 'armor_dark', bevel_w=0.03)
+    # Hopper mouth on top of the drum. Its floor is the same glass, so from the
+    # RTS camera a loaded Digger shows a glowing hopper with ore heaped in it.
+    # The floor sits just above the drum's crown: lower, the drum turning inside
+    # the hopper hid it.
+    mouth = box((0, 1.78, -0.46), (0.36, 0.10, 0.30), 'armor_dark', bevel_w=0.03)
     mf = face_plate(mouth, 'y', 1)
     if mf:
-        inset(mouth, mf, 0.055, -0.20, 'shadowed')
+        inset(mouth, mf, 0.055, -0.16, 'ore_glow')
     m.add(mouth)
+    # The load: a heap of ore crystals on the hopper floor, scaled from nothing
+    # to heaped as the Digger fills (UnitView).
+    m.group('Load', (0.0, 1.72, -0.46))
+    for (sx, sz, h, r, lz, lx) in ((0.00, -0.46, 0.30, 0.080, 0.10, -0.06),
+                                   (-0.16, -0.36, 0.22, 0.065, 0.30, 0.20),
+                                   (0.15, -0.56, 0.24, 0.070, -0.28, -0.22),
+                                   (-0.12, -0.58, 0.17, 0.055, 0.34, -0.30),
+                                   (0.17, -0.34, 0.16, 0.050, -0.36, 0.26),
+                                   (0.02, -0.30, 0.13, 0.045, 0.05, 0.40),
+                                   (-0.22, -0.50, 0.12, 0.045, 0.45, 0.0)):
+        body = cyl((sx, 1.72, sz), r, r * 0.7, h * 0.7, 6, 'crystal', bevel_w=0.0)
+        tip = cyl((sx, 1.72 + h * 0.7, sz), r * 0.7, r * 0.1, h * 0.3, 6, 'crystal',
+                  bevel_w=0.0)
+        shard = (sx * 7.1 + sz * 3.3) % 1.0
+        for part in (body, tip):
+            S.set_vdata(part, g=shard, b=lambda co, h=h: max(0.0, min(1.0, (co.y - 1.72) / h)))
+            mark_flat(part)
+            rot(part, lz, 'Z', (sx, 1.72, sz))
+            rot(part, lx, 'X', (sx, 1.72, sz))
+            m.add(part)
+    m.group('')
     # Discharge chute angled off the back.
     chute = frustum((0, 1.06, -0.86), (0.22, 0.24, 0.12), top=(0.6, 1.0),
                     shift=(0.0, -0.10), mat='steel', bevel_w=0.03)
@@ -821,44 +855,72 @@ def build_bunkhouse():
 
 
 def build_ore():
-    """Ore seam: a crystal spire, not a bush of cones.
+    """Ore seam: a cluster of glowing crystal spires in a rock socket.
 
-    These sit on the map for the whole match next to everything else, so
-    leaving them on the old palette made them the palest objects on screen
-    once the units were rebuilt. Shape matters too: one dominant shard with
-    smaller ones leaning off it reads far better at distance than six cones
-    of similar height fanned out evenly.
+    These sit on the map for the whole match and are what a player scans the
+    ground for, so they have to read at a glance: one dominant shard with a
+    supporting cast leaning outward from it, and loose shards spilled on the
+    ground around the socket. The crystals are one group ('Crystals') so the
+    game can shrink the cluster as the seam is mined out; the glow itself is
+    shaded in SF_Unit (the crystal material), not modelled.
     """
     m = Model(MESH_ORE, 'ORE')
 
     # Rock socket the crystals grow out of. Kept low and wide: a tall base
     # swallows the shards, and the shards are the thing a player looks for.
-    m.add(blob((0, 0.02, 0), 0.76, 8, 5, 3, 0.66, 'rock'))
-    m.add(blob((0.48, -0.02, -0.32), 0.36, 6, 4, 11, 0.8, 'rock'))
+    m.add(blob((0, 0.02, 0), 0.78, 8, 5, 3, 0.66, 'rock'))
+    m.add(blob((0.52, -0.02, -0.34), 0.38, 6, 4, 11, 0.8, 'rock'))
+    m.add(blob((-0.58, -0.04, 0.22), 0.30, 6, 4, 17, 0.8, 'rock'))
+    m.add(blob((0.18, -0.05, 0.66), 0.22, 6, 4, 29, 0.8, 'rock'))
 
-    # One tall shard, then a supporting cast at decreasing height. Each is a
-    # tapered prism rather than a cone, so the facets catch light separately.
-    shards = [(0.00, 0.02, 1.86, 0.40, 0.05, 0.08),
-              (-0.44, -0.20, 1.30, 0.32, 0.22, -0.14),
-              (0.40, 0.30, 1.14, 0.29, -0.20, 0.13),
-              (0.14, -0.48, 0.86, 0.25, -0.12, -0.26),
-              (-0.30, 0.42, 0.72, 0.22, 0.24, 0.14),
-              (0.54, -0.12, 0.58, 0.19, -0.28, 0.06)]
-    for (sx, sz, h, r, lz, lx) in shards:
-        # Six-sided and only lightly tapered: a thin spike reads as an
-        # antenna, a chunky prism reads as a crystal. The taper is carried by
-        # a second, shorter section so the tip still comes to a point.
-        body = cyl((sx, 0.04, sz), r, r * 0.74, h * 0.66, 6, 'crystal',
-                   bevel_w=0.0)
-        tip = cyl((sx, 0.04 + h * 0.66, sz), r * 0.74, r * 0.10, h * 0.34, 6,
+    m.group('Crystals', (0.0, 0.0, 0.0))
+    # (x, z, height, radius, lean). Each leans away from the cluster's centre,
+    # so the group fans out like a real crystal druse instead of standing in a
+    # row. Six-sided and only lightly tapered: a thin spike reads as an
+    # antenna, a chunky prism reads as a crystal. The terminations are long and
+    # sharp so each shard ends in a bright point, and a ring of small shards
+    # sprouts round the foot of the big ones.
+    shards = [(0.02, 0.00, 2.25, 0.38, 0.05),
+              (-0.40, -0.22, 1.60, 0.30, 0.26),
+              (0.40, 0.28, 1.38, 0.28, 0.24),
+              (0.16, -0.46, 1.08, 0.24, 0.34),
+              (-0.30, 0.40, 0.92, 0.22, 0.36),
+              (0.52, -0.14, 0.76, 0.18, 0.46),
+              (-0.56, 0.06, 0.66, 0.17, 0.52),
+              (-0.08, 0.56, 0.56, 0.15, 0.50),
+              (0.34, 0.58, 0.44, 0.12, 0.62),
+              (-0.20, -0.58, 0.48, 0.12, 0.58),
+              (0.62, 0.22, 0.40, 0.11, 0.70),
+              (-0.64, -0.30, 0.36, 0.10, 0.72),
+              (0.24, 0.16, 0.62, 0.12, 0.40),
+              (-0.18, 0.12, 0.70, 0.13, 0.30)]
+    for k, (sx, sz, h, r, lean) in enumerate(shards):
+        d = math.hypot(sx, sz)
+        dx, dz = (sx / d, sz / d) if d > 1e-3 else (0.6, 0.8)
+        spin = (k * 0.37) % (math.pi / 3)
+        body = cyl((sx, 0.04, sz), r, r * 0.80, h * 0.62, 6, 'crystal', bevel_w=0.0)
+        tip = cyl((sx, 0.04 + h * 0.62, sz), r * 0.80, r * 0.04, h * 0.38, 6,
                   'crystal', bevel_w=0.0)
-        core = cyl((sx, 0.04 + h * 0.18, sz), r * 0.42, r * 0.30, h * 0.42, 6,
-                   'glow_cyan', bevel_w=0.0)
-        for part in (body, tip, core):
+        shard = (k * 0.618034 + 0.13) % 1.0
+        for part in (body, tip):
+            S.set_vdata(part, g=shard, b=lambda co, h=h: max(0.0, min(1.0, (co.y - 0.04) / h)))
             mark_flat(part)
-            rot(part, lz, 'Z', (sx, 0.04, sz))
-            rot(part, lx, 'X', (sx, 0.04, sz))
+            rot(part, spin, 'Y', (sx, 0.04, sz))
+            rot(part, -lean * dx, 'Z', (sx, 0.04, sz))
+            rot(part, lean * dz, 'X', (sx, 0.04, sz))
             m.add(part)
+    # Loose shards spilled round the socket, lying almost flat.
+    for k, (sx, sz, h, r, a) in enumerate(((0.92, 0.30, 0.34, 0.08, 0.6), (-0.84, -0.46, 0.30, 0.07, 2.4),
+                                           (-0.20, -0.94, 0.26, 0.07, 4.1), (0.62, -0.78, 0.22, 0.06, 5.3),
+                                           (-0.95, 0.35, 0.24, 0.06, 1.2), (0.30, 0.98, 0.20, 0.05, 3.3),
+                                           (1.02, -0.30, 0.18, 0.05, 5.9))):
+        s = cyl((sx, 0.02, sz), r, r * 0.12, h, 6, 'crystal', bevel_w=0.0)
+        S.set_vdata(s, g=(k * 0.414 + 0.71) % 1.0, b=lambda co, h=h: max(0.0, min(1.0, (co.y - 0.02) / h)))
+        mark_flat(s)
+        rot(s, 1.15, 'X', (sx, 0.02, sz))
+        rot(s, a, 'Y', (sx, 0.02, sz))
+        m.add(s)
+    m.group('')
     return m
 
 

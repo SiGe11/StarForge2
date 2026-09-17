@@ -6,6 +6,7 @@
 // AI reads enemy state only through Visible(), exactly as the HUD does.
 using System;
 using System.Collections.Generic;
+using Unity.AI.Navigation;
 using UnityEngine;
 using UnityEngine.AI;
 using StarForge.Sim;
@@ -22,7 +23,7 @@ namespace StarForge.World
         public int oreMined, unitsProduced, structuresBuilt;
     }
 
-    public enum GameEventKind { Fire, Impact, Death, Promoted, UnitReady, StructureComplete, StructurePlaced, UnderAttack, Refused }
+    public enum GameEventKind { Fire, Impact, Death, Promoted, UnitReady, StructureComplete, StructurePlaced, UnderAttack, Refused, Notice, PlantFelled, PlantLanded, PlantIgnited }
 
     public struct GameEvent
     {
@@ -35,6 +36,8 @@ namespace StarForge.World
         public float scale;
         public int projectileKind;
         public string text;
+        /// <summary>The plant, for the Plant* events (index into Vegetation.plants).</summary>
+        public int index;
     }
 
     public sealed class Projectile
@@ -63,6 +66,7 @@ namespace StarForge.World
         public float VisCell => map.mapSize / VIS;
 
         public readonly List<Unit> units = new List<Unit>(1024);
+        public readonly List<Boulder> boulders = new List<Boulder>(64);
         public readonly Faction[] factions = { new Faction { team = 0 }, new Faction { team = 1 } };
         public readonly List<Projectile> projectiles = new List<Projectile>(256);
         readonly Stack<Projectile> projectilePool = new Stack<Projectile>();
@@ -74,6 +78,8 @@ namespace StarForge.World
         public int winner = -1;
         public bool running;
         public string lastRefusal;
+        /// <summary>The player used the testing cheat this match (README, "Testing").</summary>
+        public bool cheated;
 
         /// <summary>Every gameplay event, for effects, audio and the HUD.</summary>
         public event Action<GameEvent> Event;
@@ -88,6 +94,26 @@ namespace StarForge.World
         Rng rng = new Rng(1);
         public Rng Rng => rng;
 
+        /// <summary>NavMesh areas every agent may use; Rubble (ground under a boulder)
+        /// is left out, and only Maulers add it back.</summary>
+        public static int GroundAreas
+        {
+            get
+            {
+                int rubble = NavMesh.GetAreaFromName("Rubble");
+                return rubble < 0 ? NavMesh.AllAreas : NavMesh.AllAreas & ~(1 << rubble);
+            }
+        }
+
+        NavMeshSurface navSurface;
+        float navRebuildIn = -1f;
+        AsyncOperation navRebuild;
+
+        /// <summary>The map's trees and bushes (may be empty on an old map).</summary>
+        public Vegetation Plants { get; private set; }
+        /// <summary>Craters: the match's own copy of the terrain heights.</summary>
+        public GroundDeformer GroundShape { get; private set; }
+
         readonly int[] gridHead = new int[GRID * GRID];
         int[] gridNext = new int[1024];
         float gridCell = 8f;
@@ -97,6 +123,78 @@ namespace StarForge.World
             Instance = this;
             if (map == null) map = FindAnyObjectByType<MapInfo>();
             for (int t = 0; t < 2; t++) Array.Fill(lastSeen[t], -1f);
+
+            // Crushed boulders rebuild NavMesh tiles at runtime. Work on a copy of
+            // the baked data, before any agent is placed on it: rebuilding the
+            // asset itself would carry a match's craters back into the project.
+            navSurface = map != null ? map.GetComponent<NavMeshSurface>() : null;
+            if (navSurface != null && navSurface.navMeshData != null)
+            {
+                var copy = Instantiate(navSurface.navMeshData);
+                navSurface.RemoveData();
+                navSurface.navMeshData = copy;
+                navSurface.AddData();
+            }
+
+            if (map != null && map.terrain != null)
+            {
+                GroundShape = map.gameObject.AddComponent<GroundDeformer>();
+                GroundShape.Init(map);
+                GroundShape.Deformed += OnGroundDeformed;
+            }
+            Plants = map != null ? map.GetComponentInChildren<Vegetation>() : null;
+        }
+
+        /// <summary>A plant or rock no longer blocks its ground: rebuild the NavMesh tiles
+        /// there shortly (batched with anything else that changes meanwhile).</summary>
+        public void RequestNavRebuild()
+        {
+            // Start a countdown only if none is running, so a Mauler ploughing through
+            // a grove does not keep putting the rebuild off.
+            if (navRebuildIn < 0f) navRebuildIn = 0.35f;
+        }
+
+        void OnGroundDeformed(Vector2 c, float radius)
+        {
+            foreach (var b in boulders)
+                if (b != null && !b.smashed && (b.Pos - c).magnitude < radius + 0.5f)
+                    b.transform.position += Vector3.up * GroundShape.LastChange(b.Pos);
+            if (Plants != null) Plants.Resettle(GroundShape, c, radius);
+        }
+
+        /// <summary>What an explosion does to the battlefield itself: rocks close in
+        /// break, trees are thrown over and may catch fire, and the ground takes a
+        /// crater (not under structures or ore, which stand on flattened pads).</summary>
+        public void Blast(Vector3 at, float radius, float craterRadius, float craterDepth, float ignite)
+        {
+            Vector2 c = new Vector2(at.x, at.z);
+            for (int i = boulders.Count - 1; i >= 0; i--)
+            {
+                var b = boulders[i];
+                if (b == null || b.smashed) { boulders.RemoveAt(i); continue; }
+                Vector2 d = b.Pos - c;
+                if (d.magnitude > radius * 0.55f + b.Radius * 0.6f) continue;
+                b.Smash();
+                boulders.RemoveAt(i);
+                RequestNavRebuild();
+                Raise(new GameEvent
+                {
+                    kind = GameEventKind.Death, type = UnitType.Boulder, team = 2,
+                    pos = new Vector3(b.Pos.x, map.HeightAt(b.Pos) + 0.5f, b.Pos.y),
+                    dir = d.sqrMagnitude > 1e-4f ? new Vector3(d.x, 0f, d.y).normalized : Vector3.forward, scale = b.Radius
+                });
+            }
+            if (Plants != null) Plants.Blast(this, at, radius, ignite);
+
+            if (craterRadius > 0f && GroundShape != null && at.y - map.HeightAt(c) < 1.5f)
+            {
+                foreach (var u in units)
+                {
+                    if (u == null || u.dying || !(u.def.building || u.Type == UnitType.Ore)) continue;
+                    if ((u.pos - c).magnitude < craterRadius + u.def.radius + 1f) return;
+                }
+                GroundShape.Crater(at, craterRadius, craterDepth);
+            }
         }
 
         public void BeginMatch(uint seed)
@@ -112,6 +210,9 @@ namespace StarForge.World
                     u.Init(this, u.def, u.team, nextId++, true, u.transform.eulerAngles.y * Mathf.Deg2Rad);
                     units.Add(u);
                 }
+            boulders.Clear();
+            foreach (var b in FindObjectsByType<Boulder>())
+                if (!b.smashed) boulders.Add(b);
             RebuildGrid();
             UpdateVisibility();
         }
@@ -178,6 +279,10 @@ namespace StarForge.World
             }
             u.BeginDeath();
             float scale = d.building ? 2.6f : (d.type == UnitType.Mauler ? 1.5f : 1f);
+            // A wrecked structure or vehicle blasts what stands round it; infantry do not.
+            if (d.building) Blast(u.Ground, d.radius * 1.4f, 0f, 0f, 0.7f);
+            else if (d.type == UnitType.Mauler) Blast(u.Ground, 3.2f, 2.8f, 0.4f, 0.35f);
+            else if (d.type == UnitType.Skimmer || d.type == UnitType.Worker) Blast(u.Ground, 2.2f, 2.0f, 0.25f, 0.2f);
             Raise(new GameEvent
             {
                 kind = GameEventKind.Death, unit = u, type = d.type, team = u.team,
@@ -190,6 +295,15 @@ namespace StarForge.World
             if (node == null || node.dying) return;
             node.BeginDeath();
             Raise(new GameEvent { kind = GameEventKind.Death, unit = node, type = node.Type, team = 2, pos = node.Ground + Vector3.up, scale = 0.7f });
+        }
+
+        /// <summary>The testing cheat: ore from nowhere. A match it was used in does
+        /// not teach the AI's memory about the player.</summary>
+        public void CheatOre(int team, int amount)
+        {
+            factions[team].ore += amount;
+            cheated = true;
+            Raise(new GameEvent { kind = GameEventKind.Notice, team = team, text = $"+{amount} ore" });
         }
 
         public void Deposit(int team, int amount)
@@ -246,6 +360,8 @@ namespace StarForge.World
             }
 
             UpdateProjectiles(dt);
+            CrushBoulders(dt);
+            if (Plants != null) Plants.Tick(this, dt);
 
             visTimer -= dt;
             if (visTimer <= 0f) { UpdateVisibility(); visTimer = 0.12f; }
@@ -279,6 +395,43 @@ namespace StarForge.World
             }
 
             Ticked?.Invoke(dt);
+        }
+
+        // ------------------------------------------------------------ boulders
+        /// <summary>Maulers drive through rocks and break them. Crushed rocks free
+        /// their ground, so the NavMesh tiles under them are rebuilt shortly after
+        /// (batched, and in the background).</summary>
+        void CrushBoulders(float dt)
+        {
+            if (boulders.Count > 0)
+                foreach (var u in units)
+                {
+                    if (u == null || u.dying || u.Type != UnitType.Mauler || u.agent == null || !u.agent.enabled) continue;
+                    if (u.agent.velocity.sqrMagnitude < 0.25f) continue;
+                    for (int i = boulders.Count - 1; i >= 0; i--)
+                    {
+                        var b = boulders[i];
+                        if (b == null || b.smashed) { boulders.RemoveAt(i); continue; }
+                        float reach = u.def.radius * 0.8f + b.Radius * 0.75f;
+                        if ((b.Pos - u.pos).sqrMagnitude > reach * reach) continue;
+                        Vector3 at = new Vector3(b.Pos.x, map.HeightAt(b.Pos), b.Pos.y);
+                        b.Smash();
+                        boulders.RemoveAt(i);
+                        RequestNavRebuild();
+                        Raise(new GameEvent
+                        {
+                            kind = GameEventKind.Death, type = UnitType.Boulder, team = 2, pos = at + Vector3.up * 0.5f,
+                            dir = new Vector3(Mathf.Sin(u.yaw), 0f, Mathf.Cos(u.yaw)), scale = b.Radius
+                        });
+                    }
+                }
+
+            if (navRebuildIn >= 0f && (navRebuild == null || navRebuild.isDone))
+            {
+                navRebuildIn -= dt;
+                if (navRebuildIn < 0f && navSurface != null && navSurface.navMeshData != null)
+                    navRebuild = navSurface.UpdateNavMesh(navSurface.navMeshData);
+            }
         }
 
         // ------------------------------------------------------------ spatial hash
@@ -401,7 +554,7 @@ namespace StarForge.World
 
         public Vector2 NearestWalkable(Vector2 p, float maxDistance = 48f)
         {
-            if (NavMesh.SamplePosition(map.Ground(p), out var hit, maxDistance, NavMesh.AllAreas))
+            if (NavMesh.SamplePosition(map.Ground(p), out var hit, maxDistance, GroundAreas))
                 return new Vector2(hit.position.x, hit.position.z);
             return p;
         }
@@ -409,7 +562,7 @@ namespace StarForge.World
         public bool Walkable(Vector2 p, float tolerance = 0.5f)
         {
             if (!map.InBounds(p, 1f)) return false;
-            if (!NavMesh.SamplePosition(map.Ground(p), out var hit, 1.5f, NavMesh.AllAreas)) return false;
+            if (!NavMesh.SamplePosition(map.Ground(p), out var hit, 1.5f, GroundAreas)) return false;
             return new Vector2(hit.position.x - p.x, hit.position.z - p.y).sqrMagnitude <= tolerance * tolerance;
         }
 
@@ -436,6 +589,8 @@ namespace StarForge.World
                     var p = where + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * rr;
                     if (!Walkable(p, 0.6f)) return false;
                     float h = map.HeightAt(p);
+                    // Units wade into the shallows; foundations need dry ground.
+                    if (h < map.waterLevel + 0.25f) return false;
                     hMin = Mathf.Min(hMin, h); hMax = Mathf.Max(hMax, h);
                 }
             }
@@ -601,6 +756,13 @@ namespace StarForge.World
                 }
                 float gy = map.InBounds(new Vector2(np.x, np.z)) ? map.HeightAt(new Vector2(np.x, np.z)) : 0f;
                 if (!hit && np.y <= gy) { hit = true; hitAt = new Vector3(np.x, gy, np.z); }
+                // A shell's flight time is solved to land it on its aim point, which
+                // sits a little above the target's base, so it bursts there when the
+                // time is up. Retired instead, it never reached the ground at 60 fps:
+                // every Mauler shot vanished without exploding or doing damage (only
+                // the long frames of an accelerated clock carried shells into the
+                // ground).
+                if (!hit && p.kind == 1 && p.life <= 0f) { hit = true; hitAt = new Vector3(np.x, Mathf.Max(np.y, gy), np.z); }
 
                 if (!hit)
                 {
@@ -622,6 +784,7 @@ namespace StarForge.World
                         float falloff = 1f - Saturate((d - e.def.radius) / p.splash) * 0.6f;
                         Damage(e, p.dmg * falloff, c, p.shooter);
                     }
+                    Blast(hitAt, p.splash * 0.7f, p.splash * 0.55f, 0.35f, 0.3f);
                 }
                 else if (targetOk)
                 {

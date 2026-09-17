@@ -8,6 +8,11 @@ ShaderVariantCollection:
   m_PrefabAsset: {fileID: 0}
   m_Name: SF_ShaderVariants
   m_Shaders:
+  - first: {fileID: 0}
+    second:
+      variants:
+      - keywords: SHADOWS_DEPTH
+        passType: 8
   - first: {fileID: 66, guid: 0000000000000000f000000000000000, type: 0}
     second:
       variants:
@@ -184,100 +189,24 @@ ShaderVariantCollection:
         passType: 13
       - keywords: INSTANCING_ON _MAIN_LIGHT_SHADOWS_CASCADE
         passType: 13
-  - first: {fileID: 0}
+  - first: {fileID: 4800000, guid: 6132e2af008f6426ab9644efa9fc0ccc, type: 3}
     second:
       variants:
-      - keywords: SHADOWS_DEPTH
-        passType: 8
-  - first: {fileID: 0}
+      - keywords: INSTANCING_ON
+        passType: 13
+  - first: {fileID: 4800000, guid: 90f2abbbd1ced40688d4734d50bb84d0, type: 3}
     second:
       variants:
-      - keywords: SHADOWS_DEPTH
+      - keywords: INSTANCING_ON
         passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: SHADOWS_DEPTH
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: 
-        passType: 8
-  - first: {fileID: 0}
+      - keywords: INSTANCING_ON
+        passType: 13
+      - keywords: INSTANCING_ON _CLUSTER_LIGHT_LOOP _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SHADOWS_SOFT
+        passType: 13
+      - keywords: INSTANCING_ON _CLUSTER_LIGHT_LOOP _MAIN_LIGHT_SHADOWS_CASCADE
+        passType: 13
+  - first: {fileID: 4800000, guid: 7e17a5f96cc5d432a81277338ecb18a2, type: 3}
     second:
       variants:
       - keywords: 
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: 
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: PROCEDURAL_INSTANCING_ON
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: 
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: 
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: SHADOWS_DEPTH
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: PROCEDURAL_INSTANCING_ON
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: 
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: BACKFACE_NORMAL_MODE_FLIP
-        passType: 8
-      - keywords: _WINDQUALITY_NONE
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: 
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: 
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: 
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: 
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: 
-        passType: 8
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: 
-        passType: 8
+        passType: 13

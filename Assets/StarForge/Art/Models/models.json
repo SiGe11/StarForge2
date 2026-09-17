@@ -1,8 +1,8 @@
 {
   "WORKER": {
     "radius": 1.369,
-    "height": 1.98,
-    "triangles": 3588,
+    "height": 2.019,
+    "triangles": 3916,
     "materials": [
       "rubber",
       "dark",
@@ -11,6 +11,8 @@
       "armor",
       "shadowed",
       "armor_lit",
+      "ore_glow",
+      "crystal",
       "team",
       "glow_warm",
       "glow_dim"
@@ -19,6 +21,11 @@
       "Drum": [
         0.0,
         1.28,
+        -0.46
+      ],
+      "Load": [
+        0.0,
+        1.72,
         -0.46
       ],
       "Arm": [
@@ -32,7 +39,8 @@
         1.14
       ]
     },
-    "chunks": 0
+    "chunks": 0,
+    "lod1_triangles": 0
   },
   "TROOPER": {
     "radius": 1.06,
@@ -66,7 +74,8 @@
         0.1
       ]
     },
-    "chunks": 0
+    "chunks": 0,
+    "lod1_triangles": 0
   },
   "MAULER_HULL": {
     "radius": 2.504,
@@ -85,7 +94,8 @@
       "glow_dim"
     ],
     "groups": {},
-    "chunks": 0
+    "chunks": 0,
+    "lod1_triangles": 0
   },
   "MAULER_TURRET": {
     "radius": 2.905,
@@ -108,7 +118,8 @@
         0.66
       ]
     },
-    "chunks": 0
+    "chunks": 0,
+    "lod1_triangles": 0
   },
   "FOUNDRY": {
     "radius": 4.538,
@@ -131,7 +142,8 @@
         0.0
       ]
     },
-    "chunks": 12
+    "chunks": 12,
+    "lod1_triangles": 0
   },
   "GARRISON": {
     "radius": 4.863,
@@ -149,7 +161,8 @@
       "glow_warm"
     ],
     "groups": {},
-    "chunks": 10
+    "chunks": 10,
+    "lod1_triangles": 0
   },
   "WORKSHOP": {
     "radius": 5.568,
@@ -171,7 +184,8 @@
         -0.6
       ]
     },
-    "chunks": 10
+    "chunks": 10,
+    "lod1_triangles": 0
   },
   "BUNKHOUSE": {
     "radius": 2.59,
@@ -188,19 +202,26 @@
       "glow_warm"
     ],
     "groups": {},
-    "chunks": 7
+    "chunks": 7,
+    "lod1_triangles": 0
   },
   "ORE": {
-    "radius": 1.068,
-    "height": 1.895,
-    "triangles": 450,
+    "radius": 1.234,
+    "height": 2.288,
+    "triangles": 852,
     "materials": [
       "rock",
-      "crystal",
-      "glow_cyan"
+      "crystal"
     ],
-    "groups": {},
-    "chunks": 0
+    "groups": {
+      "Crystals": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
   },
   "BOULDER": {
     "radius": 1.193,
@@ -210,7 +231,8 @@
       "rock"
     ],
     "groups": {},
-    "chunks": 0
+    "chunks": 0,
+    "lod1_triangles": 0
   },
   "SKIMMER": {
     "radius": 1.518,
@@ -228,7 +250,8 @@
       "glow_amber"
     ],
     "groups": {},
-    "chunks": 0
+    "chunks": 0,
+    "lod1_triangles": 0
   },
   "SENTINEL_BASE": {
     "radius": 1.734,
@@ -244,7 +267,8 @@
       "steel"
     ],
     "groups": {},
-    "chunks": 6
+    "chunks": 6,
+    "lod1_triangles": 0
   },
   "SENTINEL_HEAD": {
     "radius": 1.752,
@@ -266,7 +290,8 @@
         0.45
       ]
     },
-    "chunks": 0
+    "chunks": 0,
+    "lod1_triangles": 0
   },
   "ROCK_SPIRE": {
     "radius": 3.341,
@@ -276,7 +301,8 @@
       "rock"
     ],
     "groups": {},
-    "chunks": 0
+    "chunks": 0,
+    "lod1_triangles": 0
   },
   "ROCK_SHELF": {
     "radius": 5.431,
@@ -286,7 +312,8 @@
       "rock"
     ],
     "groups": {},
-    "chunks": 0
+    "chunks": 0,
+    "lod1_triangles": 0
   },
   "WRECK": {
     "radius": 5.916,
@@ -302,7 +329,8 @@
       "rock"
     ],
     "groups": {},
-    "chunks": 0
+    "chunks": 0,
+    "lod1_triangles": 0
   },
   "RUIN_PYLON": {
     "radius": 2.983,
@@ -315,7 +343,114 @@
       "glow_cyan"
     ],
     "groups": {},
-    "chunks": 0
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "TREE_PINE": {
+    "radius": 3.006,
+    "height": 9.264,
+    "triangles": 2624,
+    "materials": [
+      "bark",
+      "needle"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 1272,
+    "foliage": {
+      "center": [
+        0.0,
+        4.63,
+        0.0
+      ],
+      "radii": [
+        2.826,
+        4.634,
+        2.826
+      ]
+    }
+  },
+  "TREE_BROAD": {
+    "radius": 4.624,
+    "height": 7.08,
+    "triangles": 3564,
+    "materials": [
+      "bark",
+      "leaf"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 1068,
+    "foliage": {
+      "center": [
+        0.0,
+        5.484,
+        0.0
+      ],
+      "radii": [
+        4.427,
+        1.596,
+        4.427
+      ]
+    }
+  },
+  "TREE_TALL": {
+    "radius": 1.889,
+    "height": 10.072,
+    "triangles": 2130,
+    "materials": [
+      "bark",
+      "leaf"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 638,
+    "foliage": {
+      "center": [
+        0.0,
+        6.302,
+        0.0
+      ],
+      "radii": [
+        1.705,
+        3.77,
+        1.705
+      ]
+    }
+  },
+  "TREE_DEAD": {
+    "radius": 1.85,
+    "height": 6.388,
+    "triangles": 226,
+    "materials": [
+      "bark"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 135
+  },
+  "BUSH": {
+    "radius": 1.335,
+    "height": 1.243,
+    "triangles": 480,
+    "materials": [
+      "leaf"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 168,
+    "foliage": {
+      "center": [
+        0.0,
+        0.73,
+        0.0
+      ],
+      "radii": [
+        1.259,
+        0.513,
+        1.259
+      ]
+    }
   },
   "_mounts": {
     "SENTINEL_HEAD_Y": 1.4

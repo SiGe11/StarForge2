@@ -9,8 +9,9 @@
 // lichen rather than a soft cross-fade. Baked relief AO and a macro mottling
 // texture break up the tiling at RTS distance.
 //
-// _SF_AUTOSPLAT derives the weights from slope and noise instead of a
-// splatmap; the backdrop mountains outside the playfield use it.
+// _SF_AUTOSPLAT takes the weights, relief occlusion and mottling from the mesh
+// (vertex colour and uv2) instead of a splatmap and textures; the backdrop
+// beyond the rim uses it, computed by the map builder with the terrain's rules.
 Shader "StarForge/Terrain"
 {
     Properties
@@ -96,6 +97,12 @@ Shader "StarForge/Terrain"
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
                 float2 uv         : TEXCOORD0;
+            #if defined(_SF_AUTOSPLAT)
+                // Full precision to match the mesh's float vertex colours; declared
+                // half, Metal rejects the attribute type.
+                float4 color      : COLOR;       // splat weights
+                float2 uv2        : TEXCOORD1;   // x relief AO, y mottling
+            #endif
             };
 
             struct Varyings
@@ -105,6 +112,10 @@ Shader "StarForge/Terrain"
                 float3 positionWS : TEXCOORD1;
                 half3  normalWS   : TEXCOORD2;
                 half4  fogLight   : TEXCOORD3;   // x fog, yzw vertex lighting
+            #if defined(_SF_AUTOSPLAT)
+                half4  splat      : TEXCOORD4;
+                half2  aoVar      : TEXCOORD5;
+            #endif
             };
 
             Varyings Vert(Attributes v)
@@ -117,6 +128,10 @@ Shader "StarForge/Terrain"
                 o.uv = v.uv;
                 o.fogLight.x = ComputeFogFactor(p.positionCS.z);
                 o.fogLight.yzw = VertexLighting(p.positionWS, o.normalWS);
+            #if defined(_SF_AUTOSPLAT)
+                o.splat = v.color;
+                o.aoVar = v.uv2;
+            #endif
                 return o;
             }
 
@@ -129,10 +144,7 @@ Shader "StarForge/Terrain"
 
                 half4 w;
             #if defined(_SF_AUTOSPLAT)
-                half m0 = SAMPLE_TEXTURE2D(_MacroTex, sampler_MacroTex, wp.xz * 0.004).r;
-                half cliffW = smoothstep(0.86, 0.55, n.y);
-                half lichen = smoothstep(0.42, 0.62, m0) * (1.0 - cliffW);
-                w = half4(lichen, (1.0 - lichen) * (1.0 - cliffW), cliffW, 0.0);
+                w = i.splat / max(1e-3, i.splat.r + i.splat.g + i.splat.b + i.splat.a);
             #else
                 float2 cuv = (i.uv * (_Control_TexelSize.zw - 1.0) + 0.5) * _Control_TexelSize.xy;
                 w = SAMPLE_TEXTURE2D(_Control, sampler_Control, cuv);
@@ -188,8 +200,8 @@ Shader "StarForge/Terrain"
                 half3 nWS = normalize(lerp(nPlanar, nCliff, b.b));
 
             #if defined(_SF_AUTOSPLAT)
-                half ao = 1.0;
-                half variation = 0.5;
+                half ao = lerp(0.5, 1.0, i.aoVar.x);
+                half variation = i.aoVar.y;
             #else
                 half4 aov = SAMPLE_TEXTURE2D(_AOTex, sampler_AOTex, i.uv);
                 // SSAO handles crevices at screen scale; the baked relief AO only
@@ -212,6 +224,24 @@ Shader "StarForge/Terrain"
                     half4 gm = SAMPLE_TEXTURE2D(_SF_GroundMask, sampler_SF_GroundMask, wp.xz * _SF_GroundMaskParams.x);
                     albedo *= lerp(1.0, 0.45, gm.g) * lerp(1.0, 0.82, gm.b);
                     smooth *= 1.0 - gm.g * 0.6;
+                    // Craters (A): a scorched, blasted centre inside a ring of lighter,
+                    // freshly thrown earth, both with ragged edges from the gravel
+                    // photograph so no crater is a clean circle.
+                    half crater = gm.a;
+                    if (crater > 0.004)
+                    {
+                        float2 cp = wp.xz;
+                        half n = SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, cp * 0.19).r * 0.6
+                               + SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, cp * 0.83).r * 0.4;
+                        half core = smoothstep(0.5, 0.85, crater + (n - 0.5) * 0.45);
+                        half thrown = smoothstep(0.06, 0.32, crater + (n - 0.5) * 0.4) * (1.0 - core);
+                        half3 soil = half3(0.21, 0.165, 0.12) * (0.75 + 0.5 * n);
+                        half3 burnt = half3(0.045, 0.04, 0.035) * (0.6 + 0.9 * n);
+                        albedo = lerp(albedo, soil, thrown * 0.65);
+                        albedo = lerp(albedo, burnt, core * 0.88);
+                        smooth *= 1.0 - max(core, thrown) * 0.7;
+                        ao *= lerp(1.0, 0.85, core);
+                    }
                 }
             #endif
 

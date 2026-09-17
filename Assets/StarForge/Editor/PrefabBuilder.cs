@@ -34,7 +34,7 @@ namespace StarForge.EditorTools
             var defs = new List<UnitDef>
             {
                 //   type               name        bld    neu    rad    hp   spd   turn  rng  dmg  cd     spl   sight bt  cost sup give key
-                Def(UnitType.Worker,   "Digger",   false, false, 0.70f,  60, 6.6f, 7.0f, 2f,  5,  1.00f, 0f,   22, 12,  50, 1, 0, 'D',
+                Def(UnitType.Worker,   "Digger",   false, false, 0.70f,  60, 6.6f, 7.0f, 2f,  5,  1.00f, 0f,   22, 12,  50, 1, 0, 'U',
                     "Harvests ore and constructs structures."),
                 Def(UnitType.Trooper,  "Trooper",  false, false, 0.58f,  55, 6.0f, 9.0f, 16f, 7,  0.70f, 0f,   30, 14,  50, 1, 0, 'T',
                     "Cheap ranged infantry. Strong in numbers."),
@@ -46,7 +46,7 @@ namespace StarForge.EditorTools
                     "Command hub. Trains Diggers, accepts ore, +10 supply."),
                 Def(UnitType.Garrison, "Garrison", true,  false, 4.3f, 1000, 0, 0, 0, 0, 0, 0, 26, 30, 150, 0, 0, 'G',
                     "Trains Troopers and Skimmers."),
-                Def(UnitType.Workshop, "Workshop", true,  false, 5.0f, 1250, 0, 0, 0, 0, 0, 0, 26, 40, 200, 0, 0, 'W',
+                Def(UnitType.Workshop, "Workshop", true,  false, 5.0f, 1250, 0, 0, 0, 0, 0, 0, 26, 40, 200, 0, 0, 'V',
                     "Heavy fabricator. Trains Maulers. Requires a Garrison."),
                 Def(UnitType.Bunkhouse,"Bunkhouse",true,  false, 2.4f,  400, 0, 0, 0, 0, 0, 0, 20, 20, 100, 0, 8, 'B',
                     "Crew quarters. +8 supply."),
@@ -145,7 +145,9 @@ namespace StarForge.EditorTools
                     ModelFactory.Create(d.type == UnitType.Mauler ? "MAULER_TURRET" : "SENTINEL_HEAD", team, turret);
                 }
 
-                if (d.type != UnitType.Boulder)
+                if (d.type == UnitType.Boulder)
+                    root.AddComponent<Boulder>();   // Maulers crush it (GameWorld.CrushBoulders)
+                else
                 {
                     var unit = root.AddComponent<Unit>();
                     unit.def = d;

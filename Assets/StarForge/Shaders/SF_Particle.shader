@@ -5,6 +5,10 @@
 // averages ~27/255 between plumes, and used raw that haze draws every quad as
 // a grey rectangle (the trap the original documented). Soft-particle fading
 // against the depth texture keeps fireballs from slicing along the ground.
+// The smoke sheet also has bright two-pixel grid lines between its cells, which
+// drew a square outline round every puff; the border of each quad's texture
+// footprint is faded out. (Faded per sheet cell, _SheetTiles 4, it also cut
+// the smoke's opacity to a faint haze, so it stays at 1.)
 Shader "StarForge/Particle"
 {
     Properties
@@ -15,6 +19,7 @@ Shader "StarForge/Particle"
         [Toggle] _AlphaMode("Alpha blended (smoke)", Float) = 0
         _SoftFade("Soft fade distance", Float) = 1.2
         _SheetRect("Sheet cell (xy offset, zw size)", Vector) = (0, 0, 1, 1)
+        _SheetTiles("Border fade repeats", Float) = 1
         [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend("Src Blend", Float) = 1
         [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend("Dst Blend", Float) = 1
     }
@@ -48,6 +53,7 @@ Shader "StarForge/Particle"
                 half _AlphaMode;
                 half _SoftFade;
                 float4 _SheetRect;
+                float _SheetTiles;
             CBUFFER_END
 
             struct Attributes
@@ -81,6 +87,9 @@ Shader "StarForge/Particle"
                 half4 t = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
                 half lum = max(t.r, max(t.g, t.b));
                 half mask = saturate((lum - _Floor) / (1.0 - _Floor));
+                float2 cell = frac(i.uv * _SheetTiles);
+                float2 border = smoothstep(0.0, 0.07, cell) * smoothstep(0.0, 0.07, 1.0 - cell);
+                mask *= border.x * border.y;
 
                 float2 suv = i.screenPos.xy / i.screenPos.w;
                 float sceneEye = LinearEyeDepth(SampleSceneDepth(suv), _ZBufferParams);

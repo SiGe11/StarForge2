@@ -12,8 +12,8 @@
 //    farther than that at useful detail.
 //  * FSR upscaling -- AdaptiveResolution lowers render scale under sustained
 //    thermal load and FSR keeps the result sharp on the Retina panel.
-//  * Depth texture on, opaque texture off -- fog of war and water need depth;
-//    nothing needs a colour copy.
+//  * Depth texture on for fog of war and water; opaque texture on, full size,
+//    for the water, which bends and absorbs the lake bed it shows.
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -61,7 +61,11 @@ namespace StarForge.EditorTools
             rp.upscalingFilter = UpscalingFilterSelection.FSR;
 #pragma warning restore 618
             rp.supportsCameraDepthTexture = true;
-            rp.supportsCameraOpaqueTexture = false;
+            // The water refracts and absorbs the lake bed from the opaque colour copy.
+            rp.supportsCameraOpaqueTexture = true;
+            var opaqueSo = new SerializedObject(rp);
+            var down = opaqueSo.FindProperty("m_OpaqueDownsampling");   // read-only property
+            if (down != null) { down.intValue = (int)Downsampling.None; opaqueSo.ApplyModifiedPropertiesWithoutUndo(); }
             rp.shadowDistance = 150f;
             rp.shadowCascadeCount = 2;
             rp.cascade2Split = 0.28f;
@@ -91,10 +95,15 @@ namespace StarForge.EditorTools
             // the terrain), it runs at half resolution, and it is applied after
             // opaques as a single multiply, which suits a tile-based GPU. Radius is
             // in metres, sized for the RTS camera distance.
+            //
+            // Interleaved-gradient noise, not blue noise: URP re-rolls the blue
+            // noise every frame for TAA to average away, and without TAA that
+            // leftover noise boiled on the grass, where every blade edge is a
+            // depth step. Interleaved-gradient noise is fixed per pixel.
             var ssao = EnsureFeature<ScreenSpaceAmbientOcclusion>(rd, "SSAO");
             var ssaoSo = new SerializedObject(ssao);
             var st = ssaoSo.FindProperty("m_Settings");
-            st.FindPropertyRelative("AOMethod").enumValueIndex = 0;           // blue noise
+            st.FindPropertyRelative("AOMethod").enumValueIndex = 1;           // interleaved gradient
             st.FindPropertyRelative("Downsample").boolValue = true;
             st.FindPropertyRelative("AfterOpaque").boolValue = true;
             st.FindPropertyRelative("Source").enumValueIndex = 0;             // depth
@@ -122,6 +131,8 @@ namespace StarForge.EditorTools
             PlayerSettings.colorSpace = ColorSpace.Linear;
             PlayerSettings.runInBackground = true;
             PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
+            // The HUD and camera work at any shape, so a window can be resized freely.
+            PlayerSettings.resizableWindow = true;
             PlayerSettings.productName = "StarForge";
             PlayerSettings.companyName = "StarForge";
 

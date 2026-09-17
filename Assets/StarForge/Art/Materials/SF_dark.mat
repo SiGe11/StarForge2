@@ -93,10 +93,11 @@ Material:
     - _Burn: 0
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
+    - _Crystal: 0
     - _Cull: 2
     - _Cutoff: 0.5
     - _Damage: 0
-    - _DetailAlbedoMapScale: 0.75
+    - _DetailAlbedoMapScale: 0
     - _DetailNormalMapScale: 0
     - _DetailTiling: 0.5
     - _DstBlend: 0
@@ -105,10 +106,12 @@ Material:
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
-    - _GrimeAmount: 0.3
+    - _GrimeAmount: 0.18
     - _GrimeHeight: 0.9
     - _Metallic: 0.05
     - _OcclusionStrength: 1
+    - _OreGlow: 0
+    - _OreGlowMask: 0
     - _Parallax: 0.005
     - _QueueOffset: 0
     - _ReceiveShadows: 1

@@ -21,11 +21,15 @@ namespace StarForge.View
 
         public static QualityController Instance { get; private set; }
 
+        /// <summary>A preset for this run only (benchmark -sfquality); never saved.</summary>
+        public static SFQuality? Override;
+
         public static SFQuality Current
         {
-            get => (SFQuality)Mathf.Clamp(PlayerPrefs.GetInt(Key, (int)SFQuality.High), 0, 2);
+            get => Override ?? (SFQuality)Mathf.Clamp(PlayerPrefs.GetInt(Key, (int)SFQuality.High), 0, 2);
             set
             {
+                Override = null;
                 PlayerPrefs.SetInt(Key, (int)value);
                 PlayerPrefs.Save();
                 if (Instance != null) Instance.Apply();

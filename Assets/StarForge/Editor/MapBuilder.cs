@@ -1,11 +1,14 @@
-// MapBuilder.cs — generates the Battlefield scene as ordinary, editable Unity content.
+// MapBuilder.cs — the editor side of the battlefield: the assets a map is built
+// from, and the map the Battlefield scene is saved with.
 //
-// The original game generated a new heightfield every match. Here that
-// generator runs once, and everything it produces becomes normal assets: a
-// TerrainData you can sculpt and paint, ore fields and boulders you can drag
-// around, start locations, water, lighting, post-processing and a baked
-// NavMesh. Re-running this regenerates the scene from scratch, so hand edits
-// belong in the saved scene, not here.
+// The map itself is made by MapGenerator, the same code that builds a new map
+// at the start of every match (MapRuntime). This step prepares everything that
+// is an asset rather than generated -- terrain and water materials, terrain
+// layers, scenery prefabs, the plant kinds -- into a MapKit, builds the scene
+// (lighting, post-processing, camera, the Map with its generator), runs the
+// generator once with the default seed and saves what it made, so the scene
+// has a map to look at and edit in the editor. Re-running it regenerates the
+// scene from scratch.
 using System.Collections.Generic;
 using System.IO;
 using Unity.AI.Navigation;
@@ -25,14 +28,13 @@ namespace StarForge.EditorTools
         public const string MapDir = "Assets/StarForge/Map";
         public const string ScenePath = "Assets/StarForge/Scenes/Battlefield.unity";
         public const string PrefabDir = "Assets/StarForge/Prefabs";
-        public const uint DefaultSeed = 1000;
+        public const string KitPath = MapDir + "/SF_MapKit.asset";
+        public const uint DefaultSeed = MapGenerator.DefaultSeed;
+        /// <summary>Deeper than this, water stops units; shallower, they wade in.</summary>
+        public const float WadeDepth = MapGenerator.WadeDepth;
 
-        const float Size = HeightfieldGenerator.SIZE;
-        const float TerrainHeight = 40f;
-        const int HeightRes = 513, SplatRes = 512, AORes = 256;
-
-        static readonly Vector2 BaseA = new Vector2(0.22f * Size, 0.26f * Size);
-        static readonly Vector2 BaseB = new Vector2(0.78f * Size, 0.74f * Size);
+        const float Size = MapGenerator.Size;
+        static readonly Vector2 BaseA = MapGenerator.BaseA;
 
         [MenuItem("StarForge/Build/3 Map Scene (regenerates)", priority = 3)]
         public static void BuildMenu() => Build(DefaultSeed);
@@ -41,35 +43,117 @@ namespace StarForge.EditorTools
         {
             SFEditorUtil.EnsureFolder(MapDir);
             SFEditorUtil.EnsureFolder("Assets/StarForge/Scenes");
-
-            var gen = new HeightfieldGenerator();
-            gen.Generate(seed, BaseA, BaseB);
+            ConfigureAgent();
+            var kit = BuildKit();
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var mapRoot = new GameObject("Map");
-
-            var terrainMat = BuildTerrainMaterial(out var layers);
-            var terrain = BuildTerrain(gen, seed, mapRoot.transform, terrainMat, layers);
-            BuildWater(gen, mapRoot.transform);
-            BuildBackdrop(gen, terrainMat);
-
             var info = mapRoot.AddComponent<MapInfo>();
-            info.terrain = terrain;
-            info.mapSize = Size;
-            info.waterLevel = HeightfieldGenerator.WATER;
-            info.seed = seed;
-            PlaceMapObjects(gen, seed, mapRoot.transform, info);
+            var surface = mapRoot.AddComponent<NavMeshSurface>();
+            surface.collectObjects = CollectObjects.Children;
+            surface.useGeometry = UnityEngine.AI.NavMeshCollectGeometry.RenderMeshes;
+            surface.agentTypeID = 0;
+            surface.layerMask = ~0;
+            var runtime = mapRoot.AddComponent<MapRuntime>();
+            runtime.kit = kit;
+
+            // The saved scene keeps its prefab links.
+            var place = MapGenerator.Instantiate;
+            MapGenerator.Instantiate = (prefab, parent) => (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
+            MapGenerator.Result r;
+            try { r = MapGenerator.Generate(info, kit, seed, bakeNavMesh: false, sharedMaterials: true); }
+            finally { MapGenerator.Instantiate = place; }
+            Debug.Log($"[StarForge] shore corners slumped into beaches: {r.gen.BeachCorners}");
+            Debug.Log($"[StarForge] map from seed {seed}: {r.ore} ore, {r.boulders} boulders, {r.scenery} scenery, " +
+                      $"{r.plants} plants ({r.blockingPlants} trunks block ground units)");
+            SaveGenerated(r, info);
+            foreach (Transform t in info.sceneryRoot)
+                GameObjectUtility.SetStaticEditorFlags(t.gameObject, StaticEditorFlags.BatchingStatic);
 
             BuildLighting();
             BuildPostProcessing();
-            BuildCamera(terrain);
-            BakeNavMesh(mapRoot);
+            BuildCamera(info.terrain);
+            BakeNavMesh(surface);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             AddSceneToBuild(ScenePath);
             BakeEnvironment();
             EditorSceneManager.SaveScene(scene, ScenePath);
+            PaintSplat(info.terrain, r.splat);
             Debug.Log($"[StarForge] map built from seed {seed} -> {ScenePath}");
+        }
+
+        /// <summary>What the generator made in memory, saved as assets the scene can reference.</summary>
+        static void SaveGenerated(MapGenerator.Result r, MapInfo info)
+        {
+            void Save(Object asset, string path)
+            {
+                AssetDatabase.DeleteAsset(path);
+                AssetDatabase.CreateAsset(asset, path);
+            }
+            // The splat texture is a sub-asset, so the TerrainData asset exists before it is painted (PaintSplat).
+            Save(r.terrainData, MapDir + "/Battlefield_TerrainData.asset");
+            Save(r.ao, MapDir + "/Battlefield_TerrainAO.asset");
+            r.terrainMaterial.SetTexture("_AOTex", r.ao);
+            EditorUtility.SetDirty(r.terrainMaterial);
+            Save(r.water, MapDir + "/Battlefield_WaterMesh.asset");
+            Save(r.backdrop, MapDir + "/Backdrop.asset");
+            AssetDatabase.SaveAssets();
+        }
+
+        // ------------------------------------------------------------ kit
+        static MapKit BuildKit()
+        {
+            var kit = SFEditorUtil.CreateOrLoadAsset<MapKit>(KitPath);
+            kit.terrainMaterial = BuildTerrainMaterial(out var layers);
+            kit.terrainLayers = layers;
+            kit.backdropMaterial = AssetDatabase.LoadAssetAtPath<Material>(MapDir + "/SF_Backdrop.mat");
+            kit.waterMaterial = BuildWaterMaterial();
+            kit.orePrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{PrefabDir}/Ore.prefab");
+            kit.boulderPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{PrefabDir}/Boulder.prefab");
+            kit.scenery = new[]
+            {
+                Scenery("ROCK_SPIRE", 7, 3.4f, 0.8f, 1.35f),
+                Scenery("RUIN_PYLON", 4, 3.0f, 0.9f, 1.2f),
+                Scenery("WRECK", 2, 5.9f, 0.9f, 1.1f),
+                Scenery("ROCK_SHELF", 9, 5.0f, 0.7f, 1.2f),
+            };
+            kit.plantKinds = LoadPlantKinds();
+            EditorUtility.SetDirty(kit);
+            AssetDatabase.SaveAssets();
+            return kit;
+        }
+
+        /// <summary>Set dressing from Tools/blender/build_env.py as a prefab with its URP
+        /// materials, so a match can place it.</summary>
+        static SceneryPiece Scenery(string model, int count, float radius, float minScale, float maxScale)
+        {
+            string path = $"{PrefabDir}/Scenery_{model}.prefab";
+            var go = ModelFactory.Create(model, 0);
+            go.AddComponent<NavMeshModifier>().ignoreFromBuild = true;
+            var prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
+            Object.DestroyImmediate(go);
+            return new SceneryPiece { name = model, prefab = prefab, count = count, radius = radius, minScale = minScale, maxScale = maxScale };
+        }
+
+        static Material BuildWaterMaterial()
+        {
+            var mat = SFEditorUtil.CreateOrLoadMaterial(MapDir + "/SF_Water.mat", Shader.Find("StarForge/Water"));
+            mat.SetTexture("_NormalTex", AssetDatabase.LoadAssetAtPath<Texture2D>(SFAssetPostprocessor.TextureDir + "water_n.jpg"));
+            // The bed seen through the water is tinted and absorbed (red first), and
+            // the water's own scattered light fills in: clear green shallows, dark
+            // blue-green deeps.
+            mat.SetColor("_ShallowColor", new Color(0.86f, 0.98f, 0.93f));
+            mat.SetColor("_DeepColor", new Color(0.035f, 0.16f, 0.19f));
+            mat.SetVector("_Absorption", new Vector4(0.6f, 0.2f, 0.16f, 0f));
+            mat.SetFloat("_Refraction", 0.035f);
+            mat.SetFloat("_NormalStrength", 0.6f);
+            mat.SetFloat("_SwellStrength", 0.35f);
+            mat.SetFloat("_DepthRange", 2.2f);
+            mat.SetFloat("_ShoreWaves", 0.6f);
+            mat.SetFloat("_CausticStrength", 0.5f);
+            EditorUtility.SetDirty(mat);
+            return mat;
         }
 
         // ------------------------------------------------------------ terrain
@@ -96,7 +180,7 @@ namespace StarForge.EditorTools
             // the palette needs separation instead: teal lichen, warm rust gravel,
             // pale volcanic ash, so plateaus, paths and shores read apart.
             mat.SetColor("_Tint0", new Color(0.52f, 0.66f, 0.46f).gamma);
-            mat.SetColor("_Tint1", new Color(1.20f, 0.92f, 0.74f).gamma);
+            mat.SetColor("_Tint1", new Color(1.02f, 0.88f, 0.76f).gamma);
             mat.SetColor("_Tint2", new Color(1.05f, 0.92f, 0.84f).gamma);
             mat.SetColor("_Tint3", new Color(1.55f, 1.42f, 1.28f).gamma);
             mat.SetFloat("_MacroStrength", 0.22f);
@@ -135,429 +219,94 @@ namespace StarForge.EditorTools
             return l;
         }
 
-        static Terrain BuildTerrain(HeightfieldGenerator gen, uint seed, Transform parent, Material mat, TerrainLayer[] layers)
+        /// <summary>Writes the splat weights straight into the splat texture inside the
+        /// TerrainData asset, as the last step of the build. TerrainData.SetAlphamaps,
+        /// or painting the texture any earlier, looked right until something later in
+        /// the build reloaded the asset from disk with a blank splat texture: every
+        /// map built that way rendered, and grew grass, as pure moss. (A match's map
+        /// is never saved, so there SetAlphamaps is enough.)</summary>
+        static void PaintSplat(Terrain terrain, float[,,] splat)
         {
-            string tdPath = MapDir + "/Battlefield_TerrainData.asset";
-            AssetDatabase.DeleteAsset(tdPath);
-            var td = new TerrainData { heightmapResolution = HeightRes };
-            td.size = new Vector3(Size, TerrainHeight, Size);
-
-            // Heights: the Catmull-Rom surface through the generator's corners,
-            // plus a little fine noise away from the base plateaus so the
-            // terraces stop looking machined.
-            var heights = new float[HeightRes, HeightRes];
-            float step = Size / (HeightRes - 1);
-            for (int z = 0; z < HeightRes; z++)
-                for (int x = 0; x < HeightRes; x++)
+            var td = terrain.terrainData;
+            var tex = td.alphamapTextures[0];
+            int res = tex.width;
+            var px = new Color32[res * res];
+            var share = new double[4];
+            for (int z = 0; z < res; z++)
+                for (int x = 0; x < res; x++)
                 {
-                    float wx = x * step, wz = z * step;
-                    float h = gen.SmoothHeightAt(wx, wz);
-                    float dBase = Mathf.Min((new Vector2(wx, wz) - BaseA).magnitude, (new Vector2(wx, wz) - BaseB).magnitude);
-                    float rough = Smoothstep(20f, 34f, dBase);
-                    h += (Noise.Fbm(wx * 0.21f + 13.1f, wz * 0.21f - 7.7f, 3) - 0.5f) * 0.45f * rough;
-                    heights[z, x] = Mathf.Clamp01(h / TerrainHeight);
-                }
-            td.SetHeights(0, 0, heights);
-
-            td.alphamapResolution = SplatRes;
-            td.baseMapResolution = 512;
-            td.terrainLayers = layers;
-            var alpha = new float[SplatRes, SplatRes, 4];
-            float sstep = Size / SplatRes;
-            for (int z = 0; z < SplatRes; z++)
-                for (int x = 0; x < SplatRes; x++)
-                {
-                    float wx = (x + 0.5f) * sstep, wz = (z + 0.5f) * sstep;
-                    Vector3 n = td.GetInterpolatedNormal((x + 0.5f) / SplatRes, (z + 0.5f) / SplatRes);
-                    float h = td.GetInterpolatedHeight((x + 0.5f) / SplatRes, (z + 0.5f) / SplatRes);
-                    // Rock wherever the terraces turn steep.
-                    float cliffW = Smoothstep(0.90f, 0.66f, n.y);
-                    float shore = 1f - Smoothstep(HeightfieldGenerator.WATER + 0.4f, HeightfieldGenerator.WATER + 1.8f, h);
-                    // Moss grows in broad patches with ragged edges. GroundScatter grows
-                    // its grass on this layer, so patches become meadows and the ground
-                    // between them stays bare gravel -- the variety a single green
-                    // blanket lacked.
-                    float patch = Noise.Fbm(wx * 0.024f + 5.3f, wz * 0.024f + 1.9f, 4)
-                                + (Noise.Fbm(wx * 0.11f - 3.1f, wz * 0.11f + 8.2f, 3) - 0.5f) * 0.22f;
-                    float lichen = Smoothstep(0.47f, 0.60f, patch);
-                    float dBase = Mathf.Min((new Vector2(wx, wz) - BaseA).magnitude, (new Vector2(wx, wz) - BaseB).magnitude);
-                    lichen *= Smoothstep(14f, 30f, dBase);                  // trampled base pads
-                    lichen *= 1f - Smoothstep(24f, 34f, h);                  // bare rim peaks
-                    // Scree: slopes just short of cliff gather loose gravel.
-                    float scree = Smoothstep(0.985f, 0.90f, n.y);
-                    lichen *= 1f - scree * 0.85f;
-                    float dry = Noise.Fbm(wx * 0.017f - 41f, wz * 0.017f + 17f, 3);
-                    float ash = shore + Smoothstep(0.58f, 0.70f, dry) * 0.55f;
-                    float rest = 1f - cliffW;
-                    float wl = lichen * (1f - Saturate(ash)) * rest;
-                    float wa = Saturate(ash) * rest;
-                    float wg = Mathf.Max(0f, rest - wl - wa);
-                    float sum = wl + wg + cliffW + wa;
-                    alpha[z, x, 0] = wl / sum;
-                    alpha[z, x, 1] = wg / sum;
-                    alpha[z, x, 2] = cliffW / sum;
-                    alpha[z, x, 3] = wa / sum;
-                }
-            td.SetAlphamaps(0, 0, alpha);
-            AssetDatabase.CreateAsset(td, tdPath);
-
-            mat.SetTexture("_AOTex", BuildAOTexture(gen));
-            EditorUtility.SetDirty(mat);
-
-            var go = Terrain.CreateTerrainGameObject(td);
-            go.name = "Terrain";
-            go.transform.SetParent(parent, false);
-            var t = go.GetComponent<Terrain>();
-            t.materialTemplate = mat;
-            t.drawInstanced = false;
-            t.heightmapPixelError = 4f;
-            t.basemapDistance = 4000f;
-            t.drawTreesAndFoliage = false;
-            t.shadowCastingMode = ShadowCastingMode.On;
-            t.allowAutoConnect = false;
-            return t;
-        }
-
-        // Relief occlusion, as the original baked into its terrain vertices: pits
-        // and cliff bases darken, exposed ridges stay bright.
-        static Texture2D BuildAOTexture(HeightfieldGenerator gen)
-        {
-            string path = MapDir + "/Battlefield_TerrainAO.asset";
-            AssetDatabase.DeleteAsset(path);
-            var tex = new Texture2D(AORes, AORes, TextureFormat.RGBA32, true, true)
-            {
-                wrapMode = TextureWrapMode.Clamp,
-                filterMode = FilterMode.Bilinear,
-                name = "Battlefield_TerrainAO"
-            };
-            var px = new Color32[AORes * AORes];
-            float cell = Size / AORes;
-            int[] dx8 = { 1, -1, 0, 0, 1, 1, -1, -1 };
-            int[] dz8 = { 0, 0, 1, -1, 1, -1, 1, -1 };
-            for (int z = 0; z < AORes; z++)
-                for (int x = 0; x < AORes; x++)
-                {
-                    float wx = (x + 0.5f) * cell, wz = (z + 0.5f) * cell;
-                    float hc = gen.HeightAt(wx, wz);
-                    float occ = 0f; int cnt = 0;
-                    for (int r = 1; r <= 4; r++)
-                        for (int i = 0; i < 8; i++)
-                        {
-                            float hh = gen.HeightAt(wx + dx8[i] * r * 2f, wz + dz8[i] * r * 2f);
-                            occ += Saturate((hh - hc) / (r * 2f * 1.15f));
-                            cnt++;
-                        }
-                    float ao = 1f - Saturate(occ / cnt * 1.75f);
-                    float variation = Noise.Fbm(wx * 0.055f + 91f, wz * 0.055f - 44f, 4);
-                    px[z * AORes + x] = new Color32((byte)(ao * 255), (byte)(Saturate(variation) * 255), 0, 255);
+                    float l = splat[z, x, 0], c = splat[z, x, 2], a = splat[z, x, 3];
+                    // Rounding each weight alone can leave the sum a count or two off;
+                    // gravel takes the remainder so the layers add to one.
+                    byte lb = (byte)Mathf.RoundToInt(l * 255f), cb = (byte)Mathf.RoundToInt(c * 255f), ab = (byte)Mathf.RoundToInt(a * 255f);
+                    px[z * res + x] = new Color32(lb, (byte)Mathf.Clamp(255 - lb - cb - ab, 0, 255), cb, ab);
+                    for (int k = 0; k < 4; k++) share[k] += splat[z, x, k];
                 }
             tex.SetPixels32(px);
-            tex.Apply(true);
-            AssetDatabase.CreateAsset(tex, path);
-            return tex;
+            tex.Apply(false);
+            EditorUtility.SetDirty(tex);
+            EditorUtility.SetDirty(td);
+            AssetDatabase.SaveAssets();
+            var back = td.GetAlphamaps(res / 2, res / 2, 1, 1);
+            double cells = res * res;
+            Debug.Log($"[StarForge] terrain layers: lichen {share[0] / cells:P0}, gravel {share[1] / cells:P0}, cliff {share[2] / cells:P0}, ash {share[3] / cells:P0} " +
+                      $"(centre reads back {back[0, 0, 0]:0.00}/{back[0, 0, 1]:0.00}/{back[0, 0, 2]:0.00}/{back[0, 0, 3]:0.00})");
         }
 
-        // ------------------------------------------------------------ water
-        static void BuildWater(HeightfieldGenerator gen, Transform parent)
+        // ------------------------------------------------------------ vegetation
+        /// <summary>The plant kinds, in Vegetation.kinds order: model, trunk radius and colours.</summary>
+        static readonly (string model, bool bush, float trunk, Color bark, Color leaf, Color leaf2)[] PlantKinds =
         {
-            var verts = new List<Vector3>();
-            var tris = new List<int>();
-            const int N = HeightfieldGenerator.N;
-            const float C = HeightfieldGenerator.CELL, W = HeightfieldGenerator.WATER;
-            for (int z = 0; z < N; z++)
-                for (int x = 0; x < N; x++)
+            ("TREE_PINE", false, 0.30f, new Color(0.30f, 0.22f, 0.16f), new Color(0.13f, 0.25f, 0.16f), new Color(0.20f, 0.30f, 0.16f)),
+            ("TREE_BROAD", false, 0.38f, new Color(0.30f, 0.24f, 0.18f), new Color(0.15f, 0.27f, 0.08f), new Color(0.27f, 0.33f, 0.09f)),
+            ("TREE_TALL", false, 0.26f, new Color(0.50f, 0.48f, 0.43f), new Color(0.17f, 0.30f, 0.09f), new Color(0.30f, 0.35f, 0.10f)),
+            ("TREE_DEAD", false, 0.34f, new Color(0.30f, 0.26f, 0.22f), Color.black, Color.black),
+            ("BUSH", true, 0.55f, new Color(0.30f, 0.24f, 0.18f), new Color(0.14f, 0.25f, 0.08f), new Color(0.25f, 0.30f, 0.09f)),
+        };
+
+        static PlantKind[] LoadPlantKinds()
+        {
+            string json = File.ReadAllText(Path.Combine(SFAssetPostprocessor.ModelDir, "models.json"));
+            var kinds = new PlantKind[PlantKinds.Length];
+            for (int k = 0; k < kinds.Length; k++)
+            {
+                var d = PlantKinds[k];
+                var kind = kinds[k] = new PlantKind { name = d.model, bush = d.bush, trunkRadius = d.trunk, bark = d.bark, leaf = d.leaf, leaf2 = d.leaf2 };
+                string path = $"{SFAssetPostprocessor.ModelDir}SF_{d.model}.fbx";
+                foreach (var a in AssetDatabase.LoadAllAssetsAtPath(path))
+                    if (a is Mesh m) { kind.mesh = m; break; }
+                if (kind.mesh == null) throw new FileNotFoundException($"plant model {path} has not been imported");
+                foreach (var a in AssetDatabase.LoadAllAssetsAtPath($"{SFAssetPostprocessor.ModelDir}SF_{d.model}_LOD1.fbx"))
+                    if (a is Mesh m) { kind.lodMesh = m; break; }
+
+                // This model's entry in models.json: its slots (submesh order) and crown.
+                int at = json.IndexOf($"\"{d.model}\":", System.StringComparison.Ordinal);
+                int end = json.IndexOf("\"chunks\"", at, System.StringComparison.Ordinal);
+                int next = json.IndexOf("\n  \"", end, System.StringComparison.Ordinal);
+                string entry = json.Substring(at, (next < 0 ? json.Length : next) - at);
+                var slots = System.Text.RegularExpressions.Regex.Match(entry, "\"materials\":\\s*\\[([^\\]]*)\\]").Groups[1].Value;
+                var names = new List<string>();
+                foreach (var part in slots.Split(',')) { string n = part.Trim().Trim('"'); if (n.Length > 0) names.Add(n); }
+                kind.barkSubmesh = names.IndexOf("bark");
+                kind.foliageSubmesh = Mathf.Max(names.IndexOf("leaf"), names.IndexOf("needle"));
+                kind.height = ModelFactory.Meta(d.model).height;
+                var fol = System.Text.RegularExpressions.Regex.Match(entry,
+                    "\"center\":\\s*\\[([^\\]]*)\\],\\s*\"radii\":\\s*\\[([^\\]]*)\\]");
+                if (fol.Success)
                 {
-                    float lo = Mathf.Min(Mathf.Min(gen.CornerHeight(x, z), gen.CornerHeight(x + 1, z)),
-                                         Mathf.Min(gen.CornerHeight(x, z + 1), gen.CornerHeight(x + 1, z + 1)));
-                    if (lo >= W + 0.35f) continue;
-                    int b = verts.Count;
-                    verts.Add(new Vector3(x * C, W, z * C));
-                    verts.Add(new Vector3((x + 1) * C, W, z * C));
-                    verts.Add(new Vector3((x + 1) * C, W, (z + 1) * C));
-                    verts.Add(new Vector3(x * C, W, (z + 1) * C));
-                    tris.AddRange(new[] { b, b + 2, b + 1, b, b + 3, b + 2 });
+                    kind.crownCenter = ParseVec(fol.Groups[1].Value);
+                    kind.crownRadii = ParseVec(fol.Groups[2].Value);
                 }
-            if (verts.Count == 0) return;
-
-            string meshPath = MapDir + "/Battlefield_WaterMesh.asset";
-            AssetDatabase.DeleteAsset(meshPath);
-            var mesh = new Mesh { name = "Water", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
-            mesh.SetVertices(verts);
-            mesh.SetTriangles(tris, 0);
-            mesh.RecalculateNormals();
-            mesh.RecalculateBounds();
-            AssetDatabase.CreateAsset(mesh, meshPath);
-
-            var mat = SFEditorUtil.CreateOrLoadMaterial(MapDir + "/SF_Water.mat", Shader.Find("StarForge/Water"));
-            mat.SetTexture("_NormalTex", AssetDatabase.LoadAssetAtPath<Texture2D>(SFAssetPostprocessor.TextureDir + "water_n.jpg"));
-            EditorUtility.SetDirty(mat);
-
-            var go = new GameObject("Water");
-            go.transform.SetParent(parent, false);
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = mat;
-            mr.shadowCastingMode = ShadowCastingMode.Off;
-            // Water is where the NavMesh stops: marking this surface not-walkable
-            // leaves too little clearance for the lake bed beneath it.
-            var mod = go.AddComponent<NavMeshModifier>();
-            mod.overrideArea = true;
-            mod.area = 1;
+                else kind.crownRadii = Vector3.zero;
+            }
+            return kinds;
         }
 
-        // ------------------------------------------------------------ backdrop
-        // Mountains beyond the rim, so a zoomed-out camera at the map edge sees
-        // a landscape fading into haze instead of the edge of the world.
-        static void BuildBackdrop(HeightfieldGenerator gen, Material terrainMat)
+        static Vector3 ParseVec(string csv)
         {
-            const int R = 96;
-            const float ext = 256f;
-            float min = -ext, span = Size + 2f * ext, stepSz = span / R;
-            var verts = new Vector3[(R + 1) * (R + 1)];
-            var uvs = new Vector2[verts.Length];
-            for (int z = 0; z <= R; z++)
-                for (int x = 0; x <= R; x++)
-                {
-                    float wx = min + x * stepSz, wz = min + z * stepSz;
-                    var c = new Vector2(Mathf.Clamp(wx, 0f, Size), Mathf.Clamp(wz, 0f, Size));
-                    float d = (new Vector2(wx, wz) - c).magnitude;
-                    float h;
-                    bool inside = wx > 0.01f && wz > 0.01f && wx < Size - 0.01f && wz < Size - 0.01f;
-                    if (inside) h = -8f;
-                    else
-                    {
-                        float rim = gen.HeightAt(c.x, c.y);
-                        float ridge = Noise.Ridge(wx * 0.010f + 7.1f, wz * 0.010f - 3.3f, 5);
-                        h = rim - 0.4f + Smoothstep(0f, 110f, d) * (ridge * 85f - 8f)
-                            + (Noise.Fbm(wx * 0.05f, wz * 0.05f, 3) - 0.5f) * 10f * Smoothstep(0f, 40f, d);
-                    }
-                    verts[z * (R + 1) + x] = new Vector3(wx, h, wz);
-                    uvs[z * (R + 1) + x] = new Vector2(wx / Size, wz / Size);
-                }
-            var tris = new int[R * R * 6];
-            int k = 0;
-            for (int z = 0; z < R; z++)
-                for (int x = 0; x < R; x++)
-                {
-                    int i0 = z * (R + 1) + x, i1 = i0 + 1, i2 = i0 + R + 1, i3 = i2 + 1;
-                    tris[k++] = i0; tris[k++] = i2; tris[k++] = i3;
-                    tris[k++] = i0; tris[k++] = i3; tris[k++] = i1;
-                }
-            string meshPath = MapDir + "/Backdrop.asset";
-            AssetDatabase.DeleteAsset(meshPath);
-            var mesh = new Mesh { name = "Backdrop" };
-            mesh.vertices = verts;
-            mesh.uv = uvs;
-            mesh.triangles = tris;
-            mesh.RecalculateNormals();
-            mesh.RecalculateBounds();
-            AssetDatabase.CreateAsset(mesh, meshPath);
-
-            var go = new GameObject("Backdrop");
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(MapDir + "/SF_Backdrop.mat");
-            mr.shadowCastingMode = ShadowCastingMode.Off;
-        }
-
-        // ------------------------------------------------------------ map objects
-        sealed class Placer
-        {
-            readonly HeightfieldGenerator gen;
-            readonly List<(Vector2 p, float r)> taken = new List<(Vector2, float)>();
-            public Placer(HeightfieldGenerator g) { gen = g; }
-            public void Take(Vector2 p, float r) => taken.Add((p, r));
-
-            public bool Walkable(Vector2 p)
-            {
-                if (!gen.PassableCell((int)(p.x / HeightfieldGenerator.CELL), (int)(p.y / HeightfieldGenerator.CELL))) return false;
-                foreach (var t in taken) if ((t.p - p).magnitude < t.r) return false;
-                return true;
-            }
-
-            public bool Clear(Vector2 p, float r)
-            {
-                for (int i = 0; i < 8; i++)
-                {
-                    float a = i * TAU / 8f;
-                    if (!Walkable(p + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r)) return false;
-                }
-                return Walkable(p);
-            }
-
-            public Vector2 NearestWalkable(Vector2 p)
-            {
-                if (Walkable(p)) return p;
-                for (float r = 1f; r < 30f; r += 1f)
-                    for (int i = 0; i < 16; i++)
-                    {
-                        float a = i * TAU / 16f;
-                        var q = p + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
-                        if (Walkable(q)) return q;
-                    }
-                return p;
-            }
-        }
-
-        static void PlaceMapObjects(HeightfieldGenerator gen, uint seed, Transform root, MapInfo info)
-        {
-            var rng = new Rng(seed ^ 0x51F0u);
-            var placer = new Placer(gen);
-            var oreRoot = new GameObject("Ore").transform; oreRoot.SetParent(root, false);
-            var decoRoot = new GameObject("Boulders").transform; decoRoot.SetParent(root, false);
-
-            Vector3 Ground(Vector2 p) => new Vector3(p.x, info.terrain.SampleHeight(new Vector3(p.x, 0, p.y)), p.y);
-
-            var bases = new[] { BaseA, BaseB };
-            for (int t = 0; t < 2; t++)
-            {
-                var start = new GameObject($"Start_{t}").transform;
-                start.SetParent(root, false);
-                start.position = Ground(bases[t]);
-                info.startLocations[t] = start;
-                placer.Take(bases[t], 7.5f);
-            }
-
-            // Each base's ore arc faces away from the map centre, as in the original.
-            for (int t = 0; t < 2; t++)
-            {
-                Vector2 toCentre = Norm(new Vector2(Size * 0.5f, Size * 0.5f) - bases[t]);
-                float baseAng = Mathf.Atan2(-toCentre.y, -toCentre.x);
-                for (int i = 0; i < 8; i++)
-                {
-                    float a = baseAng + (i - 3.5f) * 0.20f;
-                    Vector2 p = placer.NearestWalkable(bases[t] + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 13.5f);
-                    SpawnOre(p, oreRoot, rng, Ground);
-                    placer.Take(p, 2.2f);
-                }
-            }
-
-            // Expansions, mirrored through the map centre so both players get
-            // the same distances -- the original placed these independently.
-            int placedPairs = 0;
-            for (int tries = 0; tries < 400 && placedPairs < 2; tries++)
-            {
-                var p = new Vector2(rng.Range(35f, Size - 35f), rng.Range(35f, Size - 35f));
-                var q = new Vector2(Size, Size) - p;
-                if ((p - q).magnitude < 50f) continue;
-                if ((p - BaseA).magnitude < 60f || (p - BaseB).magnitude < 60f) continue;
-                if (!placer.Clear(p, 7f) || !placer.Clear(q, 7f)) continue;
-                foreach (var c in new[] { p, q })
-                {
-                    for (int i = 0; i < 6; i++)
-                    {
-                        float a = TAU * i / 6f;
-                        var o = placer.NearestWalkable(c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 5f);
-                        SpawnOre(o, oreRoot, rng, Ground);
-                        placer.Take(o, 2.2f);
-                    }
-                    placer.Take(c, 4f);
-                }
-                placedPairs++;
-            }
-
-            for (int i = 0; i < 55; i++)
-                for (int tries = 0; tries < 30; tries++)
-                {
-                    var p = new Vector2(rng.Range(10f, Size - 10f), rng.Range(10f, Size - 10f));
-                    if ((p - BaseA).magnitude < 30f || (p - BaseB).magnitude < 30f) continue;
-                    if (!placer.Clear(p, 2.5f)) continue;
-                    var b = Spawn("Boulder", decoRoot);
-                    b.transform.position = Ground(p) + Vector3.down * 0.15f;
-                    b.transform.rotation = Quaternion.Euler(0f, rng.Range(0f, 360f), 0f);
-                    b.transform.localScale = Vector3.one * rng.Range(0.8f, 1.6f);
-                    GameObjectUtility.SetStaticEditorFlags(b, StaticEditorFlags.BatchingStatic);
-                    placer.Take(p, 3f);
-                    break;
-                }
-
-            PlaceScenery(gen, seed, root, info);
-        }
-
-        /// <summary>Set dressing from Tools/blender/build_env.py -- rock spires and
-        /// shelves, a crashed dropship, ruined pylons -- only where most of the
-        /// footprint is ground no unit can use (cliffs, the rim), and left out of the
-        /// NavMesh bake, so the map looks richer without a single path changing.</summary>
-        static void PlaceScenery(HeightfieldGenerator gen, uint seed, Transform root, MapInfo info)
-        {
-            var rng = new Rng(seed ^ 0xC3A7u);
-            var parent = new GameObject("Scenery").transform;
-            parent.SetParent(root, false);
-            var placed = new List<(Vector2 p, float r)>();
-            const float C = HeightfieldGenerator.CELL;
-
-            bool Fits(Vector2 p, float r)
-            {
-                if (p.x < 4f || p.y < 4f || p.x > Size - 4f || p.y > Size - 4f) return false;
-                if ((p - BaseA).magnitude < 34f || (p - BaseB).magnitude < 34f) return false;
-                if (gen.HeightAt(p.x, p.y) < HeightfieldGenerator.WATER + 2f) return false;   // not in the shallows
-                foreach (var q in placed) if ((q.p - p).magnitude < q.r + r + 6f) return false;
-                int blocked = 0, total = 0;
-                for (int ring = 0; ring <= 2; ring++)
-                {
-                    int n = ring == 0 ? 1 : 8;
-                    for (int i = 0; i < n; i++)
-                    {
-                        float a = i * TAU / n, d = r * ring * 0.45f;
-                        var s = p + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * d;
-                        total++;
-                        if (!gen.PassableCell((int)(s.x / C), (int)(s.y / C)) && gen.HeightAt(s.x, s.y) > HeightfieldGenerator.WATER + 1f)
-                            blocked++;
-                    }
-                }
-                return blocked >= total * 0.8f;
-            }
-
-            void Scatter(string kind, int count, float radius, float minScale, float maxScale)
-            {
-                int done = 0;
-                for (int tries = 0; tries < 900 && done < count; tries++)
-                {
-                    float scale = rng.Range(minScale, maxScale);
-                    var p = new Vector2(rng.Range(6f, Size - 6f), rng.Range(6f, Size - 6f));
-                    if (!Fits(p, radius * scale)) continue;
-                    var go = ModelFactory.Create(kind, 0, parent);
-                    float low = float.MaxValue;
-                    for (int i = 0; i < 6; i++)
-                    {
-                        float a = i * TAU / 6f;
-                        low = Mathf.Min(low, info.terrain.SampleHeight(new Vector3(p.x + Mathf.Cos(a) * radius * scale * 0.5f, 0f, p.y + Mathf.Sin(a) * radius * scale * 0.5f)));
-                    }
-                    go.transform.position = new Vector3(p.x, low - 0.3f * scale, p.y);
-                    go.transform.rotation = Quaternion.Euler(0f, rng.Range(0f, 360f), 0f);
-                    go.transform.localScale = Vector3.one * scale;
-                    GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic);
-                    go.AddComponent<NavMeshModifier>().ignoreFromBuild = true;
-                    placed.Add((p, radius * scale));
-                    done++;
-                }
-            }
-
-            Scatter("ROCK_SPIRE", 7, 3.4f, 0.8f, 1.35f);
-            Scatter("RUIN_PYLON", 4, 3.0f, 0.9f, 1.2f);
-            Scatter("WRECK", 2, 5.9f, 0.9f, 1.1f);
-            Scatter("ROCK_SHELF", 9, 5.0f, 0.7f, 1.2f);
-        }
-
-        static void SpawnOre(Vector2 p, Transform parent, Rng rng, System.Func<Vector2, Vector3> ground)
-        {
-            var o = Spawn("Ore", parent);
-            o.transform.position = ground(p);
-            o.transform.rotation = Quaternion.Euler(0f, rng.Range(0f, 360f), 0f);
-            // Ore depletes at runtime, so it cuts its own hole in the NavMesh
-            // instead of being baked into it.
-            var mod = o.GetComponent<NavMeshModifier>() ?? o.AddComponent<NavMeshModifier>();
-            mod.ignoreFromBuild = true;
-        }
-
-        static GameObject Spawn(string kind, Transform parent)
-        {
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{PrefabDir}/{kind}.prefab");
-            GameObject go;
-            if (prefab != null) go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
-            else go = ModelFactory.Create(kind.ToUpperInvariant(), 0, parent);
-            go.name = kind;
-            return go;
+            var p = csv.Split(',');
+            float F(int i) => float.Parse(p[i].Trim(), System.Globalization.CultureInfo.InvariantCulture);
+            return new Vector3(F(0), F(1), F(2));
         }
 
         // ------------------------------------------------------------ lighting & post
@@ -723,6 +472,9 @@ namespace StarForge.EditorTools
             bloom.tint.Override(new Color(1.0f, 0.95f, 0.9f));
             bloom.dirtTexture.Override(BuildLensDirt());
             bloom.dirtIntensity.Override(2.2f);
+            // A single overbright pixel (a glint, a shading spike) should not bloom
+            // into a light of its own.
+            bloom.clamp.Override(24f);
             var grain = Get<FilmGrain>();
             grain.type.Override(FilmGrainLookup.Thin1);
             grain.intensity.Override(0.16f);
@@ -767,11 +519,20 @@ namespace StarForge.EditorTools
         }
 
         // ------------------------------------------------------------ navigation
+        /// <summary>NavMesh area under boulders and trunks; see Boulder.cs and GameWorld.GroundAreas.</summary>
+        public const int RubbleArea = MapGenerator.RubbleArea;
+
         static void ConfigureAgent()
         {
             var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/NavMeshAreas.asset");
             if (assets == null || assets.Length == 0) return;
             var so = new SerializedObject(assets[0]);
+            var areas = so.FindProperty("areas");
+            if (areas != null && areas.arraySize > RubbleArea)
+            {
+                areas.GetArrayElementAtIndex(RubbleArea).FindPropertyRelative("name").stringValue = "Rubble";
+                areas.GetArrayElementAtIndex(RubbleArea).FindPropertyRelative("cost").floatValue = 1f;
+            }
             var settings = so.FindProperty("m_Settings");
             if (settings == null || settings.arraySize == 0) return;
             var a = settings.GetArrayElementAtIndex(0);
@@ -782,14 +543,8 @@ namespace StarForge.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void BakeNavMesh(GameObject mapRoot)
+        static void BakeNavMesh(NavMeshSurface surface)
         {
-            ConfigureAgent();
-            var surface = mapRoot.AddComponent<NavMeshSurface>();
-            surface.collectObjects = CollectObjects.Children;
-            surface.useGeometry = UnityEngine.AI.NavMeshCollectGeometry.RenderMeshes;
-            surface.agentTypeID = 0;
-            surface.layerMask = ~0;
             surface.BuildNavMesh();
             string path = MapDir + "/Battlefield_NavMesh.asset";
             AssetDatabase.DeleteAsset(path);

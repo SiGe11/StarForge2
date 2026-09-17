@@ -49,6 +49,7 @@ namespace StarForge.EditorTools
             boot.world = world;
             bootGo.AddComponent<AIEvalRunner>();   // idle unless StarForge > Evaluate AI started it
             bootGo.AddComponent<BenchmarkRunner>(); // idle unless the player is launched with -sfbench
+            bootGo.AddComponent<DisplayModes>();    // full screen / window switches keep the display's shape
 
             var rigGo = GameObject.Find("CameraRig");
             var cam = rigGo != null ? rigGo.GetComponentInChildren<Camera>() : Camera.main;
@@ -83,6 +84,16 @@ namespace StarForge.EditorTools
             var scatter = groundGo.AddComponent<GroundScatter>();
             scatter.map = map;
             BuildScatterMaterials(scatter);
+
+            var vegetation = map != null ? map.GetComponentInChildren<Vegetation>() : null;
+            if (vegetation != null)
+            {
+                var trees = groundGo.AddComponent<VegetationRenderer>();
+                trees.vegetation = vegetation;
+                trees.world = world;
+                trees.player = player;
+                BuildTreeMaterials(trees);
+            }
 
             game.AddComponent<AdaptiveResolution>();
             game.AddComponent<QualityController>();
@@ -152,6 +163,24 @@ namespace StarForge.EditorTools
             AssetDatabase.SaveAssets();
         }
 
+        static void BuildTreeMaterials(VegetationRenderer trees)
+        {
+            var shader = Shader.Find("StarForge/Tree");
+            Material Tree(string name, bool foliage)
+            {
+                var m = SFEditorUtil.CreateOrLoadMaterial($"{MapBuilder.MapDir}/{name}.mat", shader);
+                m.SetFloat("_Foliage", foliage ? 1f : 0f);
+                m.SetFloat("_WindStrength", foliage ? 0.12f : 0.06f);
+                m.SetFloat("_Translucency", 0.7f);
+                m.enableInstancing = true;
+                EditorUtility.SetDirty(m);
+                return m;
+            }
+            trees.barkMaterial = Tree("SF_TreeBark", false);
+            trees.foliageMaterial = Tree("SF_TreeFoliage", true);
+            AssetDatabase.SaveAssets();
+        }
+
         static void BuildFxMaterials(FXDirector fx)
         {
             SFEditorUtil.EnsureFolder(FxDir);
@@ -167,6 +196,7 @@ namespace StarForge.EditorTools
                 m.SetFloat("_AlphaMode", alpha ? 1f : 0f);
                 m.SetFloat("_Floor", floor);
                 m.SetFloat("_Gain", gain);
+                m.SetFloat("_SheetTiles", 1f);
                 m.SetFloat("_SrcBlend", alpha ? (float)UnityEngine.Rendering.BlendMode.SrcAlpha : (float)UnityEngine.Rendering.BlendMode.One);
                 m.SetFloat("_DstBlend", alpha ? (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha : (float)UnityEngine.Rendering.BlendMode.One);
                 m.renderQueue = 3000;
@@ -185,8 +215,21 @@ namespace StarForge.EditorTools
                 return m;
             }
 
-            fx.fireMaterial = Particle("FX_Fire", "explosion.jpg", false, 0.03f, 1.8f);
-            fx.smokeMaterial = Particle("FX_Smoke", "smoke.jpg", true, 0.13f, 1f);
+            fx.fireMaterial = Particle("FX_Fire", "explosion.jpg", false, 0.03f, 1.5f);
+            var smokeShader = Shader.Find("StarForge/Smoke");
+            var puffs = AssetDatabase.LoadAssetAtPath<Texture2D>(tex + "smoke_puffs.png");
+            Material Smoke(string name, float billow, float density)
+            {
+                var m = SFEditorUtil.CreateOrLoadMaterial($"{FxDir}/{name}.mat", smokeShader);
+                m.SetTexture("_MainTex", puffs);
+                m.SetFloat("_Billow", billow);
+                m.SetFloat("_Density", density);
+                m.renderQueue = 3000;
+                EditorUtility.SetDirty(m);
+                return m;
+            }
+            fx.smokeMaterial = Smoke("FX_Smoke", 1f, 1.2f);
+            fx.dropletMaterial = Smoke("FX_Droplet", 0f, 2.2f);
             fx.glowMaterial = Particle("FX_Glow", "particles.jpg", false, 0.02f, 2.2f);
             // Debris trails stretch one soft glow cell of the sheet along their length.
             fx.trailMaterial = Particle("FX_Trail", "particles.jpg", false, 0.02f, 2.4f);
@@ -204,6 +247,9 @@ namespace StarForge.EditorTools
             fx.barMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
             fx.streakMaterial = Instanced("FX_Streaks", billboard, UnityEngine.Rendering.BlendMode.One, UnityEngine.Rendering.BlendMode.One, 3050);
             fx.streakMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
+            // Wakes and splashes lie on the water, so they draw just after it.
+            fx.rippleMaterial = Instanced("FX_WaterRipple", Shader.Find("StarForge/WaterRipple"),
+                UnityEngine.Rendering.BlendMode.One, UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha, 2910);
             AssetDatabase.SaveAssets();
         }
     }

@@ -683,6 +683,13 @@
     display: flex;
 }
 
+.opponent-text {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-Regular.ttf");
+    font-size: 12px;
+    color: var(--text);
+    max-width: 640px;
+}
+
 /* ------------------------------------------------------------ pause & end */
 .menu-card {
     width: 340px;

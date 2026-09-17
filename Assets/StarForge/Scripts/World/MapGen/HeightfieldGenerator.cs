@@ -1,19 +1,23 @@
-// HeightfieldGenerator.cs — editor-time generator for the Unity Terrain asset.
+// HeightfieldGenerator.cs — the battlefield's shape.
 //
-// Runs once from the map builder; the result is baked into a TerrainData that
-// is then an ordinary, hand-editable Unity Terrain. Nothing here runs in game.
+// Runs at the start of every match (MapRuntime, through MapGenerator) with a
+// new seed, and once in the editor for the map the scene is saved with.
 //
 // Faithful port of the original generator: fractal field, renormalised (value
 // noise never reaches its own extremes, so skipping this gives a map with no
 // low ground and no water), terraced into plateaus, rim mountains, flattened
 // base plateaus, and a carved corridor whenever the bases are disconnected --
 // so every generated map is playable.
+//
+// New here: beaches. Terracing makes every lake a pit walled by cliffs, so
+// selected stretches of shore are slumped into long slopes running down into
+// the water (ShapeShores), and the rest keep their cliffs.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 using static StarForge.SFMath;
 
-namespace StarForge.EditorTools
+namespace StarForge.World
 {
     public sealed class HeightfieldGenerator
     {
@@ -242,6 +246,88 @@ namespace StarForge.EditorTools
             }
         }
 
+        /// <summary>Shore cells slumped into beaches, for the build log.</summary>
+        public int BeachCorners { get; private set; }
+
+        // Beaches. Where a slow noise field says so, shores near water are
+        // relaxed by repeated local averaging, which drags the plateau's lip down
+        // and the lake floor up into one long slope (about 20 degrees at most, so
+        // units can walk down into the water). Bases and the rim are left alone,
+        // and so is the middle of each lake, which stays deep.
+        void ShapeShores(Vector2 baseA, Vector2 baseB, float ox, float oz)
+        {
+            var toWater = new float[VN * VN];
+            for (int i = 0; i < toWater.Length; i++) toWater[i] = h[i] < WATER - 0.2f ? 0f : 1e6f;
+            ChamferDistance(toWater);
+
+            var mask = new float[VN * VN];
+            BeachCorners = 0;
+            for (int z = 0; z < VN; z++)
+                for (int x = 0; x < VN; x++)
+                {
+                    int i = z * VN + x;
+                    float wx = x * CELL, wz = z * CELL;
+                    float beach = Smoothstep(0.47f, 0.58f, Noise.Fbm(wx * 0.021f + ox * 0.37f + 11.7f, wz * 0.021f + oz * 0.37f - 5.1f, 3));
+                    float near = 1f - Smoothstep(5f, 12f, toWater[i]);
+                    float dBase = Mathf.Min((new Vector2(wx, wz) - baseA).magnitude, (new Vector2(wx, wz) - baseB).magnitude);
+                    float ex = Mathf.Min(x, VN - 1 - x) / (float)VN, ez = Mathf.Min(z, VN - 1 - z) / (float)VN;
+                    mask[i] = beach * near * Smoothstep(36f, 48f, dBase) * Smoothstep(0.10f, 0.17f, Mathf.Min(ex, ez));
+                    if (mask[i] > 0.5f && toWater[i] < 4f && h[i] > WATER) BeachCorners++;
+                }
+
+            var tmp = new float[VN * VN];
+            for (int it = 0; it < 30; it++)
+            {
+                Array.Copy(h, tmp, h.Length);
+                for (int z = 1; z < VN - 1; z++)
+                    for (int x = 1; x < VN - 1; x++)
+                    {
+                        int i = z * VN + x;
+                        if (mask[i] <= 0f) continue;
+                        float sum = 0f;
+                        for (int dz = -1; dz <= 1; dz++)
+                            for (int dx = -1; dx <= 1; dx++)
+                                sum += tmp[i + dz * VN + dx];
+                        h[i] = Lerp(tmp[i], sum / 9f, mask[i] * 0.85f);
+                    }
+            }
+        }
+
+        /// <summary>Two-pass chamfer distance transform, in corner units, over
+        /// seeds already set to 0 (everything else large).</summary>
+        static void ChamferDistance(float[] d)
+        {
+            const float D = 1.4142f;
+            for (int z = 0; z < VN; z++)
+                for (int x = 0; x < VN; x++)
+                {
+                    int i = z * VN + x;
+                    float v = d[i];
+                    if (x > 0) v = Mathf.Min(v, d[i - 1] + 1f);
+                    if (z > 0)
+                    {
+                        v = Mathf.Min(v, d[i - VN] + 1f);
+                        if (x > 0) v = Mathf.Min(v, d[i - VN - 1] + D);
+                        if (x < VN - 1) v = Mathf.Min(v, d[i - VN + 1] + D);
+                    }
+                    d[i] = v;
+                }
+            for (int z = VN - 1; z >= 0; z--)
+                for (int x = VN - 1; x >= 0; x--)
+                {
+                    int i = z * VN + x;
+                    float v = d[i];
+                    if (x < VN - 1) v = Mathf.Min(v, d[i + 1] + 1f);
+                    if (z < VN - 1)
+                    {
+                        v = Mathf.Min(v, d[i + VN] + 1f);
+                        if (x < VN - 1) v = Mathf.Min(v, d[i + VN + 1] + D);
+                        if (x > 0) v = Mathf.Min(v, d[i + VN - 1] + D);
+                    }
+                    d[i] = v;
+                }
+        }
+
         public void Generate(uint seed, Vector2 baseA, Vector2 baseB)
         {
             Array.Clear(h, 0, h.Length);
@@ -292,6 +378,7 @@ namespace StarForge.EditorTools
             }
             FlattenDisc(baseA, 17f, 33f, PlateauFor(baseA));
             FlattenDisc(baseB, 17f, 33f, PlateauFor(baseB));
+            ShapeShores(baseA, baseB, ox, oz);
 
             ComputePassability();
             for (int attempt = 0; attempt < 8 && !Connected(baseA, baseB); attempt++)

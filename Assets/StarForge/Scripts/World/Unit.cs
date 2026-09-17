@@ -83,6 +83,9 @@ namespace StarForge.World
                     ? ObstacleAvoidanceType.NoObstacleAvoidance
                     : ObstacleAvoidanceType.MedQualityObstacleAvoidance;
                 agent.avoidancePriority = d.type == UnitType.Mauler ? 30 : (d.type == UnitType.Skimmer ? 60 : 50);
+                // Boulders stand on Rubble ground: only a Mauler's path runs
+                // through them (it crushes them, GameWorld.CrushBoulders).
+                agent.areaMask = d.type == UnitType.Mauler ? NavMesh.AllAreas : GameWorld.GroundAreas;
                 if (NavMesh.SamplePosition(transform.position, out var hit, 10f, NavMesh.AllAreas))
                 {
                     agent.enabled = true;
@@ -209,6 +212,7 @@ namespace StarForge.World
             if (agent == null || !agent.enabled) return;
             Vector3 v = agent.velocity;
             float speed = new Vector2(v.x, v.z).magnitude;
+            float pace = 1f;
             if (speed > 0.25f)
             {
                 float want = Mathf.Atan2(v.x, v.z);
@@ -218,10 +222,14 @@ namespace StarForge.World
                 // Tracks cannot strafe: a Mauler slows until it has turned to face
                 // where it is going, instead of sliding sideways like a hovercraft.
                 if (Type == UnitType.Mauler)
-                    agent.speed = def.speed * Lerp(0.3f, 1f, Saturate(Mathf.Cos(WrapAngle(want - yaw))));
+                    pace = Lerp(0.3f, 1f, Saturate(Mathf.Cos(WrapAngle(want - yaw))));
             }
             else if (Type == UnitType.Mauler && !Live(target))
                 turretYaw = ApproachAngle(turretYaw, yaw, 1.2f * dt);
+            // Wading through the shallows is slow going; a Skimmer hovers over them.
+            if (Type != UnitType.Skimmer)
+                pace *= Lerp(1f, 0.55f, Saturate((world.Map.WaterDepth(pos) - 0.15f) / 0.7f));
+            agent.speed = def.speed * pace;
             if (!HasTurret) turretYaw = yaw;
             transform.rotation = Quaternion.Euler(0f, yaw * Mathf.Rad2Deg, 0f);
         }

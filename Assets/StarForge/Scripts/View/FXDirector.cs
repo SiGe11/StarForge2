@@ -1,6 +1,7 @@
 // FXDirector.cs — turns game events into effects, and draws the instanced
 // overlays (selection rings, placement footprint, order markers, scorch marks,
-// health bars, projectile streaks). Nothing here changes the game.
+// vehicle tracks, the glow under ore, health bars, projectile streaks). Nothing
+// here changes the game.
 //
 // Effects are cut outside the player's vision: an explosion is live
 // information, so fog of war has to hide it.
@@ -21,7 +22,8 @@ namespace StarForge.View
 
         [Header("Particle materials")]
         public Material fireMaterial;
-        public Material smokeMaterial;
+        [Tooltip("StarForge/Smoke: smoke, dust and mist.")] public Material smokeMaterial;
+        [Tooltip("StarForge/Smoke without billowing: water drops.")] public Material dropletMaterial;
         public Material glowMaterial;
 
         [Header("Instanced overlay materials")]
@@ -33,6 +35,9 @@ namespace StarForge.View
         [Header("Debris")]
         public Material debrisMaterial;
         public Material trailMaterial;
+
+        [Header("Water")]
+        public Material rippleMaterial;
 
         public static readonly Color PlayerColor = new Color(0.22f, 0.68f, 1f);
         public static readonly Color EnemyColor = new Color(1f, 0.28f, 0.16f);
@@ -73,18 +78,51 @@ namespace StarForge.View
         }
 
         struct Scorch { public Vector3 pos; public float rot, size, born; public int frame; }
+        struct TrackMark { public Vector3 pos; public float yaw, length, width, born, band, halfBand, pitch; }
         struct Marker { public Vector3 pos; public float born; public int kind; }
         struct FlashSlot { public Light light; public float t, life, intensity; }
         struct Shockwave { public Vector3 pos; public float born, size; }
         struct Blast { public Vector3 pos; public float t, scale; }
 
-        ParticleSystem fire, smoke, sparks, glow, embers, debris;
+        ParticleSystem fire, smoke, sparks, glow, embers, debris, trail, droplets;
         Mesh cube, quad;
-        readonly Batch rings = new Batch(), scorches = new Batch(), bars = new Batch(), streaks = new Batch();
+        readonly Batch rings = new Batch(), scorches = new Batch(), tracks = new Batch(), bars = new Batch(), streaks = new Batch(), ripples = new Batch();
         readonly List<Scorch> scorchList = new List<Scorch>();
+        // Tracks are a ring buffer: the oldest mark gives way once the batch is full.
+        const int MaxTracks = 1000;
+        const float TrackLife = 40f;
+        readonly TrackMark[] trackMarks = new TrackMark[MaxTracks];
+        int trackHead, trackCount;
+        readonly Dictionary<int, Vector3> lastTrack = new Dictionary<int, Vector3>();
+        readonly List<int> trackGone = new List<int>();
         readonly List<Marker> markers = new List<Marker>();
         readonly List<Shockwave> shockwaves = new List<Shockwave>();
         readonly List<Blast> blasts = new List<Blast>();
+
+        // Muzzle blasts and other flashes too short and too directional for a
+        // sprite: shaped quads along a direction, drawn with the streaks.
+        struct Flare { public Vector3 pos, dir; public float born, life, length, width; public Color color; }
+        readonly List<Flare> flares = new List<Flare>(128);
+
+        // Emits held back a moment, so a fireball is not hidden behind the smoke
+        // that should follow it.
+        struct Delayed { public float at, size, life, rotation; public int system; public Vector3 pos, vel; public Color color; }
+        readonly List<Delayed> delayed = new List<Delayed>(256);
+
+        // Rings and foam on the water: wakes, splashes, shells landing in it.
+        struct Ripple { public Vector3 pos; public float born, life, size, seed; public int kind; }
+        readonly List<Ripple> rippleList = new List<Ripple>(256);
+        // Per unit: in the water last frame, and where it last dropped a wake ring.
+        readonly Dictionary<int, (bool wet, Vector2 last)> waterState = new Dictionary<int, (bool, Vector2)>();
+        readonly List<int> waterGone = new List<int>();
+
+        // Firelight: a few flickering lights on the burning trees nearest the camera.
+        readonly Light[] fireLights = new Light[4];
+
+        // Where each shell in flight last dropped a puff of its smoke trail.
+        readonly Dictionary<Projectile, (Vector3 last, float age)> trailState = new Dictionary<Projectile, (Vector3, float)>();
+        readonly List<Projectile> trailGone = new List<Projectile>();
+        const float TrailSpacing = 0.9f;
         readonly FlashSlot[] flashes = new FlashSlot[8];
         readonly Vector4[] shockUniforms = new Vector4[8];
         float nextFlash;
@@ -100,8 +138,9 @@ namespace StarForge.View
             cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
             quad = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
 
-            fire = MakeSystem("Fire", fireMaterial, 600, true, 0f, 0.65f, 1.3f, false, 0f);
-            smoke = MakeSystem("Smoke", smokeMaterial, 900, true, 0f, 0.45f, 1.6f, false, -0.02f);
+            fire = MakeSystem("Fire", fireMaterial, 1400, true, 0f, 0.65f, 1.3f, false, 0f);
+            smoke = MakeSystem("Smoke", smokeMaterial, 900, false, 0f, 0.45f, 1.6f, false, -0.02f);
+            SmokeStreams(smoke);
             sparks = MakeSystem("Sparks", glowMaterial, 1600, false, 4f / 16f, 1f, 0.25f, true, 2.2f);
             glow = MakeSystem("Glow", glowMaterial, 600, false, 4f / 16f, 1f, 0.4f, false, 0f);
             var lv = smoke.limitVelocityOverLifetime;
@@ -122,6 +161,35 @@ namespace StarForge.View
             elv.enabled = true;
             elv.drag = 0.6f;
             if (debrisMaterial != null) debris = MakeDebris();
+
+            // Shell smoke trails, gun blast smoke and blast dust: puffs that start
+            // large and swell less, with more drag, than the rising smoke above.
+            trail = MakeSystem("Trail", smokeMaterial, 2000, false, 0f, 0.55f, 1.9f, false, -0.01f);
+            SmokeStreams(trail);
+            var tlv = trail.limitVelocityOverLifetime;
+            tlv.enabled = true;
+            tlv.drag = 1.2f;
+
+            // Water thrown up by splashes: small bright drops, stretched along their
+            // flight, falling back.
+            droplets = MakeSystem("Droplets", dropletMaterial != null ? dropletMaterial : smokeMaterial, 900, false, 0f, 1f, 0.5f, true, 1.7f);
+            SmokeStreams(droplets);
+            var dr = droplets.GetComponent<ParticleSystemRenderer>();
+            dr.velocityScale = 0.06f;
+            dr.lengthScale = 1.1f;
+
+            for (int i = 0; i < fireLights.Length; i++)
+            {
+                var go = new GameObject("FireLight" + i);
+                go.transform.SetParent(transform, false);
+                var l = go.AddComponent<Light>();
+                l.type = LightType.Point;
+                l.shadows = LightShadows.None;
+                l.color = new Color(1f, 0.5f, 0.2f);
+                l.range = 12f;
+                l.enabled = false;
+                fireLights[i] = l;
+            }
 
             for (int i = 0; i < flashes.Length; i++)
             {
@@ -202,6 +270,19 @@ namespace StarForge.View
             r.receiveShadows = false;
             ps.Play();
             return ps;
+        }
+
+        /// <summary>The per-particle data StarForge/Smoke picks, lights and erodes a puff
+        /// with: a stable random seed and its age. Smoke has no animated sheet.</summary>
+        static void SmokeStreams(ParticleSystem ps)
+        {
+            var tsa = ps.textureSheetAnimation;
+            tsa.enabled = false;
+            ps.GetComponent<ParticleSystemRenderer>().SetActiveVertexStreams(new List<ParticleSystemVertexStream>
+            {
+                ParticleSystemVertexStream.Position, ParticleSystemVertexStream.Color, ParticleSystemVertexStream.UV,
+                ParticleSystemVertexStream.StableRandomX, ParticleSystemVertexStream.AgePercent
+            });
         }
 
         /// <summary>Solid chunks thrown by explosions: lit mesh particles with 3D spin that
@@ -324,6 +405,18 @@ namespace StarForge.View
 
         static Color TeamColor(int team) => team == 0 ? PlayerColor : team == 1 ? EnemyColor : new Color(0.55f, 0.95f, 1f);
 
+        /// <summary>A camera-facing quad along <paramref name="dir"/> ending at <paramref name="head"/>.</summary>
+        void AddStreak(Vector3 head, Vector3 dir, float length, float width, Color color, float kind)
+        {
+            Vector3 center = head - dir * length * 0.5f;
+            var mat = new Matrix4x4(
+                new Vector4(dir.x * length, dir.y * length, dir.z * length, 0f),
+                new Vector4(0f, width, 0f, 0f),
+                new Vector4(0f, 0f, 1f, 0f),
+                new Vector4(center.x, center.y, center.z, 1f));
+            streaks.Add(mat, color, new Vector4(kind, 0f, 0f, 0f));
+        }
+
         // ------------------------------------------------------------ events
         void OnEvent(GameEvent e)
         {
@@ -340,7 +433,8 @@ namespace StarForge.View
                     break;
                 case GameEventKind.Death:
                     if (!Seen(e.pos) && !(e.unit != null && e.unit.everSeenByPlayer && e.unit.def.building)) return;
-                    if (e.type == UnitType.Ore) CrystalShatter(e.pos);
+                    if (e.type == UnitType.Boulder) RockSmash(e.pos, e.scale, e.dir);
+                    else if (e.type == UnitType.Ore) CrystalShatter(e.pos);
                     else Explosion(e.pos, e.scale, e.unit != null && e.unit.def.building);
                     break;
                 case GameEventKind.Promoted:
@@ -355,27 +449,255 @@ namespace StarForge.View
                     if (!Seen(e.pos)) return;
                     markers.Add(new Marker { pos = e.pos, born = Time.time, kind = e.team == 0 ? 6 : 7 });
                     break;
+                case GameEventKind.PlantFelled:
+                    if (Seen(e.pos)) PlantFelled(e);
+                    break;
+                case GameEventKind.PlantLanded:
+                    if (Seen(e.pos)) PlantLanded(e);
+                    break;
+                case GameEventKind.PlantIgnited:
+                    if (Seen(e.pos)) PlantIgnited(e);
+                    break;
             }
         }
 
+        // ------------------------------------------------------------ vegetation
+        Vegetation Plants => world != null ? world.Plants : null;
+
+        /// <summary>A point in a plant's crown (or along its trunk, once the crown has
+        /// burned away), where it stands, falls or lies now.</summary>
+        Vector3 CrownPoint(Vegetation veg, int i)
+        {
+            var k = veg.KindOf(i);
+            var pose = veg.Pose(i);
+            float lost = veg.live[i].foliageLost;
+            Vector3 local;
+            if (k.HasCrown && Random.value > lost * 0.8f)
+            {
+                Vector3 r = Random.insideUnitSphere;
+                float shrink = 1f - lost * 0.6f;
+                local = k.crownCenter + Vector3.Scale(r, k.crownRadii) * shrink * 0.85f;
+            }
+            else local = new Vector3(Random.Range(-0.2f, 0.2f), Random.Range(0.3f, 0.85f) * k.height, Random.Range(-0.2f, 0.2f));
+            return pose.MultiplyPoint3x4(local);
+        }
+
+        void PlantFelled(GameEvent e)
+        {
+            var veg = Plants;
+            if (veg == null) return;
+            var k = veg.KindOf(e.index);
+            float size = e.scale;
+            bool leafy = k.HasCrown && veg.live[e.index].foliageLost < 0.7f;
+            Color leaf = Color.Lerp(k.leaf, k.leaf2, Random.value) * 2.4f;
+            leaf.a = 1f;
+            if (debris != null)
+            {
+                // Leaves and twigs shaken out of the crown, splinters from the trunk.
+                int nLeaves = leafy ? Mathf.RoundToInt((k.bush ? 10 : 18) * size) : 0;
+                for (int i = 0; i < nLeaves; i++)
+                {
+                    Vector3 at = CrownPoint(veg, e.index);
+                    debris.Emit(new ParticleSystem.EmitParams
+                    {
+                        position = at,
+                        velocity = Random.insideUnitSphere * 3f + e.dir * 2f + Vector3.up * Random.Range(0.5f, 2.5f),
+                        startSize = Random.Range(0.06f, 0.14f),
+                        startLifetime = Random.Range(1.6f, 2.8f),
+                        startColor = leaf * Random.Range(0.7f, 1.1f),
+                        rotation3D = new Vector3(Random.Range(0f, 360f), Random.Range(0f, 360f), Random.Range(0f, 360f)),
+                        applyShapeToPosition = false
+                    }, 1);
+                }
+                if (!k.bush)
+                    for (int i = 0; i < 7; i++)
+                    {
+                        Vector3 v = Random.insideUnitSphere * 3.5f - e.dir * 1.5f;
+                        v.y = Mathf.Abs(v.y) + Random.Range(2f, 4.5f);
+                        float g = Random.Range(0.9f, 1.3f);
+                        debris.Emit(new ParticleSystem.EmitParams
+                        {
+                            position = e.pos + Vector3.up * Random.Range(0.3f, 1.2f),
+                            velocity = v,
+                            startSize = Random.Range(0.06f, 0.16f),
+                            startLifetime = Random.Range(2f, 3f),
+                            startColor = new Color(g * 0.62f, g * 0.48f, g * 0.34f),
+                            rotation3D = new Vector3(Random.Range(0f, 360f), Random.Range(0f, 360f), Random.Range(0f, 360f)),
+                            applyShapeToPosition = false
+                        }, 1);
+                    }
+            }
+            // A puff of leaf litter and dust at the foot.
+            for (int i = 0; i < (k.bush ? 4 : 6); i++)
+                Emit(trail, e.pos + Random.insideUnitSphere * 0.8f + Vector3.up * 0.4f,
+                     Random.insideUnitSphere * 1.6f + Vector3.up * 0.5f + e.dir * 0.8f, Random.Range(1.4f, 2.2f) * Mathf.Sqrt(size),
+                     Random.Range(1.0f, 1.6f), new Color(0.48f, 0.42f, 0.33f, 0.45f), Random.Range(0f, 360f));
+        }
+
+        void PlantLanded(GameEvent e)
+        {
+            var veg = Plants;
+            if (veg == null) return;
+            var k = veg.KindOf(e.index);
+            float length = k.height * e.scale;
+            bool leafy = k.HasCrown && veg.live[e.index].foliageLost < 0.7f;
+            // Dust thrown up all along the trunk where it hits, thickest at the crown.
+            int n = Mathf.RoundToInt(length * 1.2f);
+            for (int i = 0; i < n; i++)
+            {
+                float t = (i + Random.value) / n;
+                Vector3 at = e.pos + e.dir * (t * length * 0.9f) + Vector3.up * 0.3f;
+                at.y = world.Map.HeightAt(new Vector2(at.x, at.z)) + 0.3f;
+                Vector3 side = Vector3.Cross(Vector3.up, e.dir) * (Random.value < 0.5f ? -1f : 1f);
+                Emit(trail, at, side * Random.Range(1.5f, 3.5f) + Vector3.up * Random.Range(0.4f, 1.2f),
+                     Random.Range(1.8f, 2.8f) * Mathf.Lerp(0.8f, 1.4f, t), Random.Range(1.2f, 2f),
+                     leafy && t > 0.5f ? new Color(0.42f, 0.44f, 0.30f, 0.45f) : new Color(0.50f, 0.44f, 0.36f, 0.5f), Random.Range(0f, 360f));
+            }
+            if (rig != null && rig.cam != null)
+                rig.Shake(Mathf.Clamp01(1f - Vector3.Distance(rig.cam.transform.position, e.pos) / 90f) * 0.06f * Mathf.Min(1f, length / 6f));
+        }
+
+        void PlantIgnited(GameEvent e)
+        {
+            var veg = Plants;
+            if (veg == null) return;
+            for (int i = 0; i < 3; i++)
+                Emit(fire, CrownPoint(veg, e.index), Vector3.up * 1.5f, Random.Range(1.6f, 2.4f) * veg.plants[e.index].scale,
+                     Random.Range(0.6f, 0.9f), Color.white, Random.Range(0f, 360f));
+            Emit(glow, CrownPoint(veg, e.index), Vector3.zero, 4f, 0.3f, new Color(1f, 0.55f, 0.2f));
+        }
+
+        void BurningPlants(float dt)
+        {
+            var veg = Plants;
+            int lights = 0;
+            Vector3 camFocus = rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero;
+            if (veg != null)
+            {
+                // Nearest fires to the view get the lights.
+                fireOrder.Clear();
+                foreach (int i in veg.burning)
+                {
+                    var p = veg.plants[i].pos;
+                    if (!Seen(p)) continue;
+                    fireOrder.Add((new Vector2(p.x - camFocus.x, p.z - camFocus.z).sqrMagnitude, i));
+                    ref var s = ref veg.live[i];
+                    var k = veg.KindOf(i);
+                    float size = veg.plants[i].scale * (k.bush ? 0.6f : 1f);
+                    // Flames licking up through the crown (or the bare limbs once it has
+                    // gone), a warm glow round them, and dark smoke above.
+                    float flames = s.fire * (k.bush ? 9f : 20f);
+                    for (int n = Mathf.FloorToInt(flames * dt + Random.value); n > 0; n--)
+                        Emit(fire, CrownPoint(veg, i), Vector3.up * Random.Range(1.4f, 3.0f) + Random.insideUnitSphere * 0.5f,
+                             Random.Range(2.0f, 3.4f) * size * Mathf.Lerp(0.5f, 1f, s.fire), Random.Range(0.6f, 1.0f), Color.white, Random.Range(0f, 360f));
+                    if (Random.value < dt * s.fire * 3f)
+                        Emit(glow, CrownPoint(veg, i), Vector3.up * 0.5f, Random.Range(4f, 6f) * size, Random.Range(0.4f, 0.7f), new Color(0.9f, 0.4f, 0.12f));
+                    if (Random.value < dt * s.fire * 4f)
+                    {
+                        float shade = Random.Range(0.2f, 0.3f);
+                        Emit(smoke, CrownPoint(veg, i) + Vector3.up * 1.5f, new Vector3(Random.Range(-0.4f, 0.4f), Random.Range(1.8f, 3f), Random.Range(-0.4f, 0.4f)),
+                             Random.Range(2.6f, 4f) * size, Random.Range(3f, 4.5f), new Color(shade, shade * 0.96f, shade * 0.92f, 0.6f), Random.Range(0f, 360f));
+                    }
+                    if (Random.value < dt * s.fire * 7f)
+                        Emit(embers, CrownPoint(veg, i), Random.insideUnitSphere * 1.2f + Vector3.up * Random.Range(1.5f, 3.5f),
+                             Random.Range(0.07f, 0.14f), Random.Range(1.5f, 3f), new Color(1f, Random.Range(0.45f, 0.7f), 0.2f));
+                }
+                fireOrder.Sort((a, b) => a.d.CompareTo(b.d));
+                for (; lights < fireLights.Length && lights < fireOrder.Count; lights++)
+                {
+                    int i = fireOrder[lights].i;
+                    var l = fireLights[lights];
+                    var k = veg.KindOf(i);
+                    l.transform.position = veg.Pose(i).MultiplyPoint3x4(k.HasCrown ? k.crownCenter * 0.8f : Vector3.up * k.height * 0.5f);
+                    float flicker = 0.75f + 0.25f * Mathf.PerlinNoise(Time.time * 7f, i * 0.37f);
+                    l.intensity = 4.5f * veg.live[i].fire * flicker;
+                    l.range = 10f + 4f * veg.plants[i].scale;
+                    l.enabled = true;
+                }
+            }
+            for (int i = lights; i < fireLights.Length; i++) fireLights[i].enabled = false;
+        }
+
+        readonly List<(float d, int i)> fireOrder = new List<(float, int)>(64);
+
         void OnMarker(Vector3 pos, int kind) => markers.Add(new Marker { pos = pos, born = Time.time, kind = kind });
+
+        void AddFlare(Vector3 pos, Vector3 dir, float length, float width, Color color, float life)
+        {
+            if (flares.Count < 256)
+                flares.Add(new Flare { pos = pos, dir = dir, length = length, width = width, color = color, life = life, born = Time.time });
+        }
+
+        ParticleSystem SystemAt(int i) => i switch { 0 => fire, 1 => smoke, 2 => sparks, 3 => glow, 4 => embers, _ => trail };
+
+        void EmitLater(float delay, int system, Vector3 pos, Vector3 vel, float size, float life, Color color, float rotation = 0f)
+        {
+            if (delayed.Count < 512)
+                delayed.Add(new Delayed { at = Time.time + delay, system = system, pos = pos, vel = vel, size = size, life = life, color = color, rotation = rotation });
+        }
 
         void MuzzleFlash(GameEvent e)
         {
             Color c = TeamColor(e.team);
+            Vector3 fwd = e.dir.sqrMagnitude > 1e-4f ? e.dir.normalized : Vector3.forward;
+            Vector3 side = Vector3.Cross(Vector3.up, fwd).normalized;
             switch (e.projectileKind)
             {
                 case 1:
-                    Emit(glow, e.pos + e.dir * 0.3f, e.dir * 2f, 2.6f, 0.12f, new Color(1f, 0.7f, 0.35f));
-                    for (int i = 0; i < 5; i++)
-                        Emit(smoke, e.pos, e.dir * Random.Range(3f, 8f) + Random.insideUnitSphere * 1.5f, 1.2f, Random.Range(0.6f, 1.0f), new Color(0.55f, 0.52f, 0.5f, 0.55f));
-                    Flash(e.pos, new Color(1f, 0.65f, 0.3f), 3f, 8f, 0.1f);
+                {
+                    // The Mauler's gun: a white-hot core inside a long orange blast, jets
+                    // out of the muzzle brake either side, a cone of smoke thrown
+                    // forward and dragged to a stop, and dust kicked off the ground.
+                    // The blast smoke uses the trail system's still frame: the
+                    // animated smoke sheet opens on tiny puffs, and a gun's smoke is
+                    // there the instant it fires.
+                    AddFlare(e.pos, fwd, 4.2f, 2.6f, new Color(3.4f, 1.9f, 0.7f), 0.11f);
+                    AddFlare(e.pos, fwd, 2.2f, 1.4f, new Color(4.2f, 3.6f, 2.6f), 0.07f);
+                    AddFlare(e.pos - fwd * 0.3f, side, 1.8f, 1.0f, new Color(3.0f, 1.5f, 0.5f), 0.09f);
+                    AddFlare(e.pos - fwd * 0.3f, -side, 1.8f, 1.0f, new Color(3.0f, 1.5f, 0.5f), 0.09f);
+                    Emit(glow, e.pos + fwd * 0.8f, fwd * 1.5f, 4.2f, 0.16f, new Color(1f, 0.62f, 0.28f));
+                    for (int i = 0; i < 9; i++)
+                        Emit(trail, e.pos + fwd * Random.Range(0.3f, 1.6f),
+                             fwd * Random.Range(4f, 13f) + Random.insideUnitSphere * 1.2f + Vector3.up * 0.5f,
+                             Random.Range(2.2f, 3.2f), Random.Range(1.6f, 2.6f), new Color(0.82f, 0.79f, 0.75f, 0.75f), Random.Range(0f, 360f));
+                    for (int k = -1; k <= 1; k += 2)
+                        for (int i = 0; i < 2; i++)
+                            Emit(trail, e.pos - fwd * 0.3f, side * k * Random.Range(3f, 6f) + Vector3.up * 0.6f,
+                                 Random.Range(1.6f, 2.3f), Random.Range(1.1f, 1.6f), new Color(0.82f, 0.79f, 0.75f, 0.6f), Random.Range(0f, 360f));
+                    for (int i = 0; i < 6; i++)
+                        Emit(sparks, e.pos + fwd * 0.5f, fwd * Random.Range(14f, 24f) + Random.insideUnitSphere * 3f, 0.16f, Random.Range(0.15f, 0.3f), new Color(1f, 0.72f, 0.35f));
+                    float gy = world.Map.HeightAt(new Vector2(e.pos.x, e.pos.z));
+                    if (e.pos.y - gy < 2.6f)
+                    {
+                        Vector3 under = new Vector3(e.pos.x, gy, e.pos.z) + fwd * 1.8f;
+                        for (int i = 0; i < 7; i++)
+                        {
+                            float a = i / 7f * Mathf.PI * 2f;
+                            Vector3 d = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                            Emit(trail, under + d * 0.8f + Vector3.up * 0.3f, (d + fwd * 0.8f) * Random.Range(2.5f, 4.5f) + Vector3.up * 0.3f,
+                                 Random.Range(2.6f, 3.6f), Random.Range(1.2f, 1.8f), new Color(0.56f, 0.49f, 0.40f, 0.36f), Random.Range(0f, 360f));
+                        }
+                    }
+                    Flash(e.pos + fwd * 1.5f, new Color(1f, 0.62f, 0.3f), 6f, 12f, 0.14f);
+                    if (rig != null && rig.cam != null)
+                        rig.Shake(Mathf.Clamp01(1f - Vector3.Distance(rig.cam.transform.position, e.pos) / 90f) * 0.07f);
                     break;
+                }
                 case 3:
-                    Emit(glow, e.pos, e.dir, 1.6f, 0.1f, new Color(1f, 0.75f, 0.35f));
+                    // Sentinel: a hard amber bolt and a puff from the muzzle.
+                    AddFlare(e.pos, fwd, 2.4f, 0.9f, new Color(3.2f, 2.0f, 0.8f), 0.07f);
+                    Emit(glow, e.pos, fwd, 1.8f, 0.1f, new Color(1f, 0.75f, 0.35f));
+                    Emit(smoke, e.pos + fwd * 0.4f, fwd * 2.5f + Vector3.up * 0.4f, 0.7f, 0.8f, new Color(0.62f, 0.6f, 0.58f, 0.35f));
+                    break;
+                case 2:
+                    // Skimmer: a pulse of plasma in the team's colour.
+                    AddFlare(e.pos, fwd, 1.5f, 0.7f, c * 2.6f + new Color(0.6f, 0.6f, 0.6f), 0.06f);
+                    Emit(glow, e.pos, fwd, 1.2f, 0.08f, Color.Lerp(Color.white, c, 0.6f));
                     break;
                 default:
-                    Emit(glow, e.pos, e.dir, e.projectileKind == 2 ? 1.1f : 0.8f, 0.06f, Color.Lerp(Color.white, c, 0.5f));
+                    // Rifles: a quick star-shaped flash.
+                    AddFlare(e.pos, fwd, 0.9f, 0.38f, Color.Lerp(new Color(3f, 2.4f, 1.4f), c * 2f, 0.3f), 0.045f);
+                    Emit(glow, e.pos, fwd, 0.7f, 0.05f, Color.Lerp(Color.white, c, 0.4f));
                     break;
             }
         }
@@ -386,6 +708,17 @@ namespace StarForge.View
             for (int i = 0; i < 6; i++)
                 Emit(sparks, at, Random.insideUnitSphere * 7f + Vector3.up * 2f, 0.18f, Random.Range(0.15f, 0.35f), c);
             Emit(glow, at, Vector3.zero, 0.9f, 0.08f, c);
+            // Rounds striking the water ring it; the ground, a puff of dust.
+            if (at.y - world.Map.HeightAt(new Vector2(at.x, at.z)) < 0.4f && world.Map.WaterDepth(new Vector2(at.x, at.z)) > 0.15f)
+            {
+                AddRipple(new Vector3(at.x, world.Map.waterLevel + 0.03f, at.z), 1.8f, 1.2f, 0);
+                for (int i = 0; i < 4; i++)
+                    Emit(droplets, new Vector3(at.x, world.Map.waterLevel, at.z), Random.insideUnitSphere * 1.2f + Vector3.up * Random.Range(2f, 4f),
+                         Random.Range(0.1f, 0.18f), Random.Range(0.4f, 0.6f), new Color(0.86f, 0.94f, 1f, 0.75f));
+            }
+            else if (at.y - world.Map.HeightAt(new Vector2(at.x, at.z)) < 0.4f)
+                Emit(smoke, at + Vector3.up * 0.2f, Vector3.up * Random.Range(0.6f, 1.2f), Random.Range(0.6f, 0.9f), Random.Range(0.5f, 0.8f),
+                     new Color(0.5f, 0.45f, 0.38f, 0.35f), Random.Range(0f, 360f));
         }
 
         void CrystalShatter(Vector3 at)
@@ -395,49 +728,124 @@ namespace StarForge.View
             Emit(glow, at, Vector3.zero, 5f, 0.5f, new Color(0.4f, 0.9f, 1f));
         }
 
+        /// <summary>A Mauler driving through a boulder: no fire, just broken rock
+        /// thrown forward and a cloud of dust, leaving a crater.</summary>
+        void RockSmash(Vector3 at, float radius, Vector3 forward)
+        {
+            float t = Time.time;
+            if (debris != null)
+                for (int i = 0; i < 26; i++)
+                {
+                    Vector3 v = Random.insideUnitSphere * 5f + forward * 3.5f;
+                    v.y = Mathf.Abs(v.y) + Random.Range(2.5f, 6f);
+                    float g = Random.Range(0.32f, 0.5f);
+                    debris.Emit(new ParticleSystem.EmitParams
+                    {
+                        position = at + Random.insideUnitSphere * radius * 0.6f,
+                        velocity = v,
+                        startSize = Random.Range(0.15f, 0.45f) * radius,
+                        startLifetime = Random.Range(2.5f, 4f),
+                        startColor = new Color(g, g * 0.95f, g * 0.9f),
+                        rotation3D = new Vector3(Random.Range(0f, 360f), Random.Range(0f, 360f), Random.Range(0f, 360f)),
+                        applyShapeToPosition = false
+                    }, 1);
+                }
+            for (int i = 0; i < 14; i++)
+            {
+                float a = (i + Random.value * 0.5f) / 14f * Mathf.PI * 2f;
+                Vector3 dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                Emit(trail, at + dir * radius * 0.6f, dir * Random.Range(2.5f, 4.5f) + Vector3.up * Random.Range(0.6f, 1.6f),
+                     Random.Range(2.6f, 3.8f) * radius, Random.Range(1.4f, 2.2f), new Color(0.54f, 0.48f, 0.41f, 0.5f), Random.Range(0f, 360f));
+            }
+            Vector3 ground = new Vector3(at.x, world.Map.HeightAt(new Vector2(at.x, at.z)), at.z);
+            if (scorchList.Count >= 96) scorchList.RemoveAt(0);
+            scorchList.Add(new Scorch { pos = ground, rot = Random.Range(0f, 6.283f), size = radius * 1.6f, born = t, frame = Random.Range(0, 4) });
+            if (rig != null && rig.cam != null)
+                rig.Shake(Mathf.Clamp01(1.2f - Vector3.Distance(rig.cam.transform.position, at) / 140f) * 0.12f);
+        }
+
         void Explosion(Vector3 at, float scale, bool structure, bool secondary = false)
         {
             float t = Time.time;
-            int puffs = structure && !secondary ? 5 : 1;
+            float root = Mathf.Sqrt(scale);
+            float gy = world.Map.HeightAt(new Vector2(at.x, at.z));
+            bool grounded = at.y - gy < 3.5f * scale;
+            // Over water, the ground burst is a burst of water instead.
+            bool inWater = grounded && world.Map.WaterDepth(new Vector2(at.x, at.z)) > 0.25f;
+            if (inWater)
+            {
+                WaterBurst(at, scale);
+                grounded = false;
+            }
+
+            // 1. The flash: a white-hot core for a tenth of a second.
+            Emit(glow, at + Vector3.up * 0.6f * scale, Vector3.zero, 6.5f * scale, 0.12f, new Color(1f, 0.9f, 0.7f));
+            Emit(glow, at + Vector3.up * scale, Vector3.zero, 9f * scale, 0.3f, new Color(1f, 0.5f, 0.18f));
+
+            // 2. The fireball: several flipbook puffs of different sizes and
+            // rotations billowing up and out, tinted so the sheet's detail survives
+            // instead of blowing out to one flat yellow.
+            int puffs = structure ? (secondary ? 3 : 7) : 4;
             for (int i = 0; i < puffs; i++)
             {
-                Vector3 off = i == 0 ? Vector3.zero : Random.insideUnitSphere * scale * 1.2f;
-                off.y = Mathf.Abs(off.y) * 0.5f;
-                Emit(fire, at + off + Vector3.up * 0.6f * scale, Vector3.up * 0.9f * scale,
-                     Random.Range(3.6f, 4.6f) * scale * (i == 0 ? 1f : 0.6f), 0.85f * Mathf.Sqrt(scale), Color.white, Random.Range(0f, 360f));
+                Vector3 off = i == 0 ? Vector3.zero : Random.insideUnitSphere * scale * (structure ? 1.3f : 0.8f);
+                off.y = Mathf.Abs(off.y) * 0.6f;
+                Vector3 vel = Vector3.up * Random.Range(1.0f, 2.2f) * root + new Vector3(off.x, 0f, off.z) * 0.8f;
+                float size = Random.Range(2.4f, 3.6f) * scale * (i == 0 ? 1.2f : 0.85f);
+                Color tint = Color.Lerp(new Color(1f, 0.86f, 0.7f), new Color(1f, 0.7f, 0.5f), Random.value);
+                if (i < 2) Emit(fire, at + off + Vector3.up * 0.5f * scale, vel, size, Random.Range(0.75f, 1.0f) * root, tint, Random.Range(0f, 360f));
+                else EmitLater(Random.Range(0.03f, 0.12f), 0, at + off + Vector3.up * 0.5f * scale, vel, size, Random.Range(0.7f, 0.95f) * root, tint, Random.Range(0f, 360f));
             }
-            int nSparks = Mathf.RoundToInt(12 * scale);
+
+            // 3. Smoke: dark billows already full-sized while the fire burns (the
+            // still frame), then a column from the animated sheet that takes over
+            // as the fire dies, rising and spreading for seconds.
+            int billows = structure ? (secondary ? 2 : 6) : 4;
+            for (int i = 0; i < billows; i++)
+            {
+                float shade = Random.Range(0.17f, 0.27f);
+                EmitLater(Random.Range(0.02f, 0.12f), 5, at + Random.insideUnitSphere * scale * 0.8f + Vector3.up * scale * 0.6f,
+                          new Vector3(Random.Range(-0.8f, 0.8f), Random.Range(1.4f, 2.6f) * root, Random.Range(-0.8f, 0.8f)),
+                          Random.Range(3.6f, 5.2f) * scale, Random.Range(2.2f, 3.2f) * root, new Color(shade, shade * 0.95f, shade * 0.9f, 0.85f),
+                          Random.Range(0f, 360f));
+            }
+            int plumes = structure ? (secondary ? 2 : 6) : (scale > 1.2f ? 4 : 3);
+            for (int i = 0; i < plumes; i++)
+            {
+                float shade = Random.Range(0.24f, 0.36f);
+                EmitLater(Random.Range(0.08f, 0.3f), 1, at + Random.insideUnitSphere * scale * 0.7f + Vector3.up * scale * 0.8f,
+                          new Vector3(Random.Range(-0.6f, 0.6f), Random.Range(1.6f, 3.0f) * root, Random.Range(-0.6f, 0.6f)),
+                          Random.Range(3.2f, 5f) * scale, Random.Range(2.6f, 4f) * root, new Color(shade, shade * 0.96f, shade * 0.92f, 0.78f),
+                          Random.Range(0f, 360f));
+            }
+
+            // 4. Sparks: short, hot and quick to die, rather than long sticks.
+            int nSparks = Mathf.RoundToInt(10 * scale);
             for (int i = 0; i < nSparks; i++)
             {
-                Vector3 v = Random.insideUnitSphere * 14f * scale;
-                v.y = Mathf.Abs(v.y) + 3f;
-                Emit(sparks, at, v, 0.32f * Mathf.Sqrt(scale), Random.Range(0.3f, 0.9f), new Color(1f, 0.62f, 0.25f));
+                Vector3 v = Random.insideUnitSphere * 12f * root;
+                v.y = Mathf.Abs(v.y) + 4f;
+                Emit(sparks, at, v, 0.22f * root, Random.Range(0.25f, 0.6f), new Color(1f, Random.Range(0.6f, 0.8f), 0.3f));
             }
-            int plumes = structure ? 4 : (scale > 1.2f ? 2 : 1);
-            for (int i = 0; i < plumes; i++)
-                Emit(smoke, at + Random.insideUnitSphere * scale * 0.6f,
-                     new Vector3(Random.Range(-0.5f, 0.5f), Random.Range(1.4f, 2.6f), Random.Range(-0.5f, 0.5f)),
-                     Random.Range(3.5f, 5f) * scale, Random.Range(2.2f, 3.2f), new Color(0.32f, 0.30f, 0.29f, 0.75f));
-            Emit(glow, at + Vector3.up * scale, Vector3.zero, 8f * scale, 0.22f, new Color(1f, 0.55f, 0.2f));
 
-            // Debris: dark chunks thrown out on arcs, the hot ones trailing fire,
-            // bouncing off the terrain and settling.
+            // 5. Debris: small, dark, charred chunks thrown out on arcs, the hot ones
+            // trailing fire, bouncing off the terrain and settling.
             if (debris != null)
             {
-                int n = structure ? (secondary ? 8 : 28) : Mathf.RoundToInt(6f * scale);
-                float sz = Mathf.Sqrt(scale) * (structure ? 1.5f : 1f);
+                int n = structure ? (secondary ? 8 : 30) : Mathf.RoundToInt(8f * scale);
+                float sz = root * (structure ? 1.3f : 1f);
                 for (int i = 0; i < n; i++)
                 {
                     Vector3 v = Random.insideUnitSphere * 8f * scale;
-                    v.y = Mathf.Abs(v.y) * 1.3f + Random.Range(4f, 9f) * Mathf.Sqrt(scale);
-                    float g = Random.Range(0.45f, 1f);
+                    v.y = Mathf.Abs(v.y) * 1.3f + Random.Range(4f, 10f) * root;
+                    float g = Random.Range(0.3f, 0.65f);
                     debris.Emit(new ParticleSystem.EmitParams
                     {
                         position = at + Random.insideUnitSphere * 0.6f * scale + Vector3.up * 0.4f,
                         velocity = v,
-                        startSize = Random.Range(0.08f, 0.3f) * sz,
+                        startSize = Random.Range(0.05f, 0.17f) * sz,
                         startLifetime = Random.Range(2.5f, 4.5f),
-                        startColor = new Color(g, g * 0.96f, g * 0.92f),
+                        startColor = new Color(g, g * 0.97f, g * 0.95f),
                         rotation3D = new Vector3(Random.Range(0f, 360f), Random.Range(0f, 360f), Random.Range(0f, 360f)),
                         applyShapeToPosition = false
                     }, 1);
@@ -445,25 +853,49 @@ namespace StarForge.View
             }
 
             // Embers drift up out of the fireball.
-            int nEmbers = Mathf.RoundToInt((structure ? 30 : 9) * scale);
+            int nEmbers = Mathf.RoundToInt((structure ? 26 : 8) * scale);
             for (int i = 0; i < nEmbers; i++)
                 Emit(embers, at + Random.insideUnitSphere * scale + Vector3.up * 0.5f * scale,
                      Random.insideUnitSphere * 2.5f + Vector3.up * Random.Range(1.5f, 4f),
-                     Random.Range(0.10f, 0.22f), Random.Range(1.4f, 2.8f), new Color(1f, Random.Range(0.45f, 0.7f), 0.2f));
+                     Random.Range(0.08f, 0.18f), Random.Range(1.4f, 2.8f), new Color(1f, Random.Range(0.45f, 0.7f), 0.2f));
 
-            float gy = world.Map.HeightAt(new Vector2(at.x, at.z));
-            if (at.y - gy < 3.5f * scale)
+            if (grounded)
             {
                 Vector3 ground = new Vector3(at.x, gy, at.z);
-                // A ring of dust rolling out over the ground behind a shockwave.
+                // 6. A ground burst throws a fountain of earth: dark clods on arcs
+                // and a brown spray column that slows and hangs.
+                if (debris != null)
+                    for (int i = 0; i < Mathf.RoundToInt(12 * scale); i++)
+                    {
+                        Vector3 v = Random.insideUnitSphere * 4f * root;
+                        v.y = Random.Range(6f, 13f) * root;
+                        // Tinted by the debris material's grey, so these read as soil.
+                        float g = Random.Range(0.6f, 0.95f);
+                        debris.Emit(new ParticleSystem.EmitParams
+                        {
+                            position = ground + Random.insideUnitSphere * 0.5f * scale + Vector3.up * 0.2f,
+                            velocity = v,
+                            startSize = Random.Range(0.05f, 0.13f) * root,
+                            startLifetime = Random.Range(1.8f, 3f),
+                            startColor = new Color(g * 1.15f, g * 0.95f, g * 0.75f),
+                            rotation3D = new Vector3(Random.Range(0f, 360f), Random.Range(0f, 360f), Random.Range(0f, 360f)),
+                            applyShapeToPosition = false
+                        }, 1);
+                    }
+                for (int i = 0; i < (structure ? 8 : 5); i++)
+                    Emit(trail, ground + Random.insideUnitSphere * 0.6f * scale + Vector3.up * 0.3f,
+                         new Vector3(Random.Range(-1.5f, 1.5f), Random.Range(6f, 12f) * root, Random.Range(-1.5f, 1.5f)),
+                         Random.Range(2.2f, 3.2f) * scale, Random.Range(1.1f, 1.7f), new Color(0.44f, 0.37f, 0.29f, 0.62f), Random.Range(0f, 360f));
+
+                // 7. A ring of dust rolling out over the ground behind a shockwave.
                 int nDust = structure ? 20 : 12;
                 for (int i = 0; i < nDust; i++)
                 {
                     float a = (i + Random.value * 0.5f) / nDust * Mathf.PI * 2f;
                     Vector3 dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                    Emit(smoke, ground + dir * 0.8f * scale + Vector3.up * 0.4f,
-                         dir * Random.Range(5f, 8f) * Mathf.Sqrt(scale) + Vector3.up * 0.4f,
-                         Random.Range(1.6f, 2.6f) * scale, Random.Range(1.0f, 1.7f), new Color(0.46f, 0.41f, 0.35f, 0.42f));
+                    Emit(trail, ground + dir * 0.8f * scale + Vector3.up * 0.4f,
+                         dir * Random.Range(6f, 10f) * root + Vector3.up * 0.4f,
+                         Random.Range(2.4f, 3.6f) * scale, Random.Range(1.3f, 2.1f), new Color(0.50f, 0.44f, 0.37f, 0.45f), Random.Range(0f, 360f));
                 }
                 if (shockwaves.Count < 32)
                     shockwaves.Add(new Shockwave { pos = ground, born = t, size = (structure ? 26f : 11f) * scale });
@@ -475,7 +907,7 @@ namespace StarForge.View
                     size = (structure ? 3.2f : 2.1f) * scale, born = t, frame = Random.Range(0, 4)
                 });
             }
-            Flash(at + Vector3.up * 2f, new Color(1f, 0.55f, 0.22f), 7f * scale, 9f * scale, 0.35f);
+            Flash(at + Vector3.up * 2f, new Color(1f, 0.55f, 0.22f), 9f * scale, 10f * scale, 0.4f);
 
             if (rig != null && rig.cam != null)
             {
@@ -491,6 +923,115 @@ namespace StarForge.View
                     off.y = Mathf.Abs(off.y) + 0.5f;
                     blasts.Add(new Blast { t = t + Random.Range(0.18f, 1.1f), pos = at + off, scale = scale * Random.Range(0.45f, 0.65f) });
                 }
+        }
+
+        // ------------------------------------------------------------ water
+        void AddRipple(Vector3 at, float size, float life, int kind)
+        {
+            if (rippleList.Count >= 400) rippleList.RemoveAt(0);
+            rippleList.Add(new Ripple { pos = at, size = size, life = life, kind = kind, born = Time.time, seed = Random.value });
+        }
+
+        /// <summary>A body breaking the surface: rings racing out, foam, a burst of
+        /// drops and a little mist. <paramref name="size"/> is about the body's radius.</summary>
+        void Splash(Vector3 at, float size, Vector3 push)
+        {
+            float w = world.Map.waterLevel + 0.03f;
+            Vector3 s = new Vector3(at.x, w, at.z);
+            AddRipple(s, size * 3.2f, 1.1f, 0);
+            AddRipple(s, size * 5.5f, 1.8f, 0);
+            AddRipple(s, size * 2.6f, 2.4f, 1);
+            int drops = Mathf.RoundToInt(10 + size * 10);
+            for (int i = 0; i < drops; i++)
+            {
+                Vector3 v = Random.insideUnitSphere * 2.2f * size + push * 0.6f;
+                v.y = Random.Range(2.5f, 5.5f) * Mathf.Sqrt(size);
+                Emit(droplets, s + Random.insideUnitSphere * size * 0.5f + Vector3.up * 0.1f, v,
+                     Random.Range(0.14f, 0.3f), Random.Range(0.6f, 1.0f), new Color(0.86f, 0.94f, 1f, 0.8f));
+            }
+            for (int i = 0; i < 3; i++)
+                Emit(trail, s + Random.insideUnitSphere * size * 0.6f + Vector3.up * 0.3f,
+                     Random.insideUnitSphere * 0.8f + Vector3.up * 0.8f + push * 0.3f, Random.Range(1.2f, 2f) * size,
+                     Random.Range(0.8f, 1.3f), new Color(0.88f, 0.93f, 0.95f, 0.35f), Random.Range(0f, 360f));
+        }
+
+        /// <summary>A shell bursting in the water: a white column and a spreading ring
+        /// instead of a fountain of earth.</summary>
+        void WaterBurst(Vector3 at, float scale)
+        {
+            float w = world.Map.waterLevel + 0.03f;
+            Vector3 s = new Vector3(at.x, w, at.z);
+            float root = Mathf.Sqrt(scale);
+            AddRipple(s, 9f * scale, 1.6f, 0);
+            AddRipple(s, 16f * scale, 2.6f, 0);
+            AddRipple(s, 6f * scale, 3.5f, 1);
+            for (int i = 0; i < Mathf.RoundToInt(40 * scale); i++)
+            {
+                Vector3 v = Random.insideUnitSphere * 2.5f * root;
+                v.y = Random.Range(7f, 15f) * root;
+                Emit(droplets, s + Random.insideUnitSphere * 0.6f * scale, v, Random.Range(0.2f, 0.45f), Random.Range(0.9f, 1.6f),
+                     new Color(0.9f, 0.96f, 1f, 0.85f));
+            }
+            for (int i = 0; i < 7; i++)
+                Emit(trail, s + Random.insideUnitSphere * 0.7f * scale + Vector3.up * 0.5f,
+                     new Vector3(Random.Range(-1f, 1f), Random.Range(5f, 10f) * root, Random.Range(-1f, 1f)),
+                     Random.Range(2f, 3f) * scale, Random.Range(1.2f, 1.9f), new Color(0.9f, 0.94f, 0.96f, 0.55f), Random.Range(0f, 360f));
+        }
+
+        /// <summary>Wakes behind units moving through water, and a splash where one goes
+        /// in or comes out.</summary>
+        void WaterEffects(float dt)
+        {
+            var map = world.Map;
+            float level = map.waterLevel;
+            foreach (var u in world.units)
+            {
+                if (u == null || u.dying || !u.def.IsMobile) continue;
+                float depth = map.WaterDepth(u.pos);
+                bool skimmer = u.Type == UnitType.Skimmer;
+                bool wet = depth > (skimmer ? 0.05f : 0.18f);
+                bool had = waterState.TryGetValue(u.id, out var st);
+                if (!had) st = (wet, u.pos);
+                bool seen = u.visibleToPlayer || MatchSettings.spectate;
+                Vector3 vel = u.agent != null && u.agent.enabled ? u.agent.velocity : Vector3.zero;
+                float speed = new Vector2(vel.x, vel.z).magnitude;
+                float r = u.def.radius;
+
+                if (had && wet != st.wet && seen && speed > 0.8f)
+                    Splash(new Vector3(u.pos.x, level, u.pos.y), r * (skimmer ? 0.8f : 1f), vel.normalized * Mathf.Min(speed, 6f));
+
+                if (wet && seen && speed > 0.6f)
+                {
+                    float spacing = skimmer ? 1.6f : Mathf.Max(0.7f, r * 0.9f);
+                    if ((u.pos - st.last).sqrMagnitude > spacing * spacing)
+                    {
+                        st.last = u.pos;
+                        Vector3 at = new Vector3(u.pos.x, level + 0.03f, u.pos.y);
+                        // Deeper wading pushes a bigger bow wave.
+                        float bulk = Mathf.Lerp(0.8f, 1.25f, Mathf.Clamp01(depth / 0.9f));
+                        AddRipple(at, r * (skimmer ? 3.4f : 2.6f) * bulk, skimmer ? 2.4f : 2.0f, 0);
+                        AddRipple(at - vel.normalized * r * 0.5f, r * (skimmer ? 2.4f : 1.8f), skimmer ? 1.6f : 2.2f, 1);
+                        if (Random.value < 0.6f)
+                            Emit(droplets, at + Random.insideUnitSphere * r * 0.6f + vel.normalized * r * 0.7f,
+                                 vel * 0.4f + Vector3.up * Random.Range(1.5f, 3f) + Random.insideUnitSphere,
+                                 Random.Range(0.1f, 0.2f), Random.Range(0.4f, 0.7f), new Color(0.86f, 0.94f, 1f, 0.7f));
+                    }
+                }
+                else if (!wet) st.last = u.pos;
+                st.wet = wet;
+                waterState[u.id] = st;
+            }
+            if (Time.frameCount % 150 == 0 && waterState.Count > 0)
+            {
+                waterGone.Clear();
+                foreach (var id in waterState.Keys)
+                {
+                    bool alive = false;
+                    foreach (var u in world.units) if (u != null && !u.dying && u.id == id) { alive = true; break; }
+                    if (!alive) waterGone.Add(id);
+                }
+                foreach (var id in waterGone) waterState.Remove(id);
+            }
         }
 
         void Flash(Vector3 at, Color color, float intensity, float range, float life)
@@ -538,7 +1079,18 @@ namespace StarForge.View
                 Explosion(b.pos, b.scale, true, secondary: true);
             }
 
+            for (int i = delayed.Count - 1; i >= 0; i--)
+            {
+                var d = delayed[i];
+                if (now < d.at) continue;
+                delayed.RemoveAt(i);
+                Emit(SystemAt(d.system), d.pos, d.vel, d.size, d.life, d.color, d.rotation);
+            }
+            for (int i = flares.Count - 1; i >= 0; i--)
+                if (now - flares[i].born > flares[i].life) flares.RemoveAt(i);
+
             AmbientEffects(dt);
+            LayTracks(now);
             DrawOverlays(now);
             UploadShockwaves(now);
         }
@@ -569,11 +1121,83 @@ namespace StarForge.View
             Shader.SetGlobalFloat(ShockCountId, n);
         }
 
-        void AmbientEffects(float dt)
+        /// <summary>Tracked vehicles leave tread marks: a segment each time one has
+        /// moved about a metre, laid only while the player can see it and not in
+        /// the water. Marks fade over TrackLife seconds.</summary>
+        void LayTracks(float now)
         {
+            var map = world.Map;
             foreach (var u in world.units)
             {
-                if (u == null || u.dying || !u.visibleToPlayer) continue;
+                if (u == null || u.dying || (u.Type != UnitType.Mauler && u.Type != UnitType.Worker)) continue;
+                Vector3 p = u.Ground;
+                if (!lastTrack.TryGetValue(u.id, out var last)) { lastTrack[u.id] = p; continue; }
+                Vector3 d = p - last;
+                d.y = 0f;
+                float moved = d.magnitude;
+                bool mauler = u.Type == UnitType.Mauler;
+                if (moved < (mauler ? 1.0f : 0.8f)) continue;
+                lastTrack[u.id] = p;
+                if (moved > 6f || !(u.visibleToPlayer || MatchSettings.spectate)) continue;
+                Vector3 mid = (p + last) * 0.5f;
+                mid.y = map.HeightAt(new Vector2(mid.x, mid.z));
+                if (mid.y < map.waterLevel + 0.05f) continue;
+                // Mauler tracks sit 1.30 m either side of the centre line, 0.66 m wide;
+                // a Digger's 0.60 m out, 0.32 m wide. Width is the box across both.
+                float width = mauler ? 3.4f : 1.6f;
+                trackMarks[trackHead] = new TrackMark
+                {
+                    pos = mid, yaw = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, length = moved * 1.15f, width = width,
+                    born = now, band = (mauler ? 1.30f : 0.60f) / (width * 0.5f), halfBand = (mauler ? 0.33f : 0.17f) / (width * 0.5f),
+                    pitch = mauler ? 3.2f : 4.5f
+                };
+                trackHead = (trackHead + 1) % MaxTracks;
+                trackCount = Mathf.Min(trackCount + 1, MaxTracks);
+            }
+            if (lastTrack.Count > 256 || Time.frameCount % 120 == 0)
+            {
+                trackGone.Clear();
+                foreach (var id in lastTrack.Keys)
+                {
+                    bool alive = false;
+                    foreach (var u in world.units) if (u != null && !u.dying && u.id == id) { alive = true; break; }
+                    if (!alive) trackGone.Add(id);
+                }
+                foreach (var id in trackGone) lastTrack.Remove(id);
+            }
+        }
+
+        void AmbientEffects(float dt)
+        {
+            float water = world.Map.waterLevel;
+            WaterEffects(dt);
+            BurningPlants(dt);
+            foreach (var u in world.units)
+            {
+                if (u == null || u.dying) continue;
+                // Motes of light drift up off the ore the player knows about.
+                if (u.Type == UnitType.Ore && Random.value < dt * 1.4f && Seen(new Vector3(u.pos.x, 0f, u.pos.y)))
+                {
+                    Vector3 at = u.Ground + new Vector3(Random.Range(-0.9f, 0.9f), Random.Range(0.3f, 1.8f), Random.Range(-0.9f, 0.9f));
+                    Emit(glow, at, new Vector3(Random.Range(-0.15f, 0.15f), Random.Range(0.35f, 0.8f), Random.Range(-0.15f, 0.15f)),
+                         Random.Range(0.18f, 0.32f), Random.Range(1.6f, 2.6f), new Color(0.35f, 0.85f, 1f));
+                }
+                if (!u.visibleToPlayer) continue;
+                // Wading and skimming over water throw up spray.
+                if (u.agent != null && u.agent.enabled && u.def.IsMobile)
+                {
+                    float depth = world.Map.WaterDepth(u.pos);
+                    float v2 = u.agent.velocity.sqrMagnitude;
+                    if (depth > 0.12f && v2 > 1f && Random.value < dt * (u.Type == UnitType.Skimmer ? 26f : 12f))
+                    {
+                        Vector3 at = new Vector3(u.pos.x, water + 0.05f, u.pos.y);
+                        Vector3 back = -u.agent.velocity.normalized;
+                        Emit(trail, at + back * u.def.radius * 0.6f + Random.insideUnitSphere * u.def.radius * 0.4f,
+                             back * Random.Range(0.4f, 1.2f) + Vector3.up * Random.Range(0.4f, 1.1f),
+                             Random.Range(0.6f, 1.1f) * (0.6f + u.def.radius * 0.4f), Random.Range(0.6f, 1.0f),
+                             new Color(0.86f, 0.92f, 0.94f, 0.3f), Random.Range(0f, 360f));
+                    }
+                }
                 if (u.working)
                 {
                     if (u.order == Order.Harvest && Unit.Live(u.harvestNode) && Random.value < dt * 20f)
@@ -597,7 +1221,7 @@ namespace StarForge.View
                         float r = u.def.radius * 0.55f;
                         Vector3 p = u.Ground + new Vector3(Random.Range(-r, r), u.def.visualHeight * 0.8f, Random.Range(-r, r));
                         Emit(smoke, p, new Vector3(Random.Range(-0.4f, 0.4f), Random.Range(1.6f, 2.6f), Random.Range(-0.4f, 0.4f)),
-                             u.def.radius * 1.4f, Random.Range(2.6f, 3.8f), new Color(0.25f, 0.24f, 0.24f, 0.6f));
+                             u.def.radius * 1.4f, Random.Range(2.6f, 3.8f), new Color(0.32f, 0.31f, 0.3f, 0.6f));
                         if (frac < 0.3f) Emit(fire, p, Vector3.up, u.def.radius * 0.8f, 0.7f, Color.white, Random.Range(0f, 360f));
                     }
                 }
@@ -613,12 +1237,34 @@ namespace StarForge.View
                 }
             }
 
+            // Shells leave a smoke trail: a puff every TrailSpacing metres along the
+            // path, so it reads as a continuous arc whatever the frame rate.
             foreach (var p in world.projectiles)
             {
-                if (p.kind != 1 || !Seen(p.pos)) continue;
-                Emit(glow, p.pos, Vector3.zero, 0.9f, 0.07f, new Color(1f, 0.7f, 0.35f));
-                if (Random.value < dt * 40f)
-                    Emit(smoke, p.pos, Random.insideUnitSphere * 0.3f, 0.7f, 0.5f, new Color(0.5f, 0.48f, 0.46f, 0.45f));
+                if (p.kind != 1) continue;
+                if (!trailState.TryGetValue(p, out var st) || p.age < st.age)
+                    st = (p.prevPos, p.age);
+                Vector3 seg = p.pos - st.last;
+                float len = seg.magnitude;
+                if (len >= TrailSpacing && Seen(p.pos))
+                {
+                    Vector3 dir = seg / len;
+                    int n = Mathf.Min(24, Mathf.FloorToInt(len / TrailSpacing));
+                    for (int k = 1; k <= n; k++)
+                        Emit(trail, st.last + dir * (k * TrailSpacing) + Random.insideUnitSphere * 0.08f,
+                             Random.insideUnitSphere * 0.25f + Vector3.up * 0.15f, Random.Range(0.45f, 0.6f), Random.Range(0.8f, 1.2f),
+                             new Color(0.8f, 0.78f, 0.75f, 0.34f), Random.Range(0f, 360f));
+                    st.last += dir * (n * TrailSpacing);
+                }
+                else if (len >= TrailSpacing) st.last = p.pos;
+                st.age = p.age;
+                trailState[p] = st;
+            }
+            if (trailState.Count > 0)
+            {
+                trailGone.Clear();
+                foreach (var kv in trailState) if (!kv.Key.alive) trailGone.Add(kv.Key);
+                foreach (var gone in trailGone) trailState.Remove(gone);
             }
         }
 
@@ -639,6 +1285,38 @@ namespace StarForge.View
                              new Color(0.035f, 0.03f, 0.026f, a), new Vector4(1f, 0f, s.rot, 0f), rect);
             }
             scorches.Draw(cube, scorchMaterial);
+
+            for (int k = 0; k < trackCount; k++)
+            {
+                ref var m = ref trackMarks[(trackHead - trackCount + k + MaxTracks) % MaxTracks];
+                float age = now - m.born;
+                if (age > TrackLife) continue;
+                if (!Seen(m.pos) && !world.Explored(me, new Vector2(m.pos.x, m.pos.z))) continue;
+                float fade = 1f - Mathf.SmoothStep(0f, 1f, age / TrackLife);
+                tracks.Add(Matrix4x4.TRS(m.pos, Quaternion.Euler(0f, m.yaw, 0f), new Vector3(m.width, 2.5f, m.length)),
+                           new Color(0.13f, 0.105f, 0.08f, 0.34f * fade), new Vector4(6f, fade, m.band, m.halfBand),
+                           new Vector4(m.pitch, 0f, 0f, 0f));
+            }
+            tracks.Draw(cube, scorchMaterial);
+
+            // Ore light pools on the ground round each seam the player knows about,
+            // breathing slowly, and the glow a loaded Digger spills from its hopper.
+            foreach (var u in world.units)
+            {
+                if (u == null || u.dying) continue;
+                if (u.Type == UnitType.Ore)
+                {
+                    if (!Seen(new Vector3(u.pos.x, 0f, u.pos.y)) && !world.Explored(me, u.pos)) continue;
+                    float left = Mathf.Lerp(0.45f, 1f, Mathf.Clamp01(u.oreLeft / (float)Unit.NodeCapacity));
+                    float breathe = 0.85f + 0.15f * Mathf.Sin(now * 0.7f + u.pos.x * 0.37f + u.pos.y * 0.23f);
+                    float size = 8f * left;
+                    rings.Add(Matrix4x4.TRS(u.Ground, Quaternion.identity, new Vector3(size, 3f, size)),
+                              new Color(0.04f, 0.42f, 1.0f) * (left * breathe * 0.75f), new Vector4(7f, 0f, 0f, 0f));
+                }
+                else if (u.Type == UnitType.Worker && u.carrying > 0 && (u.visibleToPlayer || MatchSettings.spectate))
+                    rings.Add(Matrix4x4.TRS(u.Ground, Quaternion.identity, new Vector3(5.2f, 4f, 5.2f)),
+                              new Color(0.04f, 0.45f, 1.0f) * (0.95f + 0.15f * Mathf.Sin(now * 2.2f + u.id)), new Vector4(7f, 0f, 0f, 0f));
+            }
 
             if (player != null)
             {
@@ -731,28 +1409,44 @@ namespace StarForge.View
 
             foreach (var p in world.projectiles)
             {
-                if (p.kind == 1 || !Seen(p.pos)) continue;
+                if (!Seen(p.pos)) continue;
                 Vector3 seg = p.pos - p.prevPos;
                 float len = seg.magnitude;
                 if (len < 0.01f) continue;
                 Vector3 dir = seg / len;
                 float streak, width;
-                Color c;
+                Color c, halo;
                 switch (p.kind)
                 {
-                    case 2: streak = 1.6f; width = 0.32f; c = p.team == 0 ? new Color(0.5f, 1.6f, 2.4f) : new Color(2.4f, 0.8f, 0.4f); break;
-                    case 3: streak = 4f; width = 0.26f; c = new Color(2.6f, 1.6f, 0.6f); break;
-                    default: streak = Mathf.Min(len * 1.5f, 3.5f); width = 0.12f; c = p.team == 0 ? new Color(0.9f, 1.8f, 2.6f) : new Color(2.6f, 1.2f, 0.5f); break;
+                    // Shell: a glowing slug inside a wide orange glow.
+                    case 1: streak = Mathf.Clamp(len * 1.2f, 1.2f, 2.6f); width = 0.42f; c = new Color(3.4f, 2.0f, 0.8f); halo = new Color(0.9f, 0.4f, 0.12f); break;
+                    case 2: streak = 1.8f; width = 0.4f; c = p.team == 0 ? new Color(0.6f, 1.8f, 2.8f) : new Color(2.8f, 0.9f, 0.45f); halo = c * 0.3f; break;
+                    case 3: streak = 4.5f; width = 0.3f; c = new Color(2.8f, 1.7f, 0.65f); halo = new Color(0.7f, 0.4f, 0.12f); break;
+                    default: streak = Mathf.Min(len * 1.5f, 3.5f); width = 0.12f; c = p.team == 0 ? new Color(0.9f, 1.8f, 2.6f) : new Color(2.6f, 1.2f, 0.5f); halo = Color.clear; break;
                 }
-                Vector3 center = p.pos - dir * streak * 0.5f;
-                var mat = new Matrix4x4(
-                    new Vector4(dir.x * streak, dir.y * streak, dir.z * streak, 0f),
-                    new Vector4(0f, width, 0f, 0f),
-                    new Vector4(0f, 0f, 1f, 0f),
-                    new Vector4(center.x, center.y, center.z, 1f));
-                streaks.Add(mat, c, new Vector4(1f, 0f, 0f, 0f));
+                AddStreak(p.pos, dir, streak, width, c, 1f);
+                if (halo.maxColorComponent > 0f) AddStreak(p.pos, dir, streak * 1.4f, width * 3f, halo, 1f);
+            }
+            foreach (var f in flares)
+            {
+                float k = Mathf.Clamp01((now - f.born) / Mathf.Max(0.01f, f.life));
+                float fade = (1f - k) * (1f - k);
+                // A flare grows a little as it fades; uv 0 sits on the muzzle.
+                float length = f.length * (0.75f + 0.35f * k);
+                AddStreak(f.pos + f.dir * length, f.dir, length, f.width * (0.85f + 0.3f * k), f.color * fade, 2f);
             }
             streaks.Draw(quad, streakMaterial);
+
+            // Wakes, splashes and foam, lying flat on the water.
+            for (int i = rippleList.Count - 1; i >= 0; i--)
+            {
+                var r = rippleList[i];
+                float t = (now - r.born) / r.life;
+                if (t >= 1f) { rippleList.RemoveAt(i); continue; }
+                ripples.Add(Matrix4x4.TRS(r.pos, Quaternion.Euler(90f, r.seed * 360f, 0f), new Vector3(r.size, r.size, 1f)),
+                            new Color(0.9f, 0.95f, 0.97f, r.kind == 0 ? 0.9f : 0.75f), new Vector4(r.kind, t, r.seed, 0f));
+            }
+            ripples.Draw(quad, rippleMaterial);
         }
     }
 }

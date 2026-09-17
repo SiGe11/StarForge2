@@ -51,10 +51,38 @@ namespace StarForge.View
             pebbleMesh = BuildRockMesh(0, 0.55f, 101);
             rockMesh = BuildRockMesh(1, 0.62f, 202);
             Grow();
+            ground = GameWorld.Instance != null ? GameWorld.Instance.GroundShape : null;
+            if (ground != null) ground.Deformed += Resettle;
+        }
+
+        GroundDeformer ground;
+
+        /// <summary>A crater opened: everything growing or lying in it moves with the ground.</summary>
+        void Resettle(Vector2 c, float radius)
+        {
+            if (chunks == null) return;
+            int x0 = ClampI((int)((c.x - radius) / ChunkSize), 0, side - 1), x1 = ClampI((int)((c.x + radius) / ChunkSize), 0, side - 1);
+            int z0 = ClampI((int)((c.y - radius) / ChunkSize), 0, side - 1), z1 = ClampI((int)((c.y + radius) / ChunkSize), 0, side - 1);
+            float r2 = radius * radius;
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    var chunk = chunks[z * side + x];
+                    foreach (var list in new[] { chunk.lush, chunk.dry, chunk.pebbles, chunk.rocks })
+                        for (int i = 0; i < list.Count; i++)
+                        {
+                            var m = list[i];
+                            float dx = m.m03 - c.x, dz = m.m23 - c.y;
+                            if (dx * dx + dz * dz > r2) continue;
+                            m.m13 += ground.LastChange(new Vector2(m.m03, m.m23));
+                            list[i] = m;
+                        }
+                }
         }
 
         void OnDestroy()
         {
+            if (ground != null) ground.Deformed -= Resettle;
             if (grassMesh != null) Destroy(grassMesh);
             if (pebbleMesh != null) Destroy(pebbleMesh);
             if (rockMesh != null) Destroy(rockMesh);

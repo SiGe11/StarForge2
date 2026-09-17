@@ -20,6 +20,13 @@
 // a bright weld line; _FlashColor is the hit flash; _Burn scorches a dying
 // unit or glowing debris. None of it uses discard, which would switch
 // off early depth testing on Apple GPUs for every unit using the shader.
+//
+// Two surfaces glow on their own terms. Crystal (_Crystal) is ore: light seems
+// to come from inside -- strongest where the camera looks into a facet, a soft
+// band of energy rising through the shards, a bright rim -- so a seam reads from
+// across the map. Ore glass (_OreGlowMask) is the window in a Digger's hopper and
+// drum; UnitView sets _OreGlow with the load it is carrying, so it is dark until
+// the Digger has ore in it.
 Shader "StarForge/Unit"
 {
     Properties
@@ -49,6 +56,9 @@ Shader "StarForge/Unit"
         [HideInInspector] _FlashColor("Hit flash", Color) = (0, 0, 0, 0)
         [HideInInspector] _Burn("Burn", Range(0, 1)) = 0
         [HideInInspector] _TeamGlow("Team glow", Color) = (0.1, 0.5, 1, 1)
+        [Toggle] _Crystal("Crystal (ore) glow", Float) = 0
+        [Toggle] _OreGlowMask("Emission follows the carried load", Float) = 0
+        [HideInInspector] _OreGlow("Carried load, 0..1", Range(0, 1)) = 0
     }
 
     SubShader
@@ -80,6 +90,9 @@ Shader "StarForge/Unit"
             half4 _FlashColor;
             half _Burn;
             half4 _TeamGlow;
+            half _Crystal;
+            half _OreGlowMask;
+            half _OreGlow;
         CBUFFER_END
         ENDHLSL
 
@@ -205,7 +218,51 @@ Shader "StarForge/Unit"
                 albedo = lerp(albedo, _GrimeColor.rgb, grime);
                 smooth *= 1.0 - grime * 0.6;
 
-                half3 emission = _EmissionColor.rgb + _FlashColor.rgb;
+                half3 viewWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
+                half3 emission = _EmissionColor.rgb * lerp(1.0, _OreGlow, _OreGlowMask) + _FlashColor.rgb;
+
+                if (_Crystal > 0.5)
+                {
+                    // Cut, glowing gem. The models carry per-vertex data (build_models.py):
+                    // colour G a random value per shard, B the height along it (0 foot,
+                    // 1 tip). Each flat facet takes its own brightness, stable in object
+                    // space, so a shard reads as faceted crystal rather than frosted
+                    // plastic; the tips burn brightest; a slow pulse of light climbs each
+                    // shard on its own phase; and the body under the glow is a dark,
+                    // glossy blue that keeps the colour saturated instead of washing out
+                    // to white. Nothing here moves faster than a breath: anything quicker
+                    // reads as flicker at RTS range.
+                    float3 origin = GetObjectToWorldMatrix()._m03_m13_m23;
+                    half phase = dot(origin.xz, float2(0.37, 0.23));
+                    half shard = i.color.g;
+                    half along = saturate(i.color.b);
+                    half ndv = saturate(dot(n, viewWS));
+                    half facet = frac(sin(dot(round(nOS * 8.0), half3(12.9898, 78.233, 37.719))) * 43758.5453);
+                    half rise = frac(along * 0.9 - _Time.y * 0.16 - shard * 3.7 - phase * 0.05);
+                    half pulse = smoothstep(0.0, 0.1, rise) * (1.0 - smoothstep(0.1, 0.4, rise));
+                    half breathe = 0.88 + 0.12 * sin(_Time.y * 0.7 + phase + shard * 6.2831);
+                    half core = ndv * ndv;
+                    half edgeLight = pow(1.0 - ndv, 3.0);
+                    half peak = max(max(_EmissionColor.r, _EmissionColor.g), _EmissionColor.b);
+                    half3 hot = lerp(_EmissionColor.rgb, half3(0.55, 0.95, 1.0) * peak, 0.4);
+                    half amount = (0.22 + 0.8 * facet * facet) * (0.4 + 0.6 * core) + along * along * 1.6 + pulse * 1.4;
+                    emission = lerp(_EmissionColor.rgb, hot, saturate(pow(along, 3.0) * 0.6 + pulse * 0.5)) * amount * breathe
+                             + _RimColor.rgb * edgeLight * 0.8 + _FlashColor.rgb;
+                    albedo = half3(0.01, 0.04, 0.09) + albedo * 0.05;
+                    // Glossy enough for a glint, not so glossy that the pale sky in every
+                    // facet washes the colour out.
+                    smooth = 0.62;
+                    metallic = 0.0;
+                }
+                else if (_OreGlowMask > 0.5)
+                {
+                    // Hauler glass: dark until loaded, then lit from within, the light
+                    // slowly rolling round with the drum.
+                    half flow = 0.75 + 0.25 * sin(_Time.y * 2.2 + (i.positionOS.x + i.positionOS.y * 1.7) * 4.0);
+                    emission = _EmissionColor.rgb * _OreGlow * flow + _FlashColor.rgb;
+                    albedo *= 1.0 - _OreGlow * 0.8;
+                    smooth = 0.6;
+                }
 
                 if (_Damage > 0.001 || _Burn > 0.001)
                 {
@@ -233,7 +290,6 @@ Shader "StarForge/Unit"
                     emission += _TeamGlow.rgb * (above * (0.2 + 0.6 * scan * scan) + weld * 3.0);
                 }
 
-                half3 viewWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
                 half rim = pow(1.0 - saturate(dot(n, viewWS)), 4.0);
                 emission += _RimColor.rgb * rim * 0.35;
 

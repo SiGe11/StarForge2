@@ -19,9 +19,22 @@ namespace StarForge.Game
     {
         public static AIDifficulty difficulty = AIDifficulty.Veteran;
         public static bool aiMemory = true;
+        /// <summary>The map to build when the scene starts; 0 makes a new one every time (MapRuntime).</summary>
+        public static uint mapSeed;
         public static bool skipMenu;
         public static bool spectate;
         public static uint seed = 1000;
+
+        /// <summary>Developer view of the AI: the inspector (I), its minimap marks, the
+        /// memory toggle and reset on the title screen, and the end-of-match dossier.
+        /// Players never see any of it. On with the <c>-sfdebug</c> launch argument, or
+        /// in the editor with StarForge ▸ Debug ▸ AI Internals.</summary>
+        public static bool debugAI =
+            System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-sfdebug") >= 0
+#if UNITY_EDITOR
+            || UnityEditor.EditorPrefs.GetBool("sf_debug_ai", false)
+#endif
+            ;
     }
 
     [DefaultExecutionOrder(-40)]
@@ -111,8 +124,9 @@ namespace StarForge.Game
 
         void EndMatch()
         {
-            // Spectated games are not the player's style, so they teach nothing.
-            if (!MatchSettings.spectate) AI.EndMatch(world.winner == 1);
+            // Spectated games are not the player's style, so they teach nothing;
+            // nor does a match played with the ore cheat.
+            if (!MatchSettings.spectate && !world.cheated) AI.EndMatch(world.winner == 1);
             SetState(MatchState.Ended);
             Time.timeScale = 1f;
             MatchEnded?.Invoke(world.winner);

@@ -58,7 +58,15 @@ MATERIALS = {
     'glow_cyan':  (0.30, 0.82, 1.00, 0.18, 0.00, 0.0, 2.4, 1.0),
     'glow_amber': (0.92, 0.38, 0.14, 0.30, 0.00, 0.0, 2.0, 1.0),
     'crystal':    (0.32, 0.78, 0.95, 0.16, 0.15, 0.0, 0.55, 1.0),
+    # Ore glow seen through a hauler's hopper and drum windows; dark until the
+    # game drives it with the load being carried.
+    'ore_glow':   (0.30, 0.85, 1.00, 0.20, 0.00, 0.0, 3.0, 1.0),
     'rock':       (0.19, 0.18, 0.17, 0.92, 0.00, 0.0, 0.0, 1.0),
+    # Flora (build_flora.py). Unity draws trees with its own instanced shader,
+    # which only uses the slot names to tell bark from foliage.
+    'bark':       (0.16, 0.12, 0.09, 0.90, 0.00, 0.0, 0.0, 1.0),
+    'leaf':       (0.16, 0.24, 0.08, 0.80, 0.00, 0.0, 0.0, 1.0),
+    'needle':     (0.08, 0.14, 0.08, 0.85, 0.00, 0.0, 0.0, 1.0),
     # Deep recesses. Baking the occlusion into ao costs nothing at runtime and
     # gives panel gaps and wheel wells a shadow the lighting alone will not
     # produce at this scale.
@@ -145,6 +153,48 @@ def _layer(bm):
     if lay is None:
         lay = bm.faces.layers.int.new(MAT_LAYER)
     return lay
+
+
+# Per-vertex shading data exported in vertex colour G and B (R is the baked
+# ambient occlusion). What they mean is up to the shader: for ore, G is a
+# random value per shard and B the height along it; for flora, G is a random
+# value per clump and B how freely the vertex sways in the wind.
+VDATA_G, VDATA_B = 'sf_g', 'sf_b'
+
+
+def set_vdata(bm, g=None, b=None):
+    """Set G and/or B on every vertex of a part. Either may be a constant or a
+    function of the vertex position (game space, as the part stands now)."""
+    for name, val in ((VDATA_G, g), (VDATA_B, b)):
+        if val is None:
+            continue
+        lay = bm.verts.layers.float.get(name) or bm.verts.layers.float.new(name)
+        for v in bm.verts:
+            v[lay] = float(val(v.co) if callable(val) else val)
+    return bm
+
+
+# A direction per vertex that the exporter blends into the vertex normal: a
+# leaf cluster shades as one rounded mass instead of showing the facets of the
+# mesh it is made from. Stored in game space; zero means no hint.
+NORMAL_HINT = ('sf_nx', 'sf_ny', 'sf_nz')
+
+
+def set_normal_hint(bm, center):
+    """Point the normal hint of every vertex away from `center` (game space)."""
+    lays = [bm.verts.layers.float.get(n) or bm.verts.layers.float.new(n) for n in NORMAL_HINT]
+    c = Vector(center)
+    for v in bm.verts:
+        d = (v.co - c)
+        d = d.normalized() if d.length > 1e-6 else Vector((0.0, 1.0, 0.0))
+        for k in range(3):
+            v[lays[k]] = d[k]
+    return bm
+
+
+def get_vdata(bm, v, name, default=1.0):
+    lay = bm.verts.layers.float.get(name)
+    return v[lay] if lay is not None else default
 
 
 def set_mat(bm, faces, mat):
@@ -545,8 +595,17 @@ def ring_flat(center, r_in, r_out, seg, mat='team', thickness=0.0):
     if bm.faces[0].normal.y < 0:
         bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
     if thickness > 0:
-        r = bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=-thickness)
+        # The collar spans y..y+thickness. Solidify leaves that shell wound
+        # inside out, so the camera looked through the lid at the underside --
+        # which sits exactly on whatever the collar rests on and z-fought with
+        # it (the Foundry's landing ring flickered against the tower's roof).
+        bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=-thickness)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
         bm.normal_update()
+        lid = max(bm.faces, key=lambda f: f.calc_center_median().y)
+        if lid.normal.y < 0:
+            bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+            bm.normal_update()
     xform(bm, Matrix.Translation(Vector(center)))
     set_mat(bm, bm.faces[:], mat)
     return bm
@@ -596,6 +655,7 @@ class Model:
         self.parts = []
         self.part_groups = []     # group name per part; '' is the body
         self.groups = {}          # group name -> pivot, game space
+        self.meta = {}            # extra fields for models.json (flora: foliage shape)
         self._group = ''
 
     def group(self, name, pivot=(0.0, 0.0, 0.0)):

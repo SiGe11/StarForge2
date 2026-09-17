@@ -33,7 +33,7 @@ namespace StarForge.UI
         Label tooltipTitle, tooltipCost, tooltipBody;
         Label inspStrategy, inspReason, inspStats;
         Label endTitle, endSubtitle, endStats, endDossier;
-        Label difficultyBlurb, memoryStatus, controlsText, qualityBlurb;
+        Label difficultyBlurb, memoryStatus, controlsText, qualityBlurb, opponentText;
         Button inspectorButton;
         Button[] segments;
         Button[] qualitySegments;
@@ -130,6 +130,7 @@ namespace StarForge.UI
             difficultyBlurb = root.Q<Label>("difficultyBlurb");
             memoryStatus = root.Q<Label>("memoryStatus");
             qualityBlurb = root.Q<Label>("qualityBlurb");
+            opponentText = root.Q<Label>("opponentText");
             controlsText = root.Q<Label>("controlsText");
             portrait = root.Q<Image>("portrait");
             hpBar = root.Q<BarElement>("hpBar");
@@ -146,7 +147,16 @@ namespace StarForge.UI
             BuildCommandCard();
             WireMenus();
             WireMinimap();
-            controlsText.text = ControlsHelp;
+            controlsText.text = MatchSettings.debugAI ? ControlsHelp + " · I AI inspector" : ControlsHelp;
+            opponentText.text = OpponentHelp;
+
+            // The AI's internals are a developer tool, not part of the game: a player
+            // learns the opponent by playing it (and from "About the opponent").
+            SetDisplay(inspectorButton, MatchSettings.debugAI);
+            SetDisplay(memoryToggle, MatchSettings.debugAI);
+            SetDisplay(memoryStatus, MatchSettings.debugAI);
+            SetDisplay(root.Q("resetMemoryButton"), MatchSettings.debugAI);
+            SetDisplay(root.Q("endDossierColumn"), MatchSettings.debugAI);
         }
 
         void OnEnable()
@@ -213,8 +223,13 @@ namespace StarForge.UI
             if (s == MatchState.Playing)
             {
                 intelLabel.text = IntelText();
-                SetInspector(MatchSettings.spectate || inspectorOpen);
+                SetInspector(MatchSettings.debugAI && (MatchSettings.spectate || inspectorOpen));
             }
+        }
+
+        static void SetDisplay(VisualElement e, bool visible)
+        {
+            if (e != null) e.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         static void Show(VisualElement e, bool visible) =>
@@ -242,7 +257,16 @@ namespace StarForge.UI
 
             root.Q<Button>("playButton").clicked += () => { MatchSettings.spectate = false; bootstrap.StartMatch(); };
             root.Q<Button>("spectateButton").clicked += () => { MatchSettings.spectate = true; bootstrap.StartMatch(); };
-            root.Q<Button>("controlsButton").clicked += () => controlsText.ToggleInClassList("controls-text--visible");
+            root.Q<Button>("controlsButton").clicked += () =>
+            {
+                opponentText.RemoveFromClassList("controls-text--visible");
+                controlsText.ToggleInClassList("controls-text--visible");
+            };
+            root.Q<Button>("opponentButton").clicked += () =>
+            {
+                controlsText.RemoveFromClassList("controls-text--visible");
+                opponentText.ToggleInClassList("controls-text--visible");
+            };
             root.Q<Button>("resetMemoryButton").clicked += () => { AIMemory.Reset(); RefreshTitle(); };
             root.Q<Button>("quitButton").clicked += Quit;
 
@@ -269,11 +293,7 @@ namespace StarForge.UI
 #endif
         }
 
-        static void ToggleFullscreen()
-        {
-            Screen.fullScreenMode = Screen.fullScreenMode == FullScreenMode.Windowed
-                ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed;
-        }
+        static void ToggleFullscreen() => DisplayModes.Toggle();
 
         void RefreshTitle()
         {
@@ -292,6 +312,7 @@ namespace StarForge.UI
                 qualitySegments[i].EnableInClassList("segment--active", (int)QualityController.Current == i);
             qualityBlurb.text = QualityController.Blurb(QualityController.Current);
 
+            if (!MatchSettings.debugAI) return;
             var mem = AIMemory.Load();
             if (!MatchSettings.aiMemory) memoryStatus.text = "Memory off: every match starts from its default doctrine.";
             else if (mem.games == 0) memoryStatus.text = "It has never played you.";
@@ -301,6 +322,7 @@ namespace StarForge.UI
 
         void ToggleInspector()
         {
+            if (!MatchSettings.debugAI) return;
             inspectorOpen = !inspectorOpen;
             SetInspector(inspectorOpen || MatchSettings.spectate);
         }
@@ -315,6 +337,7 @@ namespace StarForge.UI
         {
             if (bootstrap?.AI == null) return "";
             string mode = MatchSettings.spectate ? "Spectating · " : "";
+            if (!MatchSettings.debugAI) return $"{mode}Opponent: {bootstrap.AI.Difficulty}";
             int games = bootstrap.AI.Memory.games;
             string mem = !MatchSettings.aiMemory ? "memory off" : games == 0 ? "first meeting" : $"remembers {games} match{(games == 1 ? "" : "es")}";
             return $"{mode}Opponent: {bootstrap.AI.Difficulty} · {mem}";
@@ -546,6 +569,9 @@ namespace StarForge.UI
                     break;
                 case GameEventKind.Refused when e.team == me:
                     Alert(e.text, "alert--warn");
+                    break;
+                case GameEventKind.Notice when e.team == me:
+                    Alert(e.text, "alert--good");
                     break;
                 case GameEventKind.Death when e.team == me && e.unit != null && e.unit.def.building:
                     Alert($"{Defs.Get(e.type).displayName} destroyed", "alert--warn");
@@ -803,6 +829,7 @@ namespace StarForge.UI
                 $"Enemy losses       {F.killed}\n" +
                 $"Your losses        {F.lost}";
 
+            if (!MatchSettings.debugAI) return;   // the dossier is the AI's internal read of you
             var ai = bootstrap.AI;
             var vals = new float[BeliefLabels.Length];
             var txt = new string[BeliefLabels.Length];
@@ -827,11 +854,26 @@ namespace StarForge.UI
         }
 
         const string ControlsHelp =
-            "Camera   arrows / screen edge pan · Q E rotate · wheel zoom · middle-drag · Space centre\n" +
+            "Camera   WASD / arrows / screen edge pan · Q E rotate · wheel zoom · middle-drag · Space centre\n" +
             "Select   click · drag box · double-click type · Shift add · Ctrl+1-0 group · 1-0 recall · F2 army\n" +
-            "Orders   right-click move/attack/mine · A attack-move · S stop · H hold\n" +
-            "Build    Digger: B bunkhouse · G garrison · W workshop · N sentinel · F foundry\n" +
-            "Train    Foundry D · Garrison T K · Workshop M · X cancel\n" +
-            "Other    I AI inspector · P pause · , . game speed · Esc menu";
+            "Orders   right-click move/attack/mine · R attack-move · C stop · H hold\n" +
+            "Build    Digger: B bunkhouse · G garrison · V workshop · N sentinel · F foundry\n" +
+            "Train    Foundry U · Garrison T K · Workshop M · X cancel\n" +
+            "Other    P pause · , . game speed · Esc menu";
+
+        const string OpponentHelp =
+            "It plays by your rules. It sees only what its own units see, gives orders through the same commands you do, " +
+            "and has a limited number of actions a minute: about 90 on Recruit, 180 on Veteran and 330 on Commander, " +
+            "with reactions from nearly a second down to a fifth of one.\n\n" +
+            "It scouts. It keeps a scout out whenever its picture of you is going stale, and a Skimmer is its favourite for " +
+            "the job. Kill the scout or hide your army and it has to guess.\n\n" +
+            "It reads you. From what it has seen it decides whether you are rushing, harassing, turtling, expanding, teching " +
+            "or building a big economy, and picks a plan against that: an early Trooper rush, raids on your Diggers, a timing " +
+            "push, a Sentinel wall while it techs to Maulers, a second ore line, a counter-attack while your army is away, " +
+            "or a feint. When its picture of you changes, so does its plan.\n\n" +
+            "It fights like a player. It focuses fire on the weakest target that can shoot back, pulls its army home when a " +
+            "fight turns against it, sends raiders at your workers rather than your army, and comes back to defend when you hit its base.\n\n" +
+            "It remembers you. Between matches it keeps a record of how you tend to play and which of its plans worked against " +
+            "you, and each new match starts from that. It still scouts every game, so if you change how you play, it will notice.";
     }
 }

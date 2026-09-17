@@ -50,6 +50,8 @@ namespace StarForge.EditorTools
             { "glow_cyan",  new Entry(0.30f, 0.82f, 1.00f, 0.18f, 0f, 0f, 2.4f) },
             { "glow_amber", new Entry(0.92f, 0.38f, 0.14f, 0.30f, 0f, 0f, 2.0f) },
             { "crystal",    new Entry(0.32f, 0.78f, 0.95f, 0.16f, 0.15f, 0f, 0.55f) },
+            // Dark glass: the colour is all in the glow it shows when loaded.
+            { "ore_glow",   new Entry(0.03f, 0.07f, 0.09f, 0.15f, 0f, 0f, 3.0f) },
             { "rock",       new Entry(0.19f, 0.18f, 0.17f, 0.92f, 0f, 0f, 0f) },
             { "shadowed",   new Entry(0.10f, 0.10f, 0.10f, 0.85f, 0.10f, 0f, 0f) },
         };
@@ -102,8 +104,17 @@ namespace StarForge.EditorTools
                     // crystal glows a saturated blue rather than its pale albedo,
                     // and glow strips sit just past the bloom threshold.
                     if (e.emis > 0f)
-                        emission = slot == "crystal" ? new Color(0.06f, 0.50f, 1.0f) * 1.1f : e.albedo * e.emis * 1.1f;
+                        emission = slot == "crystal" ? new Color(0.0f, 0.46f, 1.0f) * 3.4f
+                                 : slot == "ore_glow" ? new Color(0.0f, 0.5f, 1.0f) * 9f
+                                 : e.albedo * e.emis * 1.1f;
                     SetupUnit(m, slot, albedo, e.rough, e.metal, emission, det, detN, detScale, detNormal, tiling);
+                    // Ore glows from inside (SF_Unit's crystal path, which also
+                    // uses the rim colour as its edge light); ore glass follows
+                    // the load a Digger carries and is dark on its own.
+                    m.SetFloat("_Crystal", slot == "crystal" ? 1f : 0f);
+                    m.SetFloat("_OreGlowMask", slot == "ore_glow" ? 1f : 0f);
+                    m.SetFloat("_OreGlow", 0f);
+                    if (slot == "crystal") m.SetColor("_RimColor", new Color(0.3f, 0.9f, 1.0f));
                     EditorUtility.SetDirty(m);
                 }
             }
@@ -130,7 +141,7 @@ namespace StarForge.EditorTools
             m.SetFloat("_DetailTiling", 0.5f * tiling);
 
             bool painted = slot.StartsWith("armor") || slot.StartsWith("team");
-            bool glow = slot.StartsWith("glow") || slot == "crystal";
+            bool glow = slot.StartsWith("glow") || slot == "crystal" || slot == "ore_glow";
             m.SetFloat("_WearAmount", painted ? 0.7f : slot == "steel" ? 0.4f : 0f);
             // Enough grime to ground the machine, not enough to swallow its value
             // range: with the baked occlusion on top, heavier settings turned every

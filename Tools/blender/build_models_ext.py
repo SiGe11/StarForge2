@@ -95,7 +95,9 @@ def build_sentinel_base():
         m.add(bt)
         m.add(box((math.cos(a) * 1.58, 0.30, math.sin(a) * 1.58), (0.06, 0.05, 0.06),
                   'glow_amber', bevel_w=0.0))
-    m.add(ring_flat((0, 0.78, 0), 0.92, 1.22, 16, 'team', thickness=0.06))
+    # 0.08 thick, so the collar's top clears the buttress tops at 0.84 instead
+    # of sitting flush with them.
+    m.add(ring_flat((0, 0.78, 0), 0.92, 1.22, 16, 'team', thickness=0.08))
     m.add(cyl((0, 0.78, 0), 0.90, 0.76, 0.52, 8, 'armor_dark', bevel_w=0.04))
     glow_r = S.cone_radius_at(0.90, 0.76, 0.52, 0.30) + 0.03
     m.add(cyl((0, 1.04, 0), glow_r, glow_r, 0.08, 8, 'glow_cyan', caps=False,

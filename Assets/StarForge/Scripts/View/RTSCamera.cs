@@ -1,6 +1,7 @@
 // RTSCamera.cs — the RTS camera: focus point, yaw and distance, with the pitch
 // steepening as you zoom out (close-in detail and a readable overview from the
-// same control). Arrow keys pan, the letters stay free for commands.
+// same control). WASD and the arrow keys pan, Q and E rotate; the commands
+// keep to the other letters.
 using UnityEngine;
 using UnityEngine.InputSystem;
 using StarForge.World;
@@ -56,6 +57,8 @@ namespace StarForge.View
 
         public void CenterOn(Vector2 p) => focusTarget = p;
 
+        public void ZoomTo(float dist) => distTarget = Mathf.Clamp(dist, minDistance, maxDistance);
+
         public static float PitchFor(float dist) =>
             Mathf.Lerp(0.55f, 0.95f, Mathf.Clamp01((dist - 28f) / 110f)) * Mathf.Rad2Deg;
 
@@ -68,29 +71,49 @@ namespace StarForge.View
             Vector2 pan = Vector2.zero;
             if (kb != null)
             {
-                if (kb.leftArrowKey.isPressed) pan.x -= 1f;
-                if (kb.rightArrowKey.isPressed) pan.x += 1f;
-                if (kb.upArrowKey.isPressed) pan.y += 1f;
-                if (kb.downArrowKey.isPressed) pan.y -= 1f;
+                // WASD pans too, unless a modifier is held (Ctrl/Cmd+Shift+M and the
+                // group keys use them).
+                bool modifier = kb.ctrlKey.isPressed || kb.leftCommandKey.isPressed || kb.rightCommandKey.isPressed || kb.altKey.isPressed;
+                if (kb.leftArrowKey.isPressed || (!modifier && kb.aKey.isPressed)) pan.x -= 1f;
+                if (kb.rightArrowKey.isPressed || (!modifier && kb.dKey.isPressed)) pan.x += 1f;
+                if (kb.upArrowKey.isPressed || (!modifier && kb.wKey.isPressed)) pan.y += 1f;
+                if (kb.downArrowKey.isPressed || (!modifier && kb.sKey.isPressed)) pan.y -= 1f;
                 if (kb.qKey.isPressed && !kb.ctrlKey.isPressed) yawTarget -= rotateSpeed * dt;
                 if (kb.eKey.isPressed && !kb.ctrlKey.isPressed) yawTarget += rotateSpeed * dt;
             }
 
             if (mouse != null)
             {
-                Vector2 mp = mouse.position.ReadValue();
+                Vector2 raw = mouse.position.ReadValue();
+                Vector2 mp = raw;
                 bool inside = Application.isFocused && mp.x >= 0 && mp.y >= 0 && mp.x <= Screen.width && mp.y <= Screen.height;
+                // Full screen, the pointer cannot leave the game, but it can sit past
+                // the drawn area -- in the strip macOS keeps clear under the camera
+                // notch at the top -- and read beyond the screen. That is the edge too.
+                if (Application.isFocused && !Application.isEditor && Screen.fullScreenMode != FullScreenMode.Windowed)
+                {
+                    mp = new Vector2(Mathf.Clamp(mp.x, 0f, Screen.width - 1f), Mathf.Clamp(mp.y, 0f, Screen.height - 1f));
+                    inside = true;
+                }
                 // Edge scrolling ramps from 35% at the inner boundary to full at the
                 // edge, so a nudge creeps and a shove sprints. The pointer defaults
                 // to (0,0) before it ever moves, which must not read as an edge.
-                if (inside && mouse.position.ReadValue() != Vector2.zero &&
-                    (BlocksEdgeScroll == null || !BlocksEdgeScroll(mp)))
+                if (inside && raw != Vector2.zero)
                 {
-                    float band = edgeBand * Mathf.Max(1f, Screen.dpi / 110f);
-                    pan.x -= EdgeRamp(band - mp.x, band);
-                    pan.x += EdgeRamp(mp.x - (Screen.width - band), band);
-                    pan.y -= EdgeRamp(band - mp.y, band);
-                    pan.y += EdgeRamp(mp.y - (Screen.height - band), band);
+                    float scale = Mathf.Max(1f, Screen.dpi / 110f);
+                    float band = edgeBand * scale;
+                    // HUD panels eat edge scrolling, except in the last few points at
+                    // the very edge: the top bar spans the whole top of the screen, so
+                    // otherwise the camera could never be pushed north with the mouse.
+                    float hard = 4f * scale;
+                    bool atEdge = mp.x <= hard || mp.y <= hard || mp.x >= Screen.width - 1f - hard || mp.y >= Screen.height - 1f - hard;
+                    if (atEdge || BlocksEdgeScroll == null || !BlocksEdgeScroll(mp))
+                    {
+                        pan.x -= EdgeRamp(band - mp.x, band);
+                        pan.x += EdgeRamp(mp.x - (Screen.width - band), band);
+                        pan.y -= EdgeRamp(band - mp.y, band);
+                        pan.y += EdgeRamp(mp.y - (Screen.height - band), band);
+                    }
                 }
 
                 float scroll = mouse.scroll.ReadValue().y;

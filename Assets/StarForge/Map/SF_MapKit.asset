@@ -1,0 +1,115 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d32eeb2d655964c0a907767e615d90ae, type: 3}
+  m_Name: SF_MapKit
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.World.MapKit
+  terrainMaterial: {fileID: 2100000, guid: b0218d0fbd3aa469a85332f3640f93ab, type: 2}
+  terrainLayers:
+  - {fileID: 8574412962073106934, guid: d014a54df34b34fe4b3221ee0b81d80a, type: 2}
+  - {fileID: 8574412962073106934, guid: fefa3fa2feb944b7394fb3d0a6b56449, type: 2}
+  - {fileID: 8574412962073106934, guid: 6c0cf119fbe0c41b1b85baa85fc28244, type: 2}
+  - {fileID: 8574412962073106934, guid: ad4cf28a7149c47f2b3ea2047ef268b0, type: 2}
+  waterMaterial: {fileID: 2100000, guid: e1bfa3ce779874a898a536c6827274a0, type: 2}
+  backdropMaterial: {fileID: 2100000, guid: bf3feae4f6f9e4349847190a584a0daa, type: 2}
+  orePrefab: {fileID: 7266216176260636108, guid: e75af8b90ca8341618dc371d3e365626, type: 3}
+  boulderPrefab: {fileID: 5456983187958426864, guid: 49fa808d901dc4aecbdb1cef3118b9b2, type: 3}
+  scenery:
+  - name: ROCK_SPIRE
+    prefab: {fileID: 6125763397665654927, guid: 6ddca38c485a6494f9a98c94d59369e2, type: 3}
+    count: 7
+    radius: 3.4
+    minScale: 0.8
+    maxScale: 1.35
+  - name: RUIN_PYLON
+    prefab: {fileID: 2289549621349048015, guid: 803c2cf3933ee4cabbc3b1072a3551f6, type: 3}
+    count: 4
+    radius: 3
+    minScale: 0.9
+    maxScale: 1.2
+  - name: WRECK
+    prefab: {fileID: 2658049332954533045, guid: 44f86b8fc60ee42db90a5332ed5c32b4, type: 3}
+    count: 2
+    radius: 5.9
+    minScale: 0.9
+    maxScale: 1.1
+  - name: ROCK_SHELF
+    prefab: {fileID: 4909957688816506992, guid: 81e21decf2add4b3fb34293450ffc632, type: 3}
+    count: 9
+    radius: 5
+    minScale: 0.7
+    maxScale: 1.2
+  plantKinds:
+  - name: TREE_PINE
+    mesh: {fileID: 441865918865599707, guid: f90dfc873f18a44a5ae921478c9fb0dd, type: 3}
+    barkSubmesh: 0
+    foliageSubmesh: 1
+    lodMesh: {fileID: -5063924421073229016, guid: 6d0a5977cfae141f78e27325b2c43b67, type: 3}
+    bush: 0
+    trunkRadius: 0.3
+    height: 9.264
+    crownCenter: {x: 0, y: 4.63, z: 0}
+    crownRadii: {x: 2.826, y: 4.634, z: 2.826}
+    leaf: {r: 0.13, g: 0.25, b: 0.16, a: 1}
+    leaf2: {r: 0.2, g: 0.3, b: 0.16, a: 1}
+    bark: {r: 0.3, g: 0.22, b: 0.16, a: 1}
+  - name: TREE_BROAD
+    mesh: {fileID: -4737423556389357798, guid: e54009cf995c54395b368756de1e614d, type: 3}
+    barkSubmesh: 0
+    foliageSubmesh: 1
+    lodMesh: {fileID: -332171140838494577, guid: ba74c40d795384987a019c3304484988, type: 3}
+    bush: 0
+    trunkRadius: 0.38
+    height: 7.08
+    crownCenter: {x: 0, y: 5.484, z: 0}
+    crownRadii: {x: 4.427, y: 1.596, z: 4.427}
+    leaf: {r: 0.15, g: 0.27, b: 0.08, a: 1}
+    leaf2: {r: 0.27, g: 0.33, b: 0.09, a: 1}
+    bark: {r: 0.3, g: 0.24, b: 0.18, a: 1}
+  - name: TREE_TALL
+    mesh: {fileID: -2370460041806158252, guid: 6f8a34369543e42458c759a466e49a32, type: 3}
+    barkSubmesh: 0
+    foliageSubmesh: 1
+    lodMesh: {fileID: 1479786828209424626, guid: 6b3fc656cc2df4cd28a6f733c4194380, type: 3}
+    bush: 0
+    trunkRadius: 0.26
+    height: 10.072
+    crownCenter: {x: 0, y: 6.302, z: 0}
+    crownRadii: {x: 1.705, y: 3.77, z: 1.705}
+    leaf: {r: 0.17, g: 0.3, b: 0.09, a: 1}
+    leaf2: {r: 0.3, g: 0.35, b: 0.1, a: 1}
+    bark: {r: 0.5, g: 0.48, b: 0.43, a: 1}
+  - name: TREE_DEAD
+    mesh: {fileID: -2578593249633787224, guid: da23afb175d0943818617dfe053145c1, type: 3}
+    barkSubmesh: 0
+    foliageSubmesh: -1
+    lodMesh: {fileID: 7325361647536064768, guid: df4f33e527f6a43929b990bd60e5fa36, type: 3}
+    bush: 0
+    trunkRadius: 0.34
+    height: 6.388
+    crownCenter: {x: 0, y: 5, z: 0}
+    crownRadii: {x: 0, y: 0, z: 0}
+    leaf: {r: 0, g: 0, b: 0, a: 1}
+    leaf2: {r: 0, g: 0, b: 0, a: 1}
+    bark: {r: 0.3, g: 0.26, b: 0.22, a: 1}
+  - name: BUSH
+    mesh: {fileID: -1053989582677357551, guid: 28f92c9c7b53d47628c68fc252a14224, type: 3}
+    barkSubmesh: -1
+    foliageSubmesh: 0
+    lodMesh: {fileID: -8368202424242497727, guid: 0dedbd82decb24e6dba278f8240a4d5e, type: 3}
+    bush: 1
+    trunkRadius: 0.55
+    height: 1.243
+    crownCenter: {x: 0, y: 0.73, z: 0}
+    crownRadii: {x: 1.259, y: 0.513, z: 1.259}
+    leaf: {r: 0.14, g: 0.25, b: 0.08, a: 1}
+    leaf2: {r: 0.25, g: 0.3, b: 0.09, a: 1}
+    bark: {r: 0.3, g: 0.24, b: 0.18, a: 1}

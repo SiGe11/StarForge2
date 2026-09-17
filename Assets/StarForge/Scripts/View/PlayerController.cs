@@ -194,6 +194,9 @@ namespace StarForge.View
                 }
             }
 
+            // Testing cheat, documented only in the README: Ctrl (or Cmd) + Shift + M.
+            if (ctrl && shift && kb.mKey.wasPressedThisFrame) world.CheatOre(team, 5000);
+
             if (!CanCommand || ctrl) return;
             var cards = new List<CardAction>(12);
             BuildCard(cards);
@@ -419,8 +422,8 @@ namespace StarForge.View
 
             if (anyMobile)
             {
-                into.Add(new CardAction { kind = CardKind.AttackMove, hotkey = 'A', title = "Attack-move", body = "Move, engaging every enemy met on the way.", glyph = "⚔", enabled = true });
-                into.Add(new CardAction { kind = CardKind.Stop, hotkey = 'S', title = "Stop", body = "Cancel current orders.", glyph = "■", enabled = true });
+                into.Add(new CardAction { kind = CardKind.AttackMove, hotkey = 'R', title = "Attack-move", body = "Move, engaging every enemy met on the way.", glyph = "⚔", enabled = true });
+                into.Add(new CardAction { kind = CardKind.Stop, hotkey = 'C', title = "Stop", body = "Cancel current orders.", glyph = "■", enabled = true });
                 into.Add(new CardAction { kind = CardKind.Hold, hotkey = 'H', title = "Hold position", body = "Fire at anything in range, never chase.", glyph = "⛨", enabled = true });
             }
             if (anyWorker)

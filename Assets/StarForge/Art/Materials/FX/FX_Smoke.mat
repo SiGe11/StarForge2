@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: FX_Smoke
-  m_Shader: {fileID: 4800000, guid: 3ceaac157f00e491c96d3be0400eca19, type: 3}
+  m_Shader: {fileID: 4800000, guid: 7e17a5f96cc5d432a81277338ecb18a2, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -25,15 +25,23 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: 6319fd7cb3e044cfab136ba8245153a4, type: 3}
+        m_Texture: {fileID: 2800000, guid: ea7653371b17243bbaaecfd7ba6b47c0, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Noise:
+        m_Texture: {fileID: 2800000, guid: 5e555dd150eb6408194cd3333c0c4f7d, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _AlphaMode: 1
+    - _Billow: 1
+    - _Density: 1.2
     - _DstBlend: 10
     - _Floor: 0.13
     - _Gain: 1
+    - _Scale: 1
+    - _SheetTiles: 1
     - _SoftFade: 1.2
     - _SrcBlend: 5
     m_Colors:

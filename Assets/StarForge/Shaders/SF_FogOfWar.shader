@@ -112,7 +112,27 @@ Shader "StarForge/FogOfWar"
                 if (atmo) c = ApplyAtmosphere(c, wp);
                 if (!fow) return half4(c, col.a);
 
-                half2 fog = SAMPLE_TEXTURE2D_LOD(_SF_FogTex, sampler_SF_FogTex, wp.xz * _SF_FogParams.x, 0).rg;
+                // Beyond the map the texture only has its border texels, and
+                // stretched straight out they draw streaks. Out there the fog follows
+                // the ground along the nearest border instead, averaged over a
+                // stretch of it that widens with distance, so it fans out in soft
+                // sweeps: dark past unexplored edges, dimmed past explored ones.
+                float2 m01 = wp.xz * _SF_FogParams.x;
+                float2 edge01 = saturate(m01);
+                float2 past = m01 - edge01;
+                half2 fog;
+                if (dot(past, past) <= 0.0)
+                    fog = SAMPLE_TEXTURE2D_LOD(_SF_FogTex, sampler_SF_FogTex, m01, 0).rg;
+                else
+                {
+                    float2 tangent = abs(past.x) > abs(past.y) ? float2(0.0, 1.0) : float2(1.0, 0.0);
+                    float2 spread = tangent * length(past) * 0.45;
+                    fog = (SAMPLE_TEXTURE2D_LOD(_SF_FogTex, sampler_SF_FogTex, edge01 - spread * 2.0, 0).rg
+                         + SAMPLE_TEXTURE2D_LOD(_SF_FogTex, sampler_SF_FogTex, edge01 - spread, 0).rg
+                         + SAMPLE_TEXTURE2D_LOD(_SF_FogTex, sampler_SF_FogTex, edge01, 0).rg
+                         + SAMPLE_TEXTURE2D_LOD(_SF_FogTex, sampler_SF_FogTex, edge01 + spread, 0).rg
+                         + SAMPLE_TEXTURE2D_LOD(_SF_FogTex, sampler_SF_FogTex, edge01 + spread * 2.0, 0).rg) * 0.2;
+                }
 
                 // A slow shimmer along the edge of vision, so the boundary reads
                 // as a sensor horizon rather than a dimmer switch.

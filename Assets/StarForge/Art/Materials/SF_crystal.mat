@@ -13,6 +13,7 @@ Material:
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
   m_InvalidKeywords:
+  - _CRYSTAL_ON
   - _DETAIL_SCALED
   - _EMISSION
   m_LightmapFlags: 1
@@ -95,6 +96,7 @@ Material:
     - _Burn: 0
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
+    - _Crystal: 1
     - _Cull: 2
     - _Cutoff: 0.5
     - _Damage: 0
@@ -111,6 +113,8 @@ Material:
     - _GrimeHeight: 0.9
     - _Metallic: 0.15
     - _OcclusionStrength: 1
+    - _OreGlow: 0
+    - _OreGlowMask: 0
     - _Parallax: 0.005
     - _QueueOffset: 0
     - _ReceiveShadows: 1
@@ -130,10 +134,10 @@ Material:
     m_Colors:
     - _BaseColor: {r: 0.6012433, g: 0.8962438, b: 0.9776915, a: 1}
     - _Color: {r: 0.60124326, g: 0.8962438, b: 0.9776915, a: 1}
-    - _EmissionColor: {r: 0.28493488, g: 0.7673756, b: 1.0442749, a: 1.1}
+    - _EmissionColor: {r: 0, g: 1.2254326, b: 1.74414, a: 3.4}
     - _FlashColor: {r: 0, g: 0, b: 0, a: 0}
     - _GrimeColor: {r: 0.26, g: 0.22, b: 0.17, a: 1}
-    - _RimColor: {r: 0.29999998, g: 0.39999998, b: 0.54999995, a: 1}
+    - _RimColor: {r: 0.3, g: 0.9, b: 1, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _TeamGlow: {r: 0.09999997, g: 0.5, b: 1, a: 1}
     - _WearColor: {r: 0.62, g: 0.6, b: 0.56, a: 1}

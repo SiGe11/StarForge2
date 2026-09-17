@@ -3,9 +3,11 @@
 //   R  flattened: under structures and ore seams (rebuilt twice a second)
 //   G  burned: where explosions and deaths landed (heals over a few minutes)
 //   B  trampled: behind moving ground units (fades in ~15 s)
+//   A  cratered: blasted, churned earth where the ground was dented (fades over ~15 min)
 //
 // The grass shader bends, parts and chars on it; the terrain shader darkens
-// scorched and churned soil. Presentation only: nothing reads it back.
+// scorched and churned soil and turns craters to broken dark earth.
+// Presentation only: nothing reads it back.
 using UnityEngine;
 using StarForge.Sim;
 using StarForge.World;
@@ -18,10 +20,12 @@ namespace StarForge.View
 
         const int R = 256;
         Texture2D tex;
-        readonly byte[] flat = new byte[R * R], burn = new byte[R * R], trample = new byte[R * R];
+        readonly byte[] flat = new byte[R * R], burn = new byte[R * R], trample = new byte[R * R], crater = new byte[R * R];
+        GroundDeformer ground;
         Color32[] pixels;
         float texel = 1f;
-        float nextFlat, nextTrample, nextHeal, nextUpload;
+        float nextFlat, nextTrample, nextHeal, nextUpload, nextFireStamp;
+        int craterHeal;
         bool dirty = true;
 
         static readonly int TexId = Shader.PropertyToID("_SF_GroundMask");
@@ -45,8 +49,21 @@ namespace StarForge.View
             if (world != null) world.Event += OnEvent;
         }
 
+        void Start()
+        {
+            ground = world != null ? world.GroundShape : null;
+            if (ground != null) ground.Deformed += OnCrater;
+        }
+
+        void OnCrater(Vector2 c, float radius)
+        {
+            texel = world.MapSize / R;
+            Stamp(crater, new Vector3(c.x, 0f, c.y), radius * 1.15f, 255);
+        }
+
         void OnDisable()
         {
+            if (ground != null) ground.Deformed -= OnCrater;
             if (world != null) world.Event -= OnEvent;
             Shader.SetGlobalVector(ParamsId, Vector4.zero);
         }
@@ -121,18 +138,34 @@ namespace StarForge.View
                 }
             }
 
+            // Fire in the trees chars the grass round them.
+            if (now >= nextFireStamp && world.Plants != null)
+            {
+                nextFireStamp = now + 0.5f;
+                var veg = world.Plants;
+                foreach (int i in veg.burning)
+                {
+                    var k = veg.KindOf(i);
+                    float r = (k.HasCrown ? k.crownRadii.x : 1.2f) * veg.plants[i].scale * (0.6f + 0.6f * veg.live[i].fire);
+                    Stamp(burn, veg.Pose(i).MultiplyPoint3x4(Vector3.zero), r, (byte)(140 + 110 * veg.live[i].fire));
+                }
+            }
+
             if (now >= nextHeal)
             {
                 nextHeal = now + 1f;
                 for (int i = 0; i < burn.Length; i++)
                     if (burn[i] > 0) { burn[i]--; dirty = true; }
+                if (++craterHeal % 4 == 0)
+                    for (int i = 0; i < crater.Length; i++)
+                        if (crater[i] > 0) { crater[i]--; dirty = true; }
             }
 
             if (dirty && now >= nextUpload)
             {
                 nextUpload = now + 0.1f;
                 for (int i = 0; i < pixels.Length; i++)
-                    pixels[i] = new Color32(flat[i], burn[i], trample[i], 255);
+                    pixels[i] = new Color32(flat[i], burn[i], trample[i], crater[i]);
                 tex.SetPixels32(pixels);
                 tex.Apply(false);
                 dirty = false;

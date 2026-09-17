@@ -31,7 +31,7 @@ MonoBehaviour:
   cost: 200
   supplyCost: 0
   supplyGive: 0
-  hotkey: 87
+  hotkey: 86
   producer: -1
   requires: 5
   prefabs:

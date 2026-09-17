@@ -32,6 +32,9 @@ namespace StarForge.Game
         }
 
         static bool active;
+
+        /// <summary>An evaluation is running or about to start (the map stays the default one).</summary>
+        public static bool Pending => active || PlayerPrefs.GetInt(PrefGames, 0) > 0;
         static int kind, game, gamesPerKind;
         static float maxSeconds;
         static KindStats[] stats;

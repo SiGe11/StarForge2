@@ -33,6 +33,7 @@ Material:
     - _DstBlend: 1
     - _Floor: 0.02
     - _Gain: 2.2
+    - _SheetTiles: 1
     - _SoftFade: 1.2
     - _SrcBlend: 1
     m_Colors:

@@ -94,6 +94,7 @@ Material:
     - _Burn: 0
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
+    - _Crystal: 0
     - _Cull: 2
     - _Cutoff: 0.5
     - _Damage: 0
@@ -110,6 +111,8 @@ Material:
     - _GrimeHeight: 0.9
     - _Metallic: 0.32
     - _OcclusionStrength: 1
+    - _OreGlow: 0
+    - _OreGlowMask: 0
     - _Parallax: 0.005
     - _QueueOffset: 0
     - _ReceiveShadows: 1

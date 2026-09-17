@@ -96,13 +96,19 @@ namespace StarForge.View
                 case GameEventKind.Death:
                     if (!Seen(e.pos)) return;
                     if (e.type == UnitType.Ore) PlayAt(e.pos, crystal, 0.6f, 0.1f);
+                    else if (e.type == UnitType.Boulder) PlayAt(e.pos, boom, 0.4f, 0.05f);
                     else if (e.unit != null && e.unit.def.building) PlayAt(e.pos, bigBoom, 1f, 0.2f);
                     else PlayAt(e.pos, boom, 0.75f, 0.05f);
+                    break;
+                case GameEventKind.PlantLanded:
+                    // A tree coming down: a dull crash, quieter than any explosion.
+                    if (Seen(e.pos)) PlayAt(e.pos, boom, 0.22f, 0.15f);
                     break;
                 case GameEventKind.UnderAttack when e.team == me:
                     if (Time.unscaledTime - underAttackT > 10f) { underAttackT = Time.unscaledTime; PlayUI(warn, 0.6f, 1f); }
                     break;
                 case GameEventKind.StructureComplete when e.team == me:
+                case GameEventKind.Notice when e.team == me:
                     PlayUI(good, 0.5f, 1f);
                     break;
                 case GameEventKind.Promoted when e.team == me:

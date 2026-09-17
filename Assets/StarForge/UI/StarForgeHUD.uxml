@@ -92,10 +92,12 @@
         </ui:VisualElement>
         <ui:VisualElement class="button-row">
           <ui:Button name="controlsButton" class="link-button" text="Controls" />
+          <ui:Button name="opponentButton" class="link-button" text="About the opponent" />
           <ui:Button name="resetMemoryButton" class="link-button" text="Make the AI forget me" />
           <ui:Button name="quitButton" class="link-button" text="Quit" />
         </ui:VisualElement>
         <ui:Label name="controlsText" class="controls-text" text="" />
+        <ui:Label name="opponentText" class="controls-text opponent-text" text="" />
       </ui:VisualElement>
     </ui:VisualElement>
 
@@ -120,7 +122,7 @@
             <ui:Label class="section-title" text="MATCH REPORT" />
             <ui:Label name="endStats" class="end-text" text="" />
           </ui:VisualElement>
-          <ui:VisualElement class="end-column end-column--wide">
+          <ui:VisualElement name="endDossierColumn" class="end-column end-column--wide">
             <ui:Label class="section-title" text="THE AI'S DOSSIER ON YOU" />
             <sf:BarChartElement name="endStyleChart" class="chart chart--six" />
             <ui:Label name="endDossier" class="end-text" text="" />

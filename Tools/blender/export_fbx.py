@@ -3,7 +3,8 @@
     Blender --background --factory-startup --python Tools/blender/export_fbx.py -- <out_dir> [<blend_path>]
 
 Reuses the authoring layer unchanged (sf_model.py + build_models.py, plus the
-Unity-edition models in build_models_ext.py and the set dressing in build_env.py) and replaces the old binary pack
+Unity-edition models in build_models_ext.py, the set dressing in build_env.py
+and the trees in build_flora.py) and replaces the old binary pack
 with one FBX per model, carrying:
 
   * one material slot per palette entry actually used, named after the
@@ -14,7 +15,8 @@ with one FBX per model, carrying:
   * hard edges wherever faces meet at more than SMOOTH_ANGLE, and fully flat
     shading on parts marked flat (rock), exported as normals;
   * baked ambient occlusion in vertex colour R, cast against the whole model
-    and the ground, which the unit shader uses for occlusion and grime;
+    and the ground, which the unit shader uses for occlusion and grime, and
+    per-vertex shading data in G and B where a part sets it (sf_model.set_vdata);
   * movable part groups (Model.group) as child objects with their origin at
     the pivot: legs, gun, cutter arm, barrels, rotating heads.
 
@@ -44,6 +46,7 @@ import sf_model as S
 import build_models as B
 import build_models_ext as X
 import build_env as E
+import build_flora as F
 
 SMOOTH_ANGLE = math.radians(38.0)
 UV_SCALE = 0.5   # one texture repeat every two metres
@@ -135,6 +138,11 @@ def prepare(model):
                 e.smooth = a.normal.dot(b.normal) >= cos_lim
 
         bmesh.ops.transform(part, matrix=TO_BLENDER, verts=part.verts[:])
+        # Normal hints are directions in game space: swap them into Blender's axes too.
+        hint = [part.verts.layers.float.get(n) for n in S.NORMAL_HINT]
+        if all(hint):
+            for v in part.verts:
+                v[hint[1]], v[hint[2]] = v[hint[2]], v[hint[1]]
         bmesh.ops.reverse_faces(part, faces=part.faces[:])
         part.normal_update()
     return slots, rad, top
@@ -188,8 +196,29 @@ def bake_ao(model, radius):
                     if 0.0 < tg < reach:
                         hits += (1.0 - tg / reach) ** 2
             ao = 1.0 - 0.85 * hits / len(dirs)
-            v[col] = (ao, 1.0, 1.0, 1.0)
+            v[col] = (ao, S.get_vdata(part, v, S.VDATA_G), S.get_vdata(part, v, S.VDATA_B), 1.0)
     whole.free()
+
+
+def apply_normal_hints(me, blend=0.8):
+    """Custom normals for vertices with a normal hint (sf_model.set_normal_hint):
+    each corner's normal is turned most of the way toward the hint, so a leaf
+    cluster shades as a rounded mass. Corners without a hint keep their normal,
+    hard edges and all."""
+    attrs = [me.attributes.get(n) for n in S.NORMAL_HINT]
+    if not all(attrs):
+        return
+    hints = [Vector((attrs[0].data[i].value, attrs[1].data[i].value, attrs[2].data[i].value)) for i in range(len(me.vertices))]
+    normals = []
+    for corner, loop in zip(me.corner_normals, me.loops):
+        n = Vector(corner.vector)
+        h = hints[loop.vertex_index]
+        if h.length > 0.5:
+            n = n.lerp(h, blend).normalized()
+        normals.append(n)
+    me.normals_split_custom_set(normals)
+    for n in S.NORMAL_HINT:
+        me.attributes.remove(me.attributes[n])
 
 
 def make_object(name, parts, slots, pivot=(0.0, 0.0, 0.0), parent=None, parent_pivot=(0.0, 0.0, 0.0)):
@@ -208,6 +237,7 @@ def make_object(name, parts, slots, pivot=(0.0, 0.0, 0.0), parent=None, parent_p
     combined.free()
     for slot in slots:
         me.materials.append(bpy.data.materials.get(slot) or preview_material(slot))
+    apply_normal_hints(me)
     if me.color_attributes.get('Col') is not None:
         me.color_attributes.active_color = me.color_attributes['Col']
     obj = bpy.data.objects.new(name, me)
@@ -288,6 +318,27 @@ def export_chunks(model, slots, count, out_dir):
     return objs
 
 
+def export_lod(src, name, ratio, out_dir):
+    """A decimated copy of a single-object model for distant instances:
+    SF_<NAME>_LOD1.fbx, with the same slots, vertex colours and origin."""
+    tmp = src.copy()
+    tmp.data = src.data.copy()
+    bpy.context.scene.collection.objects.link(tmp)
+    mod = tmp.modifiers.new('decimate', 'DECIMATE')
+    mod.ratio = ratio
+    mod.use_collapse_triangulate = True
+    dg = bpy.context.evaluated_depsgraph_get()
+    me = bpy.data.meshes.new_from_object(tmp.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
+    bpy.data.objects.remove(tmp)
+    lod = bpy.data.objects.new(name + '_LOD1', me)
+    bpy.context.scene.collection.objects.link(lod)
+    lod.location = src.location
+    export([lod], os.path.join(out_dir, 'SF_%s_LOD1.fbx' % name))
+    tris = sum(len(poly.vertices) - 2 for poly in me.polygons)
+    bpy.data.objects.remove(lod)
+    return tris
+
+
 def main():
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     out_dir = argv[0] if argv else os.path.join(os.getcwd(), 'Assets', 'StarForge', 'Art', 'Models')
@@ -297,7 +348,7 @@ def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
     meta = {}
-    builders = B.BUILDERS + X.EXT_BUILDERS + E.ENV_BUILDERS
+    builders = B.BUILDERS + X.EXT_BUILDERS + E.ENV_BUILDERS + F.FLORA_BUILDERS
     # Build every model before exporting any. sf_model keys its bounds and
     # flat-shading records by id(bmesh); letting one model's parts be freed
     # while the next is built lets Python reuse those ids, and a new part then
@@ -308,6 +359,7 @@ def main():
         bake_ao(model, rad)
         objs, tris = export_groups(model, slots, out_dir)
         chunks = export_chunks(model, slots, CHUNKED[model.name], out_dir) if model.name in CHUNKED else []
+        lod_tris = export_lod(objs[0], model.name, F.LOD_RATIO[model.name], out_dir) if model.name in F.LOD_RATIO else 0
 
         # Object names are global in a .blend: rename after export so the next
         # model's 'Head' or 'Chunk0' exports under its own clean name, and lay
@@ -322,9 +374,10 @@ def main():
         meta[model.name] = {'radius': round(rad, 3), 'height': round(top, 3), 'triangles': tris,
                             'materials': slots,
                             'groups': {g: [round(c, 3) for c in p] for g, p in model.groups.items()},
-                            'chunks': len(chunks)}
-        print('%-16s tris=%6d radius=%5.2f height=%5.2f groups=%s chunks=%d  %s' % (
-            model.name, tris, rad, top, ','.join(sorted(model.groups)) or '-', len(chunks), ','.join(slots)))
+                            'chunks': len(chunks), 'lod1_triangles': lod_tris}
+        meta[model.name].update(model.meta)
+        print('%-16s tris=%6d radius=%5.2f height=%5.2f groups=%s chunks=%d lod1=%d  %s' % (
+            model.name, tris, rad, top, ','.join(sorted(model.groups)) or '-', len(chunks), lod_tris, ','.join(slots)))
 
     meta['_mounts'] = {'SENTINEL_HEAD_Y': X.SENTINEL_HEAD_MOUNT_Y}
     with open(os.path.join(out_dir, 'models.json'), 'w') as fh:

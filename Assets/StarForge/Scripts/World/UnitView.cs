@@ -5,7 +5,9 @@
 // Movable parts are the child objects the Blender exporter makes from
 // Model.group, found by name and animated about their own pivots:
 //   Trooper    legs swing with the stride, the gun kicks when firing
-//   Digger     the arm dips and the cutter spins while mining; the drum turns while hauling
+//   Digger     the arm dips and the cutter spins while mining; the drum turns while hauling;
+//              ore heaps up in the hopper and its glass glows with the load
+//   Ore seam   the crystal cluster shrinks as the seam is mined out
 //   Mauler, Sentinel   barrels recoil and ease back
 //   Foundry    the control head sweeps slowly; Workshop: the crane trolley travels
 // Surface state goes to StarForge/Unit through one property block per renderer
@@ -38,16 +40,17 @@ namespace StarForge.World
         bool debrisSpawned;
         float bodyBaseY;
 
-        Transform legL, legR, gun, arm, cutter, drum, barrel, head, trolley;
+        Transform legL, legR, gun, arm, cutter, drum, barrel, head, trolley, load, crystals;
         Quaternion legLRest, legRRest, armRest, cutterRest, drumRest, headRest;
-        Vector3 gunRest, barrelRest, trolleyRest;
-        float recoil, prevCooldown, armDip, cutterAngle, drumAngle;
+        Vector3 gunRest, barrelRest, trolleyRest, loadRest, crystalsRest;
+        float recoil, prevCooldown, armDip, cutterAngle, drumAngle, loadFill, oreScale = -1f;
 
         static readonly int FlashId = Shader.PropertyToID("_FlashColor");
         static readonly int DamageId = Shader.PropertyToID("_Damage");
         static readonly int BuildLevelId = Shader.PropertyToID("_BuildLevel");
         static readonly int BurnId = Shader.PropertyToID("_Burn");
         static readonly int TeamGlowId = Shader.PropertyToID("_TeamGlow");
+        static readonly int OreGlowId = Shader.PropertyToID("_OreGlow");
         const float BuildOff = 100000f;
 
         public Unit Unit => unit;
@@ -79,6 +82,8 @@ namespace StarForge.World
                     case "Barrels": barrel = t; barrelRest = t.localPosition; break;
                     case "Head": head = t; headRest = t.localRotation; break;
                     case "Trolley": trolley = t; trolleyRest = t.localPosition; break;
+                    case "Load": load = t; loadRest = t.localScale; break;
+                    case "Crystals": crystals = t; crystalsRest = t.localScale; break;
                 }
             }
         }
@@ -115,9 +120,19 @@ namespace StarForge.World
             {
                 float y = bodyBaseY;
                 if (unit.Type == UnitType.Skimmer)
+                {
                     y += hoverHeight + Mathf.Sin(t * 2.3f + unit.id) * 0.12f;
+                    // The NavMesh runs along the lake bed through the shallows; a
+                    // hover craft skims the surface instead of diving to it.
+                    float aboveWater = unit.World.Map.waterLevel + hoverHeight * 0.8f - transform.position.y;
+                    y = Mathf.Max(y, bodyBaseY + aboveWater);
+                }
                 else if (unit.Type == UnitType.Trooper)
                     y += Mathf.Abs(Mathf.Sin(unit.bob)) * 0.06f;
+                // Units ride the NavMesh, which craters do not change: sink the model
+                // into the crater instead.
+                if (!unit.def.building && unit.World.GroundShape != null)
+                    y -= unit.World.GroundShape.Drop(unit.pos);
                 if (unit.dying)
                 {
                     float ttl = unit.def.building ? 2.4f : 1.3f;
@@ -186,6 +201,22 @@ namespace StarForge.World
                 if (mining || unit.carrying > 0) drumAngle += dt * (mining ? 140f : 60f);
                 drum.localRotation = drumRest * Quaternion.Euler(drumAngle, 0f, 0f);
             }
+            if (load != null)
+            {
+                // The heap grows while the cutter works, stays heaped on the way
+                // home and empties at the drop-off.
+                float want = unit.carrying > 0 ? 1f
+                           : mining ? Mathf.Clamp01(unit.harvestTimer / Unit.HarvestTime) * 0.85f : 0f;
+                loadFill = Mathf.MoveTowards(loadFill, want, dt * (want < loadFill ? 2.5f : 1.2f));
+                float f = Mathf.Max(0.02f, loadFill);
+                load.localScale = Vector3.Scale(loadRest, new Vector3(Mathf.Lerp(0.55f, 1f, f), f, Mathf.Lerp(0.55f, 1f, f)));
+            }
+            if (crystals != null)
+            {
+                float want = Mathf.Lerp(0.45f, 1f, Mathf.Clamp01(unit.oreLeft / (float)Unit.NodeCapacity));
+                oreScale = oreScale < 0f ? want : Mathf.MoveTowards(oreScale, want, dt * 0.3f);
+                crystals.localScale = crystalsRest * oreScale;
+            }
 
             if (unit.Complete && !unit.dying)
             {
@@ -205,7 +236,7 @@ namespace StarForge.World
             bool constructing = !unit.Complete && unit.def.building;
             float burn = unit.dying ? Mathf.Clamp01(unit.deathTimer / 0.8f) : 0f;
 
-            if (flash > 0.01f || damage > 0.01f || constructing || unit.dying)
+            if (flash > 0.01f || damage > 0.01f || constructing || unit.dying || loadFill > 0.001f)
             {
                 Color teamGlow = (unit.team == 0 ? new Color(0.15f, 0.55f, 1f) : new Color(1f, 0.25f, 0.12f)) * 1.5f;
                 float level = unit.buildProgress * (unit.def.visualHeight + 0.2f);
@@ -214,11 +245,13 @@ namespace StarForge.World
                     var r = renderers[i];
                     if (r == null) continue;
                     r.GetPropertyBlock(mpb);
-                    mpb.SetColor(FlashId, new Color(1f, 0.55f, 0.3f) * (flash * 1.6f));
+                    // A hit flash that suits a trooper turns a whole building white.
+                    mpb.SetColor(FlashId, new Color(1f, 0.55f, 0.3f) * (flash * (unit.def.building ? 0.4f : 1.2f)));
                     mpb.SetFloat(DamageId, damage);
                     mpb.SetFloat(BuildLevelId, constructing ? level - rendererBaseY[i] : BuildOff);
                     mpb.SetFloat(BurnId, burn);
                     mpb.SetColor(TeamGlowId, teamGlow);
+                    mpb.SetFloat(OreGlowId, loadFill);
                     r.SetPropertyBlock(mpb);
                 }
                 blockActive = true;

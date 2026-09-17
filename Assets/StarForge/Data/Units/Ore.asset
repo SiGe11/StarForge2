@@ -38,5 +38,5 @@ MonoBehaviour:
   - {fileID: 7266216176260636108, guid: e75af8b90ca8341618dc371d3e365626, type: 3}
   - {fileID: 7266216176260636108, guid: e75af8b90ca8341618dc371d3e365626, type: 3}
   icon: {fileID: 2800000, guid: 76b10c01655694d66a09735b9b402bd0, type: 3}
-  visualRadius: 1.068
-  visualHeight: 1.895
+  visualRadius: 1.234
+  visualHeight: 2.288

@@ -34,6 +34,14 @@ namespace StarForge.EditorTools
                 ti.normalmapFilter = TextureImporterNormalFilter.Sobel;
                 ti.heightmapScale = file.StartsWith("water") ? 0.25f : 0.08f;
             }
+            else if (file == "smoke_puffs")
+            {
+                // Data, not colour: normal xy, occlusion, coverage (Tools/make_smoke_puffs.py).
+                ti.sRGBTexture = false;
+                ti.wrapMode = TextureWrapMode.Clamp;
+                ti.alphaSource = TextureImporterAlphaSource.FromInput;
+                ti.alphaIsTransparency = false;
+            }
             else if (file == "explosion" || file == "smoke" || file == "particles" || file == "scorch")
             {
                 // Bright-on-black sheets: coverage comes from luminance.

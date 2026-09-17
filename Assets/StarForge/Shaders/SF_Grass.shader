@@ -2,7 +2,7 @@
 //
 // Blades are opaque geometry rather than alpha-tested cards: discard switches
 // off the hidden-surface removal that keeps overdraw cheap on Apple's
-// tile-based GPUs. Wind is a slow travelling gust plus per-blade flutter. The
+// tile-based GPUs. Wind is one slow travelling gust shared by a whole clump. The
 // ground mask (GroundMask.cs) flattens grass under structures and along unit
 // tracks and chars it where explosions landed. Clumps sink into the ground
 // with distance instead of popping, and spread a little as they recede so
@@ -54,7 +54,7 @@ Shader "StarForge/Grass"
 
         float SFGrassHash(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
 
-        float3 GrassVertex(GrassAttributes v, out half burn, out half rnd)
+        float3 GrassVertex(GrassAttributes v, out half burn, out half rnd, out half far)
         {
             float3 origin = TransformObjectToWorld(float3(0, 0, 0));
             float3 wp = TransformObjectToWorld(v.positionOS.xyz);
@@ -63,10 +63,13 @@ Shader "StarForge/Grass"
             half4 gm = 0;
             if (_SF_GroundMaskParams.y > 0.5)
                 gm = SAMPLE_TEXTURE2D_LOD(_SF_GroundMask, sampler_SF_GroundMask, origin.xz * _SF_GroundMaskParams.x, 0);
-            half flatten = saturate(max(gm.r, gm.b * 0.8));
+            half flatten = saturate(max(max(gm.r, gm.b * 0.8), gm.a * 0.95));
             burn = gm.g;
 
             float dist = distance(origin, _WorldSpaceCameraPos);
+            // How far the clump is into the range where a blade is only a couple of
+            // pixels wide: its root-to-tip contrast and back-light fade out there.
+            far = smoothstep(30.0, 110.0, dist);
             half fade = 1.0 - smoothstep(_FadeStart, _FadeEnd, dist);
             half squash = fade * (1.0 - flatten * 0.92) * (1.0 - burn * 0.55);
 
@@ -74,12 +77,16 @@ Shader "StarForge/Grass"
             rel.y *= squash;
             rel.xz *= lerp(1.0, 1.7, saturate((dist - 45.0) / 110.0)) * lerp(1.0, 1.35, flatten);
 
+            // Wind is one slow gust travelling across the map, the same for every
+            // blade in a clump. Per-blade flutter looked lively up close, but at RTS
+            // distance a blade is two pixels wide, and a bright tip flicking across
+            // pixel centres on its own rhythm made the whole field twinkle like
+            // blinking lights, even with the camera still.
             float h = v.uv.y;
             float t = _Time.y * _WindSpeed;
             float travel = dot(origin.xz, float2(0.071, 0.047));
-            float gust = sin(t * 0.43 - travel * 0.6) * 0.5 + 0.5;
-            float flutter = sin(t * 2.3 + v.uv.x * 6.2831 + travel * 3.0);
-            float sway = (gust * 0.9 + flutter * 0.25) * _WindStrength * h * h * squash;
+            float gust = sin(t * 0.35 - travel * 0.6) * 0.5 + 0.5;
+            float sway = gust * 0.9 * _WindStrength * h * h * squash * lerp(1.0, 0.08, far);
             rel.xz += float2(0.82, 0.57) * sway;
             rel.y -= abs(sway) * 0.25 * h;
             return origin + rel;
@@ -101,22 +108,34 @@ Shader "StarForge/Grass"
             #pragma multi_compile_fragment _ _LIGHT_COOKIES
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
+            // Centroid sampling. With MSAA a pixel is shaded when any of its
+            // samples touches a blade, but the attributes are evaluated at the
+            // pixel centre, which can lie well outside a blade seen almost edge-on.
+            // Across such a sliver the height and colour extrapolate to tens of
+            // times their range, and one shaded pixel blew up into an HDR spark
+            // that bloom turned into a flashing white light (High and Balanced
+            // only: Battery has no MSAA). Centroid keeps the evaluation inside
+            // the triangle; the clamps in Frag catch what is left.
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
-                float3 positionWS : TEXCOORD0;
-                half4  albedoH    : TEXCOORD1;   // rgb albedo, a height along the blade
+                centroid float3 positionWS : TEXCOORD0;
+                centroid half4  albedoH    : TEXCOORD1;   // rgb albedo, a height along the blade
+                half   far        : TEXCOORD2;
             };
 
             Varyings Vert(GrassAttributes v)
             {
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
-                half burn, rnd;
-                float3 wp = GrassVertex(v, burn, rnd);
+                half burn, rnd, far;
+                float3 wp = GrassVertex(v, burn, rnd, far);
                 o.positionWS = wp;
                 o.positionCS = TransformWorldToHClip(wp);
-                half h = v.uv.y;
+                o.far = far;
+                // Far away, every blade takes the clump's mid-tone instead of a dark
+                // root and a bright tip, so there is no contrast left to shimmer.
+                half h = lerp(v.uv.y, 0.55, far * 0.85);
                 half3 c = lerp(_RootColor.rgb, _TipColor.rgb, h) * lerp(1.0 - _Variation, 1.0 + _Variation, rnd);
                 half3 charred = lerp(half3(0.03, 0.026, 0.022), half3(0.14, 0.10, 0.06), h);
                 o.albedoH = half4(lerp(c, charred, saturate(burn * 1.3)), h);
@@ -127,14 +146,15 @@ Shader "StarForge/Grass"
             {
                 float3 wp = i.positionWS;
                 Light L = GetMainLight(TransformWorldToShadowCoord(wp), wp, half4(1, 1, 1, 1));
-                half h = i.albedoH.a;
+                half h = saturate(i.albedoH.a);
+                half3 albedo = clamp(i.albedoH.rgb, 0.0, 1.0);
                 half3 v = GetWorldSpaceNormalizeViewDir(wp);
                 half wrap = saturate(L.direction.y * 0.6 + 0.4);
-                half back = pow(saturate(dot(-v, L.direction)), 4.0) * _Translucency * h;
+                half back = pow(saturate(dot(-v, L.direction)), 4.0) * _Translucency * h * (1.0 - i.far);
                 half ao = lerp(0.35, 1.0, h);
                 half3 ambient = SampleSH(half3(0, 1, 0));
-                half3 col = i.albedoH.rgb * (L.color * L.shadowAttenuation * (wrap + back) + ambient) * ao;
-                return half4(col, 1.0);
+                half3 col = albedo * (L.color * L.shadowAttenuation * (wrap + back) + ambient) * ao;
+                return half4(min(col, 4.0), 1.0);
             }
             ENDHLSL
         }
@@ -157,8 +177,8 @@ Shader "StarForge/Grass"
             {
                 DepthVaryings o;
                 UNITY_SETUP_INSTANCE_ID(v);
-                half burn, rnd;
-                o.positionCS = TransformWorldToHClip(GrassVertex(v, burn, rnd));
+                half burn, rnd, far;
+                o.positionCS = TransformWorldToHClip(GrassVertex(v, burn, rnd, far));
                 return o;
             }
 
@@ -185,8 +205,8 @@ Shader "StarForge/Grass"
             {
                 DepthVaryings o;
                 UNITY_SETUP_INSTANCE_ID(v);
-                half burn, rnd;
-                o.positionCS = TransformWorldToHClip(GrassVertex(v, burn, rnd));
+                half burn, rnd, far;
+                o.positionCS = TransformWorldToHClip(GrassVertex(v, burn, rnd, far));
                 return o;
             }
 

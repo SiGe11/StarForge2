@@ -25,7 +25,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _AOTex:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: a3fa9e64d1969405b8da2f93ce6608da, type: 2}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Control:
@@ -81,7 +81,7 @@ Material:
     - _Smooth: {r: 0.12, g: 0.18, b: 0.22, a: 0.1}
     - _Tile: {r: 7, g: 5, b: 14, a: 4}
     - _Tint0: {r: 0.748379, g: 0.8322835, b: 0.7083696, a: 1}
-    - _Tint1: {r: 1.0864043, g: 0.9639762, b: 0.8756056, a: 1}
+    - _Tint1: {r: 1.0090418, g: 0.9452768, b: 0.8860039, a: 1}
     - _Tint2: {r: 1.022425, g: 0.9639762, b: 0.9260748, a: 1}
     - _Tint3: {r: 1.2204343, g: 1.1727946, b: 1.1187468, a: 1}
   m_BuildTextureStacks: []

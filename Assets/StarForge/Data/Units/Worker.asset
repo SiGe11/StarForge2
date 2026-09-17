@@ -31,7 +31,7 @@ MonoBehaviour:
   cost: 50
   supplyCost: 1
   supplyGive: 0
-  hotkey: 68
+  hotkey: 85
   producer: 4
   requires: -1
   prefabs:
@@ -39,4 +39,4 @@ MonoBehaviour:
   - {fileID: 9118647939654798330, guid: 9a0725a07d6cf402d8645287d94d56d1, type: 3}
   icon: {fileID: 2800000, guid: c97c74964d72e4ae1bb3c0365a3be818, type: 3}
   visualRadius: 1.12
-  visualHeight: 1.98
+  visualHeight: 2.019

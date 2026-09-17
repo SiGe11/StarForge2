@@ -1,6 +1,8 @@
 // SF_Billboard — instanced quads for health bars (screen-aligned, drawn over
-// the scene) and projectile streaks (stretched along the velocity, facing the
-// camera). The instance matrix carries position and size; _Params.x picks the kind.
+// the scene), projectile streaks (stretched along the velocity, facing the
+// camera) and muzzle flares (the same, shaped as a blast bulging out of the
+// muzzle and tapering to a point). The instance matrix carries position and
+// size; _Params.x picks the kind.
 Shader "StarForge/Billboard"
 {
     Properties
@@ -98,6 +100,19 @@ Shader "StarForge/Billboard"
                     col *= 1.0 - seg * 0.55;
                     col = lerp(col, half3(0.0, 0.0, 0.0), border);
                     return half4(col, c.a);
+                }
+
+                if (p.x > 1.5)
+                {
+                    // Flare: widest a third of the way out, a hot core along the
+                    // axis, soft where it leaves the muzzle, pointed at the tip.
+                    half x = uv.x;
+                    half profile = sin(3.14159 * pow(max(x, 1e-3), 0.6));
+                    half r = abs(uv.y * 2.0 - 1.0) / max(profile, 0.02);
+                    half body = saturate(1.0 - r);
+                    half core = saturate(1.0 - r * 2.2);
+                    half a = (body * body * 0.7 + core * core) * smoothstep(0.0, 0.06, x) * (1.0 - x * 0.55);
+                    return half4(c.rgb * a, a);
                 }
 
                 half across = 1.0 - abs(uv.y * 2.0 - 1.0);

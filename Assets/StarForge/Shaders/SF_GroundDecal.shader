@@ -1,6 +1,7 @@
 // SF_GroundDecal — instanced box-volume decals that paint onto whatever the
 // depth buffer holds: selection rings, placement footprints, order markers,
-// range rings and scorch marks. One draw per material for all of them.
+// range rings, scorch marks, vehicle tracks and the light pool under ore. One
+// draw per material for all of them.
 //
 // Each instance is a unit cube; the fragment reconstructs the world position
 // under the pixel, moves it into the cube's space and discards anything
@@ -137,7 +138,7 @@ Shader "StarForge/GroundDecal"
                     half dash = step(0.45, frac(ang / 6.2831853 * 48.0));
                     a = smoothstep(0.965, 0.98, r) * (1.0 - smoothstep(0.99, 1.0, r)) * dash * 0.8;
                 }
-                else
+                else if (kind < 5.5)
                 {
                     // Explosion shockwave: a hot ring racing outward and thinning,
                     // over a brief flash of the ground inside it.
@@ -147,6 +148,28 @@ Shader "StarForge/GroundDecal"
                     half width = lerp(0.18, 0.05, t);
                     a = smoothstep(rr - width, rr, r) * (1.0 - smoothstep(rr, rr + 0.02, r)) * k * k;
                     a += (1.0 - smoothstep(0.0, max(rr, 0.05), r)) * 0.3 * k * k * k;
+                }
+                else if (kind < 6.5)
+                {
+                    // Track segment, alpha-blended: two treads either side of the
+                    // centre line (z band centre, w half-width, both as fractions of
+                    // the half-width across), with cleats across them. The cleats are
+                    // spaced in world units along the heading, so consecutive segments
+                    // line up; the ends are soft so overlapping segments blend.
+                    float3 fwd = normalize(float3(UNITY_MATRIX_M._m02, 0.0, UNITY_MATRIX_M._m22));
+                    float along = dot(wp.xz, fwd.xz) * UNITY_ACCESS_INSTANCED_PROP(Props, _UVRect).x;
+                    half across = abs(d.x);
+                    half tread = 1.0 - smoothstep(p.w * 0.75, p.w, abs(across - p.z));
+                    half cleat = 0.45 + 0.55 * smoothstep(0.12, 0.28, abs(frac(along) - 0.5));
+                    half ends = 1.0 - smoothstep(0.87, 1.0, abs(d.y));
+                    a = tread * cleat * ends;
+                    return half4(color.rgb, a * color.a * upness * vfade);
+                }
+                else
+                {
+                    // Light pool under an ore seam: a soft radial falloff, additive.
+                    half fall = saturate(1.0 - r);
+                    a = fall * fall * (0.55 + 0.45 * fall);
                 }
 
                 a *= upness * vfade;
