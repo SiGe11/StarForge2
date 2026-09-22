@@ -1,0 +1,83 @@
+{
+  "SCAN_BOULDER_A": {
+    "radius": 1.15,
+    "height": 1.352,
+    "triangles": 900,
+    "materials": [
+      "scan_rock_moss_set_02"
+    ],
+    "source": "https://polyhaven.com/a/rock_moss_set_02"
+  },
+  "SCAN_BOULDER_B": {
+    "radius": 1.15,
+    "height": 1.209,
+    "triangles": 900,
+    "materials": [
+      "scan_rock_moss_set_02"
+    ],
+    "source": "https://polyhaven.com/a/rock_moss_set_02"
+  },
+  "SCAN_BOULDER_C": {
+    "radius": 1.15,
+    "height": 0.709,
+    "triangles": 900,
+    "materials": [
+      "scan_rock_moss_set_02"
+    ],
+    "source": "https://polyhaven.com/a/rock_moss_set_02"
+  },
+  "SCAN_BOULDER_D": {
+    "radius": 1.15,
+    "height": 0.938,
+    "triangles": 899,
+    "materials": [
+      "scan_rock_moss_set_02"
+    ],
+    "source": "https://polyhaven.com/a/rock_moss_set_02"
+  },
+  "SCAN_BOULDER_E": {
+    "radius": 1.15,
+    "height": 1.669,
+    "triangles": 899,
+    "materials": [
+      "scan_rock_moss_set_01"
+    ],
+    "source": "https://polyhaven.com/a/rock_moss_set_01"
+  },
+  "SCAN_BOULDER_F": {
+    "radius": 1.15,
+    "height": 1.049,
+    "triangles": 900,
+    "materials": [
+      "scan_rock_moss_set_01"
+    ],
+    "source": "https://polyhaven.com/a/rock_moss_set_01"
+  },
+  "SCAN_CRAG_A": {
+    "radius": 2.879,
+    "height": 5.632,
+    "triangles": 3399,
+    "materials": [
+      "scan_rock_moss_set_01"
+    ],
+    "source": "https://polyhaven.com/a/rock_moss_set_01"
+  },
+  "SCAN_CRAG_B": {
+    "radius": 4.044,
+    "height": 3.872,
+    "triangles": 3200,
+    "materials": [
+      "scan_boulder_01"
+    ],
+    "source": "https://polyhaven.com/a/boulder_01"
+  },
+  "SCAN_SHELF_A": {
+    "radius": 5.0,
+    "height": 1.954,
+    "triangles": 3000,
+    "materials": [
+      "scan_rock_moss_set_01"
+    ],
+    "source": "https://polyhaven.com/a/rock_moss_set_01"
+  }
+}

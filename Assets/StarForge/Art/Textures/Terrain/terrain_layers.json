@@ -1,0 +1,38 @@
+{
+  "meadow": {
+    "source": "coast_sand_rocks_02",
+    "size_m": 15.0,
+    "mean_srgb": [
+      0.294,
+      0.269,
+      0.178
+    ]
+  },
+  "dirt": {
+    "source": "forest_ground_04",
+    "size_m": 3.15,
+    "mean_srgb": [
+      0.417,
+      0.353,
+      0.266
+    ]
+  },
+  "cliff": {
+    "source": "aerial_rocks_02",
+    "size_m": 50.0,
+    "mean_srgb": [
+      0.431,
+      0.363,
+      0.206
+    ]
+  },
+  "sand": {
+    "source": "coast_sand_01",
+    "size_m": 15.0,
+    "mean_srgb": [
+      0.509,
+      0.449,
+      0.359
+    ]
+  }
+}

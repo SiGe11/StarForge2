@@ -74,6 +74,7 @@ namespace StarForge.Game
             MatchSettings.aiMemory = false;          // every match starts from doctrine
             MatchSettings.difficulty = AIDifficulty.Commander;
             MatchSettings.seed = 1000u + (uint)(game * 37);
+            MatchSettings.fixedSeed = true;
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = -1;
         }
@@ -82,6 +83,7 @@ namespace StarForge.Game
         {
             world = FindAnyObjectByType<GameWorld>();
             boot = FindAnyObjectByType<GameBootstrap>();
+            Application.targetFrameRate = -1;   // GameBootstrap.Awake capped it at 60
             foreach (var cam in FindObjectsByType<Camera>()) cam.cullingMask = 0;
             boot.MatchStarted += OnMatchStarted;
             if (boot.State == MatchState.Playing) OnMatchStarted();
@@ -140,7 +142,8 @@ namespace StarForge.Game
 
             Debug.Log($"[AIEval] vs {(ScriptedOpponent.Kind)kind} game {game + 1}: " +
                       $"{(world.winner == 1 ? "AI won" : world.winner == 0 ? "AI lost" : "time cap")} at {world.time:0}s, " +
-                      $"read correctly {(samples > 0 ? 100f * correct / samples : 0f):0}% of the time");
+                      $"read correctly {(samples > 0 ? 100f * correct / samples : 0f):0}% of the time; " +
+                      $"style {ai.Dbg.personality}; {ai.Dbg.waves} attack waves, last {ai.Dbg.wave}");
 
             game++;
             if (game >= gamesPerKind) { game = 0; kind++; }

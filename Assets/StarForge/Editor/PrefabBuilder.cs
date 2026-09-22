@@ -113,7 +113,7 @@ namespace StarForge.EditorTools
                 case UnitType.Bunkhouse: return "BUNKHOUSE";
                 case UnitType.Sentinel: return "SENTINEL_BASE";
                 case UnitType.Ore: return "ORE";
-                default: return "BOULDER";
+                default: return "SCAN_BOULDER_A";   // MapBuilder makes the other scanned variants
             }
         }
 

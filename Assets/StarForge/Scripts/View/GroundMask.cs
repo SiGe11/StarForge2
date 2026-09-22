@@ -7,6 +7,11 @@
 //
 // The grass shader bends, parts and chars on it; the terrain shader darkens
 // scorched and churned soil and turns craters to broken dark earth.
+//
+// It also uploads Vegetation's grass-fire grid as a second, coarser texture
+// (_SF_BurntGrass: 0 unburnt, 0.5 alight, 1 burnt out). That one does not heal --
+// grass that has burned is gone for the match -- and both the grass and the
+// terrain read it, so a meadow a fire has crossed stays black stubble.
 // Presentation only: nothing reads it back.
 using UnityEngine;
 using StarForge.Sim;
@@ -30,6 +35,11 @@ namespace StarForge.View
 
         static readonly int TexId = Shader.PropertyToID("_SF_GroundMask");
         static readonly int ParamsId = Shader.PropertyToID("_SF_GroundMaskParams");
+        static readonly int BurntTexId = Shader.PropertyToID("_SF_BurntGrass");
+        static readonly int BurntParamsId = Shader.PropertyToID("_SF_BurntGrassParams");
+        Texture2D burntTex;
+        Color32[] burntPixels;
+        int burntVersion = -1;
 
         void Awake()
         {
@@ -66,11 +76,40 @@ namespace StarForge.View
             if (ground != null) ground.Deformed -= OnCrater;
             if (world != null) world.Event -= OnEvent;
             Shader.SetGlobalVector(ParamsId, Vector4.zero);
+            Shader.SetGlobalVector(BurntParamsId, Vector4.zero);
         }
 
         void OnDestroy()
         {
             if (tex != null) Destroy(tex);
+            if (burntTex != null) Destroy(burntTex);
+        }
+
+        /// <summary>Vegetation's grass-fire grid, as a texture the ground shaders read.</summary>
+        void UploadBurntGrass()
+        {
+            var veg = world.Plants;
+            if (veg == null || veg.GrassSide <= 0) return;
+            int side = veg.GrassSide;
+            if (burntTex == null || burntTex.width != side)
+            {
+                if (burntTex != null) Destroy(burntTex);
+                burntTex = new Texture2D(side, side, TextureFormat.R8, false, true)
+                {
+                    wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear, name = "SF_BurntGrass"
+                };
+                burntPixels = new Color32[side * side];
+                burntVersion = -1;
+                Shader.SetGlobalTexture(BurntTexId, burntTex);
+            }
+            if (veg.GrassVersion == burntVersion) return;
+            burntVersion = veg.GrassVersion;
+            var state = veg.GrassState;
+            for (int i = 0; i < burntPixels.Length; i++)
+                burntPixels[i] = new Color32(state[i] == 2 ? (byte)255 : state[i] == 1 ? (byte)140 : (byte)0, 0, 0, 255);
+            burntTex.SetPixels32(burntPixels);
+            burntTex.Apply(false);
+            Shader.SetGlobalVector(BurntParamsId, new Vector4(1f / world.MapSize, 1f, 0f, 0f));
         }
 
         void OnEvent(GameEvent e)
@@ -149,6 +188,8 @@ namespace StarForge.View
                     float r = (k.HasCrown ? k.crownRadii.x : 1.2f) * veg.plants[i].scale * (0.6f + 0.6f * veg.live[i].fire);
                     Stamp(burn, veg.Pose(i).MultiplyPoint3x4(Vector3.zero), r, (byte)(140 + 110 * veg.live[i].fire));
                 }
+                foreach (int cell in veg.burningGrass)
+                    Stamp(burn, veg.GrassCentre(cell), Vegetation.GrassCell * 0.7f, 230);
             }
 
             if (now >= nextHeal)
@@ -171,6 +212,7 @@ namespace StarForge.View
                 dirty = false;
             }
             Shader.SetGlobalVector(ParamsId, new Vector4(1f / world.MapSize, 1f, 0f, 0f));
+            UploadBurntGrass();
         }
     }
 }

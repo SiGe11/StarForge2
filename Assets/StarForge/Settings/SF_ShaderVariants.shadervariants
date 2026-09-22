@@ -8,11 +8,6 @@ ShaderVariantCollection:
   m_PrefabAsset: {fileID: 0}
   m_Name: SF_ShaderVariants
   m_Shaders:
-  - first: {fileID: 0}
-    second:
-      variants:
-      - keywords: SHADOWS_DEPTH
-        passType: 8
   - first: {fileID: 66, guid: 0000000000000000f000000000000000, type: 0}
     second:
       variants:
@@ -72,6 +67,8 @@ ShaderVariantCollection:
     second:
       variants:
       - keywords: 
+        passType: 0
+      - keywords: _DEPTH_MSAA_2
         passType: 0
       - keywords: _DEPTH_MSAA_4
         passType: 0
@@ -134,6 +131,8 @@ ShaderVariantCollection:
   - first: {fileID: 4800000, guid: 171c0f956c33e4644a4729eec4cc58ca, type: 3}
     second:
       variants:
+      - keywords: 
+        passType: 13
       - keywords: _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SHADOWS_SOFT
         passType: 13
       - keywords: _MAIN_LIGHT_SHADOWS_CASCADE
@@ -158,6 +157,8 @@ ShaderVariantCollection:
       variants:
       - keywords: 
         passType: 8
+      - keywords: 
+        passType: 13
       - keywords: _ADDITIONAL_LIGHT_SHADOWS _CLUSTER_LIGHT_LOOP _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SF_AUTOSPLAT _SHADOWS_SOFT
         passType: 13
       - keywords: _ADDITIONAL_LIGHT_SHADOWS _CLUSTER_LIGHT_LOOP _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SHADOWS_SOFT
@@ -197,8 +198,12 @@ ShaderVariantCollection:
   - first: {fileID: 4800000, guid: 90f2abbbd1ced40688d4734d50bb84d0, type: 3}
     second:
       variants:
+      - keywords: 
+        passType: 8
       - keywords: INSTANCING_ON
         passType: 8
+      - keywords: 
+        passType: 13
       - keywords: INSTANCING_ON
         passType: 13
       - keywords: INSTANCING_ON _CLUSTER_LIGHT_LOOP _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SHADOWS_SOFT
@@ -209,4 +214,17 @@ ShaderVariantCollection:
     second:
       variants:
       - keywords: 
+        passType: 13
+  - first: {fileID: 4800000, guid: 3f83030ceff404a2dac2cb3477cab57d, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 8
+      - keywords: _ADDITIONAL_LIGHT_SHADOWS _CLUSTER_LIGHT_LOOP _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SHADOWS_SOFT
+        passType: 13
+      - keywords: _CLUSTER_LIGHT_LOOP _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SCREEN_SPACE_OCCLUSION _SHADOWS_SOFT
+        passType: 13
+      - keywords: _CLUSTER_LIGHT_LOOP _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SHADOWS_SOFT
+        passType: 13
+      - keywords: _CLUSTER_LIGHT_LOOP _MAIN_LIGHT_SHADOWS_CASCADE
         passType: 13

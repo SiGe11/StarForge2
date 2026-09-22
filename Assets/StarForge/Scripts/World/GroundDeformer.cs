@@ -69,7 +69,7 @@ namespace StarForge.World
             {
                 nextLod = Time.unscaledTime + 0.4f;
                 lodDirty = false;
-                terrain.ApplyDelayedHeightmapModification();
+                terrain.terrainData.SyncHeightmap();   // finishes the SetHeightsDelayLOD edits (LOD and collider)
             }
         }
 

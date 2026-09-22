@@ -44,9 +44,11 @@ namespace StarForge.EditorTools
             if (meta == null)
             {
                 meta = new Dictionary<string, ModelMeta>();
-                string path = Path.Combine(SFAssetPostprocessor.ModelDir, "models.json");
-                if (File.Exists(path))
+                // models.json from export_fbx.py, rocks.json from build_rocks.py.
+                foreach (string file in new[] { "models.json", "rocks.json" })
                 {
+                    string path = Path.Combine(SFAssetPostprocessor.ModelDir, file);
+                    if (!File.Exists(path)) continue;
                     string json = File.ReadAllText(path);
                     var rx = new Regex("\"([A-Z_]+)\":\\s*\\{\\s*\"radius\":\\s*([0-9.]+),\\s*\"height\":\\s*([0-9.]+),\\s*\"triangles\":\\s*([0-9]+)");
                     foreach (Match m in rx.Matches(json))

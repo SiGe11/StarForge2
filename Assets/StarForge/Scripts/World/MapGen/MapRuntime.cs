@@ -6,7 +6,7 @@
 // the title screen reloads the scene, which makes another.
 //
 // The seed: -sfseed N on the command line, or MatchSettings.mapSeed when a
-// caller fixes it; the benchmark and the AI evaluation stay on the default map
+// caller fixes it; the benchmark, the screenshot gallery and the AI evaluation stay on the default map
 // so their numbers compare across builds; otherwise a random one.
 using System;
 using UnityEngine;
@@ -34,7 +34,7 @@ namespace StarForge.World
             LastSeed = seed;
             Debug.Log($"[StarForge] new map from seed {seed}: terrain {r.heightsMs} ms, textures {r.splatMs} ms, " +
                       $"objects {r.objectsMs} ms, NavMesh {r.navMs} ms; {r.ore} ore, {r.boulders} boulders, " +
-                      $"{r.scenery} scenery, {r.plants} plants ({r.blockingPlants} blocking)");
+                      $"{r.scenery} scenery, {r.plants} plants ({r.blockingPlants} blocking, {r.grovesDropped} groves dropped to keep paths open)");
         }
 
         static uint ChooseSeed()
@@ -44,7 +44,7 @@ namespace StarForge.World
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "-sfseed" && i + 1 < args.Length && uint.TryParse(args[i + 1], out uint s) && s != 0) return s;
-                if (args[i] == "-sfbench") fixedMap = true;
+                if (args[i] == "-sfbench" || args[i] == "-sfgallery") fixedMap = true;
             }
             if (MatchSettings.mapSeed != 0) return MatchSettings.mapSeed;
             if (fixedMap || AIEvalRunner.Pending) return MapGenerator.DefaultSeed;

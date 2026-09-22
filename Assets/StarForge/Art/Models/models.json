@@ -208,7 +208,7 @@
   "ORE": {
     "radius": 1.234,
     "height": 2.288,
-    "triangles": 852,
+    "triangles": 1092,
     "materials": [
       "rock",
       "crystal"
@@ -347,74 +347,74 @@
     "lod1_triangles": 0
   },
   "TREE_PINE": {
-    "radius": 3.006,
-    "height": 9.264,
-    "triangles": 2624,
+    "radius": 3.779,
+    "height": 9.508,
+    "triangles": 718,
     "materials": [
       "bark",
       "needle"
     ],
     "groups": {},
     "chunks": 0,
-    "lod1_triangles": 1272,
+    "lod1_triangles": 462,
     "foliage": {
       "center": [
         0.0,
-        4.63,
+        4.75,
         0.0
       ],
       "radii": [
-        2.826,
-        4.634,
-        2.826
+        3.705,
+        4.758,
+        3.705
       ]
     }
   },
   "TREE_BROAD": {
-    "radius": 4.624,
-    "height": 7.08,
-    "triangles": 3564,
+    "radius": 5.344,
+    "height": 8.023,
+    "triangles": 1392,
     "materials": [
       "bark",
       "leaf"
     ],
     "groups": {},
     "chunks": 0,
-    "lod1_triangles": 1068,
+    "lod1_triangles": 522,
     "foliage": {
       "center": [
         0.0,
-        5.484,
+        5.018,
         0.0
       ],
       "radii": [
-        4.427,
-        1.596,
-        4.427
+        5.135,
+        3.005,
+        5.135
       ]
     }
   },
   "TREE_TALL": {
-    "radius": 1.889,
-    "height": 10.072,
-    "triangles": 2130,
+    "radius": 2.29,
+    "height": 10.632,
+    "triangles": 854,
     "materials": [
       "bark",
       "leaf"
     ],
     "groups": {},
     "chunks": 0,
-    "lod1_triangles": 638,
+    "lod1_triangles": 502,
     "foliage": {
       "center": [
         0.0,
-        6.302,
+        6.624,
         0.0
       ],
       "radii": [
-        1.705,
-        3.77,
-        1.705
+        2.056,
+        4.008,
+        2.056
       ]
     }
   },
@@ -430,25 +430,119 @@
     "lod1_triangles": 135
   },
   "BUSH": {
-    "radius": 1.335,
-    "height": 1.243,
-    "triangles": 480,
+    "radius": 1.706,
+    "height": 1.74,
+    "triangles": 64,
     "materials": [
       "leaf"
     ],
     "groups": {},
     "chunks": 0,
-    "lod1_triangles": 168,
+    "lod1_triangles": 44,
     "foliage": {
       "center": [
         0.0,
-        0.73,
+        0.773,
         0.0
       ],
       "radii": [
-        1.259,
-        0.513,
-        1.259
+        1.514,
+        0.967,
+        1.514
+      ]
+    }
+  },
+  "TREE_BIRCH": {
+    "radius": 3.061,
+    "height": 9.495,
+    "triangles": 886,
+    "materials": [
+      "bark",
+      "leaf"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 538,
+    "foliage": {
+      "center": [
+        0.0,
+        6.193,
+        0.0
+      ],
+      "radii": [
+        2.792,
+        3.302,
+        2.792
+      ]
+    }
+  },
+  "FERN": {
+    "radius": 0.762,
+    "height": 0.458,
+    "triangles": 36,
+    "materials": [
+      "leaf"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 24,
+    "foliage": {
+      "center": [
+        0.0,
+        0.239,
+        0.0
+      ],
+      "radii": [
+        0.757,
+        0.219,
+        0.757
+      ]
+    }
+  },
+  "REEDS": {
+    "radius": 0.969,
+    "height": 1.781,
+    "triangles": 528,
+    "materials": [
+      "leaf",
+      "bark"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 211,
+    "foliage": {
+      "center": [
+        0.0,
+        0.679,
+        0.0
+      ],
+      "radii": [
+        0.915,
+        0.743,
+        0.915
+      ]
+    }
+  },
+  "BUSH_FLOWER": {
+    "radius": 1.708,
+    "height": 1.937,
+    "triangles": 64,
+    "materials": [
+      "leaf"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 44,
+    "foliage": {
+      "center": [
+        0.0,
+        0.797,
+        0.0
+      ],
+      "radii": [
+        1.548,
+        1.14,
+        1.548
       ]
     }
   },

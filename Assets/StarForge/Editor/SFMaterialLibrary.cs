@@ -2,8 +2,8 @@
 //
 // The palette mirrors sf_model.MATERIALS (linear albedo, roughness, metallic,
 // team weight, emissive gain). Every slot uses StarForge/Unit (SF_Unit.shader):
-// surface detail comes from the original photographs as a triplanar x2 detail
-// multiply around mid-grey, so the texture adds grain and panelling without
+// surface detail is the generated hull plating (Tools/make_panel_texture.py) as
+// a triplanar x2 detail multiply around its own average, so it adds panelling without
 // shifting the calibrated albedo -- the same "textures are detail, not
 // replacement" rule the original renderer followed -- and weathering (edge
 // wear, grime, baked occlusion) is set per kind of surface: painted armour
@@ -61,11 +61,43 @@ namespace StarForge.EditorTools
         public static string PathFor(string slot, int team) =>
             IsTeamSlot(slot) ? $"{MaterialDir}/SF_{slot}_T{team}.mat" : $"{MaterialDir}/SF_{slot}.mat";
 
-        /// <summary>Material for a Blender slot name; team slots resolve per team.</summary>
+        /// <summary>Material for a Blender slot name; team slots resolve per team, and
+        /// scan_&lt;asset&gt; slots (Tools/blender/build_rocks.py) to that scan's rock material.</summary>
         public static Material ForSlot(string slot, int team)
         {
+            if (slot.StartsWith("scan_"))
+                return AssetDatabase.LoadAssetAtPath<Material>($"{MaterialDir}/SF_{slot}.mat");
             string p = PathFor(Palette.ContainsKey(slot) ? slot : "armor", team);
             return AssetDatabase.LoadAssetAtPath<Material>(p);
+        }
+
+        /// <summary>One StarForge/Rock material per scanned rock set in Textures/Rocks
+        /// (&lt;asset&gt;_col.jpg and &lt;asset&gt;_nrm.jpg). The sets were shot under different
+        /// skies; the tints pull them toward the terrain's cliff rock.</summary>
+        static void BuildScanMaterials()
+        {
+            var shader = Shader.Find("StarForge/Rock");
+            var tints = new Dictionary<string, Color>
+            {
+                { "rock_moss_set_02", new Color(1.08f, 1.06f, 1.0f) },
+                { "rock_moss_set_01", new Color(0.95f, 0.97f, 1.0f) },
+                { "boulder_01", new Color(0.92f, 0.95f, 1.0f) },
+            };
+            foreach (var guid in AssetDatabase.FindAssets("t:Texture2D", new[] { Tex + "Rocks" }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                string file = Path.GetFileNameWithoutExtension(path);
+                if (!file.EndsWith("_col")) continue;
+                string aid = file.Substring(0, file.Length - 4);
+                var m = SFEditorUtil.CreateOrLoadMaterial($"{MaterialDir}/SF_scan_{aid}.mat", shader);
+                m.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(path));
+                m.SetTexture("_BumpMap", AssetDatabase.LoadAssetAtPath<Texture2D>($"{Tex}Rocks/{aid}_nrm.jpg"));
+                m.SetColor("_Tint", tints.TryGetValue(aid, out var t) ? t : Color.white);
+                m.SetFloat("_Smoothness", 0.16f);
+                m.SetColor("_DustColor", new Color(0.30f, 0.26f, 0.21f));
+                m.enableInstancing = false;
+                EditorUtility.SetDirty(m);
+            }
         }
 
         [MenuItem("StarForge/Build/1 Materials", priority = 1)]
@@ -75,8 +107,10 @@ namespace StarForge.EditorTools
             var unitShader = Shader.Find("StarForge/Unit");
             var armor = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "armor.png");
             var armorN = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "armor_n.png");
-            var cliff = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "cliff.png");
-            var cliffN = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "cliff_n.png");
+            // Rock (the ore's bed, the procedural set dressing) takes its grain from
+            // the terrain's cliff scan, so it matches the cliffs around it.
+            var cliff = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "Terrain/cliff_ch.png");
+            var cliffN = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "Terrain/cliff_nrm.jpg");
             var crystal = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + "crystal.jpg");
 
             foreach (var kv in Palette)
@@ -104,8 +138,10 @@ namespace StarForge.EditorTools
                     // crystal glows a saturated blue rather than its pale albedo,
                     // and glow strips sit just past the bloom threshold.
                     if (e.emis > 0f)
-                        emission = slot == "crystal" ? new Color(0.0f, 0.46f, 1.0f) * 3.4f
-                                 : slot == "ore_glow" ? new Color(0.0f, 0.5f, 1.0f) * 9f
+                        // Ore is a spectral teal-green under a violet rim: eerie rather
+                        // than the plain blue it was, and apart from the team colours.
+                        emission = slot == "crystal" ? new Color(0.02f, 0.62f, 0.5f) * 3.6f
+                                 : slot == "ore_glow" ? new Color(0.03f, 0.62f, 0.5f) * 8f
                                  : e.albedo * e.emis * 1.1f;
                     SetupUnit(m, slot, albedo, e.rough, e.metal, emission, det, detN, detScale, detNormal, tiling);
                     // Ore glows from inside (SF_Unit's crystal path, which also
@@ -114,10 +150,11 @@ namespace StarForge.EditorTools
                     m.SetFloat("_Crystal", slot == "crystal" ? 1f : 0f);
                     m.SetFloat("_OreGlowMask", slot == "ore_glow" ? 1f : 0f);
                     m.SetFloat("_OreGlow", 0f);
-                    if (slot == "crystal") m.SetColor("_RimColor", new Color(0.3f, 0.9f, 1.0f));
+                    if (slot == "crystal") m.SetColor("_RimColor", new Color(0.55f, 0.3f, 1.0f) * 1.3f);
                     EditorUtility.SetDirty(m);
                 }
             }
+            BuildScanMaterials();
             AssetDatabase.SaveAssets();
             Debug.Log($"[StarForge] materials built in {MaterialDir}");
         }

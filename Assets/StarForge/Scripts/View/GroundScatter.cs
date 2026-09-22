@@ -143,7 +143,10 @@ namespace StarForge.View
                     if (px < 1f || pz < 1f || px > size - 1f || pz > size - 1f) continue;
                     float lichen = W(0, px, pz), gravel = W(1, px, pz), cliff = W(2, px, pz), ash = W(3, px, pz);
                     float lushChance = Smoothstep(0.2f, 0.65f, lichen);
-                    float dryChance = gravel * 0.10f + ash * 0.03f;
+                    // Dry tussocks gather in clumps, as they do on poor ground; spread
+                    // evenly they read from above as polka dots.
+                    float clump = Smoothstep(0.5f, 0.72f, Noise.Fbm(px * 0.07f + 3.7f, pz * 0.07f - 9.1f, 3));
+                    float dryChance = (gravel * 0.10f + ash * 0.03f) * clump * 2.2f;
                     if (roll >= lushChance + dryChance || cliff > 0.25f) continue;
                     float u = px / size, v = pz / size;
                     float h = td.GetInterpolatedHeight(u, v) + baseY;

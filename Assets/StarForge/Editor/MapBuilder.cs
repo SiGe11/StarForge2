@@ -65,7 +65,7 @@ namespace StarForge.EditorTools
             finally { MapGenerator.Instantiate = place; }
             Debug.Log($"[StarForge] shore corners slumped into beaches: {r.gen.BeachCorners}");
             Debug.Log($"[StarForge] map from seed {seed}: {r.ore} ore, {r.boulders} boulders, {r.scenery} scenery, " +
-                      $"{r.plants} plants ({r.blockingPlants} trunks block ground units)");
+                      $"{r.plants} plants ({r.blockingPlants} trees block ground units, {r.grovesDropped} groves dropped to keep paths open)");
             SaveGenerated(r, info);
             foreach (Transform t in info.sceneryRoot)
                 GameObjectUtility.SetStaticEditorFlags(t.gameObject, StaticEditorFlags.BatchingStatic);
@@ -110,18 +110,41 @@ namespace StarForge.EditorTools
             kit.backdropMaterial = AssetDatabase.LoadAssetAtPath<Material>(MapDir + "/SF_Backdrop.mat");
             kit.waterMaterial = BuildWaterMaterial();
             kit.orePrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{PrefabDir}/Ore.prefab");
-            kit.boulderPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{PrefabDir}/Boulder.prefab");
+            kit.boulderPrefabs = BoulderVariants();
+            // Scanned crags and slabs (Tools/blender/build_rocks.py) where the
+            // procedural spire and shelf stood; the same counts and footprints.
             kit.scenery = new[]
             {
-                Scenery("ROCK_SPIRE", 7, 3.4f, 0.8f, 1.35f),
+                Scenery("SCAN_CRAG_A", 4, 3.0f, 0.85f, 1.25f),
+                Scenery("SCAN_CRAG_B", 3, 3.8f, 0.8f, 1.2f),
                 Scenery("RUIN_PYLON", 4, 3.0f, 0.9f, 1.2f),
                 Scenery("WRECK", 2, 5.9f, 0.9f, 1.1f),
-                Scenery("ROCK_SHELF", 9, 5.0f, 0.7f, 1.2f),
+                Scenery("SCAN_SHELF_A", 9, 5.0f, 0.7f, 1.2f),
             };
             kit.plantKinds = LoadPlantKinds();
             EditorUtility.SetDirty(kit);
             AssetDatabase.SaveAssets();
             return kit;
+        }
+
+        /// <summary>The Boulder prefab (PrefabBuilder) once per scanned rock: the same
+        /// crushable rock and Rubble footprint, with a different scan as its body.</summary>
+        static GameObject[] BoulderVariants()
+        {
+            var baseline = AssetDatabase.LoadAssetAtPath<GameObject>($"{PrefabDir}/Boulder.prefab");
+            var list = new List<GameObject> { baseline };
+            foreach (string v in new[] { "B", "C", "D", "E", "F" })
+            {
+                string path = $"{PrefabDir}/Boulder_{v}.prefab";
+                var go = (GameObject)PrefabUtility.InstantiatePrefab(baseline);
+                PrefabUtility.UnpackPrefabInstance(go, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+                var body = go.transform.Find("Body");
+                for (int i = body.childCount - 1; i >= 0; i--) Object.DestroyImmediate(body.GetChild(i).gameObject);
+                ModelFactory.Create("SCAN_BOULDER_" + v, 0, body);
+                list.Add(PrefabUtility.SaveAsPrefabAsset(go, path));
+                Object.DestroyImmediate(go);
+            }
+            return list.ToArray();
         }
 
         /// <summary>Set dressing from Tools/blender/build_env.py as a prefab with its URP
@@ -151,7 +174,7 @@ namespace StarForge.EditorTools
             mat.SetFloat("_SwellStrength", 0.35f);
             mat.SetFloat("_DepthRange", 2.2f);
             mat.SetFloat("_ShoreWaves", 0.6f);
-            mat.SetFloat("_CausticStrength", 0.5f);
+            mat.SetFloat("_CausticStrength", 0.35f);
             EditorUtility.SetDirty(mat);
             return mat;
         }
@@ -159,32 +182,47 @@ namespace StarForge.EditorTools
         // ------------------------------------------------------------ terrain
         static Material BuildTerrainMaterial(out TerrainLayer[] layers)
         {
-            string tex = SFAssetPostprocessor.TextureDir;
-            var ground = AssetDatabase.LoadAssetAtPath<Texture2D>(tex + "ground.png");
-            var groundN = AssetDatabase.LoadAssetAtPath<Texture2D>(tex + "ground_n.png");
-            var cliff = AssetDatabase.LoadAssetAtPath<Texture2D>(tex + "cliff.png");
-            var cliffN = AssetDatabase.LoadAssetAtPath<Texture2D>(tex + "cliff_n.png");
-            var macro = AssetDatabase.LoadAssetAtPath<Texture2D>(tex + "terrain-macro.jpg");
+            // Ground scans from Poly Haven (CC0), packed by Tools/blender/pack_textures.py:
+            // colour + height, and normals. Splat order stays lichen, gravel, cliff,
+            // ash (MapGenerator.SplatAt): meadow earth under the grass, the stony
+            // dirt most of the map stands on, rock for the terrace cliffs and pale
+            // sand on shores and dry ridges.
+            string tex = SFAssetPostprocessor.TextureDir + "Terrain/";
+            Texture2D T(string n) => AssetDatabase.LoadAssetAtPath<Texture2D>(tex + n) ??
+                                     throw new FileNotFoundException(tex + n + " (run Tools/blender/pack_textures.py)");
+            var meadow = T("meadow_ch.png"); var meadowN = T("meadow_nrm.jpg");
+            var dirt = T("dirt_ch.png"); var dirtN = T("dirt_nrm.jpg");
+            var cliff = T("cliff_ch.png"); var cliffN = T("cliff_nrm.jpg");
+            var sand = T("sand_ch.png"); var sandN = T("sand_nrm.jpg");
+            var macro = AssetDatabase.LoadAssetAtPath<Texture2D>(SFAssetPostprocessor.TextureDir + "terrain-macro.jpg");
 
+            // Tile sizes: the dirt scan is 3.15 m across in reality, but a tile that
+            // small repeats visibly across a 256 m map; the meadow and sand scans
+            // are 15 m aerial shots, the cliff 50 m, shrunk so their stones stay
+            // in scale with the units.
+            var tile = new Vector4(6f, 5f, 16f, 7f);
             layers = new[]
             {
-                Layer("Lichen", ground, groundN, 7f),
-                Layer("Gravel", ground, groundN, 5f),
-                Layer("Cliff", cliff, cliffN, 14f),
-                Layer("Ash", ground, groundN, 4f),
+                Layer("Lichen", meadow, meadowN, tile.x),
+                Layer("Gravel", dirt, dirtN, tile.y),
+                Layer("Cliff", cliff, cliffN, tile.z),
+                Layer("Ash", sand, sandN, tile.w),
             };
 
             var mat = SFEditorUtil.CreateOrLoadMaterial(MapDir + "/SF_Terrain.mat", Shader.Find("StarForge/Terrain"));
-            // Tints are linear multipliers on the photographs. The gravel shot is a
-            // neutral brown, so a mild green tint only turned the whole map olive;
-            // the palette needs separation instead: teal lichen, warm rust gravel,
-            // pale volcanic ash, so plateaus, paths and shores read apart.
-            mat.SetColor("_Tint0", new Color(0.52f, 0.66f, 0.46f).gamma);
-            mat.SetColor("_Tint1", new Color(1.02f, 0.88f, 0.76f).gamma);
-            mat.SetColor("_Tint2", new Color(1.05f, 0.92f, 0.84f).gamma);
-            mat.SetColor("_Tint3", new Color(1.55f, 1.42f, 1.28f).gamma);
+            // The scans carry their own, measured colour: the tints only nudge the
+            // layers apart (a cooler rock, a greener meadow).
+            mat.SetColor("_Tint0", new Color(0.92f, 1.0f, 0.86f).gamma);
+            mat.SetColor("_Tint1", new Color(0.93f, 0.95f, 1.0f).gamma);
+            mat.SetColor("_Tint2", new Color(0.86f, 0.9f, 1.0f).gamma);
+            mat.SetColor("_Tint3", new Color(0.95f, 0.96f, 1.0f).gamma);
+            mat.SetVector("_Smooth", new Vector4(0.10f, 0.14f, 0.20f, 0.12f));
+            mat.SetVector("_NScale", new Vector4(1.0f, 1.0f, 1.2f, 0.8f));
+            mat.SetVector("_HeightScale", new Vector4(0.8f, 1.0f, 1.0f, 0.7f));
+            mat.SetFloat("_BlendSharpness", 0.2f);
+            mat.SetFloat("_Cavity", 0.35f);
             mat.SetFloat("_MacroStrength", 0.22f);
-            mat.SetVector("_Tile", new Vector4(7f, 5f, 14f, 4f));
+            mat.SetVector("_Tile", tile);
             mat.SetTexture("_MacroTex", macro);
             mat.SetFloat("_WaterLevel", HeightfieldGenerator.WATER);
             EditorUtility.SetDirty(mat);
@@ -192,10 +230,10 @@ namespace StarForge.EditorTools
             // The backdrop needs the layer textures bound by hand (no TerrainData).
             var back = SFEditorUtil.CreateOrLoadMaterial(MapDir + "/SF_Backdrop.mat", mat.shader);
             back.CopyPropertiesFromMaterial(mat);
-            back.SetTexture("_Splat0", ground); back.SetTexture("_Normal0", groundN);
-            back.SetTexture("_Splat1", ground); back.SetTexture("_Normal1", groundN);
+            back.SetTexture("_Splat0", meadow); back.SetTexture("_Normal0", meadowN);
+            back.SetTexture("_Splat1", dirt); back.SetTexture("_Normal1", dirtN);
             back.SetTexture("_Splat2", cliff); back.SetTexture("_Normal2", cliffN);
-            back.SetTexture("_Splat3", ground); back.SetTexture("_Normal3", groundN);
+            back.SetTexture("_Splat3", sand); back.SetTexture("_Normal3", sandN);
             back.SetFloat("_AutoSplat", 1f);
             back.EnableKeyword("_SF_AUTOSPLAT");
             EditorUtility.SetDirty(back);
@@ -254,14 +292,36 @@ namespace StarForge.EditorTools
         }
 
         // ------------------------------------------------------------ vegetation
-        /// <summary>The plant kinds, in Vegetation.kinds order: model, trunk radius and colours.</summary>
-        static readonly (string model, bool bush, float trunk, Color bark, Color leaf, Color leaf2)[] PlantKinds =
+        /// <summary>The plant kinds, in Vegetation.kinds order (MapGenerator's kind
+        /// constants index it): model, trunk radius, how readily it burns, colours and
+        /// the leaf surface.</summary>
+        static readonly PlantKind[] PlantKinds =
         {
-            ("TREE_PINE", false, 0.30f, new Color(0.30f, 0.22f, 0.16f), new Color(0.13f, 0.25f, 0.16f), new Color(0.20f, 0.30f, 0.16f)),
-            ("TREE_BROAD", false, 0.38f, new Color(0.30f, 0.24f, 0.18f), new Color(0.15f, 0.27f, 0.08f), new Color(0.27f, 0.33f, 0.09f)),
-            ("TREE_TALL", false, 0.26f, new Color(0.50f, 0.48f, 0.43f), new Color(0.17f, 0.30f, 0.09f), new Color(0.30f, 0.35f, 0.10f)),
-            ("TREE_DEAD", false, 0.34f, new Color(0.30f, 0.26f, 0.22f), Color.black, Color.black),
-            ("BUSH", true, 0.55f, new Color(0.30f, 0.24f, 0.18f), new Color(0.14f, 0.25f, 0.08f), new Color(0.25f, 0.30f, 0.09f)),
+            new PlantKind { name = "TREE_PINE", burns = 1.25f, trunkRadius = 0.30f, blockRadius = 1.6f, bark = new Color(0.30f, 0.22f, 0.16f),
+                            leaf = new Color(0.12f, 0.25f, 0.14f), leaf2 = new Color(0.20f, 0.31f, 0.15f), needles = true, leafTiling = 0.6f,
+                            cardTint = new Color(0.55f, 0.66f, 0.58f) },
+            new PlantKind { name = "TREE_BROAD", burns = 0.75f, trunkRadius = 0.38f, blockRadius = 1.5f, bark = new Color(0.30f, 0.24f, 0.18f),
+                            leaf = new Color(0.14f, 0.27f, 0.08f), leaf2 = new Color(0.28f, 0.35f, 0.10f), leafTiling = 0.42f,
+                            cardTint = new Color(0.42f, 0.5f, 0.34f) },
+            new PlantKind { name = "TREE_TALL", burns = 0.8f, trunkRadius = 0.26f, blockRadius = 1.1f, bark = new Color(0.50f, 0.48f, 0.43f),
+                            leaf = new Color(0.16f, 0.29f, 0.09f), leaf2 = new Color(0.29f, 0.35f, 0.10f), leafTiling = 0.5f,
+                            cardTint = new Color(0.48f, 0.56f, 0.42f) },
+            new PlantKind { name = "TREE_DEAD", burns = 1.6f, trunkRadius = 0.34f, blockRadius = 1.0f, bark = new Color(0.30f, 0.26f, 0.22f), leaf = Color.black, leaf2 = Color.black },
+            new PlantKind { name = "BUSH", bush = true, burns = 1.1f, trunkRadius = 0.55f, bark = new Color(0.30f, 0.24f, 0.18f),
+                            leaf = new Color(0.13f, 0.25f, 0.08f), leaf2 = new Color(0.25f, 0.32f, 0.10f), leafTiling = 0.75f,
+                            cardTint = new Color(0.46f, 0.54f, 0.4f) },
+            new PlantKind { name = "TREE_BIRCH", burns = 0.9f, trunkRadius = 0.22f, blockRadius = 1.1f, bark = new Color(0.80f, 0.78f, 0.73f), birchBark = true,
+                            leaf = new Color(0.22f, 0.34f, 0.08f), leaf2 = new Color(0.38f, 0.44f, 0.12f), leafTiling = 0.6f,
+                            cardTint = new Color(0.56f, 0.62f, 0.44f) },
+            new PlantKind { name = "FERN", bush = true, burns = 1.2f, trunkRadius = 0.3f, bark = new Color(0.25f, 0.2f, 0.15f),
+                            leaf = new Color(0.14f, 0.28f, 0.07f), leaf2 = new Color(0.26f, 0.38f, 0.09f), leafTiling = 1.2f,
+                            drawDistance = 95f, castShadows = false, cardTint = new Color(0.5f, 0.6f, 0.46f) },
+            new PlantKind { name = "REEDS", bush = true, burns = 1.5f, trunkRadius = 0.3f, bark = new Color(0.30f, 0.19f, 0.10f),
+                            leaf = new Color(0.20f, 0.29f, 0.10f), leaf2 = new Color(0.36f, 0.38f, 0.15f), leafTiling = 1.0f,
+                            drawDistance = 110f, castShadows = false },
+            new PlantKind { name = "BUSH_FLOWER", bush = true, burns = 1.0f, trunkRadius = 0.55f, bark = new Color(0.30f, 0.24f, 0.18f),
+                            leaf = new Color(0.14f, 0.25f, 0.08f), leaf2 = new Color(0.25f, 0.32f, 0.10f), leafTiling = 0.8f,
+                            bloom = new Color(0.95f, 0.78f, 0.88f, 0.34f), drawDistance = 140f, cardTint = new Color(0.5f, 0.56f, 0.42f) },
         };
 
         static PlantKind[] LoadPlantKinds()
@@ -271,16 +331,36 @@ namespace StarForge.EditorTools
             for (int k = 0; k < kinds.Length; k++)
             {
                 var d = PlantKinds[k];
-                var kind = kinds[k] = new PlantKind { name = d.model, bush = d.bush, trunkRadius = d.trunk, bark = d.bark, leaf = d.leaf, leaf2 = d.leaf2 };
-                string path = $"{SFAssetPostprocessor.ModelDir}SF_{d.model}.fbx";
+                var kind = kinds[k] = new PlantKind
+                {
+                    name = d.name, bush = d.bush, trunkRadius = d.trunkRadius, blockRadius = d.blockRadius, bark = d.bark, leaf = d.leaf, leaf2 = d.leaf2,
+                    needles = d.needles, bloom = d.bloom, birchBark = d.birchBark, leafTiling = d.leafTiling, burns = d.burns,
+                    drawDistance = d.drawDistance, castShadows = d.castShadows, cardTint = d.cardTint,
+                };
+                // Leaf-spray cards (Tools/blender/make_leaf_cards.py): which spray each kind wears.
+                string spray = d.name switch
+                {
+                    "TREE_PINE" => "conifer", "FERN" => "conifer",
+                    "TREE_BROAD" => "oak",
+                    "TREE_BIRCH" => "birch", "BUSH_FLOWER" => "birch",
+                    "TREE_TALL" => "beech", "BUSH" => "beech",
+                    _ => null,
+                };
+                if (spray != null)
+                {
+                    kind.cardTex = AssetDatabase.LoadAssetAtPath<Texture2D>($"{SFAssetPostprocessor.TextureDir}Leaves/{spray}_col.png");
+                    kind.cardNormal = AssetDatabase.LoadAssetAtPath<Texture2D>($"{SFAssetPostprocessor.TextureDir}Leaves/{spray}_nrm.png");
+                    if (kind.cardTex == null) Debug.LogWarning($"[StarForge] leaf cards {spray} missing: run Tools/blender/make_leaf_cards.py");
+                }
+                string path = $"{SFAssetPostprocessor.ModelDir}SF_{d.name}.fbx";
                 foreach (var a in AssetDatabase.LoadAllAssetsAtPath(path))
                     if (a is Mesh m) { kind.mesh = m; break; }
                 if (kind.mesh == null) throw new FileNotFoundException($"plant model {path} has not been imported");
-                foreach (var a in AssetDatabase.LoadAllAssetsAtPath($"{SFAssetPostprocessor.ModelDir}SF_{d.model}_LOD1.fbx"))
+                foreach (var a in AssetDatabase.LoadAllAssetsAtPath($"{SFAssetPostprocessor.ModelDir}SF_{d.name}_LOD1.fbx"))
                     if (a is Mesh m) { kind.lodMesh = m; break; }
 
                 // This model's entry in models.json: its slots (submesh order) and crown.
-                int at = json.IndexOf($"\"{d.model}\":", System.StringComparison.Ordinal);
+                int at = json.IndexOf($"\"{d.name}\":", System.StringComparison.Ordinal);
                 int end = json.IndexOf("\"chunks\"", at, System.StringComparison.Ordinal);
                 int next = json.IndexOf("\n  \"", end, System.StringComparison.Ordinal);
                 string entry = json.Substring(at, (next < 0 ? json.Length : next) - at);
@@ -289,7 +369,7 @@ namespace StarForge.EditorTools
                 foreach (var part in slots.Split(',')) { string n = part.Trim().Trim('"'); if (n.Length > 0) names.Add(n); }
                 kind.barkSubmesh = names.IndexOf("bark");
                 kind.foliageSubmesh = Mathf.Max(names.IndexOf("leaf"), names.IndexOf("needle"));
-                kind.height = ModelFactory.Meta(d.model).height;
+                kind.height = ModelFactory.Meta(d.name).height;
                 var fol = System.Text.RegularExpressions.Regex.Match(entry,
                     "\"center\":\\s*\\[([^\\]]*)\\],\\s*\"radii\":\\s*\\[([^\\]]*)\\]");
                 if (fol.Success)
@@ -315,7 +395,7 @@ namespace StarForge.EditorTools
             var sunGo = new GameObject("Sun");
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = new Color(1.0f, 0.86f, 0.70f);
+            sun.color = new Color(1.0f, 0.92f, 0.82f);
             // Brighter than before the cloud cookie: drifting cloud shadow takes
             // roughly a fifth off the average sunlight.
             sun.intensity = 2.95f;
@@ -480,16 +560,19 @@ namespace StarForge.EditorTools
             grain.intensity.Override(0.16f);
             grain.response.Override(0.85f);
             var ca = Get<ColorAdjustments>();
-            ca.postExposure.Override(0.65f);
-            ca.contrast.Override(12f);
-            ca.saturation.Override(14f);
+            // Nearly neutral: the ground scans carry their own colour, and the old
+            // warm grade (saturation +14, white balance +5 on an amber sun) turned
+            // every brown into orange.
+            ca.postExposure.Override(0.6f);
+            ca.contrast.Override(14f);
+            ca.saturation.Override(3f);
             var vig = Get<Vignette>();
             vig.intensity.Override(0.24f);
             vig.smoothness.Override(0.45f);
-            Get<WhiteBalance>().temperature.Override(5f);
+            Get<WhiteBalance>().temperature.Override(0f);
             var smh = Get<ShadowsMidtonesHighlights>();
             smh.shadows.Override(new Vector4(0.90f, 0.98f, 1.14f, 0f));
-            smh.highlights.Override(new Vector4(1.04f, 1.0f, 0.95f, 0f));
+            smh.highlights.Override(new Vector4(1.02f, 1.0f, 0.97f, 0f));
             EditorUtility.SetDirty(profile);
             AssetDatabase.SaveAssets();
 

@@ -107,6 +107,8 @@ def prepare(model):
         lay = S._layer(part)
         flat = id(part) in S._FLAT
         uv = part.loops.layers.uv.get('UVMap') or part.loops.layers.uv.new('UVMap')
+        # Leaf cards bring their own UVs (a cell of the leaf-spray atlas).
+        card = part.loops.layers.uv.get('CardUV')
 
         for v in part.verts:
             rad = max(rad, math.hypot(v.co.x, v.co.z))
@@ -117,7 +119,9 @@ def prepare(model):
             ax = max(range(3), key=lambda i: abs(n[i]))
             for loop in f.loops:
                 co = loop.vert.co
-                if ax == 0:
+                if card is not None:
+                    loop[uv].uv = loop[card].uv
+                elif ax == 0:
                     loop[uv].uv = (co.z * UV_SCALE, co.y * UV_SCALE)
                 elif ax == 1:
                     loop[uv].uv = (co.x * UV_SCALE, co.z * UV_SCALE)
@@ -196,7 +200,7 @@ def bake_ao(model, radius):
                     if 0.0 < tg < reach:
                         hits += (1.0 - tg / reach) ** 2
             ao = 1.0 - 0.85 * hits / len(dirs)
-            v[col] = (ao, S.get_vdata(part, v, S.VDATA_G), S.get_vdata(part, v, S.VDATA_B), 1.0)
+            v[col] = (ao, S.get_vdata(part, v, S.VDATA_G), S.get_vdata(part, v, S.VDATA_B), S.get_vdata(part, v, S.VDATA_A, 0.0))
     whole.free()
 
 
@@ -318,6 +322,19 @@ def export_chunks(model, slots, count, out_dir):
     return objs
 
 
+def export_lod_model(lod, slots, out_dir):
+    """A far copy built by its own builder (fewer, larger leaf cards: decimation
+    cannot thin cards out), exported with the full model's slot order."""
+    lod_slots, rad, top = prepare(lod)
+    if lod_slots != slots[:len(lod_slots)]:
+        raise RuntimeError('%s LOD1: slots %s differ from %s' % (lod.name, lod_slots, slots))
+    bake_ao(lod, rad)
+    obj, tris = make_object(lod.name + '_LOD1', lod.parts, slots)
+    export([obj], os.path.join(out_dir, 'SF_%s_LOD1.fbx' % lod.name))
+    bpy.data.objects.remove(obj)
+    return tris
+
+
 def export_lod(src, name, ratio, out_dir):
     """A decimated copy of a single-object model for distant instances:
     SF_<NAME>_LOD1.fbx, with the same slots, vertex colours and origin."""
@@ -354,12 +371,19 @@ def main():
     # while the next is built lets Python reuse those ids, and a new part then
     # inherits a stale bounds record and fails the check for no real reason.
     models = [fn() for fn in builders]
+    # Far copies too, all built before anything is exported (see above).
+    lods = {name: fn() for name, fn in F.LOD_BUILDERS.items()}
     for i, model in enumerate(models):
         slots, rad, top = prepare(model)
         bake_ao(model, rad)
         objs, tris = export_groups(model, slots, out_dir)
         chunks = export_chunks(model, slots, CHUNKED[model.name], out_dir) if model.name in CHUNKED else []
-        lod_tris = export_lod(objs[0], model.name, F.LOD_RATIO[model.name], out_dir) if model.name in F.LOD_RATIO else 0
+        if model.name in F.LOD_BUILDERS:
+            lod_tris = export_lod_model(lods[model.name], slots, out_dir)
+        elif model.name in F.LOD_RATIO:
+            lod_tris = export_lod(objs[0], model.name, F.LOD_RATIO[model.name], out_dir)
+        else:
+            lod_tris = 0
 
         # Object names are global in a .blend: rename after export so the next
         # model's 'Head' or 'Chunk0' exports under its own clean name, and lay

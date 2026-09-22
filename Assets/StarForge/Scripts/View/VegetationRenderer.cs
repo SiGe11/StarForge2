@@ -54,6 +54,13 @@ namespace StarForge.View
         static readonly int LeafColor2Id = Shader.PropertyToID("_LeafColor2");
         static readonly int CenterId = Shader.PropertyToID("_CanopyCenter");
         static readonly int RadiiId = Shader.PropertyToID("_CanopyRadii");
+        static readonly int LeafStyleId = Shader.PropertyToID("_LeafStyle");
+        static readonly int BloomId = Shader.PropertyToID("_Bloom");
+        static readonly int BarkStyleId = Shader.PropertyToID("_BarkStyle");
+        static readonly int LeafTilingId = Shader.PropertyToID("_LeafTiling");
+        static readonly int CardTexId = Shader.PropertyToID("_CardTex");
+        static readonly int CardNormalId = Shader.PropertyToID("_CardNormal");
+        static readonly int CardTintId = Shader.PropertyToID("_CardTint");
 
         public int DrawnLastFrame { get; private set; }
 
@@ -77,10 +84,18 @@ namespace StarForge.View
                     mpb.SetColor(BarkColorId, kind.bark);
                     mpb.SetColor(LeafColorId, kind.leaf);
                     mpb.SetColor(LeafColor2Id, kind.leaf2);
-                    // Each leaf cluster is already shaded round (its exported normals); a
-                    // gentle bend toward the crown's shape keeps the crown reading as one mass.
-                    mpb.SetVector(CenterId, new Vector4(kind.crownCenter.x, kind.crownCenter.y, kind.crownCenter.z, kind.bush ? 0.25f : 0.3f));
+                    // Each leaf cluster is already shaded round (its exported normals); the
+                    // bend toward the crown's shape makes the crown light as one mass, and
+                    // the leaf texture (SF_Tree) gives it its surface.
+                    mpb.SetVector(CenterId, new Vector4(kind.crownCenter.x, kind.crownCenter.y, kind.crownCenter.z, kind.bush ? 0.3f : 0.5f));
                     mpb.SetVector(RadiiId, kind.crownRadii);
+                    mpb.SetFloat(LeafStyleId, kind.needles ? 1f : 0f);
+                    mpb.SetColor(BloomId, kind.bloom);
+                    mpb.SetFloat(BarkStyleId, kind.birchBark ? 1f : 0f);
+                    mpb.SetFloat(LeafTilingId, kind.leafTiling);
+                    if (kind.cardTex != null) mpb.SetTexture(CardTexId, kind.cardTex);
+                    if (kind.cardNormal != null) mpb.SetTexture(CardNormalId, kind.cardNormal);
+                    mpb.SetColor(CardTintId, kind.cardTint);
                 }
             }
             for (int i = 0; i < n; i++) Remember(i);
@@ -121,6 +136,7 @@ namespace StarForge.View
                 if (!Visible(c, reach * 0.75f + shadowMargin)) continue;
                 // Too close to the camera: shrink toward the foot of the trunk.
                 float nearCam = Vector3.Distance(camPos, new Vector3(pose.m03, pose.m13 + kind.crownCenter.y * plants[i].scale, pose.m23));
+                if (kind.drawDistance > 0f && nearCam > kind.drawDistance) continue;
                 Matrix4x4 m = pose;
                 if (nearCam < cameraClearance + kind.crownRadii.x * plants[i].scale)
                 {
@@ -159,19 +175,19 @@ namespace StarForge.View
             var mesh = slot % 2 == 1 && kind.lodMesh != null ? kind.lodMesh : kind.mesh;
             if (mesh != null)
             {
-                if (kind.barkSubmesh >= 0 && barkMaterial != null) Draw(b, mesh, barkMaterial, b.bark, kind.barkSubmesh);
-                if (kind.foliageSubmesh >= 0 && foliageMaterial != null) Draw(b, mesh, foliageMaterial, b.foliage, kind.foliageSubmesh);
+                if (kind.barkSubmesh >= 0 && barkMaterial != null) Draw(b, mesh, barkMaterial, b.bark, kind.barkSubmesh, kind.castShadows);
+                if (kind.foliageSubmesh >= 0 && foliageMaterial != null) Draw(b, mesh, foliageMaterial, b.foliage, kind.foliageSubmesh, kind.castShadows);
             }
             b.n = 0;
         }
 
-        void Draw(Batch b, Mesh mesh, Material mat, MaterialPropertyBlock mpb, int submesh)
+        void Draw(Batch b, Mesh mesh, Material mat, MaterialPropertyBlock mpb, int submesh, bool shadows)
         {
             mpb.SetVectorArray(ParamsId, b.p);
             var rp = new RenderParams(mat)
             {
                 matProps = mpb,
-                shadowCastingMode = ShadowCastingMode.On,
+                shadowCastingMode = shadows ? ShadowCastingMode.On : ShadowCastingMode.Off,
                 receiveShadows = true,
                 worldBounds = b.bounds,
                 lightProbeUsage = LightProbeUsage.Off,

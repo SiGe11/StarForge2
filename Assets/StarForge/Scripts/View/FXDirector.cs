@@ -22,6 +22,8 @@ namespace StarForge.View
 
         [Header("Particle materials")]
         public Material fireMaterial;
+        [Tooltip("StarForge/Particle on the generated flame flipbook (Tools/make_flame_sheet.py).")]
+        public Material flameMaterial;
         [Tooltip("StarForge/Smoke: smoke, dust and mist.")] public Material smokeMaterial;
         [Tooltip("StarForge/Smoke without billowing: water drops.")] public Material dropletMaterial;
         public Material glowMaterial;
@@ -84,7 +86,7 @@ namespace StarForge.View
         struct Shockwave { public Vector3 pos; public float born, size; }
         struct Blast { public Vector3 pos; public float t, scale; }
 
-        ParticleSystem fire, smoke, sparks, glow, embers, debris, trail, droplets;
+        ParticleSystem fire, flames, smoke, sparks, glow, embers, debris, trail, droplets;
         Mesh cube, quad;
         readonly Batch rings = new Batch(), scorches = new Batch(), tracks = new Batch(), bars = new Batch(), streaks = new Batch(), ripples = new Batch();
         readonly List<Scorch> scorchList = new List<Scorch>();
@@ -139,6 +141,7 @@ namespace StarForge.View
             quad = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
 
             fire = MakeSystem("Fire", fireMaterial, 1400, true, 0f, 0.65f, 1.3f, false, 0f);
+            flames = MakeFlames();
             smoke = MakeSystem("Smoke", smokeMaterial, 900, false, 0f, 0.45f, 1.6f, false, -0.02f);
             SmokeStreams(smoke);
             sparks = MakeSystem("Sparks", glowMaterial, 1600, false, 4f / 16f, 1f, 0.25f, true, 2.2f);
@@ -272,6 +275,41 @@ namespace StarForge.View
             return ps;
         }
 
+        /// <summary>Burning plants: tongues of flame from the flipbook, upright (they
+        /// stay vertical whatever the camera does) and taller than wide, playing the
+        /// sheet once over a short life so each flickers on its own.</summary>
+        ParticleSystem MakeFlames()
+        {
+            var ps = MakeSystem("Flames", flameMaterial != null ? flameMaterial : fireMaterial, 1400, true, 0f, 0.75f, 0.45f, false, -0.05f);
+            var main = ps.main;
+            main.startSize3D = true;
+            var sol = ps.sizeOverLifetime;
+            sol.separateAxes = false;
+            // Flare up, then thin out and die as the tongue lifts off.
+            sol.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+                new Keyframe(0f, 0.55f), new Keyframe(0.25f, 1f), new Keyframe(1f, 0.35f)));
+            var col = ps.colorOverLifetime;
+            col.color = new ParticleSystem.MinMaxGradient(Fade(0.12f, 0.45f));
+            var r = ps.GetComponent<ParticleSystemRenderer>();
+            r.renderMode = ParticleSystemRenderMode.VerticalBillboard;
+            r.maxParticleSize = 2f;
+            return ps;
+        }
+
+        static void EmitFlame(ParticleSystem ps, Vector3 pos, Vector3 vel, float width, float height, float life, Color color)
+        {
+            var ep = new ParticleSystem.EmitParams
+            {
+                position = pos,
+                velocity = vel,
+                startSize3D = new Vector3(width, height, width),
+                startLifetime = life,
+                startColor = color,
+                applyShapeToPosition = false
+            };
+            ps.Emit(ep, 1);
+        }
+
         /// <summary>The per-particle data StarForge/Smoke picks, lights and erodes a puff
         /// with: a stable random seed and its age. Smoke has no animated sheet.</summary>
         static void SmokeStreams(ParticleSystem ps)
@@ -400,6 +438,14 @@ namespace StarForge.View
             };
             ps.Emit(ep, 1);
         }
+
+        /// <summary>The ore's glow colour and its violet rim (SFMaterialLibrary's crystal).</summary>
+        static readonly Color OreLight = new Color(0.08f, 0.95f, 0.78f), OreRim = new Color(0.55f, 0.35f, 1f);
+
+        /// <summary>A seam's slow breath, 0..1: the same phase and period as the
+        /// crystal glow in SF_Unit, so the light on the ground swells with it.</summary>
+        static float OreBreath(Vector2 p, float t) =>
+            0.5f + 0.5f * Mathf.Sin(t * 1.25f + (p.x * 0.37f + p.y * 0.23f) * 3f);
 
         bool Seen(Vector3 p) => MatchSettings.spectate || world.Visible(player != null ? player.team : 0, new Vector2(p.x, p.z));
 
@@ -541,20 +587,46 @@ namespace StarForge.View
             var k = veg.KindOf(e.index);
             float length = k.height * e.scale;
             bool leafy = k.HasCrown && veg.live[e.index].foliageLost < 0.7f;
+            // How hard it came down (the crown's speed): a tree that topples from a
+            // blast hits far harder than one that settles off a neighbour's boughs,
+            // and everything here follows from it.
+            float force = Mathf.Clamp(e.speed / 14f, 0.25f, 1.6f);
             // Dust thrown up all along the trunk where it hits, thickest at the crown.
-            int n = Mathf.RoundToInt(length * 1.2f);
+            int n = Mathf.RoundToInt(length * 1.2f * force);
             for (int i = 0; i < n; i++)
             {
                 float t = (i + Random.value) / n;
                 Vector3 at = e.pos + e.dir * (t * length * 0.9f) + Vector3.up * 0.3f;
                 at.y = world.Map.HeightAt(new Vector2(at.x, at.z)) + 0.3f;
                 Vector3 side = Vector3.Cross(Vector3.up, e.dir) * (Random.value < 0.5f ? -1f : 1f);
-                Emit(trail, at, side * Random.Range(1.5f, 3.5f) + Vector3.up * Random.Range(0.4f, 1.2f),
-                     Random.Range(1.8f, 2.8f) * Mathf.Lerp(0.8f, 1.4f, t), Random.Range(1.2f, 2f),
+                Emit(trail, at, side * Random.Range(1.5f, 3.5f) * force + Vector3.up * Random.Range(0.4f, 1.2f) * force,
+                     Random.Range(1.8f, 2.8f) * Mathf.Lerp(0.8f, 1.4f, t) * Mathf.Lerp(0.7f, 1.2f, force), Random.Range(1.2f, 2f),
                      leafy && t > 0.5f ? new Color(0.42f, 0.44f, 0.30f, 0.45f) : new Color(0.50f, 0.44f, 0.36f, 0.5f), Random.Range(0f, 360f));
             }
+            // Leaves and splinters knocked loose where the crown struck.
+            if (debris != null && force > 0.5f)
+            {
+                Color leaf = Color.Lerp(k.leaf, k.leaf2, Random.value) * 2.4f;
+                leaf.a = 1f;
+                int bits = Mathf.RoundToInt((leafy ? 14 : 6) * force * e.scale);
+                for (int i = 0; i < bits; i++)
+                {
+                    Vector3 at = e.pos + e.dir * (Random.Range(0.5f, 1f) * length * 0.9f);
+                    at.y = world.Map.HeightAt(new Vector2(at.x, at.z)) + 0.2f;
+                    debris.Emit(new ParticleSystem.EmitParams
+                    {
+                        position = at,
+                        velocity = Random.insideUnitSphere * 2.5f + Vector3.up * Random.Range(1.5f, 4f) * force,
+                        startSize = Random.Range(0.06f, 0.16f),
+                        startLifetime = Random.Range(1.2f, 2.4f),
+                        startColor = (leafy && Random.value < 0.7f ? leaf : new Color(0.34f, 0.26f, 0.18f, 1f)) * Random.Range(0.7f, 1.1f),
+                        rotation3D = Random.insideUnitSphere * 180f,
+                        angularVelocity3D = Random.insideUnitSphere * 360f
+                    }, 1);
+                }
+            }
             if (rig != null && rig.cam != null)
-                rig.Shake(Mathf.Clamp01(1f - Vector3.Distance(rig.cam.transform.position, e.pos) / 90f) * 0.06f * Mathf.Min(1f, length / 6f));
+                rig.Shake(Mathf.Clamp01(1f - Vector3.Distance(rig.cam.transform.position, e.pos) / 90f) * 0.06f * force * Mathf.Min(1f, length / 6f));
         }
 
         void PlantIgnited(GameEvent e)
@@ -572,36 +644,88 @@ namespace StarForge.View
             var veg = Plants;
             int lights = 0;
             Vector3 camFocus = rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero;
+            // The drift the wind gives smoke and embers (the same heading as the trees' sway).
+            var w2 = StarForge.World.Wind.At(Time.time);
+            var wind = new Vector3(w2.x, 0f, w2.y);
             if (veg != null)
             {
+                // Fires that went out since last frame start to smoulder.
+                foreach (int i in wasBurning)
+                    if (!veg.live[i].burning && !smoulder.ContainsKey(i)) smoulder[i] = Time.time;
+                wasBurning.Clear();
+
                 // Nearest fires to the view get the lights.
                 fireOrder.Clear();
                 foreach (int i in veg.burning)
                 {
                     var p = veg.plants[i].pos;
+                    wasBurning.Add(i);
                     if (!Seen(p)) continue;
                     fireOrder.Add((new Vector2(p.x - camFocus.x, p.z - camFocus.z).sqrMagnitude, i));
                     ref var s = ref veg.live[i];
                     var k = veg.KindOf(i);
-                    float size = veg.plants[i].scale * (k.bush ? 0.6f : 1f);
-                    // Flames licking up through the crown (or the bare limbs once it has
-                    // gone), a warm glow round them, and dark smoke above.
-                    float flames = s.fire * (k.bush ? 9f : 20f);
-                    for (int n = Mathf.FloorToInt(flames * dt + Random.value); n > 0; n--)
-                        Emit(fire, CrownPoint(veg, i), Vector3.up * Random.Range(1.4f, 3.0f) + Random.insideUnitSphere * 0.5f,
-                             Random.Range(2.0f, 3.4f) * size * Mathf.Lerp(0.5f, 1f, s.fire), Random.Range(0.6f, 1.0f), Color.white, Random.Range(0f, 360f));
-                    if (Random.value < dt * s.fire * 3f)
-                        Emit(glow, CrownPoint(veg, i), Vector3.up * 0.5f, Random.Range(4f, 6f) * size, Random.Range(0.4f, 0.7f), new Color(0.9f, 0.4f, 0.12f));
-                    if (Random.value < dt * s.fire * 4f)
+                    float size = veg.plants[i].scale * (k.bush ? 0.55f : 1f) * Mathf.Lerp(0.45f, 1f, s.fire);
+                    // Tongues of flame licking up through the crown, or along the bare
+                    // limbs once it has gone; a hot, low fire at the foot.
+                    // The flame fills about half its quad (the sheet leaves room for the
+                    // tongues to sway), hence the sizes.
+                    float rate = s.fire * (k.bush ? 16f : 38f);
+                    for (int n = Mathf.FloorToInt(rate * dt + Random.value); n > 0; n--)
                     {
-                        float shade = Random.Range(0.2f, 0.3f);
-                        Emit(smoke, CrownPoint(veg, i) + Vector3.up * 1.5f, new Vector3(Random.Range(-0.4f, 0.4f), Random.Range(1.8f, 3f), Random.Range(-0.4f, 0.4f)),
-                             Random.Range(2.6f, 4f) * size, Random.Range(3f, 4.5f), new Color(shade, shade * 0.96f, shade * 0.92f, 0.6f), Random.Range(0f, 360f));
+                        float w = Random.Range(2.0f, 3.3f) * size;
+                        EmitFlame(flames, CrownPoint(veg, i) - Vector3.up * w * 0.4f,
+                                  Vector3.up * Random.Range(0.8f, 1.8f) + wind * 0.3f + Random.insideUnitSphere * 0.25f,
+                                  w, w * Random.Range(1.6f, 2.2f), Random.Range(0.55f, 0.95f), Color.white);
                     }
-                    if (Random.value < dt * s.fire * 7f)
-                        Emit(embers, CrownPoint(veg, i), Random.insideUnitSphere * 1.2f + Vector3.up * Random.Range(1.5f, 3.5f),
-                             Random.Range(0.07f, 0.14f), Random.Range(1.5f, 3f), new Color(1f, Random.Range(0.45f, 0.7f), 0.2f));
+                    if (!k.bush && Random.value < dt * s.fire * 5f)
+                    {
+                        float w = Random.Range(2.0f, 3.0f) * size;
+                        EmitFlame(flames, veg.plants[i].pos + Random.insideUnitSphere * 0.4f + Vector3.up * 0.2f,
+                                  Vector3.up * 0.6f, w, w * 1.4f, Random.Range(0.6f, 0.9f), new Color(1f, 0.85f, 0.7f));
+                    }
+                    // A rolling billow of flame now and then, at the height of the blaze.
+                    if (s.fire > 0.6f && Random.value < dt * 1.5f)
+                        Emit(fire, CrownPoint(veg, i), Vector3.up * Random.Range(1.5f, 2.5f), Random.Range(2.0f, 3.0f) * size,
+                             Random.Range(0.6f, 0.9f), new Color(1f, 0.8f, 0.6f), Random.Range(0f, 360f));
+                    if (Random.value < dt * s.fire * 3f)
+                        Emit(glow, CrownPoint(veg, i), Vector3.up * 0.5f, Random.Range(4.5f, 7f) * size, Random.Range(0.4f, 0.7f), new Color(0.95f, 0.42f, 0.12f));
+                    // A column of smoke leaning with the wind: dark and thick while the
+                    // leaves burn, thinner and greyer once only wood is left.
+                    if (Random.value < dt * s.fire * 6f)
+                    {
+                        bool leaves = k.HasCrown && s.foliageLost < 0.85f;
+                        float shade = leaves ? Random.Range(0.12f, 0.2f) : Random.Range(0.25f, 0.34f);
+                        var top = CrownPoint(veg, i) + Vector3.up * (1.5f + size);
+                        Emit(smoke, top, Vector3.up * Random.Range(2.2f, 3.4f) + wind * Random.Range(0.8f, 1.4f) + Random.insideUnitSphere * 0.3f,
+                             Random.Range(2.8f, 4.4f) * Mathf.Max(0.6f, size), Random.Range(4f, 6f),
+                             new Color(shade, shade * 0.97f, shade * 0.93f, leaves ? 0.7f : 0.5f), Random.Range(0f, 360f));
+                    }
+                    if (Random.value < dt * s.fire * 10f)
+                        Emit(embers, CrownPoint(veg, i), Random.insideUnitSphere * 1.0f + Vector3.up * Random.Range(1.8f, 3.8f) + wind * 0.8f,
+                             Random.Range(0.07f, 0.14f), Random.Range(1.8f, 3.2f), new Color(1f, Random.Range(0.45f, 0.7f), 0.2f));
                 }
+                // Fires that have gone out smoulder: a thin, pale wisp of smoke from the
+                // black wood for a while, and the odd ember.
+                smoulderDone.Clear();
+                foreach (var kv in smoulder)
+                {
+                    float age = Time.time - kv.Value;
+                    if (age > 25f || veg.live[kv.Key].state == PlantState.Gone) { smoulderDone.Add(kv.Key); continue; }
+                    var p = veg.plants[kv.Key].pos;
+                    if (!Seen(p)) continue;
+                    float strength = 1f - age / 25f;
+                    if (Random.value < dt * 1.6f * strength)
+                    {
+                        float shade = Random.Range(0.42f, 0.52f);
+                        Emit(smoke, p + Vector3.up * Random.Range(0.4f, 2.5f), Vector3.up * Random.Range(0.9f, 1.4f) + wind * 0.6f,
+                             Random.Range(1.2f, 2.0f), Random.Range(3.5f, 5f), new Color(shade, shade, shade * 0.98f, 0.35f * strength), Random.Range(0f, 360f));
+                    }
+                    if (Random.value < dt * 0.8f * strength)
+                        Emit(embers, p + Vector3.up * Random.Range(0.3f, 2f), Vector3.up * 1.2f + wind * 0.5f,
+                             0.08f, Random.Range(1f, 2f), new Color(1f, 0.45f, 0.15f));
+                }
+                foreach (int i in smoulderDone) smoulder.Remove(i);
+
                 fireOrder.Sort((a, b) => a.d.CompareTo(b.d));
                 for (; lights < fireLights.Length && lights < fireOrder.Count; lights++)
                 {
@@ -609,15 +733,94 @@ namespace StarForge.View
                     var l = fireLights[lights];
                     var k = veg.KindOf(i);
                     l.transform.position = veg.Pose(i).MultiplyPoint3x4(k.HasCrown ? k.crownCenter * 0.8f : Vector3.up * k.height * 0.5f);
-                    float flicker = 0.75f + 0.25f * Mathf.PerlinNoise(Time.time * 7f, i * 0.37f);
-                    l.intensity = 4.5f * veg.live[i].fire * flicker;
+                    // Two rates of flicker, so the light breathes and gutters like flame.
+                    float flicker = 0.7f + 0.2f * Mathf.PerlinNoise(Time.time * 6f, i * 0.37f) + 0.1f * Mathf.PerlinNoise(Time.time * 17f, i * 1.3f);
+                    l.intensity = 5f * veg.live[i].fire * flicker;
                     l.range = 10f + 4f * veg.plants[i].scale;
+                    l.color = Color.Lerp(new Color(1f, 0.45f, 0.15f), new Color(1f, 0.62f, 0.3f), flicker - 0.6f);
                     l.enabled = true;
                 }
             }
             for (int i = lights; i < fireLights.Length; i++) fireLights[i].enabled = false;
+            BurningGrass(veg, dt, camFocus, wind);
+            WindBlown(veg, dt, camFocus, wind);
         }
 
+        /// <summary>Leaves torn out of the crowns when it blows hard and carried downwind,
+        /// so a gust is something you see in the air and not only in the sway.</summary>
+        void WindBlown(StarForge.World.Vegetation veg, float dt, Vector3 camFocus, Vector3 wind)
+        {
+            if (veg == null || debris == null || veg.plants.Length == 0) return;
+            float blowing = StarForge.World.Wind.Speed(Time.time);
+            if (blowing < 0.55f) return;
+            float rate = (blowing - 0.5f) * 14f;
+            for (int n = Mathf.FloorToInt(rate * dt + Random.value); n > 0; n--)
+            {
+                int i = Random.Range(0, veg.plants.Length);
+                ref var s = ref veg.live[i];
+                var k = veg.KindOf(i);
+                if (s.state != StarForge.World.PlantState.Standing || !k.HasCrown || s.foliageLost > 0.6f) continue;
+                var p = veg.plants[i].pos;
+                if (new Vector2(p.x - camFocus.x, p.z - camFocus.z).sqrMagnitude > 120f * 120f || !Seen(p)) continue;
+                Color leaf = Color.Lerp(k.leaf, k.leaf2, Random.value) * 2.2f;
+                leaf.a = 1f;
+                debris.Emit(new ParticleSystem.EmitParams
+                {
+                    position = CrownPoint(veg, i),
+                    velocity = wind * Random.Range(2.5f, 4.5f) + Random.insideUnitSphere * 1.2f + Vector3.up * Random.Range(0.2f, 1.6f),
+                    startSize = Random.Range(0.05f, 0.11f),
+                    startLifetime = Random.Range(2.5f, 4.5f),
+                    startColor = leaf * Random.Range(0.7f, 1.1f),
+                    rotation3D = Random.insideUnitSphere * 180f,
+                    angularVelocity3D = Random.insideUnitSphere * 540f
+                }, 1);
+            }
+        }
+
+        /// <summary>A grass fire: a low line of flame creeping over the ground with thin
+        /// smoke off it. Only the cells near the view are drawn -- a running fire can
+        /// have a hundred of them alight.</summary>
+        void BurningGrass(StarForge.World.Vegetation veg, float dt, Vector3 camFocus, Vector3 wind)
+        {
+            if (veg == null || veg.burningGrass.Count == 0) return;
+            float now = Time.time;
+            float cell = StarForge.World.Vegetation.GrassCell;
+            // A running grass fire can have a hundred cells alight; drawing them all
+            // would spend the flame budget the burning trees need. Only so many a
+            // frame, starting somewhere different each time so none is left out.
+            int budget = 60;
+            int alight = veg.burningGrass.Count;
+            grassFxCursor = (grassFxCursor + 17) % alight;
+            for (int k = 0; k < alight && budget > 0; k++)
+            {
+                int c = veg.burningGrass[(grassFxCursor + k) % alight];
+                var at = veg.GrassCentre(c);
+                if (!Seen(at)) continue;
+                float d2 = new Vector2(at.x - camFocus.x, at.z - camFocus.z).sqrMagnitude;
+                if (d2 > 150f * 150f) continue;
+                float fire = veg.GrassFire(c, now);
+                if (fire <= 0.02f) continue;
+                budget--;
+                // A few low tongues along the cell, leaning downwind.
+                float rate = fire * 7f;
+                for (int n = Mathf.FloorToInt(rate * dt + Random.value); n > 0; n--)
+                {
+                    var p = at + new Vector3(Random.Range(-0.5f, 0.5f), 0f, Random.Range(-0.5f, 0.5f)) * cell;
+                    p.y = at.y + 0.05f;
+                    EmitFlame(flames, p, wind * Random.Range(0.3f, 0.9f) + Vector3.up * Random.Range(0.6f, 1.2f),
+                              Random.Range(0.8f, 1.5f), Random.Range(0.9f, 1.8f) * (0.5f + fire),
+                              Random.Range(0.35f, 0.6f), new Color(1f, 0.72f, 0.34f, 1f));
+                }
+                if (Random.value < 3f * dt * fire)
+                    Emit(smoke, at + Vector3.up * 0.4f, Vector3.up * Random.Range(0.8f, 1.6f) + wind * Random.Range(0.8f, 1.6f),
+                         Random.Range(1.4f, 2.6f), Random.Range(1.6f, 2.8f), new Color(0.26f, 0.24f, 0.22f, 0.45f), Random.Range(0f, 360f));
+            }
+        }
+
+        int grassFxCursor;
+        readonly HashSet<int> wasBurning = new HashSet<int>();
+        readonly Dictionary<int, float> smoulder = new Dictionary<int, float>();
+        readonly List<int> smoulderDone = new List<int>();
         readonly List<(float d, int i)> fireOrder = new List<(float, int)>(64);
 
         void OnMarker(Vector3 pos, int kind) => markers.Add(new Marker { pos = pos, born = Time.time, kind = kind });
@@ -723,9 +926,14 @@ namespace StarForge.View
 
         void CrystalShatter(Vector3 at)
         {
+            // The seam gives up its light: a burst of shards, and motes that hang in
+            // the air a while before they fade.
             for (int i = 0; i < 24; i++)
-                Emit(sparks, at, Random.insideUnitSphere * 8f + Vector3.up * 4f, 0.3f, Random.Range(0.4f, 1.0f), new Color(0.5f, 0.95f, 1f));
-            Emit(glow, at, Vector3.zero, 5f, 0.5f, new Color(0.4f, 0.9f, 1f));
+                Emit(sparks, at, Random.insideUnitSphere * 8f + Vector3.up * 4f, 0.3f, Random.Range(0.4f, 1.0f), OreLight * 1.4f);
+            for (int i = 0; i < 14; i++)
+                Emit(glow, at + Random.insideUnitSphere * 1.2f + Vector3.up, Random.insideUnitSphere * 0.4f + Vector3.up * 0.3f,
+                     Random.Range(0.2f, 0.35f), Random.Range(2.5f, 4f), Color.Lerp(OreLight, OreRim, Random.value * 0.5f) * 1.3f);
+            Emit(glow, at, Vector3.zero, 5f, 0.6f, OreLight);
         }
 
         /// <summary>A Mauler driving through a boulder: no fire, just broken rock
@@ -1175,12 +1383,23 @@ namespace StarForge.View
             foreach (var u in world.units)
             {
                 if (u == null || u.dying) continue;
-                // Motes of light drift up off the ore the player knows about.
-                if (u.Type == UnitType.Ore && Random.value < dt * 1.4f && Seen(new Vector3(u.pos.x, 0f, u.pos.y)))
+                // Motes of light rise off the ore the player can see, slowly, circling
+                // the seam as they go, more of them as it breathes in; and now and then
+                // a faint wisp of pale light drifts up the tallest shard.
+                if (u.Type == UnitType.Ore && Seen(new Vector3(u.pos.x, 0f, u.pos.y)))
                 {
-                    Vector3 at = u.Ground + new Vector3(Random.Range(-0.9f, 0.9f), Random.Range(0.3f, 1.8f), Random.Range(-0.9f, 0.9f));
-                    Emit(glow, at, new Vector3(Random.Range(-0.15f, 0.15f), Random.Range(0.35f, 0.8f), Random.Range(-0.15f, 0.15f)),
-                         Random.Range(0.18f, 0.32f), Random.Range(1.6f, 2.6f), new Color(0.35f, 0.85f, 1f));
+                    float breathe = OreBreath(u.pos, Time.time);
+                    if (Random.value < dt * (0.8f + 1.6f * breathe))
+                    {
+                        float a = Random.Range(0f, Mathf.PI * 2f), r = Random.Range(0.4f, 1.2f);
+                        var off = new Vector3(Mathf.Cos(a) * r, Random.Range(0.2f, 1.6f), Mathf.Sin(a) * r);
+                        var swirl = new Vector3(-Mathf.Sin(a), 0f, Mathf.Cos(a)) * Random.Range(0.12f, 0.3f);
+                        Emit(glow, u.Ground + off, swirl + Vector3.up * Random.Range(0.25f, 0.6f),
+                             Random.Range(0.14f, 0.28f), Random.Range(2.4f, 3.8f), Color.Lerp(OreLight, OreRim, Random.value * 0.35f) * 1.3f);
+                    }
+                    if (Random.value < dt * 0.25f * breathe)
+                        Emit(glow, u.Ground + Vector3.up * Random.Range(0.8f, 1.6f), Vector3.up * 0.35f,
+                             Random.Range(1.2f, 1.8f), Random.Range(2.5f, 3.5f), OreLight * 0.35f);
                 }
                 if (!u.visibleToPlayer) continue;
                 // Wading and skimming over water throw up spray.
@@ -1308,14 +1527,19 @@ namespace StarForge.View
                 {
                     if (!Seen(new Vector3(u.pos.x, 0f, u.pos.y)) && !world.Explored(me, u.pos)) continue;
                     float left = Mathf.Lerp(0.45f, 1f, Mathf.Clamp01(u.oreLeft / (float)Unit.NodeCapacity));
-                    float breathe = 0.85f + 0.15f * Mathf.Sin(now * 0.7f + u.pos.x * 0.37f + u.pos.y * 0.23f);
-                    float size = 8f * left;
+                    // In step with the crystals' own breath (SF_Unit's crystal path uses
+                    // the same phase and period), deep and slow.
+                    float breathe = OreBreath(u.pos, now);
+                    float size = 8.5f * left * (0.94f + 0.06f * breathe);
                     rings.Add(Matrix4x4.TRS(u.Ground, Quaternion.identity, new Vector3(size, 3f, size)),
-                              new Color(0.04f, 0.42f, 1.0f) * (left * breathe * 0.75f), new Vector4(7f, 0f, 0f, 0f));
+                              OreLight * (left * Mathf.Lerp(0.3f, 0.85f, breathe) * 0.6f), new Vector4(7f, 0f, 0f, 0f));
                 }
-                else if (u.Type == UnitType.Worker && u.carrying > 0 && (u.visibleToPlayer || MatchSettings.spectate))
-                    rings.Add(Matrix4x4.TRS(u.Ground, Quaternion.identity, new Vector3(5.2f, 4f, 5.2f)),
-                              new Color(0.04f, 0.45f, 1.0f) * (0.95f + 0.15f * Mathf.Sin(now * 2.2f + u.id)), new Vector4(7f, 0f, 0f, 0f));
+                else if (u.Type == UnitType.Worker && (u.visibleToPlayer || MatchSettings.spectate) && u.view != null && u.view.OreGlow > 0.01f)
+                {
+                    float g = u.view.OreGlow;
+                    rings.Add(Matrix4x4.TRS(u.Ground, Quaternion.identity, new Vector3(4.2f + g * 1.4f, 4f, 4.2f + g * 1.4f)),
+                              OreLight * (g * (0.9f + 0.1f * Mathf.Sin(now * 1.6f + u.id))), new Vector4(7f, 0f, 0f, 0f));
+                }
             }
 
             if (player != null)

@@ -52,7 +52,7 @@ Material:
     - _WearCurvature: 0.05
     m_Colors:
     - _BaseColor: {r: 0.18974826, g: 0.293372, b: 0.33183, a: 1}
-    - _EmissionColor: {r: 0, g: 1.9811382, b: 2.7148547, a: 9}
+    - _EmissionColor: {r: 0.5271128, g: 2.070752, b: 1.8778619, a: 8}
     - _FlashColor: {r: 0, g: 0, b: 0, a: 0}
     - _GrimeColor: {r: 0.26, g: 0.22, b: 0.17, a: 1}
     - _RimColor: {r: 0.29999998, g: 0.39999998, b: 0.54999995, a: 1}

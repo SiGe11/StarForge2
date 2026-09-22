@@ -51,7 +51,7 @@ namespace StarForge.World
             public Texture2D ao;
             public Material terrainMaterial;
             public Mesh water, backdrop;
-            public int plants, blockingPlants, ore, boulders, scenery;
+            public int plants, blockingPlants, ore, boulders, scenery, grovesDropped;
             public long heightsMs, splatMs, objectsMs, navMs;
         }
 
@@ -62,6 +62,7 @@ namespace StarForge.World
         public static Result Generate(MapInfo info, MapKit kit, uint seed, bool bakeNavMesh, bool sharedMaterials)
         {
             var r = new Result { seed = seed };
+            Wind.Set(seed);                 // this match's weather: heading, strength, gust rhythm
             var clock = System.Diagnostics.Stopwatch.StartNew();
             var gen = r.gen = new HeightfieldGenerator();
             gen.Generate(seed, BaseA, BaseB);
@@ -242,7 +243,8 @@ namespace StarForge.World
                 for (int x = 0; x < AORes; x++)
                 {
                     float wx = (x + 0.5f) * cell, wz = (z + 0.5f) * cell;
-                    px[z * AORes + x] = new Color32((byte)(ReliefAO(gen, wx, wz) * 255), (byte)(Variation(wx, wz) * 255), 0, 255);
+                    px[z * AORes + x] = new Color32((byte)(ReliefAO(gen, wx, wz) * 255), (byte)(Variation(wx, wz) * 255),
+                                                    (byte)(Moisture(gen, wx, wz) * 255), 255);
                 }
             });
             var tex = new Texture2D(AORes, AORes, TextureFormat.RGBA32, true, true)
@@ -271,6 +273,22 @@ namespace StarForge.World
                     cnt++;
                 }
             return 1f - Saturate(occ / cnt * 1.75f);
+        }
+
+        /// <summary>How moist the ground is (the AO texture's B): hollows lower than the
+        /// ground round them and the land near the water are wet, exposed heights dry.
+        /// SF_Terrain darkens and greens the one and pales the other.</summary>
+        static float Moisture(HeightfieldGenerator gen, float wx, float wz)
+        {
+            float hc = gen.HeightAt(wx, wz);
+            float avg = 0f;
+            for (int i = 0; i < 8; i++) avg += gen.HeightAt(wx + Dx8[i] * 12f, wz + Dz8[i] * 12f);
+            avg /= 8f;
+            float hollow = Saturate(0.5f + (avg - hc) * 0.15f);
+            float nearWater = 1f - Smoothstep(HeightfieldGenerator.WATER + 0.5f, HeightfieldGenerator.WATER + 7f, hc);
+            float high = Smoothstep(18f, 34f, hc);
+            float n = Noise.Fbm(wx * 0.03f + 13f, wz * 0.03f - 7f, 3);
+            return Saturate(hollow * 0.55f + nearWater * 0.45f - high * 0.35f + (n - 0.5f) * 0.4f);
         }
 
         /// <summary>Broad albedo mottling (the AO texture's G), continued past the rim.</summary>
@@ -526,6 +544,98 @@ namespace StarForge.World
         }
 
         // ------------------------------------------------------------ map objects
+        /// <summary>A unit's radius, near enough for all but the Mauler (which crushes
+        /// trees and boulders anyway): Rubble is an area, not an obstacle, so the
+        /// NavMesh lets an agent's centre right up to its edge, and without this pad
+        /// units walked with half their body inside the trunk.</summary>
+        const float UnitPad = 0.75f;
+
+        /// <summary>A 1 m grid of what ground units can cross -- the generator's passable
+        /// cells, less scenery, boulders and blocking trees -- for checking that a grove
+        /// does not wall anything off.</summary>
+        sealed class Blockage
+        {
+            readonly int[] count;   // >0: closed
+            readonly int n;
+
+            public Blockage(HeightfieldGenerator gen, MapInfo info, List<(Vector2 p, float r)> scenery)
+            {
+                n = (int)Size;
+                count = new int[n * n];
+                for (int z = 0; z < n; z++)
+                    for (int x = 0; x < n; x++)
+                        if (!gen.PassableWorld(x + 0.5f, z + 0.5f)) count[z * n + x] = 1;
+                foreach (var sc in scenery) Disc(sc.p, sc.r * 0.85f);
+                if (info.boulderRoot != null)
+                    foreach (Transform b in info.boulderRoot)
+                        if (b.gameObject.activeSelf) Disc(new Vector2(b.position.x, b.position.z), 1.15f * b.localScale.x + 0.3f);
+            }
+
+            void Disc(Vector2 c, float r)
+            {
+                for (int z = Mathf.Max(0, (int)(c.y - r)); z <= Mathf.Min(n - 1, (int)(c.y + r)); z++)
+                    for (int x = Mathf.Max(0, (int)(c.x - r)); x <= Mathf.Min(n - 1, (int)(c.x + r)); x++)
+                        if ((new Vector2(x + 0.5f, z + 0.5f) - c).sqrMagnitude <= r * r) count[z * n + x]++;
+            }
+
+            public void Stamp(Vector2 c, float half, int d)
+            {
+                for (int z = Mathf.Max(0, (int)(c.y - half)); z <= Mathf.Min(n - 1, (int)(c.y + half)); z++)
+                    for (int x = Mathf.Max(0, (int)(c.x - half)); x <= Mathf.Min(n - 1, (int)(c.x + half)); x++)
+                        count[z * n + x] += d;
+            }
+
+            bool Free(int x, int z) => x >= 0 && z >= 0 && x < n && z < n && count[z * n + x] <= 0;
+
+            /// <summary>A unit fits: the cell and its neighbours are open (a corridor
+            /// at least about 2 m wide).</summary>
+            bool Fits(int x, int z) => Free(x, z) && Free(x + 1, z) && Free(x - 1, z) && Free(x, z + 1) && Free(x, z - 1);
+
+            public bool Open(Vector2 c, float r)
+            {
+                for (int z = (int)(c.y - r); z <= (int)(c.y + r); z++)
+                    for (int x = (int)(c.x - r); x <= (int)(c.x + r); x++)
+                        if (!Free(x, z)) return false;
+                return true;
+            }
+
+            /// <summary>Whether a unit could walk from `from` to within a few metres of
+            /// every target (targets stand on closed ground themselves: ore, bases).</summary>
+            public bool Connected(Vector2 from, List<Vector2> targets)
+            {
+                var seen = new bool[n * n];
+                var queue = new Queue<int>();
+                // Start on the nearest open cell round the start point.
+                for (int r = 0; r < 12 && queue.Count == 0; r++)
+                    for (int dz = -r; dz <= r && queue.Count == 0; dz++)
+                        for (int dx = -r; dx <= r; dx++)
+                        {
+                            int x = (int)from.x + dx, z = (int)from.y + dz;
+                            if (Fits(x, z)) { queue.Enqueue(z * n + x); seen[z * n + x] = true; break; }
+                        }
+                while (queue.Count > 0)
+                {
+                    int i = queue.Dequeue(), x = i % n, z = i / n;
+                    if (x + 1 < n && !seen[i + 1] && Fits(x + 1, z)) { seen[i + 1] = true; queue.Enqueue(i + 1); }
+                    if (x > 0 && !seen[i - 1] && Fits(x - 1, z)) { seen[i - 1] = true; queue.Enqueue(i - 1); }
+                    if (z + 1 < n && !seen[i + n] && Fits(x, z + 1)) { seen[i + n] = true; queue.Enqueue(i + n); }
+                    if (z > 0 && !seen[i - n] && Fits(x, z - 1)) { seen[i - n] = true; queue.Enqueue(i - n); }
+                }
+                foreach (var t in targets)
+                {
+                    bool ok = false;
+                    for (int dz = -7; dz <= 7 && !ok; dz++)
+                        for (int dx = -7; dx <= 7 && !ok; dx++)
+                        {
+                            int x = (int)t.x + dx, z = (int)t.y + dz;
+                            if (x >= 0 && z >= 0 && x < n && z < n && seen[z * n + x]) ok = true;
+                        }
+                    if (!ok) return false;
+                }
+                return true;
+            }
+        }
+
         sealed class Placer
         {
             readonly HeightfieldGenerator gen;
@@ -667,7 +777,10 @@ namespace StarForge.World
                     var p = new Vector2(rng.Range(10f, Size - 10f), rng.Range(10f, Size - 10f));
                     if ((p - BaseA).magnitude < 30f || (p - BaseB).magnitude < 30f) continue;
                     if (!placer.Clear(p, 2.5f)) continue;
-                    var b = Instantiate(kit.boulderPrefab, boulderRoot);
+                    // The variant comes from the position, not the generator's random
+                    // stream, so a seed lays out the same map whatever the rock kit holds.
+                    int variant = (int)(((uint)(p.x * 7919f) * 2654435761u ^ (uint)(p.y * 104729f)) % (uint)kit.boulderPrefabs.Length);
+                    var b = Instantiate(kit.boulderPrefabs[variant], boulderRoot);
                     b.name = "Boulder";
                     b.transform.position = Ground(p) + Vector3.down * 0.15f;
                     b.transform.rotation = Quaternion.Euler(0f, rng.Range(0f, 360f), 0f);
@@ -679,7 +792,9 @@ namespace StarForge.World
                     var rubble = Get<NavMeshModifierVolume>(b);
                     rubble.area = RubbleArea;
                     rubble.center = new Vector3(0f, 1f, 0f);
-                    rubble.size = new Vector3(2.3f, 4f, 2.3f);
+                    // The rock's radius and a unit's (UnitPad), in the rock's own scale.
+                    float half = 1.15f + UnitPad / b.transform.localScale.x;
+                    rubble.size = new Vector3(half * 2f, 4f, half * 2f);
                     placer.Take(p, 3f);
                     result.boulders++;
                     break;
@@ -695,7 +810,9 @@ namespace StarForge.World
         /// <summary>Set dressing -- rock spires and shelves, a crashed dropship, ruined
         /// pylons -- only where most of the footprint is ground no unit can use (cliffs,
         /// the rim), and left out of the NavMesh bake, so the map looks richer without a
-        /// single path changing.</summary>
+        /// single path changing. The part of a piece that does stand on usable ground is
+        /// Not Walkable (a volume over the model's footprint), so no unit walks through
+        /// the edge of a crag or a wreck; the bake itself never sees the model.</summary>
         static List<(Vector2 p, float r)> PlaceScenery(MapInfo info, MapKit kit, HeightfieldGenerator gen, uint seed, Result result)
         {
             var rng = new Rng(seed ^ 0xC3A7u);
@@ -747,6 +864,7 @@ namespace StarForge.World
                     go.transform.rotation = Quaternion.Euler(0f, rng.Range(0f, 360f), 0f);
                     go.transform.localScale = Vector3.one * scale;
                     Get<NavMeshModifier>(go).ignoreFromBuild = true;
+                    BlockFootprint(go);
                     placed.Add((p, piece.radius * scale));
                     done++;
                     result.scenery++;
@@ -755,8 +873,39 @@ namespace StarForge.World
             return placed;
         }
 
+        /// <summary>A Not Walkable volume over the model's footprint, in its own frame.</summary>
+        static void BlockFootprint(GameObject go)
+        {
+            var inv = go.transform.worldToLocalMatrix;
+            Bounds b = default;
+            bool any = false;
+            foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue;
+                var mb = mf.sharedMesh.bounds;
+                var m = inv * mf.transform.localToWorldMatrix;
+                for (int c = 0; c < 8; c++)
+                {
+                    var corner = mb.center + Vector3.Scale(mb.extents, new Vector3((c & 1) == 0 ? -1 : 1, (c & 2) == 0 ? -1 : 1, (c & 4) == 0 ? -1 : 1));
+                    var q = m.MultiplyPoint3x4(corner);
+                    if (!any) { b = new Bounds(q, Vector3.zero); any = true; }
+                    else b.Encapsulate(q);
+                }
+            }
+            if (!any) return;
+            var v = Get<NavMeshModifierVolume>(go);
+            v.area = 1;   // Not Walkable
+            // A scan's bounding box is wider than the rock at ground level; 85% of it
+            // keeps paths from being pushed out into the open for nothing. Tall, because
+            // a piece set into a slope has ground above its own top on the uphill side.
+            float tall = 40f / Mathf.Max(0.1f, go.transform.lossyScale.y);
+            v.center = new Vector3(b.center.x, 0f, b.center.z);
+            v.size = new Vector3(b.size.x * 0.85f, tall, b.size.z * 0.85f);
+        }
+
         // ------------------------------------------------------------ vegetation
-        const byte Pine = 0, Broad = 1, Tall = 2, Dead = 3, Bush = 4;
+        // Indices into MapKit.plantKinds (MapBuilder.PlantKinds).
+        const byte Pine = 0, Broad = 1, Tall = 2, Dead = 3, Bush = 4, Birch = 5, Fern = 6, Reeds = 7, Blossom = 8;
 
         /// <summary>Groves in the meadows, a few dead trees on the bare ground, conifers on
         /// the heights no unit reaches, and bushes everywhere green. Trees on ground units
@@ -812,10 +961,21 @@ namespace StarForge.World
             }
             var highTrees = new List<Vector2>();
 
-            void Add(Vector2 p, byte kind, bool blocks)
+            // Which plants close ground to units, and how much (half-width); the
+            // Rubble volumes are made at the end, once every grove has passed the
+            // connectivity check below.
+            var blockHalf = new List<float>();
+            var ground = new Blockage(gen, info, scenery);
+
+            float BlockHalf(byte kind, float scale)
             {
                 var k = veg.kinds[kind];
-                float scale = kind == Bush ? rng.Range(0.7f, 1.25f) : rng.Range(0.78f, 1.22f);
+                return Mathf.Max(k.trunkRadius * scale + UnitPad, k.blockRadius * scale);
+            }
+
+            void Add(Vector2 p, byte kind, bool blocks, float scale = -1f)
+            {
+                if (scale < 0f) scale = kind == Bush ? rng.Range(0.7f, 1.25f) : rng.Range(0.78f, 1.22f);
                 var plant = new Plant
                 {
                     pos = new Vector3(p.x, H(p) - 0.05f, p.y),
@@ -825,18 +985,16 @@ namespace StarForge.World
                     kind = kind,
                     volume = -1
                 };
-                if (blocks)
-                {
-                    var v = go.AddComponent<NavMeshModifierVolume>();
-                    v.area = RubbleArea;
-                    float w = k.trunkRadius * scale * 2f + 0.5f;
-                    v.center = new Vector3(p.x, plant.pos.y + 1.5f, p.y) - go.transform.position;
-                    v.size = new Vector3(w, 5f, w);
-                    plant.volume = (short)volumes.Count;
-                    volumes.Add(v);
-                }
+                float half = blocks ? BlockHalf(kind, scale) : 0f;
+                if (half > 0f) ground.Stamp(p, half, +1);
                 plants.Add(plant);
+                blockHalf.Add(half);
             }
+
+            // The places every ground unit must still be able to reach.
+            var mustReach = new List<Vector2> { BaseB };
+            mustReach.AddRange(expansions);
+            foreach (var o in ore) mustReach.Add(o);
 
             bool GroveGround(Vector2 p, float lichenMin)
             {
@@ -858,17 +1016,28 @@ namespace StarForge.World
                 bool conifer = rng.F01() < 0.45f;
                 float radius = rng.Range(6f, 12f);
                 int want = Mathf.RoundToInt(radius * rng.Range(0.9f, 1.4f));
-                int placedHere = 0;
+                int placedHere = 0, first = plants.Count;
                 for (int t = 0; t < want * 12 && placedHere < want; t++)
                 {
                     float a = rng.Range(0f, TAU), r = radius * Mathf.Sqrt(rng.F01());
                     var q = c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
                     if (!GroveGround(q, 0.2f) || !placer.Clear(q, 3.2f) || !Spaced(q, 3.0f, 1.6f)) continue;
                     float roll = rng.F01();
-                    byte kind = conifer ? (roll < 0.72f ? Pine : roll < 0.88f ? Tall : Broad)
-                                        : (roll < 0.45f ? Broad : roll < 0.78f ? Tall : Pine);
+                    byte kind = conifer ? (roll < 0.72f ? Pine : roll < 0.86f ? Birch : roll < 0.94f ? Tall : Broad)
+                                        : (roll < 0.36f ? Broad : roll < 0.58f ? Birch : roll < 0.8f ? Tall : Pine);
                     Add(q, kind, true);
                     placedHere++;
+                }
+                // A grove is a solid wood now: if it cut a base, an expansion or an ore
+                // field off from the rest of the map, it does not grow here after all.
+                if (!ground.Connected(BaseA, mustReach))
+                {
+                    for (int i = first; i < plants.Count; i++)
+                        if (blockHalf[i] > 0f) ground.Stamp(new Vector2(plants[i].pos.x, plants[i].pos.z), blockHalf[i], -1);
+                    plants.RemoveRange(first, plants.Count - first);
+                    blockHalf.RemoveRange(first, blockHalf.Count - first);
+                    groves.RemoveAt(groves.Count - 1);
+                    result.grovesDropped++;
                 }
             }
 
@@ -881,8 +1050,24 @@ namespace StarForge.World
                 if (DBase(p) < 36f || Nearest(ore, p) < 11f || Nearest(expansions, p) < 15f || !ClearOfScenery(p, 3f)) continue;
                 if (H(p) < HeightfieldGenerator.WATER + 1.2f || Nrm(p).y < 0.9f) continue;
                 var w = W(p);
-                if (w.x > 0.5f && lone < 22) { Add(p, rng.F01() < 0.5f ? Broad : Tall, true); lone++; }
-                else if (w.y + w.w > 0.7f && dead < 16) { Add(p, Dead, true); dead++; }
+                // A lone tree stands in the open: nothing that closes ground within a
+                // few metres of its footprint, so it never narrows a passage.
+                if (w.x > 0.5f && lone < 22)
+                {
+                    float r = rng.F01();
+                    byte kind = r < 0.4f ? Broad : r < 0.7f ? Tall : Birch;
+                    float scale = rng.Range(0.78f, 1.22f);
+                    if (!ground.Open(p, BlockHalf(kind, scale) + 3f)) continue;
+                    Add(p, kind, true, scale);
+                    lone++;
+                }
+                else if (w.y + w.w > 0.7f && dead < 16)
+                {
+                    float scale = rng.Range(0.78f, 1.22f);
+                    if (!ground.Open(p, BlockHalf(Dead, scale) + 3f)) continue;
+                    Add(p, Dead, true, scale);
+                    dead++;
+                }
             }
 
             // Conifers and snags on the heights: ground no unit can reach, so they
@@ -914,6 +1099,78 @@ namespace StarForge.World
                 if (!Spaced(p, 2.4f, 2.6f)) continue;
                 Add(p, Bush, false);
                 bushes++;
+            }
+
+            // Undergrowth and the shore, from a stream of their own so the trees and
+            // bushes above land where they did before these existed. None of it
+            // blocks anything; all of it burns.
+            var rng2 = new Rng(seed ^ 0xF10Au);
+            int ferns = 0;
+            for (int tries = 0; tries < 6000 && ferns < 200 && groves.Count > 0; tries++)
+            {
+                var c = groves[(int)(rng2.Next() % (uint)groves.Count)];
+                float a = rng2.Range(0f, TAU), r = rng2.Range(2f, 15f);
+                var p = c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
+                if (p.x < 6f || p.y < 6f || p.x > Size - 6f || p.y > Size - 6f) continue;
+                if (DBase(p) < 26f || Nearest(ore, p) < 5f || !ClearOfScenery(p, 1.5f)) continue;
+                if (H(p) < HeightfieldGenerator.WATER + 0.9f || Nrm(p).y < 0.86f || W(p).x < 0.2f) continue;
+                if (!Spaced(p, 1.6f, 1.1f)) continue;
+                Add(p, Fern, false);
+                ferns++;
+            }
+            // Reed beds: clumps along the waterline, in the shallows and on the wet
+            // sand just above it.
+            int reeds = 0;
+            for (int tries = 0; tries < 20000 && reeds < 150; tries++)
+            {
+                var p = new Vector2(rng2.Range(6f, Size - 6f), rng2.Range(6f, Size - 6f));
+                float h = H(p);
+                if (h < HeightfieldGenerator.WATER - 0.35f || h > HeightfieldGenerator.WATER + 0.5f || Nrm(p).y < 0.9f) continue;
+                if (DBase(p) < 26f || Nearest(ore, p) < 5f || !ClearOfScenery(p, 1.5f)) continue;
+                if (!Spaced(p, 1.4f, 1.0f)) continue;
+                int n = 3 + (int)(rng2.Next() % 5u);
+                for (int k = 0; k < n && reeds < 150; k++)
+                {
+                    var q = p + new Vector2(rng2.Range(-2.2f, 2.2f), rng2.Range(-2.2f, 2.2f));
+                    float hq = H(q);
+                    if (hq < HeightfieldGenerator.WATER - 0.35f || hq > HeightfieldGenerator.WATER + 0.6f || !Spaced(q, 1.4f, 0.8f)) continue;
+                    Add(q, Reeds, false);
+                    reeds++;
+                }
+            }
+            // Flowering shrubs in drifts across the meadows.
+            int blossom = 0;
+            for (int tries = 0; tries < 8000 && blossom < 70; tries++)
+            {
+                var p = new Vector2(rng2.Range(10f, Size - 10f), rng2.Range(10f, Size - 10f));
+                if (DBase(p) < 30f || Nearest(ore, p) < 6f || !ClearOfScenery(p, 2f)) continue;
+                if (H(p) < HeightfieldGenerator.WATER + 1.2f || Nrm(p).y < 0.88f || W(p).x < 0.55f) continue;
+                if (!Spaced(p, 2.4f, 2.2f)) continue;
+                // A drift: a few more round the first.
+                Add(p, Blossom, false);
+                blossom++;
+                for (int k = 0; k < 3 && blossom < 70; k++)
+                {
+                    var q = p + new Vector2(rng2.Range(-4f, 4f), rng2.Range(-4f, 4f));
+                    if (W(q).x < 0.45f || Nrm(q).y < 0.88f || !Spaced(q, 2.4f, 2.0f) || !ClearOfScenery(q, 2f)) continue;
+                    Add(q, Blossom, false);
+                    blossom++;
+                }
+            }
+
+            // The Rubble under every tree that closes ground: only a Mauler's path
+            // crosses it (and knocks the tree down on the way).
+            for (int i = 0; i < plants.Count; i++)
+            {
+                if (blockHalf[i] <= 0f) continue;
+                var pl = plants[i];
+                var v = go.AddComponent<NavMeshModifierVolume>();
+                v.area = RubbleArea;
+                v.center = new Vector3(pl.pos.x, pl.pos.y + 1.5f, pl.pos.z) - go.transform.position;
+                v.size = new Vector3(blockHalf[i] * 2f, 6f, blockHalf[i] * 2f);
+                pl.volume = (short)volumes.Count;
+                plants[i] = pl;
+                volumes.Add(v);
             }
 
             veg.plants = plants.ToArray();

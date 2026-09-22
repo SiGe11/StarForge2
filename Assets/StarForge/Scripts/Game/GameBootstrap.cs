@@ -23,7 +23,20 @@ namespace StarForge.Game
         public static uint mapSeed;
         public static bool skipMenu;
         public static bool spectate;
+        /// <summary>The match seed (AI decisions, spawn order). Only used as given when
+        /// <see cref="fixedSeed"/> is set; otherwise every match draws a new one.</summary>
         public static uint seed = 1000;
+        /// <summary>Keep <see cref="seed"/> for every match: the benchmark and the AI
+        /// evaluation, so their numbers compare across builds. In play it is off, and
+        /// the AI -- whose personality comes from the seed -- plays each match its own way.</summary>
+        public static bool fixedSeed;
+
+        public static uint MatchSeed()
+        {
+            if (fixedSeed) return seed;
+            uint s = (uint)System.Environment.TickCount ^ (uint)System.DateTime.Now.Ticks ^ 0x9E3779B9u;
+            return s == 0 ? 1u : s;
+        }
 
         /// <summary>Developer view of the AI: the inspector (I), its minimap marks, the
         /// memory toggle and reset on the title screen, and the end-of-match dossier.
@@ -84,7 +97,7 @@ namespace StarForge.Game
         public void StartMatch()
         {
             if (State == MatchState.Playing) return;
-            uint seed = MatchSettings.seed;
+            uint seed = MatchSettings.MatchSeed();
             world.BeginMatch(seed);
 
             for (int t = 0; t < 2; t++)

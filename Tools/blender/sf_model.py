@@ -159,13 +159,14 @@ def _layer(bm):
 # ambient occlusion). What they mean is up to the shader: for ore, G is a
 # random value per shard and B the height along it; for flora, G is a random
 # value per clump and B how freely the vertex sways in the wind.
-VDATA_G, VDATA_B = 'sf_g', 'sf_b'
+VDATA_G, VDATA_B, VDATA_A = 'sf_g', 'sf_b', 'sf_a'
 
 
-def set_vdata(bm, g=None, b=None):
-    """Set G and/or B on every vertex of a part. Either may be a constant or a
-    function of the vertex position (game space, as the part stands now)."""
-    for name, val in ((VDATA_G, g), (VDATA_B, b)):
+def set_vdata(bm, g=None, b=None, a=None):
+    """Set G, B and/or A on every vertex of a part. Each may be a constant or a
+    function of the vertex position (game space, as the part stands now). A is 0
+    unless set; flora uses 1 to mark leaf cards (textured, alpha-tested)."""
+    for name, val in ((VDATA_G, g), (VDATA_B, b), (VDATA_A, a)):
         if val is None:
             continue
         lay = bm.verts.layers.float.get(name) or bm.verts.layers.float.new(name)

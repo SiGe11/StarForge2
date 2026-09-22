@@ -873,6 +873,10 @@ namespace StarForge.UI
             "or a feint. When its picture of you changes, so does its plan.\n\n" +
             "It fights like a player. It focuses fire on the weakest target that can shoot back, pulls its army home when a " +
             "fight turns against it, sends raiders at your workers rather than your army, and comes back to defend when you hit its base.\n\n" +
+            "It does not play the same match twice. Each match it opens differently and leans its own way -- more Troopers or more " +
+            "Maulers, an early push or a late one. Its attacks go for different things (your base, your production, an outlying " +
+            "Foundry, your Diggers), come in straight or round a flank, gather before they go in, and sometimes split to hit two " +
+            "places at once. A plan that is not paying off is dropped, and a way in that you beat is not tried again soon.\n\n" +
             "It remembers you. Between matches it keeps a record of how you tend to play and which of its plans worked against " +
             "you, and each new match starts from that. It still scouts every game, so if you change how you play, it will notice.";
     }

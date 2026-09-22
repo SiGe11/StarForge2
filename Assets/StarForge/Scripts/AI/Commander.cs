@@ -3,6 +3,15 @@
 // Every order in this file goes through GameWorld's public Cmd* API (the same
 // entry points the mouse drives) and is paid for out of ActionBudget, so the
 // AI's click rate is bounded exactly like a human's.
+//
+// Variety: each match draws a Personality (opening, unit mix, timing, taste for
+// flanks and second prongs), steering away from how its last few matches went
+// (AIMemory). Each attack wave then picks a target (the base, production, an
+// outlying expansion, the worker line), an approach (straight in, or round
+// either flank, by where the influence map says the enemy is weakest, and not
+// the way the last failed wave went), gathers at a staging point before it goes
+// in, and -- when the army is big enough and the style allows -- sends a second,
+// smaller prong at something else at the same time.
 using System.Collections.Generic;
 using UnityEngine;
 using StarForge.Sim;
@@ -19,6 +28,28 @@ namespace StarForge.AI
             public float trooperBias;      // share of garrison production spent on troopers vs waiting for maulers
             public bool wantExpand;
             public float pushThreshold;    // army value before the main squad commits
+        }
+
+        /// <summary>A plan shaded by this match's personality and, for the first few
+        /// minutes, by its opening.</summary>
+        MacroPlan Plan(Strategy st)
+        {
+            var p = PlanFor(st);
+            var pe = Personality;
+            p.trooperBias = Mathf.Clamp01(p.trooperBias + pe.trooperShift);
+            if (p.skimmers > 0 || st == Strategy.Eco) p.skimmers += pe.extraSkimmers;
+            if (p.workshops > 0) p.workshops = Mathf.Max(1, p.workshops + pe.workshopShift);
+            p.pushThreshold *= pe.timing;
+            if (w.time < 210f)
+            {
+                switch (pe.opening)
+                {
+                    case Opening.FastExpand: p.wantExpand = true; p.workers = Mathf.Max(p.workers, 22); break;
+                    case Opening.EarlyGarrison: p.garrisons = Mathf.Max(p.garrisons, 2); p.workers = Mathf.Min(p.workers, 14); break;
+                    case Opening.SkimmerFirst: p.skimmers = Mathf.Max(p.skimmers, 2); break;
+                }
+            }
+            return p;
         }
 
         static MacroPlan PlanFor(Strategy s)
@@ -49,6 +80,7 @@ namespace StarForge.AI
         public readonly ActionBudget Budget = new ActionBudget();
         public readonly AIDebug Dbg = new AIDebug();
         public AIDifficulty Difficulty { get; private set; }
+        public readonly Personality Personality = new Personality();
         public AIMemoryData Memory => memory;
         public int Team => team;
 
@@ -62,6 +94,13 @@ namespace StarForge.AI
         readonly List<Unit> single = new List<Unit>(1);
         Vector2 rally, harassTarget;
         bool committed;
+        // The current attack wave.
+        bool waveOn, staging, prongOn;
+        float waveStart, stageUntil;
+        Vector2 stagePoint, waveAt, prongAt;
+        Approach approach, lastFailedApproach = (Approach)(-1);
+        WaveTarget waveTarget;
+        readonly List<Unit> prong = new List<Unit>();
         float commitT, lastSelHash, retreatUntil;
         int scoutGuess;
 
@@ -82,16 +121,47 @@ namespace StarForge.AI
             Perception.Init(world, t);
             Opponent.Init(memory.styleHistogram, trust * 0.5f);
             Selector.Init(seed, memory.weights, trust);
+            DrawPersonality(seed);
+            // Only matches it learns from count as history: with memory off (the
+            // benchmark, evaluations) every match starts from the seed alone.
+            Selector.SetBias(Personality, learn ? memory.recentPlans : null, learn ? memory.recentWins : null);
             Influence.SetBackend(gpu);
             ConfigureDifficulty(difficulty);
 
-            main.Clear(); harass.Clear(); scouts.Clear();
+            main.Clear(); harass.Clear(); scouts.Clear(); prong.Clear();
             rally = Perception.Home;
             committed = false;
+            waveOn = staging = prongOn = false;
+            lastFailedApproach = (Approach)(-1);
             scoutGuess = 0;
             thinkT = macroT = scoutT = tacticT = microT = 0f;
             System.Array.Clear(styleAccum, 0, styleAccum.Length);
             Dbg.memoryGames = memory.games;
+        }
+
+        void DrawPersonality(uint seed)
+        {
+            var r = new Rng(seed ^ 0x51A7E5u);
+            var pe = Personality;
+            // The opening: any but the ones of the last two matches it learned from.
+            var recent = learn && memory.recentOpenings != null ? memory.recentOpenings : new int[0];
+            var options = new List<Opening>();
+            for (int i = 0; i < (int)Opening.Count; i++)
+            {
+                bool used = false;
+                for (int k = Mathf.Max(0, recent.Length - 2); k < recent.Length; k++) if (recent[k] == i) used = true;
+                if (!used) options.Add((Opening)i);
+            }
+            if (options.Count == 0) options.Add(Opening.Standard);
+            pe.opening = options[r.IRange(0, options.Count)];
+            pe.trooperShift = r.Range(-0.2f, 0.2f);
+            pe.extraSkimmers = r.IRange(0, 3);
+            pe.workshopShift = r.IRange(-1, 2);
+            pe.timing = r.Range(0.8f, 1.3f);
+            pe.flankTaste = r.F01();
+            pe.raidTaste = r.F01();
+            for (int i = 0; i < pe.taste.Length; i++) pe.taste[i] = r.Range(-0.12f, 0.12f);
+            Dbg.personality = pe.Describe();
         }
 
         void ConfigureDifficulty(AIDifficulty d)
@@ -168,7 +238,7 @@ namespace StarForge.AI
             return w.CmdBuild(Single(worker), what, where);
         }
 
-        bool Reserved(Unit u) => scouts.Contains(u) || harass.Contains(u) || main.Contains(u);
+        bool Reserved(Unit u) => scouts.Contains(u) || harass.Contains(u) || main.Contains(u) || prong.Contains(u);
 
         bool PlaceNear(UnitType what, Vector2 around, float rmin, float rmax, out Vector2 spot)
         {
@@ -243,7 +313,7 @@ namespace StarForge.AI
         void RunMacro()
         {
             var s = Perception.Snap;
-            var plan = PlanFor(Selector.Current);
+            var plan = Plan(Selector.Current);
             var F = w.factions[team];
             Vector2 home = Perception.Home;
 
@@ -452,12 +522,13 @@ namespace StarForge.AI
         void RunTactics()
         {
             var s = Perception.Snap;
-            var plan = PlanFor(Selector.Current);
+            var plan = Plan(Selector.Current);
             var st = Selector.Current;
 
             main.RemoveAll(u => !Unit.Live(u));
             harass.RemoveAll(u => !Unit.Live(u));
             scouts.RemoveAll(u => !Unit.Live(u));
+            prong.RemoveAll(u => !Unit.Live(u));
 
             // Assign fresh army units to a squad. Skimmers are the natural raiders.
             int harassWant = st == Strategy.Harass ? 4 : 0;
@@ -504,6 +575,7 @@ namespace StarForge.AI
             {
                 if (WorthReissuing(threatAt, rally, 12f) && Issue(main, 1, threatAt, null)) rally = threatAt;
                 committed = false;
+                EndWave(false);
                 return;
             }
 
@@ -520,6 +592,7 @@ namespace StarForge.AI
                         rally = safe;
                         committed = false;
                         retreatUntil = w.time + 8f;   // don't oscillate
+                        EndWave(false);
                     }
                     return;
                 }
@@ -584,24 +657,21 @@ namespace StarForge.AI
             if (wantAttack)
             {
                 if (!committed) { committed = true; commitT = w.time; }
-                // Once the base is razed, keep hunting whatever structures we remember.
-                if (st != Strategy.Feint)
+                if (st == Strategy.Feint)
                 {
-                    float bestD = 1e30f;
-                    foreach (var r in Perception.Enemies)
-                    {
-                        if (!Defs.Get(r.type).building) continue;
-                        float d = (r.pos - mainCentre).magnitude;
-                        if (d < bestD) { bestD = d; attackAt = r.pos; }
-                    }
+                    // The feint does its own positioning (above).
+                    bool idle = false;
+                    foreach (var h in main) if (h.order == Order.Idle) { idle = true; break; }
+                    if ((idle || WorthReissuing(attackAt, rally, 12f)) && Issue(main, 1, attackAt, null)) rally = attackAt;
+                    return;
                 }
-                bool anyIdle = false;
-                foreach (var h in main) if (h.order == Order.Idle) { anyIdle = true; break; }
-                if ((anyIdle || WorthReissuing(attackAt, rally, 12f)) && Issue(main, 1, attackAt, null)) rally = attackAt;
+                if (!waveOn) StartWave(s, st, plan, mainCentre);
+                RunWave(s, mainCentre);
             }
             else
             {
                 committed = false;
+                EndWave(true);
                 // Hold a defensible spot between home and the likely approach.
                 Vector2 face = s.enemyBaseKnown ? s.enemyBase : Perception.BaseGuesses[0];
                 Vector2 guard = home + Norm(face - home) * 16f;
@@ -611,6 +681,196 @@ namespace StarForge.AI
                     if (h.order == Order.Idle && h.Dist(guard) > 14f) { anyIdle = true; break; }
                 if ((anyIdle || WorthReissuing(guard, rally, 16f)) && Issue(main, 1, guard, null)) rally = guard;
             }
+        }
+
+        // ------------------------------------------------------------ attack waves
+        void StartWave(Snapshot s, Strategy st, MacroPlan plan, Vector2 from)
+        {
+            waveOn = true;
+            waveStart = w.time;
+            Dbg.waves++;
+            // What to go for. Every choice is something the AI has actually seen.
+            float rBase = 1f, rProd = 0.7f, rExp = 0.6f, rWork = 0.5f;
+            if (st == Strategy.TimingPush) rProd += 0.8f;
+            if (st == Strategy.CounterAttack) { rWork += 0.9f; rBase += 0.4f; }
+            if (st == Strategy.Expand || st == Strategy.TurtleTech) rExp += 0.7f;
+            if (!Remembers(UnitType.Garrison) && !Remembers(UnitType.Workshop)) rProd = 0f;
+            if (OutlyingFoundry(s, out _) == false) rExp = 0f;
+            float roll = rng.F01() * (rBase + rProd + rExp + rWork);
+            waveTarget = roll < rBase ? WaveTarget.Base : roll < rBase + rProd ? WaveTarget.Production
+                       : roll < rBase + rProd + rExp ? WaveTarget.Expansion : WaveTarget.Workers;
+            waveAt = TargetOf(waveTarget, s, from);
+
+            // How to go in: score each approach by the enemy influence along it (the
+            // lower the better), the personality's taste for flanks, and never the way
+            // the last beaten wave went.
+            Vector2 home = Perception.Home;
+            float bestScore = 1e30f;
+            approach = Approach.Direct;
+            for (int a = 0; a < 3; a++)
+            {
+                var ap = (Approach)a;
+                var via = ApproachPoint(ap, from, waveAt);
+                float danger = 0f;
+                for (int k = 1; k <= 4; k++)
+                {
+                    float t = k / 5f;
+                    var q = t < 0.5f ? Vector2.Lerp(from, via, t * 2f) : Vector2.Lerp(via, waveAt, (t - 0.5f) * 2f);
+                    danger += Influence.Sample(1, q);
+                }
+                float score = danger + (ap == Approach.Direct ? 0f : 0.6f - Personality.flankTaste) + rng.Range(0f, 0.5f);
+                if (ap == lastFailedApproach) score += 2f;
+                if (score < bestScore) { bestScore = score; approach = ap; }
+            }
+            stagePoint = w.NearestWalkable(ApproachPoint(approach, from, waveAt));
+            staging = approach != Approach.Direct || (waveAt - from).magnitude > 70f;
+            stageUntil = w.time + 22f;
+
+            // A second prong: a few fast units at something else, when there is army
+            // to spare and the style likes it.
+            prongOn = false;
+            if (s.armyValue > plan.pushThreshold * 1.6f && rng.F01() < 0.25f + Personality.raidTaste * 0.5f)
+            {
+                var other = waveTarget == WaveTarget.Workers ? WaveTarget.Expansion : WaveTarget.Workers;
+                if (other == WaveTarget.Expansion && !OutlyingFoundry(s, out _)) other = WaveTarget.Production;
+                prongAt = TargetOf(other, s, from);
+                if ((prongAt - waveAt).magnitude > 25f)
+                {
+                    prong.Clear();
+                    int want = Mathf.Max(2, main.Count / 4);
+                    for (int i = main.Count - 1; i >= 0 && prong.Count < want; i--)
+                        if (main[i].Type != UnitType.Mauler) { prong.Add(main[i]); main.RemoveAt(i); }
+                    prongOn = prong.Count >= 2;
+                    if (!prongOn) { main.AddRange(prong); prong.Clear(); }
+                }
+            }
+            Dbg.wave = $"{waveTarget} via {approach}{(staging ? " (staging)" : "")}{(prongOn ? $", prong of {prong.Count}" : "")}";
+        }
+
+        void RunWave(Snapshot s, Vector2 mainCentre)
+        {
+            // Gather at the staging point until most of the army is there, or it has
+            // waited long enough: going in strung out is how waves die.
+            if (staging)
+            {
+                int near = 0;
+                foreach (var h in main) if (h.Dist(stagePoint) < 13f) near++;
+                if (near >= main.Count * 0.7f || w.time > stageUntil) staging = false;
+                else
+                {
+                    bool idle = false;
+                    foreach (var h in main) if (h.order == Order.Idle && h.Dist(stagePoint) > 13f) { idle = true; break; }
+                    if ((idle || WorthReissuing(stagePoint, rally, 10f)) && Issue(main, 1, stagePoint, null)) rally = stagePoint;
+                    return;
+                }
+            }
+            // Once the target is gone, go on to the nearest structure it remembers.
+            if (!StillStanding(waveAt))
+            {
+                float bestD = 1e30f;
+                foreach (var r in Perception.Enemies)
+                {
+                    if (!Defs.Get(r.type).building) continue;
+                    float d = (r.pos - mainCentre).magnitude;
+                    if (d < bestD) { bestD = d; waveAt = r.pos; }
+                }
+                if (bestD > 1e29f) waveAt = s.enemyBase;
+            }
+            bool anyIdle = false;
+            foreach (var h in main) if (h.order == Order.Idle) { anyIdle = true; break; }
+            if ((anyIdle || WorthReissuing(waveAt, rally, 12f)) && Issue(main, 1, waveAt, null)) rally = waveAt;
+
+            if (prongOn && prong.Count > 0)
+            {
+                bool idle = false;
+                foreach (var h in prong) if (h.order == Order.Idle) { idle = true; break; }
+                if (idle || WorthReissuing(prongAt, harassTarget, 12f))
+                    if (Issue(prong, 1, prongAt, null)) harassTarget = prongAt;
+            }
+        }
+
+        void EndWave(bool calledOff)
+        {
+            if (!waveOn) return;
+            // A wave beaten back (not merely called off by a change of plan) marks
+            // its approach as one to avoid next time.
+            if (!calledOff && w.time - waveStart > 8f) lastFailedApproach = approach;
+            waveOn = staging = false;
+            if (prong.Count > 0) { main.AddRange(prong); prong.Clear(); }
+            prongOn = false;
+        }
+
+        Vector2 ApproachPoint(Approach a, Vector2 from, Vector2 to)
+        {
+            if (a == Approach.Direct) return Vector2.Lerp(from, to, 0.55f);
+            Vector2 dir = Norm(to - from);
+            float side = a == Approach.FlankLeft ? 1f : -1f;
+            float len = (to - from).magnitude;
+            return Vector2.Lerp(from, to, 0.6f) + Perp(dir) * side * Mathf.Clamp(len * 0.35f, 22f, 45f);
+        }
+
+        bool Remembers(UnitType t)
+        {
+            foreach (var r in Perception.Enemies) if (r.type == t) return true;
+            return false;
+        }
+
+        /// <summary>A remembered enemy Foundry away from their main base.</summary>
+        bool OutlyingFoundry(Snapshot s, out Vector2 at)
+        {
+            at = default;
+            float best = 0f;
+            foreach (var r in Perception.Enemies)
+            {
+                if (r.type != UnitType.Foundry) continue;
+                float d = (r.pos - s.enemyBase).magnitude;
+                if (d > 30f && d > best) { best = d; at = r.pos; }
+            }
+            return best > 0f;
+        }
+
+        Vector2 TargetOf(WaveTarget t, Snapshot s, Vector2 from)
+        {
+            switch (t)
+            {
+                case WaveTarget.Production:
+                {
+                    float bestD = 1e30f;
+                    Vector2 at = s.enemyBase;
+                    foreach (var r in Perception.Enemies)
+                    {
+                        if (r.type != UnitType.Garrison && r.type != UnitType.Workshop) continue;
+                        float d = (r.pos - from).magnitude;
+                        if (d < bestD) { bestD = d; at = r.pos; }
+                    }
+                    return at;
+                }
+                case WaveTarget.Expansion:
+                    return OutlyingFoundry(s, out var e) ? e : s.enemyBase;
+                case WaveTarget.Workers:
+                {
+                    // The ore their main Foundry mines: the nearest explored seam to it.
+                    Vector2 at = s.enemyBase;
+                    float bestD = 1e30f;
+                    foreach (var n in w.units)
+                    {
+                        if (n == null || n.dying || n.Type != UnitType.Ore || !w.Explored(team, n.pos)) continue;
+                        float d = (n.pos - s.enemyBase).magnitude;
+                        if (d < bestD && d < 30f) { bestD = d; at = n.pos; }
+                    }
+                    return at;
+                }
+                default:
+                    return s.enemyBase;
+            }
+        }
+
+        /// <summary>Whether the AI still believes something of the enemy's stands there.</summary>
+        bool StillStanding(Vector2 at)
+        {
+            foreach (var r in Perception.Enemies)
+                if ((r.pos - at).sqrMagnitude < 12f * 12f) return true;
+            return !w.Visible(team, at);   // not seen emptied yet: keep going
         }
 
         // ------------------------------------------------------------ micro
@@ -679,6 +939,11 @@ namespace StarForge.AI
             m.teching = Lerp(m.teching, p.teching, k);
             for (int i = 0; i < (int)Strategy.Count; i++) m.strategySeconds[i] += Selector.timeIn[i];
             m.lastRead = AINames.Of(DominantStyle());
+            int longest = 0;
+            for (int i = 1; i < (int)Strategy.Count; i++) if (Selector.timeIn[i] > Selector.timeIn[longest]) longest = i;
+            m.recentOpenings = AIMemory.Push(m.recentOpenings, (int)Personality.opening);
+            m.recentPlans = AIMemory.Push(m.recentPlans, longest);
+            m.recentWins = AIMemory.Push(m.recentWins, aiWon ? 1 : 0);
             AIMemory.Save(m);
         }
     }

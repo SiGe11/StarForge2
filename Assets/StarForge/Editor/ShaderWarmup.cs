@@ -101,6 +101,10 @@ namespace StarForge.EditorTools
                 ("StarForge/Smoke", Srp, ""),
                 ("StarForge/WaterRipple", Srp, "INSTANCING_ON"),
                 ("StarForge/Particle", Srp, ""),
+                ("StarForge/Rock", Srp, "_CLUSTER_LIGHT_LOOP _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SHADOWS_SOFT"),
+                ("StarForge/Rock", Srp, "_CLUSTER_LIGHT_LOOP _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SCREEN_SPACE_OCCLUSION _SHADOWS_SOFT"),
+                ("StarForge/Rock", Srp, "_CLUSTER_LIGHT_LOOP _MAIN_LIGHT_SHADOWS_CASCADE"),
+                ("StarForge/Rock", Shadow, ""),
             };
             int added = 0;
             foreach (var (name, pass, keywords) in table)

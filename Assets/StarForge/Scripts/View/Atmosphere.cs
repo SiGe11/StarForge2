@@ -5,7 +5,8 @@
 // position, so it also integrates exponential height fog along the view ray
 // (mist pools over the lakes and in the low ground, plateaus stay clear) and
 // in-scatters the sun: warm toward it, cool away from it. Cloud shadows are the
-// sun's light cookie, scrolled with the wind.
+// sun's light cookie, scrolled with the wind. It also uploads the match's wind
+// (World/Wind) as _SF_Wind, which the trees and the grass sway to.
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
@@ -33,17 +34,21 @@ namespace StarForge.View
 
         [Header("Cloud shadows")]
         public Light sun;
-        [Tooltip("Metres per second the cloud shadows drift.")]
-        public Vector2 wind = new Vector2(1.4f, 0.8f);
+        [Tooltip("Metres per second the cloud shadows drift at the wind's full strength.")]
+        public float cloudDrift = 14f;
 
         static readonly int ColorId = Shader.PropertyToID("_SF_AtmoColor");
         static readonly int ParamsId = Shader.PropertyToID("_SF_AtmoParams");
         static readonly int HazeId = Shader.PropertyToID("_SF_AtmoHaze");
         static readonly int SunId = Shader.PropertyToID("_SF_AtmoSun");
         static readonly int SunDirId = Shader.PropertyToID("_SF_AtmoSunDir");
+        // The match's wind, for everything that sways in it (SF_Tree, SF_Grass):
+        // xy the heading, z how hard it is blowing, w the gust's travelling phase.
+        static readonly int WindId = Shader.PropertyToID("_SF_Wind");
 
         UniversalAdditionalLightData sunData;
-        Vector2 cookieOrigin;
+        Vector2 cookieOrigin, cloudOffset;
+        float gustPhase;
 
         void OnEnable()
         {
@@ -67,7 +72,16 @@ namespace StarForge.View
         void Update()
         {
             Apply();
-            if (sunData != null) sunData.lightCookieOffset = cookieOrigin + wind * Time.time;
+            float dt = Time.deltaTime;
+            var w = StarForge.World.Wind.Direction(Time.time);
+            float speed = StarForge.World.Wind.Speed(Time.time);
+            // The gust rolls across the map faster the harder it blows, so a lull
+            // and a gust are told apart by more than the amount of sway.
+            gustPhase += dt * (0.5f + 1.4f * speed);
+            Shader.SetGlobalVector(WindId, new Vector4(w.x, w.y, speed, gustPhase));
+            // The clouds go with it.
+            cloudOffset += w * (cloudDrift * speed * dt);
+            if (sunData != null) sunData.lightCookieOffset = cookieOrigin + cloudOffset;
         }
 
         void Apply()

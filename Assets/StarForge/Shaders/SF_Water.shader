@@ -224,10 +224,17 @@ Shader "StarForge/Water"
                 half3 under = bedColor * transmit * _ShallowColor.rgb + scattered * (1.0 - transmit.g);
 
                 half fresnel = 0.02 + 0.98 * pow(1.0 - saturate(dot(n, v)), 5.0);
-                half3 refl = GlossyEnvironmentReflection(reflect(-v, n), 1.0 - _Smoothness, 1.0);
+                // The sky seen in the water, a little blurred so each ripple does not
+                // pick a different patch of cloud.
+                half3 refl = GlossyEnvironmentReflection(reflect(-v, normalize(lerp(n, half3(0, 1, 0), 0.4))),
+                                                         max(0.12, 1.0 - _Smoothness), 1.0);
                 half3 h = normalize(L.direction + v);
-                half gloss = lerp(40.0, 260.0, _Smoothness) * lerp(0.35, 1.0, nearFade);
-                half spec = pow(saturate(dot(n, h)), gloss) * 1.6 * shadow * lerp(0.08, 1.0, closeFade * closeFade);
+                // Broad and dim, off a calmer normal: a tight, bright glint on every
+                // ripple read as glitter strewn over the lake, and bloom turned each
+                // speck into a spark.
+                half3 nGlint = normalize(half3(slope.x * 0.45, 1.0, slope.y * 0.45));
+                half gloss = lerp(30.0, 150.0, _Smoothness) * lerp(0.35, 1.0, nearFade);
+                half spec = pow(saturate(dot(nGlint, h)), gloss) * 0.5 * shadow * lerp(0.05, 1.0, closeFade * closeFade);
                 half3 col = under * (1.0 - fresnel) + refl * fresnel + spec * L.color;
 
                 // Foam: crests on depth contours rolling in to the shore, and lace
@@ -241,9 +248,15 @@ Shader "StarForge/Water"
                           + ValueNoise(wp.xz * 4.3 - float2(time * 0.07, time * 0.11)) * 0.4;
                 half lap = 0.5 + 0.5 * sin(time * 0.8 + breakup * 6.0);
                 half reach = _FoamWidth * lerp(0.12, 0.3, lap);
-                half edge = smoothstep(0.0, 0.25, saturate(1.0 - depth / max(reach, 0.01)) - (1.0 - lace) * 0.6);
-                half foam = saturate(max(waves, edge * lerp(0.55, 1.0, closeFade)));
-                half3 foamCol = _FoamColor.rgb * (L.color * 0.6 * lerp(0.4, 1.0, shadow) + ambient);
+                // Lace, not a line: the noise decides where foam lies at the waterline,
+                // so it comes and goes along the shore instead of outlining every lake
+                // with an unbroken white stroke.
+                half near = saturate(1.0 - depth / max(reach, 0.01));
+                half edge = smoothstep(0.5, 0.85, near * (0.3 + 0.9 * lace));
+                half foam = saturate(max(waves, edge * lerp(0.4, 0.8, closeFade)));
+                // Lit like a surface of albedo ~0.45, not an emitter: at the old gain the
+                // foam sat above the bloom threshold in sunlight and glowed.
+                half3 foamCol = _FoamColor.rgb * 0.5 * (L.color * saturate(L.direction.y) * lerp(0.35, 1.0, shadow) + ambient);
                 col = lerp(col, foamCol, foam);
 
                 // Fade out right at the waterline, so the intersection has no seam.

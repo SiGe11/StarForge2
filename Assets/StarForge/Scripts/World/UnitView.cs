@@ -44,6 +44,13 @@ namespace StarForge.World
         Quaternion legLRest, legRRest, armRest, cutterRest, drumRest, headRest;
         Vector3 gunRest, barrelRest, trolleyRest, loadRest, crystalsRest;
         float recoil, prevCooldown, armDip, cutterAngle, drumAngle, loadFill, oreScale = -1f;
+        float glowFill, glowFlare;
+        int prevCarrying;
+
+        /// <summary>How brightly a Digger's ore glass glows, 0..~1.4: eased in as the
+        /// load goes aboard with a flare as it is sealed, eased out at the drop-off.
+        /// FXDirector lights the ground round the Digger with it.</summary>
+        public float OreGlow => glowFill + glowFlare;
 
         static readonly int FlashId = Shader.PropertyToID("_FlashColor");
         static readonly int DamageId = Shader.PropertyToID("_Damage");
@@ -210,6 +217,18 @@ namespace StarForge.World
                 loadFill = Mathf.MoveTowards(loadFill, want, dt * (want < loadFill ? 2.5f : 1.2f));
                 float f = Mathf.Max(0.02f, loadFill);
                 load.localScale = Vector3.Scale(loadRest, new Vector3(Mathf.Lerp(0.55f, 1f, f), f, Mathf.Lerp(0.55f, 1f, f)));
+
+                // The glow: a faint stir while the cutter works, swelling to full once
+                // the load is aboard, eased both ways (a smoothstep of an exponential
+                // approach, so it neither pops on nor snaps off), with a brief flare
+                // as the hopper seals and a slower fade as it is emptied.
+                float glowWant = unit.carrying > 0 ? 1f : mining ? Mathf.Clamp01(unit.harvestTimer / Unit.HarvestTime) * 0.3f : 0f;
+                float rate = glowWant > glowFill ? 1.6f : 0.9f;
+                glowFill = Mathf.Lerp(glowFill, glowWant, 1f - Mathf.Exp(-dt * rate * 2.2f));
+                if (Mathf.Abs(glowFill - glowWant) < 0.002f) glowFill = glowWant;
+                if (unit.carrying > 0 && prevCarrying == 0) glowFlare = 0.45f;
+                glowFlare = Mathf.MoveTowards(glowFlare, 0f, dt * 0.6f);
+                prevCarrying = unit.carrying;
             }
             if (crystals != null)
             {
@@ -236,7 +255,7 @@ namespace StarForge.World
             bool constructing = !unit.Complete && unit.def.building;
             float burn = unit.dying ? Mathf.Clamp01(unit.deathTimer / 0.8f) : 0f;
 
-            if (flash > 0.01f || damage > 0.01f || constructing || unit.dying || loadFill > 0.001f)
+            if (flash > 0.01f || damage > 0.01f || constructing || unit.dying || loadFill > 0.001f || OreGlow > 0.001f)
             {
                 Color teamGlow = (unit.team == 0 ? new Color(0.15f, 0.55f, 1f) : new Color(1f, 0.25f, 0.12f)) * 1.5f;
                 float level = unit.buildProgress * (unit.def.visualHeight + 0.2f);
@@ -251,7 +270,7 @@ namespace StarForge.World
                     mpb.SetFloat(BuildLevelId, constructing ? level - rendererBaseY[i] : BuildOff);
                     mpb.SetFloat(BurnId, burn);
                     mpb.SetColor(TeamGlowId, teamGlow);
-                    mpb.SetFloat(OreGlowId, loadFill);
+                    mpb.SetFloat(OreGlowId, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(glowFill)) + glowFlare);
                     r.SetPropertyBlock(mpb);
                 }
                 blockActive = true;

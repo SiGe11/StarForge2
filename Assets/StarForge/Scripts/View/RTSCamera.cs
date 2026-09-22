@@ -27,6 +27,8 @@ namespace StarForge.View
 
         /// <summary>Set by the HUD: the pointer is over a panel that eats edge scrolling.</summary>
         public System.Func<Vector2, bool> BlocksEdgeScroll;
+        [Tooltip("Ignore keyboard and mouse (the screenshot gallery drives the camera).")]
+        public bool scripted;
 
         Vector2 focus, focusTarget;
         float distTarget, yawTarget, groundY;
@@ -65,8 +67,8 @@ namespace StarForge.View
         void Update()
         {
             float dt = Time.unscaledDeltaTime;
-            var kb = Keyboard.current;
-            var mouse = Mouse.current;
+            var kb = scripted ? null : Keyboard.current;
+            var mouse = scripted ? null : Mouse.current;
 
             Vector2 pan = Vector2.zero;
             if (kb != null)

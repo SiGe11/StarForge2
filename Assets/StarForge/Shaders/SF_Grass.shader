@@ -44,6 +44,12 @@ Shader "StarForge/Grass"
 
         TEXTURE2D(_SF_GroundMask); SAMPLER(sampler_SF_GroundMask);
         float4 _SF_GroundMaskParams;   // x: 1 / map size, y: enabled
+        // Where a grass fire has been (Vegetation's grid, uploaded by GroundMask):
+        // 0 unburnt, ~0.55 alight, 1 burnt out. It does not heal.
+        TEXTURE2D(_SF_BurntGrass); SAMPLER(sampler_SF_BurntGrass);
+        float4 _SF_BurntGrassParams;
+        // The match's wind (Atmosphere): xy heading, z strength, w gust phase.
+        float4 _SF_Wind;
 
         struct GrassAttributes
         {
@@ -65,6 +71,13 @@ Shader "StarForge/Grass"
                 gm = SAMPLE_TEXTURE2D_LOD(_SF_GroundMask, sampler_SF_GroundMask, origin.xz * _SF_GroundMaskParams.x, 0);
             half flatten = saturate(max(max(gm.r, gm.b * 0.8), gm.a * 0.95));
             burn = gm.g;
+            if (_SF_BurntGrassParams.y > 0.5)
+            {
+                half gone = SAMPLE_TEXTURE2D_LOD(_SF_BurntGrass, sampler_SF_BurntGrass, origin.xz * _SF_BurntGrassParams.x, 0).r;
+                // Burnt right down to stubble, and charred black.
+                flatten = max(flatten, smoothstep(0.35, 0.95, gone) * 0.82);
+                burn = max(burn, smoothstep(0.25, 0.8, gone));
+            }
 
             float dist = distance(origin, _WorldSpaceCameraPos);
             // How far the clump is into the range where a blade is only a couple of
@@ -77,17 +90,23 @@ Shader "StarForge/Grass"
             rel.y *= squash;
             rel.xz *= lerp(1.0, 1.7, saturate((dist - 45.0) / 110.0)) * lerp(1.0, 1.35, flatten);
 
-            // Wind is one slow gust travelling across the map, the same for every
-            // blade in a clump. Per-blade flutter looked lively up close, but at RTS
-            // distance a blade is two pixels wide, and a bright tip flicking across
-            // pixel centres on its own rhythm made the whole field twinkle like
-            // blinking lights, even with the camera still.
+            // Wind is one slow gust travelling across the map along the wind's own
+            // heading, the same for every blade in a clump, with a second, shorter
+            // wave over it so a strong gust ripples the field rather than leaning it.
+            // Per-blade flutter looked lively up close, but at RTS distance a blade is
+            // two pixels wide, and a bright tip flicking across pixel centres on its
+            // own rhythm made the whole field twinkle like blinking lights, even with
+            // the camera still.
             float h = v.uv.y;
-            float t = _Time.y * _WindSpeed;
-            float travel = dot(origin.xz, float2(0.071, 0.047));
-            float gust = sin(t * 0.35 - travel * 0.6) * 0.5 + 0.5;
-            float sway = gust * 0.9 * _WindStrength * h * h * squash * lerp(1.0, 0.08, far);
-            rel.xz += float2(0.82, 0.57) * sway;
+            float4 w = _SF_Wind.z > 0.001 ? _SF_Wind : float4(0.82, 0.57, 0.5, _Time.y);
+            float2 dir = w.xy;
+            float blowing = w.z;
+            float t = w.w * _WindSpeed;
+            float travel = dot(origin.xz, dir * 0.09);
+            float gust = sin(t * 0.35 - travel) * 0.5 + 0.5;
+            float ripple = sin(t * 1.15 - travel * 2.7) * 0.25 * blowing;
+            float sway = (gust + ripple) * 0.9 * _WindStrength * blowing * h * h * squash * lerp(1.0, 0.08, far);
+            rel.xz += dir * sway;
             rel.y -= abs(sway) * 0.25 * h;
             return origin + rel;
         }

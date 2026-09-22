@@ -34,6 +34,8 @@ namespace StarForge.World
         public Vector3 pos;
         public Vector3 dir;
         public float scale;
+        /// <summary>How fast it was going: a falling tree's crown, in metres a second.</summary>
+        public float speed;
         public int projectileKind;
         public string text;
         /// <summary>The plant, for the Plant* events (index into Vegetation.plants).</summary>

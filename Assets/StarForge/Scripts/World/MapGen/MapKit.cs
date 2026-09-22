@@ -25,7 +25,8 @@ namespace StarForge.World
         [Tooltip("StarForge/Terrain with _SF_AUTOSPLAT, for the land beyond the rim.")]
         public Material backdropMaterial;
         public GameObject orePrefab;
-        public GameObject boulderPrefab;
+        [Tooltip("Boulder prefabs, one per scanned rock; the generator picks one at random for each boulder.")]
+        public GameObject[] boulderPrefabs = Array.Empty<GameObject>();
         public SceneryPiece[] scenery = Array.Empty<SceneryPiece>();
         public PlantKind[] plantKinds = Array.Empty<PlantKind>();
     }

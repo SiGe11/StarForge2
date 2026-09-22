@@ -1,0 +1,27 @@
+{
+  "music_calm_0": {
+    "rms": 0.0519,
+    "seconds": 74.3,
+    "source": "cinematic-calm.wav"
+  },
+  "music_calm_1": {
+    "rms": 0.0678,
+    "seconds": 131.7,
+    "source": "first_light_particles_0.wav"
+  },
+  "music_calm_2": {
+    "rms": 0.0375,
+    "seconds": 120.0,
+    "source": "Contemplation.mp3"
+  },
+  "music_tension_0": {
+    "rms": 0.0643,
+    "seconds": 128.7,
+    "source": "Insistent.ogg"
+  },
+  "music_combat_0": {
+    "rms": 0.2236,
+    "seconds": 95.9,
+    "source": "battleThemeA.mp3"
+  }
+}

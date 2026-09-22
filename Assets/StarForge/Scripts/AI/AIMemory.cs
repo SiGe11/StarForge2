@@ -23,6 +23,11 @@ namespace StarForge.AI
         public float aggression = 0.45f, expansion = 0.3f, defensive = 0.4f, harass = 0.25f, teching = 0.35f;
         public float[] strategySeconds = new float[(int)Strategy.Count];
         public string lastRead = "";
+        // The last few matches, newest last: how the AI opened, the plan it spent
+        // longest on, and whether it won. It steers away from repeating them.
+        public int[] recentOpenings = new int[0];
+        public int[] recentPlans = new int[0];
+        public int[] recentWins = new int[0];
     }
 
     public static class AIMemory
@@ -67,7 +72,18 @@ namespace StarForge.AI
                 d.strategySeconds = new float[(int)Strategy.Count];
             if (d.weights == null || d.weights.Length != (int)Strategy.Count * StrategySelector.NFEAT)
                 d.weights = new float[0];
+            d.recentOpenings ??= new int[0];
+            d.recentPlans ??= new int[0];
+            d.recentWins ??= new int[0];
             return d;
+        }
+
+        /// <summary>Append to a short history, keeping the newest `keep` entries.</summary>
+        public static int[] Push(int[] history, int value, int keep = 4)
+        {
+            var list = new System.Collections.Generic.List<int>(history ?? new int[0]) { value };
+            while (list.Count > keep) list.RemoveAt(0);
+            return list.ToArray();
         }
     }
 }

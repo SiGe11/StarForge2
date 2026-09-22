@@ -70,18 +70,23 @@ Material:
     m_Ints: []
     m_Floats:
     - _AutoSplat: 0
-    - _BlendSharpness: 0.22
+    - _BlendSharpness: 0.2
+    - _Cavity: 0.35
     - _CliffStretch: 0.55
+    - _MacroNormal: 0.35
     - _MacroScale: 0.011
     - _MacroStrength: 0.22
     - _WaterLevel: 2.4
     m_Colors:
-    - _NScale: {r: 0.8, g: 1, b: 1.2, a: 0.6}
-    - _Smooth: {r: 0.12, g: 0.18, b: 0.22, a: 0.1}
-    - _Tile: {r: 7, g: 5, b: 14, a: 4}
-    - _Tint0: {r: 0.748379, g: 0.8322835, b: 0.7083696, a: 1}
-    - _Tint1: {r: 1.0090418, g: 0.9452768, b: 0.8860039, a: 1}
-    - _Tint2: {r: 1.022425, g: 0.9639762, b: 0.9260748, a: 1}
-    - _Tint3: {r: 1.2204343, g: 1.1727946, b: 1.1187468, a: 1}
+    - _DryTint: {r: 1.07, g: 1.03, b: 0.95, a: 1}
+    - _HeightScale: {r: 0.8, g: 1, b: 1, a: 0.7}
+    - _NScale: {r: 1, g: 1, b: 1.2, a: 0.8}
+    - _Smooth: {r: 0.1, g: 0.14, b: 0.2, a: 0.12}
+    - _Tile: {r: 6, g: 5, b: 16, a: 7}
+    - _Tint0: {r: 0.9639762, g: 1, b: 0.93574095, a: 1}
+    - _Tint1: {r: 0.9685765, g: 0.9776915, b: 1, a: 1}
+    - _Tint2: {r: 0.93574095, g: 0.95468706, b: 1, a: 1}
+    - _Tint3: {r: 0.9776915, g: 0.982207, b: 1, a: 1}
+    - _WetTint: {r: 0.86, g: 0.95, b: 0.8399999, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

@@ -170,6 +170,35 @@ namespace StarForge.AI
         }
     }
 
+    /// <summary>How the AI opens a match.</summary>
+    public enum Opening { Standard = 0, FastExpand, EarlyGarrison, SkimmerFirst, Count }
+
+    /// <summary>The way an attack wave goes in.</summary>
+    public enum Approach { Direct = 0, FlankLeft, FlankRight }
+
+    /// <summary>What an attack wave goes for.</summary>
+    public enum WaveTarget { Base = 0, Production, Expansion, Workers }
+
+    /// <summary>A match's playing style, drawn at the start from the seed and from what
+    /// the AI did in its last few matches, so no two matches play out alike. It
+    /// shades every plan -- unit mix, when to push, how to go in -- without
+    /// replacing the read of the player that picks the plan.</summary>
+    public sealed class Personality
+    {
+        public Opening opening;
+        public float trooperShift;    // added to each plan's trooper share (-0.2 .. 0.2)
+        public int extraSkimmers;     // 0 .. 2
+        public int workshopShift;     // -1 .. 1
+        public float timing;          // push threshold multiplier (0.8 .. 1.3)
+        public float flankTaste;      // 0 .. 1, how much it likes to come in from the side
+        public float raidTaste;       // 0 .. 1, how readily it splits off a second prong
+        public readonly float[] taste = new float[(int)Strategy.Count];   // per-plan score offsets
+
+        public string Describe() =>
+            $"{opening}, troopers {trooperShift:+0.00;-0.00}, skimmers +{extraSkimmers}, workshops {workshopShift:+0;-0;0}, " +
+            $"timing x{timing:0.00}, flank {flankTaste:0.0}, raid {raidTaste:0.0}";
+    }
+
     public sealed class AIDebug
     {
         public Strategy strategy = Strategy.Eco;
@@ -187,5 +216,8 @@ namespace StarForge.AI
         public int question;
         public float aggression, expansion, defensive, harass, teching, volatility;
         public int memoryGames;
+        public string personality = "";
+        public string wave = "";
+        public int waves;
     }
 }

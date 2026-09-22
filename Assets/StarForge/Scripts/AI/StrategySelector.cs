@@ -4,6 +4,13 @@
 // start from a hand-authored doctrine prior so the AI is competent from the
 // first second, then move online toward whatever is actually working against
 // this player -- and, in this edition, carry over between matches (AIMemory).
+//
+// So that it does not play the same match twice: each match brings a small
+// random taste per plan (Personality), plans the AI leaned on in its last few
+// matches start slightly out of favour (more so the ones it lost with), and a
+// plan that has run for a long while without paying off grows stale and gives
+// way to something else. None of this overrides a clear read: a rush is still
+// answered, a player caught out of position is still counter-attacked.
 using UnityEngine;
 using static StarForge.SFMath;
 
@@ -30,6 +37,10 @@ namespace StarForge.AI
         public readonly float[] timeIn = new float[S];
         Strategy cur = Strategy.Eco, pending = Strategy.Eco;
         float commitT, conf, lastAdv, evalT;
+        readonly float[] bias = new float[S];        // taste + novelty, fixed for the match
+        readonly float[] runPayoff = new float[S];   // reward summed over the current run of a plan
+        readonly float[] runTime = new float[S];
+        readonly float[] fatigue = new float[S];     // lingering penalty on plans that went stale
         int switches;
         string reason = "opening";
         Rng rng = new Rng(7);
@@ -39,6 +50,23 @@ namespace StarForge.AI
         public float Confidence => conf;
         public string Reason => reason;
         public int Switches => switches;
+
+        /// <summary>Per-plan score offsets for this match: the personality's taste, and a
+        /// nudge away from the plans of recent matches (from AIMemory).</summary>
+        public void SetBias(Personality p, int[] recentPlans, int[] recentWins)
+        {
+            for (int i = 0; i < S; i++) bias[i] = p != null ? p.taste[i] : 0f;
+            if (recentPlans == null) return;
+            for (int k = 0; k < recentPlans.Length; k++)
+            {
+                int plan = recentPlans[k];
+                if (plan < 0 || plan >= S) continue;
+                bool won = recentWins != null && k < recentWins.Length && recentWins[k] > 0;
+                // Newer matches weigh more; a plan it lost with more than one it won with.
+                float age = (k + 1f) / recentPlans.Length;
+                bias[plan] -= (won ? 0.05f : 0.12f) * age;
+            }
+        }
 
         public void Init(uint seed, float[] rememberedWeights = null, float trust = 0f)
         {
@@ -101,6 +129,10 @@ namespace StarForge.AI
             switches = 0;
             System.Array.Clear(lastFeat, 0, NFEAT);
             System.Array.Clear(timeIn, 0, S);
+            System.Array.Clear(bias, 0, S);
+            System.Array.Clear(runPayoff, 0, S);
+            System.Array.Clear(runTime, 0, S);
+            System.Array.Clear(fatigue, 0, S);
             reason = haveMemory && k > 0f ? "opening (remembers you)" : "opening";
         }
 
@@ -158,12 +190,15 @@ namespace StarForge.AI
             float g = Clamp(r, -1f, 1f);
             int c = (int)cur;
             for (int i = 0; i < NFEAT; i++) w[c, i] = Clamp(w[c, i] + lr * g * lastFeat[i], -4f, 4f);
+            runPayoff[c] += g;
         }
 
         public void Update(Snapshot s, OpponentModel om, float t, float dt)
         {
             Features(s, om, t, feat);
             timeIn[(int)cur] += dt;
+            runTime[(int)cur] += dt;
+            for (int i = 0; i < S; i++) if (i != (int)cur) fatigue[i] = Mathf.Max(0f, fatigue[i] - dt * 0.002f);
 
             // Online credit assignment for the plan we have been running.
             evalT += dt;
@@ -187,6 +222,14 @@ namespace StarForge.AI
                 // A little optimism keeps the AI trying things it has not measured
                 // yet, and anneals away as the match goes on.
                 acc += rng.Range(-1f, 1f) * 0.10f * (1f - Saturate(t / 420f));
+                // This match's taste and the nudge away from recent matches' plans,
+                // strongest early (the opening is where repetition shows most).
+                acc += bias[si] * Mathf.Lerp(1f, 0.5f, Saturate(t / 480f));
+                // Staleness: a plan that has run over two minutes without paying off
+                // loses its hold, so the AI moves on instead of grinding it out.
+                if (si == (int)cur && runTime[si] > 120f && runPayoff[si] <= 0.05f)
+                    acc -= Mathf.Min(0.35f, (runTime[si] - 120f) * 0.004f);
+                acc -= fatigue[si];
                 score[si] = acc;
                 if (acc > best) { second = best; best = acc; bestS = st; }
                 else if (acc > second) second = acc;
@@ -201,6 +244,11 @@ namespace StarForge.AI
                 {
                     if (commitT <= 0f)
                     {
+                        // The plan being dropped keeps a little fatigue if it went stale.
+                        int was = (int)cur;
+                        if (runTime[was] > 120f && runPayoff[was] <= 0.05f) fatigue[was] = Mathf.Min(0.25f, fatigue[was] + 0.12f);
+                        runTime[was] = 0f;
+                        runPayoff[was] = 0f;
                         cur = bestS;
                         switches++;
                         commitT = 14f;

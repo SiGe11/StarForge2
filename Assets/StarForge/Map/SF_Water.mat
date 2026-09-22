@@ -29,7 +29,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _CausticStrength: 0.5
+    - _CausticStrength: 0.35
     - _DepthRange: 2.2
     - _FlowSpeed: 0.6
     - _FoamWidth: 0.6
