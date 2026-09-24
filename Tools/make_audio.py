@@ -77,7 +77,6 @@ SFX = {
     "hitmetal_2": ("sci-fi-sounds", "impactMetal_004"),
     "shield_0": ("sci-fi-sounds", "forceField_000"),
     "build_0": ("sci-fi-sounds", "computerNoise_000"),
-    "engine_heavy": ("sci-fi-sounds", "spaceEngineLow_001"),
     "engine_hover": ("sci-fi-sounds", "engineCircular_001"),
     "crystal_0": ("impact-sounds", "impactGlass_medium_000"),
     "crystal_1": ("impact-sounds", "impactGlass_medium_002"),
@@ -108,7 +107,9 @@ def copy_sfx():
     # including a sound that used to be copied from Kenney (.ogg) and is now built
     # here (.wav) under the same name.
     want = {name: ".ogg" for name in SFX}
-    want.update({name: ".wav" for name in list(WEAPONS) + list(WOOD)})
+    want.update({name: ".wav" for name in list(WEAPONS) + list(WOOD) + list(BLASTS)})
+    want["engine_heavy"] = ".wav"
+    want["engine_tracks"] = ".wav"
     for f in os.listdir(out):
         stem, ext = os.path.splitext(f)
         if ext in (".ogg", ".wav") and want.get(stem) != ext:
@@ -131,20 +132,24 @@ def copy_sfx():
 # ---------------------------------------------------------------- weapons and wood
 # Guns: (near take, far take, pitch, length, extra layers). The near take gives the
 # crack, the far one the report coming back off the ground a moment later.
-RMS = {"rifle": 0.085, "cannon": 0.115, "bolt": 0.10, "pulse": 0.10,
-       "treefall": 0.055, "treecrash": 0.095, "crush": 0.05}
+RMS = {"rifle": 0.085, "cannon": 0.125, "bolt": 0.10, "pulse": 0.10,
+       "treefall": 0.055, "treecrash": 0.095, "crush": 0.05,
+       "blast": 0.135, "blastbig": 0.15}
 WEAPONS = {
     "rifle_0": dict(near="AR-15/D_32P.wav", far="AR-15/D_24P.wav", pitch=1.04, length=0.85),
     "rifle_1": dict(near="SKS/U_14P.wav", far="SKS/U_19P.wav", pitch=1.0, length=0.85),
     "rifle_2": dict(near="Savage 10 .300 Blackout/T_27P.wav", far="Savage 10 .300 Blackout/T_17P.wav", pitch=1.08, length=0.8),
     "rifle_3": dict(near="Tikka/W_29P.wav", far="Tikka/W_24P.wav", pitch=0.96, length=0.9),
     # The Mauler's gun: a 12-gauge and a .30-06 rifle, both pitched down about an octave.
-    "cannon_0": dict(near="Mossberg/N_30P.wav", far="Mossberg/N_26P.wav", pitch=0.52, length=1.9, far_gain=0.45,
-                     far_delay=0.07, tone=900, weight=1.1, rms=0.115),
-    "cannon_1": dict(near="1917/B_24P.wav", far="1917/B_16P.wav", pitch=0.55, length=1.9, far_gain=0.45,
-                     far_delay=0.06, tone=950, weight=1.0, rms=0.115),
-    "cannon_2": dict(near="Model 12/K_22P.wav", far="Model 12/K_17P.wav", pitch=0.5, length=2.0, far_gain=0.4,
-                     far_delay=0.08, tone=850, weight=1.2, rms=0.115),
+    # The sub and the roll are deliberately well under the crack. A sine at 45 Hz
+    # carries enormous energy for its loudness, and the first pass at these had the
+    # shot 95% below 120 Hz: all thud, no gun.
+    "cannon_0": dict(near="Mossberg/N_30P.wav", far="Mossberg/N_26P.wav", pitch=0.50, length=2.8, far_gain=0.6,
+                     far_delay=0.09, tone=1000, weight=0.9, sub=(0.22, 46, 1.3), roll=(0.34, 1.8, 850)),
+    "cannon_1": dict(near="1917/B_24P.wav", far="1917/B_16P.wav", pitch=0.52, length=2.8, far_gain=0.6,
+                     far_delay=0.08, tone=1050, weight=0.85, sub=(0.20, 50, 1.2), roll=(0.32, 1.8, 900)),
+    "cannon_2": dict(near="Model 12/K_22P.wav", far="Model 12/K_17P.wav", pitch=0.48, length=3.0, far_gain=0.55,
+                     far_delay=0.10, tone=950, weight=1.0, sub=(0.25, 42, 1.5), roll=(0.38, 2.0, 800)),
     # Energy weapons: the Kenney sound with a real muzzle crack under it.
     "bolt_0": dict(near="Ruger Mark III/R_35P.wav", far=None, pitch=0.8, length=0.7, gain=0.5,
                    kenney="sci-fi-sounds/laserLarge_000", kenney_gain=0.85),
@@ -258,6 +263,19 @@ def filt_lin(x, fc, order=2):
     return np.fft.irfft(spec / np.sqrt(1.0 + (f / fc) ** (2 * order)), n)[:len(x)]
 
 
+def hipass_lin(x, fc, order=2):
+    """A plain high-pass on a one-shot. Below about 45 Hz a laptop speaker moves
+    no air at all, so energy down there is not weight -- it is headroom spent on
+    something nobody can hear, and match() then turns the audible part down to
+    make room for it."""
+    n = 1
+    while n < len(x) * 2:
+        n *= 2
+    spec = np.fft.rfft(x, n)
+    f = np.fft.rfftfreq(n, 1.0 / SR)
+    return np.fft.irfft(spec / np.sqrt(1.0 + (fc / np.maximum(f, 1e-3)) ** (2 * order)), n)[:len(x)]
+
+
 def match(x, name):
     """Every take of a sound at one loudness, so a volley does not lurch about.
     Peaks are rounded off rather than the whole take turned down, or one shot with
@@ -285,10 +303,44 @@ def build_weapon(spec):
         out = filt_lin(out, spec["tone"], 1)
     if spec.get("weight"):
         out = out + filt_lin(out, 180, 2) * spec["weight"]
-    out = out[:int(spec["length"] * SR)]
+    if spec.get("sub"):
+        # The thump under the crack: a short sine that falls in pitch, which is
+        # what a big gun is felt as rather than heard as. Without it the shot is
+        # just a loud bang, and a loud bang is not frightening.
+        gain, f0, decay = spec["sub"]
+        out = add(out, thump(f0, decay), 0.006, gain)
+    if spec.get("roll"):
+        # And the report rolling away over the ground for a second or two after
+        # it: the near and far takes end long before a gun this size would.
+        gain, seconds, fc = spec["roll"]
+        out = add(out, rolling(out, seconds, fc), 0.12, gain)
+    out = hipass_lin(out[:int(spec["length"] * SR)], 45, 2)
     n_out = int(0.04 * SR)
     out[-n_out:] *= np.linspace(1, 0, n_out)
     return out
+
+
+def thump(f0, decay, f1=None, seconds=None):
+    """A sine falling from f0 to f1 over an exponential decay: the body of a
+    heavy gun or a burst, the part you feel."""
+    f1 = f0 * 0.45 if f1 is None else f1
+    seconds = decay * 1.6 if seconds is None else seconds
+    n = int(seconds * SR)
+    t = np.arange(n) / SR
+    k = np.exp(-t / (decay * 0.42))
+    f = f1 + (f0 - f1) * k
+    return np.sin(2 * np.pi * np.cumsum(f) / SR) * k
+
+
+def rolling(x, seconds, fc=420):
+    """The report rolling away over open country: the sound smeared through a
+    long, dark, decaying noise tail. Slapback gives the first reflections; this
+    is the rumble that goes on after them."""
+    n = int(seconds * SR)
+    tail = RNG.normal(size=n) * np.exp(-np.arange(n) / (seconds * 0.30 * SR))
+    out = np.convolve(filt_lin(x, fc, 2), filt_lin(tail, fc, 2), mode="full")[:len(x) + n]
+    m = np.max(np.abs(out))
+    return out / m * np.max(np.abs(x)) if m > 0 else out
 
 
 def build_wood(parts):
@@ -308,6 +360,130 @@ def build_wood(parts):
     return slapback(out, 0.07)
 
 
+# ---------------------------------------------------------------- blasts and engines
+# Shells landing and things blowing up. Kenney's explosion crunches carry the
+# detail; what they have no low end for is the thump you feel and the rumble
+# rolling away after it, which is where the weight of a burst actually lives.
+BLASTS = {
+    "blast_0": dict(crunch="explosionCrunch_000", pitch=0.80, sub=(0.28, 52, 1.4), roll=(0.38, 2.0, 950), length=3.2),
+    "blast_1": dict(crunch="explosionCrunch_002", pitch=0.66, sub=(0.36, 48, 1.5), roll=(0.42, 2.0, 950), length=3.2),
+    "blast_2": dict(crunch="explosionCrunch_003", pitch=0.84, sub=(0.30, 56, 1.3), roll=(0.36, 1.9, 1000), length=3.0),
+    # A structure going up: deeper, slower, and it goes on rolling much longer.
+    "blastbig_0": dict(crunch="explosionCrunch_004", pitch=0.78, sub=(0.22, 40, 2.4), roll=(0.45, 2.8, 750), length=5.0,
+                       low="lowFrequency_explosion_000", low_gain=0.18, low_pitch=0.95),
+    "blastbig_1": dict(crunch="explosionCrunch_001", pitch=0.56, sub=(0.34, 34, 2.4), roll=(0.45, 3.0, 700), length=5.2,
+                       low="lowFrequency_explosion_001", low_gain=0.7, low_pitch=0.65),
+}
+
+
+def kenney_clip(pack, name):
+    return decode(os.path.join(KENNEY, f"kenney_{pack}", "Audio", name + ".ogg"))
+
+
+def build_blast(spec):
+    # Aim the weight at 80-400 Hz, not at 40. A laptop speaker cannot move enough
+    # air to reproduce sub-bass at all, so energy put down there is not felt --
+    # it is simply lost, and the blast comes out quiet.
+
+    out = pitched(onset(kenney_clip("sci-fi-sounds", spec["crunch"])), spec["pitch"])
+    if spec.get("low"):
+        out = add(out, pitched(onset(kenney_clip("sci-fi-sounds", spec["low"])), spec["low_pitch"]),
+                  0.01, spec["low_gain"])
+    out = slapback(out, 0.12)
+    gain, f0, decay = spec["sub"]
+    out = add(out, thump(f0, decay), 0.004, gain)
+    gain, seconds, fc = spec["roll"]
+    out = add(out, rolling(out, seconds, fc), 0.10, gain)
+    out = hipass_lin(out[:int(spec["length"] * SR)], 45, 2)
+    n_out = int(0.12 * SR)
+    out[-n_out:] *= np.linspace(1, 0, n_out)
+    return out
+
+
+def make_blasts():
+    out = os.path.join(AUDIO, "Sfx")
+    for name, spec in BLASTS.items():
+        write_wav(os.path.join(out, name + ".wav"), match(build_blast(spec), name))
+    print(f"{len(BLASTS)} blast sounds -> {os.path.relpath(out, ROOT)}")
+
+
+def seamless(x, n):
+    """A one-shot tiled to exactly n samples with its own tail crossfaded over its
+    head, so the loop has no seam."""
+    x = np.asarray(x, dtype=np.float64)
+    if len(x) < n:
+        x = np.tile(x, int(np.ceil(n / len(x))) + 1)
+    head = x[:n]
+    fade = min(int(0.25 * SR), n // 4)
+    over = x[n:n + fade]
+    if len(over) == fade and fade > 0:
+        w = np.linspace(0, 1, fade)
+        head = head.copy()
+        head[:fade] = head[:fade] * w + over * (1 - w)
+    return head
+
+
+def make_engine(seconds=6.0):
+    """The Mauler's engine: Kenney's low space engine dropped an octave for the
+    body, a diesel beat under it at a rate that divides the loop exactly, and a
+    broad rumble. A sci-fi hum on its own has no bottom and no pulse, and a tank
+    that sounds like a fridge is not frightening."""
+    n = int(seconds * SR)
+    body = seamless(pitched(kenney_clip("sci-fi-sounds", "spaceEngineLow_001"), 0.55), n)
+    body = body / max(1e-9, np.std(body))
+    # Cylinders firing: a beat whose period divides the loop, so it does not click
+    # at the wrap. Each beat is a short thump, not a click.
+    beats = 60
+    out = np.zeros(n)
+    step = n / beats
+    for b in range(beats):
+        # A diesel knock is harsh, not a clean sine: soft-clipped, so it carries
+        # harmonics a laptop speaker can actually play.
+        k = np.tanh(thump(92 + 8 * math.sin(b * 0.7), 0.05, 56, 0.10) * 2.2) / np.tanh(2.2)
+        i = int(b * step + (b % 3) * 90)
+        take = min(len(k), n - i)
+        if take > 0:
+            out[i:i + take] += k[:take] * (0.9 if b % 2 else 1.0)
+        if take < len(k):                      # wrap the tail round the loop
+            rest = k[take:][:n]
+            out[:len(rest)] += rest
+    rumble = shaped_noise(n, lowpass(110, 3))
+    rumble = rumble / np.std(rumble)
+    growl = shaped_noise(n, bandpass(140, 520, 2))
+    growl = growl / np.std(growl) * (0.55 + 0.45 * smooth_random(n, 7, lo=0.2, hi=1.0))
+    mix = body * 0.30 + out * 0.80 + rumble * 0.30 + growl * 0.38
+    # Nothing under 45 Hz: a laptop speaker cannot move it, and the first version
+    # of this bed was 87% below 120 Hz -- most of the engine was inaudible.
+    return normalize(filt(mix, lambda f: lowpass(2200, 2)(f) * highpass(45, 2)(f)), 0.85)
+
+
+def make_tracks(seconds=4.0):
+    """Track clatter: the cleats and the road wheels, built from the CC0 metal
+    hits. It is the giveaway that a thing is tracked rather than wheeled, and
+    the only part of a tank you hear before you see it."""
+    n = int(seconds * SR)
+    hits = [decode(os.path.join(WOOD_SRC, f"metal_hit_0{i}.ogg")) for i in (1, 2, 3, 4, 5)]
+    sheet = decode(os.path.join(WOOD_SRC, "metal_sheet_02.ogg"))
+    out = np.zeros(n)
+    rng = np.random.default_rng(31337)
+    t = 0.0
+    while t < seconds:
+        h = pitched(onset(hits[rng.integers(0, len(hits))]), rng.uniform(0.42, 0.62))
+        h = filt_lin(h, rng.uniform(900, 2000), 2)[:int(0.28 * SR)]
+        i = int(t * SR)
+        take = min(len(h), n - i)
+        g = rng.uniform(0.25, 0.7)
+        out[i:i + take] += h[:take] * g
+        if take < len(h):                      # wrap, so the loop has no gap
+            rest = h[take:][:n]
+            out[:len(rest)] += rest * g
+        t += rng.uniform(0.055, 0.10)
+    # A sheet of metal groaning under the weight, well down in the mix.
+    body = seamless(pitched(sheet, 0.4), n)
+    out += body / max(1e-9, np.std(body)) * 0.10
+    return normalize(filt(out, bandpass(70, 3200, 2)), 0.8)
+
+
 def make_weapons():
     out = os.path.join(AUDIO, "Sfx")
     os.makedirs(out, exist_ok=True)
@@ -318,6 +494,10 @@ def make_weapons():
     for name, parts in WOOD.items():
         write_wav(os.path.join(out, name + ".wav"), match(build_wood(parts), name))
     print(f"{len(WEAPONS)} weapon sounds and {len(WOOD)} wood sounds -> {os.path.relpath(out, ROOT)}")
+    make_blasts()
+    write_wav(os.path.join(out, "engine_heavy.wav"), make_engine())
+    write_wav(os.path.join(out, "engine_tracks.wav"), make_tracks())
+    print(f"engine and track beds -> {os.path.relpath(out, ROOT)}")
 
 
 # ---------------------------------------------------------------- helpers

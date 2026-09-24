@@ -174,6 +174,12 @@ namespace StarForge.View
                     if (!Unit.Live(u) || !u.def.IsMobile || u.Type == UnitType.Skimmer) continue;
                     if (u.agent == null || !u.agent.enabled || u.agent.velocity.sqrMagnitude < 0.25f) continue;
                     Stamp(trample, u.Ground, u.def.radius * (u.Type == UnitType.Mauler ? 0.95f : 0.7f) + 0.25f, 255);
+                    // A Mauler churns the ground as well as flattening the grass: a band
+                    // of turned earth along its path, drawn as a crater's thrown soil
+                    // and healing over minutes like one, where trampled grass stands
+                    // up again in seconds. Not in the water, which has no soil to turn.
+                    if (u.Type == UnitType.Mauler && world.Map.WaterDepth(u.pos) < 0.1f)
+                        Stamp(crater, u.Ground, 1.7f, 64);
                 }
             }
 

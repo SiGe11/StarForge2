@@ -36,13 +36,13 @@ Material:
     m_Floats:
     - _AlphaMode: 1
     - _Billow: 1
-    - _Density: 1.2
+    - _Density: 1.4
     - _DstBlend: 10
     - _Floor: 0.13
     - _Gain: 1
     - _Scale: 1
     - _SheetTiles: 1
-    - _SoftFade: 1.2
+    - _SoftFade: 1
     - _SrcBlend: 5
     m_Colors:
     - _SheetRect: {r: 0, g: 0, b: 1, a: 1}

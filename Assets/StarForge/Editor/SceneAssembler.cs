@@ -332,11 +332,13 @@ namespace StarForge.EditorTools
                 pulse = Takes("Sfx", "pulse", "wav"), bolt = Takes("Sfx", "bolt", "wav"),
                 treeFall = Takes("Sfx", "treefall", "wav"), treeCrash = Takes("Sfx", "treecrash", "wav"),
                 crush = Takes("Sfx", "crush", "wav"),
+                blast = Takes("Sfx", "blast", "wav"), blastBig = Takes("Sfx", "blastbig", "wav"),
                 boom = Takes("Sfx", "boom", "ogg"), bigBoom = Takes("Sfx", "bigboom", "ogg"), rumble = Takes("Sfx", "rumble", "ogg"),
                 thud = Takes("Sfx", "thud", "ogg"), hitMetal = Takes("Sfx", "hitmetal", "ogg"), crystal = Takes("Sfx", "crystal", "ogg"),
                 rock = Takes("Sfx", "rock", "ogg"), mine = Takes("Sfx", "mine", "ogg"),
                 stomp = Takes("Sfx", "stomp", "ogg"), shield = Takes("Sfx", "shield", "ogg"), build = Takes("Sfx", "build", "ogg"),
-                engineHeavy = One("Sfx/engine_heavy.ogg"), engineHover = One("Sfx/engine_hover.ogg"),
+                engineHeavy = One("Sfx/engine_heavy.wav"), engineTracks = One("Sfx/engine_tracks.wav"),
+                engineHover = One("Sfx/engine_hover.ogg"),
                 uiSelect = One("Sfx/ui_select.ogg"), uiClick = One("Sfx/ui_click.ogg"), uiMove = One("Sfx/ui_move.ogg"),
                 uiAttack = One("Sfx/ui_attack.ogg"), uiError = One("Sfx/ui_error.ogg"), uiDone = One("Sfx/ui_done.ogg"),
                 uiNotice = One("Sfx/ui_notice.ogg"), uiAlert = One("Sfx/ui_alert.ogg"), uiPromote = One("Sfx/ui_promote.ogg"),
@@ -442,7 +444,16 @@ namespace StarForge.EditorTools
                 EditorUtility.SetDirty(m);
                 return m;
             }
-            fx.smokeMaterial = Smoke("FX_Smoke", 1f, 1.2f);
+            // The atlas's coverage stops short of opaque on purpose and feathers out
+            // over a wide rim, so a puff's effective opacity is about half its core.
+            // 1.4 gives the core back its body -- the edge stays soft and ragged,
+            // which is what separates smoke from the hard dark lump the first atlas
+            // drew; at 1.0 every plume was too faint to read on sunlit ground.
+            fx.smokeMaterial = Smoke("FX_Smoke", 1f, 1.4f);
+            // A metre, not the shader's default 1.5: enough that a puff meets the
+            // ground without a hard line, short enough that smoke coming off a hull
+            // is not faded out against the hull behind it.
+            fx.smokeMaterial.SetFloat("_SoftFade", 1.0f);
             fx.dropletMaterial = Smoke("FX_Droplet", 0f, 2.2f);
             fx.glowMaterial = Particle("FX_Glow", "particles.jpg", false, 0.02f, 2.2f);
             // Debris trails stretch one soft glow cell of the sheet along their length.

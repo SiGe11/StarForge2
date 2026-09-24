@@ -232,6 +232,23 @@ namespace StarForge.World
             return new Vector4(wl / sum, wg / sum, cliffW / sum, wa / sum);
         }
 
+        /// <summary>How likely a tuft of grass is to grow at a point, from the splat
+        /// weights there (lichen, gravel, cliff, ash): lush grass across the lichen
+        /// layer, and sparse dry tussocks gathered in clumps on gravel and ash (spread
+        /// evenly they read from above as polka dots). GroundScatter grows its grass by
+        /// this and the grass fire burns by it, so a fire only ever runs where there is
+        /// grass to be seen. Water, slope and boulders are the callers' to rule out.</summary>
+        public static void GrassChance(Vector4 w, float x, float z, out float lush, out float dry)
+        {
+            if (w.z > 0.25f) { lush = dry = 0f; return; }       // cliff faces grow nothing
+            lush = Smoothstep(0.2f, 0.65f, w.x);
+            float clump = Smoothstep(0.5f, 0.72f, Noise.Fbm(x * 0.07f + 3.7f, z * 0.07f - 9.1f, 3));
+            dry = (w.y * 0.10f + w.w * 0.03f) * clump * 2.2f;
+        }
+
+        /// <summary>Grass needs level ground (a normal at least this upright).</summary>
+        public const float GrassMinUp = 0.86f;
+
         // Relief occlusion, as the original baked into its terrain vertices: pits
         // and cliff bases darken, exposed ridges stay bright.
         static Texture2D BuildAOTexture(HeightfieldGenerator gen)

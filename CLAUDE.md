@@ -229,8 +229,8 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
   So any URP effect whose noise is re-rolled each frame for TAA to average out boils on screen. SSAO
   uses interleaved-gradient noise for this reason; its default blue noise made the grass vibrate.
 - The fog-of-war pass (a URP `FullScreenPassRendererFeature` named `FogOfWar` running `SF_FogOfWar`,
-  created by `RenderSetup`) also does height fog, haze, sun scattering and blast-ring refraction. Its globals are set by `FogOfWarRenderer`, `Atmosphere` and
-  `FXDirector.UploadShockwaves`, and the ground mask by `GroundMask`. Extend that pass rather than adding
+  created by `RenderSetup`) also does height fog, haze and sun scattering. Its globals are set by `FogOfWarRenderer` and `Atmosphere`,
+  and the ground mask by `GroundMask`. Extend that pass rather than adding
   new full-screen passes.
 - URP 17.6 quirks handled in `Editor/RenderSetup.cs`: `upscalerName` is compiled out (set the obsolete
   `upscalingFilter` enum instead), and SSAO is configured through the renderer feature's `m_Settings`
@@ -269,6 +269,23 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
   `Atmosphere` uploads it as `_SF_Wind` (xy heading, z strength, w gust phase) for SF_Tree and SF_Grass.
   Both shaders fall back to a steady breeze when that global is zero, so nothing stands frozen in the
   scene view. Sway amplitude is per material (`_WindStrength`) times that strength.
+- **Blast pressure** (`Shaders/SF_Wind.hlsl`, shared by SF_Tree and SF_Grass): a muzzle blast or a burst
+  queues a front in `FXDirector.PressureWave`, which expands at 52 m/s and spends itself as it spreads;
+  `UploadGusts` puts the four strongest into `_SF_Gusts` (xy origin, z the front's radius now, w the
+  shove in metres) and `_SF_GustShape` (xy heading, z how much it favours it, w the front's thickness),
+  with `_SF_GustCount` 0 the rest of the time so the loop costs a compare. A plant reads the fronts from
+  its own root position, so there is no per-plant state and a seed replays identically. The shove goes
+  with the square of a blade's height and with a tree vertex's distance from the trunk's foot, so roots
+  stay planted, and both shaders renormalise the displaced vertex to its old distance from the root, so a
+  hard push bends a blade or a crown over instead of stretching it. Clear the globals when the match
+  stops, or the field stays bent over on the end screen.
+  **The pressure draws nothing of its own** -- no drawn ring (`SF_GroundDecal` kind 5, retired) and no
+  screen-space refraction (removed from the fog-of-war pass). What it does is *move things*, as it
+  arrives at them: `FXDirector.PressureSweep` follows each front's annulus (`Gust.swept`) and ruffles the
+  water (small dark rings -- a roughened surface reflects less sky -- a few faint bright ones and spray;
+  the wake's white rings made the lake look like snow), lifts dust off dry ground with clods close in,
+  tears leaves from the crowns it crosses, and jolts the camera when it reaches `RTSCamera.Focus`.
+  Anything new it should move goes there; anything that would only *show* the front does not.
 - A felled tree (`Vegetation.Topple`) is a rod pivoting on its stump: angular acceleration
   `1.5 g sin(theta) / L`, so it starts slowly, comes down faster the further it goes, and a tall tree
   takes longer than a short one (measured: 2.4-3.1 s from a Mauler's lean, 1.5-1.7 s when a blast
@@ -280,9 +297,20 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
 - Fire (`Vegetation.Ignite/Spread/TickGrass`): every kind burns at `PlantKind.burns`, spread runs
   downwind (`Vegetation.Wind`, the heading FXDirector leans its smoke with), and each blaze draws a
   `vigour` that its spread inherits, so most fires die in a couple of plants and a few run; vigorous
-  ones throw embers downwind to cross gaps. The grass carries fire between stands: a fuel grid
-  (`GrassCell` 3 m) built on the first tick from `MapGenerator.SplatAt`'s meadow layer, burning cell to
-  cell and lighting the plants it reaches. Anything damp resists: `Wetness` (the water level against the
+  ones throw embers downwind to cross gaps. The grass carries fire between stands: a fuel grid (`GrassCell` 3 m) built on the first tick,
+  burning cell to cell and lighting the plants it reaches. **Fire burns only where grass grows**: the
+  fuel comes from `MapGenerator.GrassChance`, the same rule GroundScatter places its tufts by, over the
+  terrain's own splat weights with the same water, slope and boulder cut-outs, looked at in nine 1 m
+  squares a cell (`grassMask`). A cell burns only if `MinExpectedTufts` (2.5) tufts are expected on it at
+  full density; flames stand only on its grown squares (`GrassTuft`), and SF_Terrain lays burnt ash only
+  on the lichen layer. The old fuel (meadow weight plus a quarter of the gravel) let 4,051 cells burn, 1,661
+  of them bare ground with no tuft drawn; now 1,783, 4 of them bare (`AgentPlay.GrassFuelCheck` counts the
+  tufts drawn in every burnable cell and sweeps the threshold). The drawn tufts are random and thinner on
+  the Balanced and Battery presets, so the match cannot be tuft-for-tuft; the simulation must not depend
+  on the preset anyway. Grass under structures and ore seams is cleared from the fuel
+  (`ClearGrassUnder`, from `GameWorld.Spawn` and `EnsureGrass`). The grid's fields are `[NonSerialized]`:
+  entering play mode the editor round-trips private fields, turning a null array into an empty one that
+  looked built and indexed -1. Anything damp resists: `Wetness` (the water level against the
   ground at the spot and 5 m around it) cuts a cell's fuel and a plant's chance to catch, so shores and
   reed beds barely take. Limits are per fire, not per map — each blaze may take `blazeCapPlants` /
   `blazeCapCells` (a sixth of the map's growth at most), so one fire cannot burn everything but a
@@ -293,6 +321,20 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
   and grass cells: aim for a median of a few plants, a long tail, and most of the map gone after 30.
   `Vegetation` state that needs the map (grass fuel, wetness) is built in `EnsureGrass` on the first
   tick, not `Awake`: `MapInfo.Instance` may not be set yet when this component wakes.
+- **Structures catch from wildfire** (`GameWorld.StructureFires`, `Unit.burnUntil`): while a burning plant's
+  crown or burning grass is within `FireReach` (1.5 m) of a building's footprint, every `FireCheck`
+  (0.5 s) rolls `1 - exp(-CatchRate * heat * 0.5)` (`Vegetation.FireNear` gives the heat). A fire that
+  reaches a wall delivers 7-24 heat-seconds (`AgentPlay.BuildingFireTrial` stages Bunkhouses in meadows and
+  lights the grass upwind), so at `CatchRate` 0.025 about 29% of them set it alight; judge a change by that
+  expected share, which the trial prints, not by its caught-count, which over 8-16 fires is noise. Alight,
+  it burns 13-19 s for 6-12% of its health, and never below 1 hp: fire alone does not destroy a building.
+  Then it is safe for 45 s. Its own random stream (`fireRng`, seeded from the match seed), so a fire does not
+  shift what the rest of a seeded match draws. `StructureIgnited` drives the alert ("... is on fire"), the
+  flare, `FXDirector.BuildingFire` and the fire bed in `AudioDirector`. The flame sprite's base is the bottom
+  of its quad, so tongues stand on the top of the middle and low on the outer walls: buildings are stepped
+  rounds, and at full height over the lower ring the tongues hung in the air; inside the footprint the
+  building hides them (the meshes are not readable in the player, so the roof cannot be sampled).
+  `AgentPlay.BuildingFireLook` photographs the Foundry and a Bunkhouse burning (`Temp/building_burn_*.png`).
 - Trees close `PlantKind.blockRadius` (trunk + low boughs + a unit's radius) as Rubble; groves that would
   disconnect a base, expansion or ore field are dropped (`MapGenerator.Blockage`). MapChecks tests a
   ring 0.4 m outside each trunk and base-to-base connectivity. Undergrowth kinds set `drawDistance` and
@@ -306,6 +348,57 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
   patch and land, so they need `fold`/`peck` clips and open spots (`Vegetation.UnderCrown`). Animals
   are drawn about twice life size or they vanish into the grass at this camera. View-only and fog-fair:
   shown and frightened only by what the player could see. `-sfnofauna` leaves them out (~0.3 ms).
+- Smoke is the thing most easily got wrong here. `FX_Smoke` runs at `_Density` 1.4 and `_SoftFade` 1.0
+  (set in `SceneAssembler`): the atlas feathers so wide that at 1.0 density every plume was too faint on
+  sunlit ground. The soft fade blends a puff out where geometry sits just behind it, so smoke *born on*
+  geometry is invisible: the Mauler's exhaust started on its engine deck and could not be seen at all
+  until it was moved half a metre above the stacks. `AgentPlay.MaulerShowReport` counts the particles
+  above the deck, which is how that was found -- measure before re-tuning something you cannot see.
+  `Tools/make_smoke_puffs.py` writes an atlas whose
+  coverage **never reaches opaque** and whose outline is eroded at two scales; `SF_Smoke` must not
+  rescale that coverage back up to 1 (it used to divide by 0.6), or one puff draws as a solid sprite and
+  a burst is a hard dark lump. Billows are warped ellipses over a domain-warped field, not hemispheres:
+  the first version's were countable, and its value noise showed a star in the middle of every puff.
+  Particle colours are grey (0.3-0.5), not near-black: the sky term in the shader carries the form, and
+  a 0.17 grey under it came out as a hole in the scene. When cutting smoke back, cut what comes off
+  moving units -- exhaust, track dust, shell trails -- not what an explosion or a fire makes, which is
+  where the drama lives.
+- Artillery that keeps missing is moved (`Commander.RepositionStuck`). `Unit.shotsMissed` counts splash
+  shells in a row, fired from within 5 m of `missFrom`, that burst further than splash + radius from their
+  target; it must not reset on `MoveTo` (units re-path every 1.2 s, so it never grew). After three, the
+  tank gets a plain *move* (an attack-move halts at once when the target is in range) to the nearest spot
+  round its target from which `GameWorld.ShellFallsShort` says the arc arrives. That function follows
+  Fire's arc against the terrain and only counts two metres under the ground as blocked, because the real
+  shell tests where it lands each frame and jumps thinner crests. `AgentPlay.BlockedShot` stages an AI
+  Mauler behind a ridge from a rifleman and prints where each shell burst; `ShellTrialOffSwitch` flips the
+  behaviour for the A/B. Measured: off, 21 shells into the ridge in 45 s, none within 9 m; on, moved after
+  three and killed him. Match-level hit rates (`ShellTrial`, `Faction.shellHits/shellMisses`) diverge too
+  much between runs to show it.
+- Blasts fell trees by **chance**, not by radius (`Vegetation.Blast`): the roll falls off with distance
+  over `radius * 1.35` and with trunk thickness. `AgentPlay.FellTrial` shells a wood 60 times and prints
+  the rate per distance band -- aim for something like 80/35/17/8% out to 4.3 m for a Mauler's shell.
+- The Mauler's weight is `FXDirector.MaulerEffects` (engine smoke off the two stacks, dust and stones off
+  the tracks, the barrel smoking after a shot) plus the hull's recoil rock in `UnitView` (`RecoilRock`, a
+  damped swing; the turret takes its yaw as a *local* rotation so it rides the hull). The stack and track
+  positions are the model's (`Tools/blender/build_models.py`: stacks 0.62 m out on the engine deck, track
+  runs 1.30 m out), so moving them in Blender means moving them here. Engine smoke goes through the
+  `trail` system, not `smoke`: a base on fire fills `smoke` on its own, and a burning structure is the
+  cue the player needs at a distance. The rate thins with camera distance (`RTSCamera.distance`). It
+  took three rounds to land: a cloud the size of the tank, then a haze nobody saw, then a wisp at idle and
+  a grey-black plume under load. The ground keeps the trail: tread marks last 60 s, and `GroundMask`
+  stamps channel A (a crater's thrown soil) along a Mauler's path, healing over minutes. Its sound is
+  `AudioDirector.TankVoice`: the three loudest Maulers in earshot get an engine and a track source each,
+  engine pitch and level following the load, the clatter following the speed (`AgentPlay.TankVoices`).
+  `AgentPlay.MaulerShow`/`MaulerShowReport` stage one in a grove in play mode -- idling, driving, firing,
+  the shell landing -- and photograph each moment (`Temp/mauler_*.png`); `AgentPlay.PressureLook` holds a
+  front still at several strengths with FXDirector switched off, each against the next frame with it off,
+  which is the only way to see what the shove alone did (`Temp/pressure_*.png`). `AgentPlay.SmokeLook`
+  photographs a shell burst, a structure going up and a tree burning as their smoke rises
+  (`Temp/smoke_*.png`), and `AgentPlay.AudioReport` prints what the scene's sound bank actually loaded,
+  which is the only check that make_audio.py's output is wired in. None of them restarts a match that is
+  already running: units left over from a restarted match throw from `UnitView.LateUpdate` every frame
+  for the rest of the session. After writing a script, wait for `compiling=False` before `play`, or the
+  Editor enters play mode on the old assembly and the helper you just added is not there.
 - Ore colour lives in two places that must agree: `SFMaterialLibrary` (crystal and ore_glow emission,
   violet rim) and `FXDirector.OreLight/OreRim`; the ground pool's breath (`FXDirector.OreBreath`) uses
   the crystal shader's phase and period.
@@ -324,6 +417,15 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
   `startSize3D` for tall quads); the flame fills about half its quad. Smouldering after a fire goes
   out is tracked in FXDirector, not the simulation.
 - Audio: `AudioDirector.bank` (a `SoundBank` SceneAssembler fills from Audio/) with synth fallbacks.
+  Weapons, blasts and the engine beds are *built* by `Tools/make_audio.py` from registered CC0
+  recordings, not copied: `build_weapon`/`build_blast` add a falling sub `thump()` and a `rolling()`
+  report to the source, then `hipass_lin(..., 45)` takes off everything below 45 Hz. That high-pass
+  matters -- a sine at 40 Hz carries enormous energy for its loudness, a laptop speaker cannot move it,
+  and `match()` then turns the audible part down to make room for it: the first pass at these had the
+  cannon 95% below 120 Hz and it came out as a quiet thud. Check a new sound with the share of its
+  energy under 120 Hz and its spectral centroid, not by ear alone (nothing here can be listened to from
+  the agent's side): rifle ~800 Hz, cannon ~180, the engine bed ~220, a shell landing 240-320, a
+  structure 150-200. The engine was 83 Hz before its knock was soft-clipped and the bed high-passed.
   Music is `music_<calm|tension|combat>_<n>` tracks played one mood at a time on two crossfading
   sources, each at `musicLoudness` / its RMS from `music.json`; the benchmark report prints how much each
   mood played. The calm set (three tracks, played in turn) has to be warm: a minor-key piano loop under

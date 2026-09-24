@@ -101,6 +101,13 @@ namespace StarForge.AI
         Approach approach, lastFailedApproach = (Approach)(-1);
         WaveTarget waveTarget;
         readonly List<Unit> prong = new List<Unit>();
+        // Artillery that keeps shelling the ground where a target used to be.
+        readonly List<Unit> stuck = new List<Unit>();
+        /// <summary>How many times artillery was moved up after missing (for the
+        /// benchmark report and the editor's trial).</summary>
+        public int Repositions { get; private set; }
+        /// <summary>Editor A/B only: switch the move-up off to measure what it is worth.</summary>
+        public static bool RepositionOff;
         float commitT, lastSelHash, retreatUntil;
         int scoutGuess;
 
@@ -884,6 +891,7 @@ namespace StarForge.AI
             foreach (var h in main) if (Unit.Live(h)) { c += h.pos; n++; }
             if (n == 0) return;
             c /= n;
+            RepositionStuck();
 
             Unit best = null;
             float bestScore = 1e30f;
@@ -900,6 +908,68 @@ namespace StarForge.AI
             if (best == null) { focusTarget = null; return; }
             if (best == focusTarget && Unit.Live(focusTarget)) return;
             if (Issue(main, 2, Vector2.zero, best)) focusTarget = best;
+        }
+
+        /// <summary>Move the artillery that keeps missing to where it can hit.
+        ///
+        /// A Mauler's shell flies almost flat -- at full range it climbs about a metre
+        /// over the line -- so a low rise between it and its target catches every
+        /// shell, and a target that keeps walking is shelled where it used to be. After
+        /// three fruitless shots in a row from the same place, a tank is moved, as a
+        /// player would move it: to the nearest of a ring of spots round its target, at
+        /// two thirds to four fifths of its range, from which the shell's actual arc
+        /// reaches its target rather than a rise short of it (GameWorld.ShellClears --
+        /// the terrain is no secret). If
+        /// none does, it closes to half range, which is under most rises. A plain move,
+        /// not an attack-move: an attack-move halts the moment its target is in range,
+        /// which it already is. Each tank is moved on its own target, two at most per
+        /// micro tick, and only against a target the team can see.</summary>
+        void RepositionStuck()
+        {
+            if (RepositionOff) return;
+            stuck.Clear();
+            foreach (var u in main)
+            {
+                if (!Unit.Live(u) || u.def.splash <= 0f || u.shotsMissed < 3) continue;
+                if (!Unit.Live(u.target) || !w.Visible(team, u.target.pos)) continue;
+                // Out of range is a different problem, and the wave logic already owns it.
+                if (u.Dist(u.target) > u.def.range + 6f) continue;
+                if (u.Moving && u.order == Order.Move) continue;      // already on its way
+                stuck.Add(u);
+                if (stuck.Count == 2) break;
+            }
+            foreach (var u in stuck)
+            {
+                var target = u.target;
+                Vector2 back = u.pos - target.pos;
+                float dist = back.magnitude;
+                if (dist < 1e-3f) continue;
+                back /= dist;
+                float range = u.def.range;
+                // Candidates round the target, nearest the way the tank already is
+                // first, so a clear spot close to it wins over one on the far side.
+                Vector2 dest = Vector2.zero;
+                float bestCost = float.MaxValue;
+                for (int ring = 0; ring < 2; ring++)
+                {
+                    float r = range * (ring == 0 ? 0.68f : 0.82f);
+                    for (int k = 0; k < 9; k++)
+                    {
+                        float ang = (k == 0 ? 0f : ((k + 1) / 2) * 25f * (k % 2 == 0 ? 1f : -1f)) * Mathf.Deg2Rad;
+                        float c = Mathf.Cos(ang), sn = Mathf.Sin(ang);
+                        var dir = new Vector2(back.x * c - back.y * sn, back.x * sn + back.y * c);
+                        var spot = target.pos + dir * r;
+                        if (!w.Map.InBounds(spot, 4f) || w.Map.WaterDepth(spot) > 0.6f) continue;
+                        if ((spot - u.pos).sqrMagnitude < 16f) continue;      // not where it is now
+                        if (!w.ShellClears(spot, target, u.def.splash)) continue;
+                        float cost = (spot - u.pos).magnitude;
+                        if (cost < bestCost) { bestCost = cost; dest = spot; }
+                    }
+                }
+                // Nothing clears from out there: close to half range, under most rises.
+                if (bestCost == float.MaxValue) dest = target.pos + back * Mathf.Max(6f, range * 0.5f);
+                if (Issue(Single(u), 0, dest, null)) Repositions++;
+            }
         }
 
         // ------------------------------------------------------------ memory

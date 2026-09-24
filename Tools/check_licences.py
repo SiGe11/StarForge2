@@ -84,8 +84,11 @@ SOURCES = [
 
     # Kenney -- sound packs (CC0)
     S("Sci-Fi Sounds", "Kenney", CC0, "https://kenney.nl/assets/sci-fi-sounds", ("kenney", None),
-      [A + "Sfx/boom_*.ogg", A + "Sfx/engine_*.ogg", A + "Sfx/mine_*.ogg", A + "Sfx/shield_0.ogg",
-       A + "Sfx/bigboom_0.ogg", A + "Sfx/rumble_0.ogg", A + "Sfx/crystal_*.ogg"], ["sci-fi-sounds"]),
+      [A + "Sfx/boom_*.ogg", A + "Sfx/engine_hover.ogg", A + "Sfx/mine_*.ogg", A + "Sfx/shield_0.ogg",
+       A + "Sfx/bigboom_0.ogg", A + "Sfx/rumble_0.ogg", A + "Sfx/crystal_*.ogg",
+       # make_audio.py builds these from the same pack: the explosion crunches with a
+       # thump and a rolling report under them, and the engine bed dropped an octave.
+       A + "Sfx/blast_*.wav", A + "Sfx/blastbig_*.wav", A + "Sfx/engine_heavy.wav"], ["sci-fi-sounds"]),
     S("Impact Sounds", "Kenney", CC0, "https://kenney.nl/assets/impact-sounds", ("kenney", None),
       [A + "Sfx/hitmetal_*.ogg", A + "Sfx/rock_*.ogg", A + "Sfx/thud_0.ogg", A + "Sfx/stomp_0.ogg",
        A + "Sfx/build_0.ogg"], ["impact-sounds"]),
@@ -130,7 +133,9 @@ SOURCES = [
       "https://opengameart.org/content/tree-creaking", ("oga", "tree-creaking"), [], ["tree_creak.ogg"]),
     S("100 CC0 metal and wood SFX", "rubberduck", CC0,
       "https://opengameart.org/content/100-cc0-metal-and-wood-sfx", ("oga", "100-cc0-metal-and-wood-sfx"),
-      [A + "Sfx/crush_*.wav"], ["100-CC0-wood-metal-SFX.zip"]),
+      # engine_tracks.wav is built from this pack's metal hits: the cleats and the
+      # road wheels of a tracked hull.
+      [A + "Sfx/crush_*.wav", A + "Sfx/engine_tracks.wav"], ["100-CC0-wood-metal-SFX.zip"]),
     S("75 CC0 breaking / falling / hit sfx", "rubberduck", CC0,
       "https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx",
       ("oga", "75-cc0-breaking-falling-hit-sfx"), [], ["sfx_breaking_and_falling.zip"]),
@@ -159,8 +164,9 @@ OWN = [
     "Assets/StarForge/Scenes/**/*.exr",   # baked lighting
 ]
 # Unity's own project-template leftovers: redistributable (Unity Companion
-# License) but not ours, unused, and better deleted than kept.
-TEMPLATE = ["Assets/TutorialInfo/*"]
+# License) but not ours and unused, so they were deleted. Listed so a project
+# upgrade that drops them back in is noticed rather than silently shipped.
+TEMPLATE = ["Assets/TutorialInfo/*", "Assets/Readme.asset"]
 
 MEDIA = (".png", ".jpg", ".jpeg", ".tga", ".exr", ".hdr", ".psd",
          ".fbx", ".obj", ".blend", ".ttf", ".otf", ".wav", ".ogg", ".mp3", ".aiff")
@@ -320,9 +326,11 @@ def main():
         if not os.path.exists(os.path.join(ROOT, "LICENSES", lic)):
             print(f"  FAIL LICENSES/{lic} is missing")
             bad += 1
-    if os.path.isdir(os.path.join(ROOT, "Assets", "TutorialInfo")):
-        print("  warn Assets/TutorialInfo/ is Unity template content, unused (delete it)")
-        warn += 1
+    back = [p for p in ("Assets/TutorialInfo", "Assets/Readme.asset")
+            if os.path.exists(os.path.join(ROOT, p))]
+    for p in back:
+        print(f"  warn {p} is Unity template content, not ours and unused (delete it)")
+    warn += len(back)
     if not any(os.path.exists(os.path.join(ROOT, n)) for n in ("LICENSE", "LICENSE.txt", "LICENSE.md")):
         print("  warn the project itself declares no licence (no LICENSE file)")
         warn += 1

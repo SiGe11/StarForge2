@@ -48,8 +48,8 @@ Shader "StarForge/Grass"
         // 0 unburnt, ~0.55 alight, 1 burnt out. It does not heal.
         TEXTURE2D(_SF_BurntGrass); SAMPLER(sampler_SF_BurntGrass);
         float4 _SF_BurntGrassParams;
-        // The match's wind (Atmosphere): xy heading, z strength, w gust phase.
-        float4 _SF_Wind;
+        // The match's wind and the live blast pressure fronts.
+        #include "SF_Wind.hlsl"
 
         struct GrassAttributes
         {
@@ -108,6 +108,19 @@ Shader "StarForge/Grass"
             float sway = (gust + ripple) * 0.9 * _WindStrength * blowing * h * h * squash * lerp(1.0, 0.08, far);
             rel.xz += dir * sway;
             rel.y -= abs(sway) * 0.25 * h;
+            // A blast's pressure front lays the field over away from it and lets it
+            // stand up again behind: the blades bend from the root, so the push goes
+            // with the square of the height, and what bends over also goes down.
+            float2 blast = SFGust(origin.xz) * (h * h * squash);
+            if (dot(blast, blast) > 1e-8)
+            {
+                // Bend, do not stretch: the vertex keeps its distance from the root,
+                // so a hard push lays the blade over instead of drawing it out long.
+                float L = length(rel);
+                rel.xz += blast * 1.1;
+                rel.y = max(rel.y - length(blast) * 0.7, L * 0.08);
+                rel *= L / max(length(rel), 1e-4);
+            }
             return origin + rel;
         }
         ENDHLSL

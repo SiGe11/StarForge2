@@ -138,17 +138,9 @@ Shader "StarForge/GroundDecal"
                     half dash = step(0.45, frac(ang / 6.2831853 * 48.0));
                     a = smoothstep(0.965, 0.98, r) * (1.0 - smoothstep(0.99, 1.0, r)) * dash * 0.8;
                 }
-                else if (kind < 5.5)
-                {
-                    // Explosion shockwave: a hot ring racing outward and thinning,
-                    // over a brief flash of the ground inside it.
-                    half t = saturate(p.y);
-                    half k = 1.0 - t;
-                    half rr = 1.0 - k * k;
-                    half width = lerp(0.18, 0.05, t);
-                    a = smoothstep(rr - width, rr, r) * (1.0 - smoothstep(rr, rr + 0.02, r)) * k * k;
-                    a += (1.0 - smoothstep(0.0, max(rr, 0.05), r)) * 0.3 * k * k * k;
-                }
+                // Kind 5 was the explosion's shockwave ring: a hot circle racing out
+                // over the ground. A blast's pressure now shows only in the growth it
+                // lays over, so nothing draws it -- do not hand 5 to something else.
                 else if (kind < 6.5)
                 {
                     // Track segment, alpha-blended: two treads either side of the

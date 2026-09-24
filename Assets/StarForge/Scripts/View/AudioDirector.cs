@@ -16,8 +16,7 @@
 //
 // Ambience is looped beds whose levels follow the view: wind (stronger zoomed
 // out), water when the view holds a lake, a fire's roar and crackle when plants
-// burn nearby, engines under moving Maulers and Skimmers, the knock of Diggers
-// at work, and birdsong over green ground that falls silent for a while after
+// burn nearby, the drive under moving Skimmers, the knock of Diggers at work, and birdsong over green ground that falls silent for a while after
 // an explosion nearby.
 //
 // Music is recorded CC0 tracks from OpenGameArt (Audio/Music, copied there by
@@ -26,6 +25,12 @@
 // sight, combat (an orchestral battle theme) while fighting is on screen. A mood
 // has to hold for a while before the music follows it, and moods crossfade
 // slowly; every track plays at one loudness (music.json), well under the effects.
+//
+// Maulers are not a bed: each of the three loudest in earshot has a voice of its
+// own (TankVoice), its engine and its tracks on two looping sources panned to
+// where it is, the engine revving with how hard it works and the clatter running
+// faster the faster it goes. A bed shared by every tank in view could not say
+// where the one coming at you is, or that it has just started to move.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -40,9 +45,12 @@ namespace StarForge.View
     public sealed class SoundBank
     {
         public AudioClip[] rifle, cannon, pulse, bolt, boom, bigBoom, rumble, thud, hitMetal, crystal, rock, mine, stomp, shield, build;
+        [Tooltip("Built by make_audio.py: a shell landing and a structure going up, with the thump and the rolling report Kenney's crunches have no low end for.")]
+        public AudioClip[] blast, blastBig;
         [Tooltip("A tree splitting and groaning as it goes over, its crash as it lands, and a bush flattened under a Mauler.")]
         public AudioClip[] treeFall, treeCrash, crush;
-        public AudioClip engineHeavy, engineHover;
+        [Tooltip("Looped beds: the Mauler's engine, its track clatter, and the Skimmer's drive.")]
+        public AudioClip engineHeavy, engineTracks, engineHover;
         public AudioClip uiSelect, uiClick, uiMove, uiAttack, uiError, uiDone, uiNotice, uiAlert, uiPromote, uiPlace;
         public AudioClip wind, water, fire;
         public AudioClip[] birds;
@@ -65,7 +73,21 @@ namespace StarForge.View
         AudioClip rifle, cannon, pulse, bolt, boom, bigBoom, crystal, click, warn, good, promote, wind;
         readonly List<AudioSource> voices = new List<AudioSource>();
         readonly Dictionary<object, float> lastPlayed = new Dictionary<object, float>();
-        AudioSource ui, windSrc, waterSrc, fireSrc, heavySrc, hoverSrc, birdSrc;
+        AudioSource ui, windSrc, waterSrc, fireSrc, hoverSrc, birdSrc;
+
+        /// <summary>One Mauler heard as itself (see the header).</summary>
+        sealed class TankVoice
+        {
+            public AudioSource engine, tracks;
+            public Unit unit;
+            public bool wanted;
+            public float level, load, speed;
+        }
+        const int TankVoices = 3;
+        readonly TankVoice[] tanks = new TankVoice[TankVoices];
+        readonly List<(float score, Unit unit)> tankPick = new List<(float, Unit)>(16);
+        static readonly Comparison<(float score, Unit unit)> LoudestFirst = (a, b) => b.score.CompareTo(a.score);
+        float nextTankScan;
         // Music: two sources crossfading; the mood playing and the one asked for.
         readonly AudioSource[] music = new AudioSource[2];
         readonly float[] musicGain = new float[2];
@@ -76,8 +98,8 @@ namespace StarForge.View
         int next;
         float underAttackT = -99f;
         uint noiseState = 0x12345678;
-        float combatHeat, birdsQuietUntil, nextBird, nextMine, nextScan;
-        float waterNear, fireNear, heavyMoving, hoverMoving, enemiesInSight;
+        float combatHeat, birdsQuietUntil, nextBird, nextMine, nextScan, fireAlertT = -99f;
+        float waterNear, fireNear, hoverMoving, enemiesInSight;
 
         void Awake()
         {
@@ -97,7 +119,8 @@ namespace StarForge.View
             windSrc = Loop(bank.wind != null ? bank.wind : wind);
             waterSrc = Loop(bank.water);
             fireSrc = Loop(bank.fire);
-            heavySrc = Loop(bank.engineHeavy);
+            for (int i = 0; i < TankVoices; i++)
+                tanks[i] = new TankVoice { engine = Loop(bank.engineHeavy), tracks = Loop(bank.engineTracks) };
             hoverSrc = Loop(bank.engineHover);
             birdSrc = gameObject.AddComponent<AudioSource>();
             birdSrc.playOnAwake = false;
@@ -185,7 +208,8 @@ namespace StarForge.View
                     Heat(e.pos, e.scale > 1f ? 0.25f : 0.03f);
                     if (e.scale > 1f)
                     {
-                        PlayAt(e.pos, bank.boom, 0.5f, 0.05f, boom);
+                        // The built blast if make_audio.py has run, Kenney's crunch if not.
+                        PlayAt(e.pos, bank.blast != null && bank.blast.Length > 0 ? bank.blast : bank.boom, 0.62f, 0.05f, boom);
                         QuietBirds(e.pos);
                     }
                     else PlayAt(e.pos, bank.hitMetal, 0.09f, 0.07f);
@@ -198,13 +222,15 @@ namespace StarForge.View
                     else if (e.type == UnitType.Boulder) { PlayAt(e.pos, bank.rock, 0.55f, 0.05f, boom); PlayAt(e.pos, bank.stomp, 0.3f, 0.05f); }
                     else if (e.unit != null && e.unit.def.building)
                     {
-                        PlayAt(e.pos, bank.bigBoom, 1f, 0.2f, bigBoom);
+                        PlayAt(e.pos, bank.blastBig != null && bank.blastBig.Length > 0 ? bank.blastBig : bank.bigBoom, 1f, 0.2f, bigBoom);
                         PlayAt(e.pos, bank.rumble, 0.7f, 0.2f);
                     }
                     else
                     {
-                        PlayAt(e.pos, bank.boom, 0.65f, 0.05f, boom);
-                        if (e.type == UnitType.Mauler) PlayAt(e.pos, bank.thud, 0.6f, 0.1f);
+                        bool heavy = e.type == UnitType.Mauler;
+                        PlayAt(e.pos, heavy && bank.blast != null && bank.blast.Length > 0 ? bank.blast : bank.boom,
+                               heavy ? 0.8f : 0.65f, 0.05f, boom);
+                        if (heavy) PlayAt(e.pos, bank.thud, 0.6f, 0.1f);
                     }
                     break;
                 case GameEventKind.PlantFelled:
@@ -230,6 +256,9 @@ namespace StarForge.View
                     break;
                 case GameEventKind.StructureComplete when e.team == me:
                     PlayUI(bank.uiDone != null ? bank.uiDone : good, 0.5f, 1f);
+                    break;
+                case GameEventKind.StructureIgnited when e.team == me:
+                    if (Time.unscaledTime - fireAlertT > 10f) { fireAlertT = Time.unscaledTime; PlayUI(bank.uiAlert != null ? bank.uiAlert : warn, 0.45f, 1f); }
                     break;
                 case GameEventKind.Notice when e.team == me:
                     PlayUI(bank.uiNotice != null ? bank.uiNotice : good, 0.45f, 1f);
@@ -305,11 +334,84 @@ namespace StarForge.View
             Fade(windSrc, (0.1f + 0.14f * zoom) * masterVolume, dt, 1.5f);
             Fade(waterSrc, 0.3f * waterNear * (1f - 0.5f * zoom) * masterVolume, dt, 1.5f);
             Fade(fireSrc, 0.55f * Mathf.Clamp01(fireNear) * masterVolume, dt, 2.5f);
-            Fade(heavySrc, (paused ? 0f : 0.2f * Mathf.Clamp01(heavyMoving)) * masterVolume, dt, 3f);
+            Tanks(dt, paused);
             Fade(hoverSrc, (paused ? 0f : 0.12f * Mathf.Clamp01(hoverMoving)) * masterVolume, dt, 3f);
             Birds();
             Mining();
             Music(dt);
+        }
+
+        /// <summary>Give the loudest Maulers in earshot a voice each and drive it: the
+        /// engine idles low and quiet, and climbs in pitch and level with the load -- a
+        /// standing start, a hill, a boulder being shouldered aside -- while the tracks
+        /// come in with the speed and clatter faster the faster it goes.</summary>
+        void Tanks(float dt, bool paused)
+        {
+            if (tanks[0] == null || world == null || rig == null) return;
+            if (Time.unscaledTime >= nextTankScan)
+            {
+                nextTankScan = Time.unscaledTime + 0.2f;
+                tankPick.Clear();
+                foreach (var u in world.units)
+                {
+                    if (u == null || u.dying || u.Type != UnitType.Mauler || !u.Complete) continue;
+                    if (!(u.visibleToPlayer || MatchSettings.spectate)) continue;
+                    float att = Attenuation(u.Ground);
+                    if (att < 0.03f) continue;
+                    float spd = u.agent != null && u.agent.enabled ? u.agent.velocity.magnitude : 0f;
+                    tankPick.Add((att * (0.35f + Mathf.Clamp01(spd / Mathf.Max(1f, u.def.speed))), u));
+                }
+                tankPick.Sort(LoudestFirst);
+                int keep = Mathf.Min(TankVoices, tankPick.Count);
+                foreach (var v in tanks) v.wanted = false;
+                // Tanks that already have a voice keep it, so a voice is not torn
+                // off one tank and put on another every time the order shuffles.
+                for (int k = 0; k < keep; k++)
+                    foreach (var v in tanks)
+                        if (v.unit == tankPick[k].unit) { v.wanted = true; break; }
+                for (int k = 0; k < keep; k++)
+                {
+                    var u = tankPick[k].unit;
+                    bool has = false;
+                    foreach (var v in tanks) if (v.unit == u) { has = true; break; }
+                    if (has) continue;
+                    // A voice that has faded out is free for the next tank.
+                    foreach (var v in tanks)
+                        if (!v.wanted && v.level < 0.02f) { v.unit = u; v.wanted = true; v.load = 0f; v.speed = 0f; break; }
+                }
+            }
+
+            foreach (var v in tanks)
+            {
+                if (v.engine == null) continue;
+                var u = v.unit;
+                float want = 0f, load = 0f, thr = 0f, pan = 0f;
+                if (v.wanted && Unit.Live(u) && !paused)
+                {
+                    var at = u.Ground;
+                    want = Attenuation(at);
+                    float spd = u.agent != null && u.agent.enabled ? u.agent.velocity.magnitude : 0f;
+                    thr = Mathf.Clamp01(spd / Mathf.Max(1f, u.def.speed));
+                    // Full engine and no speed is a tank pushing something out of its way.
+                    load = u.Moving && thr < 0.25f ? 0.9f : thr;
+                    if (rig.cam != null) pan = Mathf.Clamp((rig.cam.WorldToViewportPoint(at).x - 0.5f) * 1.4f, -0.9f, 0.9f);
+                }
+                v.level = Mathf.MoveTowards(v.level, want, dt * 1.6f);
+                // The engine takes a moment to spool up and down; the tracks follow the
+                // hull's actual speed more closely.
+                v.load = Mathf.Lerp(v.load, load, 1f - Mathf.Exp(-dt * 2.2f));
+                v.speed = Mathf.Lerp(v.speed, thr, 1f - Mathf.Exp(-dt * 4f));
+                v.engine.volume = v.level * (0.12f + 0.34f * v.load) * masterVolume;
+                v.engine.pitch = 0.80f + 0.34f * v.load;
+                v.engine.panStereo = pan;
+                if (v.tracks != null)
+                {
+                    v.tracks.volume = v.level * 0.36f * Mathf.Clamp01(v.speed * 1.5f) * masterVolume;
+                    v.tracks.pitch = 0.68f + 0.55f * v.speed;
+                    v.tracks.panStereo = pan;
+                }
+                if (!v.wanted && v.level < 0.005f) v.unit = null;
+            }
         }
 
         static void Fade(AudioSource s, float target, float dt, float rate)
@@ -344,8 +446,12 @@ namespace StarForge.View
                     if (!Seen(p)) continue;
                     fireNear += veg.live[i].fire * Attenuation(p) * 0.6f;
                 }
+            // A burning structure roars like a stand of trees.
+            foreach (var u in world.units)
+                if (u != null && !u.dying && u.OnFire && (u.visibleToPlayer || u.team == (player != null ? player.team : 0)))
+                    fireNear += u.FireHeat * Attenuation(u.Ground) * 1.2f;
 
-            heavyMoving = hoverMoving = enemiesInSight = 0f;
+            hoverMoving = enemiesInSight = 0f;
             int me = player != null ? player.team : 0;
             foreach (var u in world.units)
             {
@@ -355,8 +461,7 @@ namespace StarForge.View
                 if (u.team != me && u.def.IsArmy) enemiesInSight += 1f;
                 if (u.agent == null || !u.agent.enabled || u.agent.velocity.sqrMagnitude < 0.5f) continue;
                 float att = Attenuation(u.Ground);
-                if (u.Type == UnitType.Mauler) heavyMoving += att * 0.5f;
-                else if (u.Type == UnitType.Skimmer) hoverMoving += att * 0.4f;
+                if (u.Type == UnitType.Skimmer) hoverMoving += att * 0.4f;
             }
             if (MatchSettings.spectate) enemiesInSight *= 0.5f;
         }

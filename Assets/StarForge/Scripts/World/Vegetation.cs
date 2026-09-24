@@ -151,14 +151,18 @@ namespace StarForge.World
         readonly Rng rng = new Rng(0x7EE5u);
 
         // ---- the grass: a coarse fuel grid, one cell every GrassCell metres.
+        // Runtime state, built on the first tick. NonSerialized: entering play mode the
+        // editor round-trips private fields through serialization, which turns a null
+        // array into an empty one, and an empty grid that looks built indexed -1.
         public const float GrassCell = 3f;
-        int grassSide;
-        byte[] grassFuel;      // 0 none .. 255 thick meadow (splat weights, dried by distance from water)
-        byte[] grassState;     // 0 unburnt, 1 burning, 2 burnt out
-        byte[] grassBlaze;
-        float[] grassUntil;    // when this cell burns out
-        float[] grassNext;     // when it next tries its neighbours
-        float[] grassY;        // the ground height at its middle (the effects ask every frame)
+        [NonSerialized] int grassSide;
+        [NonSerialized] byte[] grassFuel;      // 0 none .. 255 thick meadow (how much of it grows grass, dried by the water)
+        [NonSerialized] ushort[] grassMask;    // which of its 3x3 metre squares grow grass (bit 3*row+col)
+        [NonSerialized] byte[] grassState;     // 0 unburnt, 1 burning, 2 burnt out
+        [NonSerialized] byte[] grassBlaze;
+        [NonSerialized] float[] grassUntil;    // when this cell burns out
+        [NonSerialized] float[] grassNext;     // when it next tries its neighbours
+        [NonSerialized] float[] grassY;        // the ground height at its middle (the effects ask every frame)
 
         void Awake()
         {
@@ -167,23 +171,77 @@ namespace StarForge.World
             BuildGrid();
         }
 
-        bool grassReady;
+        [NonSerialized] bool grassReady;
 
         /// <summary>The grass fuel and every plant's dampness, worked out on the first
         /// tick: the map (MapInfo, the terrain, the water) is only there once everything
         /// has woken, and this component's Awake can run before it.</summary>
-        void EnsureGrass()
+        void EnsureGrass(GameWorld world)
         {
             if (grassReady || MapInfo.Instance == null || MapInfo.Instance.terrain == null) return;
             grassReady = true;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             BuildGrassFuel();
             for (int i = 0; i < live.Length; i++) live[i].wet = Wetness(Pos2(i));
+            // The grass is flattened under structures and ore seams, so nothing there burns.
+            foreach (var u in world.units)
+                if (u != null && !u.dying) ClearGrassUnder(u);
+            GrassBuildMs = clock.ElapsedMilliseconds;
+        }
+
+        /// <summary>How long the fuel grid took to build on the first tick (for the report).</summary>
+        public long GrassBuildMs { get; private set; }
+
+        /// <summary>A structure or an ore seam stands here: the grass under it is flattened
+        /// (GroundMask) and must not burn under its walls.</summary>
+        public void ClearGrassUnder(Unit u)
+        {
+            if (u == null || !grassReady) return;
+            if (u.def.building) ClearGrass(u.pos, u.def.radius + 0.8f);
+            else if (u.Type == UnitType.Ore) ClearGrass(u.pos, u.def.radius + 0.5f);
+        }
+
+        /// <summary>Take the grass inside a circle out of the fuel.</summary>
+        public void ClearGrass(Vector2 c, float radius)
+        {
+            if (!grassReady || grassSide <= 0) return;
+            int x0 = Mathf.Clamp((int)((c.x - radius) / GrassCell), 0, grassSide - 1), x1 = Mathf.Clamp((int)((c.x + radius) / GrassCell), 0, grassSide - 1);
+            int z0 = Mathf.Clamp((int)((c.y - radius) / GrassCell), 0, grassSide - 1), z1 = Mathf.Clamp((int)((c.y + radius) / GrassCell), 0, grassSide - 1);
+            float r2 = radius * radius;
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    int cell = z * grassSide + x;
+                    int mask = grassMask[cell];
+                    if (mask == 0 || grassState[cell] == 1) continue;
+                    int before = Bits(mask);
+                    for (int b = 0; b < 9; b++)
+                        if ((mask & (1 << b)) != 0 && (SubCentre(cell, b) - c).sqrMagnitude < r2) mask &= ~(1 << b);
+                    int after = Bits(mask);
+                    if (after == before) continue;
+                    grassMask[cell] = (ushort)(after >= MinTufts ? mask : 0);
+                    grassFuel[cell] = after >= MinTufts ? (byte)(grassFuel[cell] * after / before) : (byte)0;
+                }
+        }
+
+        static int Bits(int m)
+        {
+            int n = 0;
+            for (; m != 0; m &= m - 1) n++;
+            return n;
+        }
+
+        /// <summary>The middle of one of a cell's nine one-metre squares.</summary>
+        Vector2 SubCentre(int cell, int bit)
+        {
+            int x = cell % grassSide, z = cell / grassSide;
+            return new Vector2((x + ((bit % 3) + 0.5f) / 3f) * GrassCell, (z + ((bit / 3) + 0.5f) / 3f) * GrassCell);
         }
 
         /// <summary>How damp the ground is here, 0 dry .. 1 in the water: the water level
         /// against the ground at the spot and a few metres around it. Reeds in a lake and
         /// the grass of a shore hardly take fire; a meadow on a terrace above it does.</summary>
-        float Wetness(Vector2 p)
+        public float Wetness(Vector2 p)
         {
             var map = MapInfo.Instance;
             if (map == null) return 0f;
@@ -197,9 +255,14 @@ namespace StarForge.World
             return Mathf.Clamp01((d + 3.5f) / 3.5f);
         }
 
-        /// <summary>The grass between the plants, as fuel: the meadow layer of the same
-        /// splat weights GroundScatter grows its grass on, minus the cliffs, the water
-        /// and the damp ground along it.</summary>
+        /// <summary>The grass between the plants, as fuel. Built from the grass itself:
+        /// each 3 m cell is looked at in nine one-metre squares, by the same rule
+        /// GroundScatter grows its tufts by (MapGenerator.GrassChance, over the terrain's
+        /// own splat weights, with the same water, slope and boulder cut-outs). A cell
+        /// burns only if at least MinTufts of its squares grow grass, and how much of it
+        /// does is its fuel; bare gravel, rock and sand between the meadows carry nothing,
+        /// so a grass fire stops where the grass does. Damp ground near water is damped
+        /// further (Wetness).</summary>
         void BuildGrassFuel()
         {
             var map = MapInfo.Instance;
@@ -208,30 +271,145 @@ namespace StarForge.World
             grassSide = Mathf.CeilToInt(size / GrassCell);
             int n = grassSide * grassSide;
             grassFuel = new byte[n];
+            grassMask = new ushort[n];
             grassState = new byte[n];
             grassBlaze = new byte[n];
             grassUntil = new float[n];
             grassNext = new float[n];
             grassY = new float[n];
             var td = map.terrain.terrainData;
+            float baseY = map.terrain.transform.position.y, tsize = td.size.x;
+            int aw = td.alphamapWidth, ah = td.alphamapHeight, layers = td.alphamapLayers;
+            float[,,] alpha = td.GetAlphamaps(0, 0, aw, ah);
+            Vector4 Weights(float x, float z)
+            {
+                int ax = Mathf.Clamp((int)(x / tsize * aw), 0, aw - 1), az = Mathf.Clamp((int)(z / tsize * ah), 0, ah - 1);
+                return new Vector4(alpha[az, ax, 0], layers > 1 ? alpha[az, ax, 1] : 0f,
+                                   layers > 2 ? alpha[az, ax, 2] : 0f, layers > 3 ? alpha[az, ax, 3] : 0f);
+            }
+            // Boulders keep their ground clear, as GroundScatter leaves it.
+            var boulders = new List<Vector3>();
+            if (map.boulderRoot != null)
+                foreach (Transform b in map.boulderRoot)
+                    boulders.Add(new Vector3(b.position.x, 1.5f * b.lossyScale.x, b.position.z));
+            float water = map.waterLevel;
             for (int z = 0; z < grassSide; z++)
                 for (int x = 0; x < grassSide; x++)
                 {
-                    var p = new Vector2((x + 0.5f) * GrassCell, (z + 0.5f) * GrassCell);
-                    if (!map.InBounds(p, 1f)) continue;
-                    float h = map.HeightAt(p);
-                    grassY[z * grassSide + x] = h;
-                    if (h < map.waterLevel + 0.4f) continue;
-                    var nrm = td.GetInterpolatedNormal(p.x / size, p.y / size);
-                    if (nrm.y < 0.86f) continue;
-                    var w = MapGenerator.SplatAt(p.x, p.y, h, nrm);
-                    // x is the meadow layer the grass grows on, y the gravel its dry
-                    // tussocks gather on.
-                    float fuel = Mathf.Clamp01(w.x * 1.1f + w.y * 0.25f);
-                    fuel *= 1f - Wetness(p) * 0.95f;
-                    grassFuel[z * grassSide + x] = (byte)(Mathf.Clamp01(fuel) * 255f);
+                    int cell = z * grassSide + x;
+                    var mid = new Vector2((x + 0.5f) * GrassCell, (z + 0.5f) * GrassCell);
+                    grassY[cell] = map.HeightAt(mid);
+                    if (!map.InBounds(mid, 1f)) continue;
+                    int mask = 0;
+                    float cover = 0f;
+                    for (int b = 0; b < 9; b++)
+                    {
+                        var q = SubCentre(cell, b);
+                        MapGenerator.GrassChance(Weights(q.x, q.y), q.x, q.y, out float lush, out float dry);
+                        float chance = lush + dry;
+                        if (chance < 0.02f) continue;
+                        float h = td.GetInterpolatedHeight(q.x / tsize, q.y / tsize) + baseY;
+                        if (h < water + 0.4f) continue;
+                        if (td.GetInterpolatedNormal(q.x / tsize, q.y / tsize).y < MapGenerator.GrassMinUp) continue;
+                        bool blocked = false;
+                        foreach (var bl in boulders)
+                            if ((bl.x - q.x) * (bl.x - q.x) + (bl.z - q.y) * (bl.z - q.y) < bl.y * bl.y) { blocked = true; break; }
+                        if (blocked) continue;
+                        cover += Mathf.Min(1f, chance);
+                        if (chance >= TuftChance) mask |= 1 << b;
+                    }
+                    if (Bits(mask) < MinTufts || cover * TuftsPerSquare < MinExpectedTufts) continue;
+                    float fuel = cover / 9f * (1f - Wetness(mid) * 0.95f);
+                    if (fuel < 0.1f) continue;
+                    grassMask[cell] = (ushort)mask;
+                    grassFuel[cell] = (byte)(Mathf.Clamp01(fuel) * 255f);
+                    grassY[cell] = map.HeightAt(GrassMiddle(cell));
                 }
         }
+
+        /// <summary>A square counts as grown if a tuft is at least this likely on it.</summary>
+        const float TuftChance = 0.3f;
+        /// <summary>A cell needs this many grown squares (of nine) to carry a fire.</summary>
+        const int MinTufts = 2;
+        /// <summary>GroundScatter tries a tuft every 1.15 m at full density: 0.76 a square metre.</summary>
+        public const float TuftsPerSquare = 1f / (1.15f * 1.15f);
+        /// <summary>A cell burns only if this many tufts are expected on it at full
+        /// density. The tufts fall at random, so a thin meadow edge often shows none in
+        /// a given cell; below this, a fire there would look like burning bare ground.</summary>
+        public const float MinExpectedTufts = 2.5f;
+
+        /// <summary>The middle of the grass in a cell (of its grown squares).</summary>
+        Vector2 GrassMiddle(int cell)
+        {
+            int mask = grassMask[cell];
+            if (mask == 0)
+            {
+                int x = cell % grassSide, z = cell / grassSide;
+                return new Vector2((x + 0.5f) * GrassCell, (z + 0.5f) * GrassCell);
+            }
+            Vector2 sum = Vector2.zero;
+            int count = 0;
+            for (int b = 0; b < 9; b++)
+                if ((mask & (1 << b)) != 0) { sum += SubCentre(cell, b); count++; }
+            return sum / count;
+        }
+
+        /// <summary>A point on the grass of a burning cell, for a tongue of flame: one of
+        /// its grown squares (<paramref name="pick"/> 0..1 chooses which), anywhere in it
+        /// (<paramref name="u"/>, <paramref name="v"/> 0..1). Flames never stand on the
+        /// bare patches of a cell that is only partly grass.</summary>
+        public Vector3 GrassTuft(int cell, float pick, float u, float v)
+        {
+            int mask = grassMask[cell];
+            int count = Bits(mask);
+            if (count == 0) return GrassCentre(cell);
+            int want = Mathf.Min(count - 1, (int)(pick * count));
+            for (int b = 0; b < 9; b++)
+            {
+                if ((mask & (1 << b)) == 0) continue;
+                if (want-- > 0) continue;
+                var c = SubCentre(cell, b) + new Vector2(u - 0.5f, v - 0.5f) * (GrassCell / 3f);
+                return new Vector3(c.x, grassY[cell], c.y);
+            }
+            return GrassCentre(cell);
+        }
+
+        /// <summary>How hot the fire is within <paramref name="radius"/> of a point,
+        /// 0..1: the strongest burning plant whose crown (or trunk, once down) reaches
+        /// that far, or burning grass there. What a structure standing there feels.</summary>
+        public float FireNear(Vector2 c, float radius, float now)
+        {
+            float heat = 0f;
+            if (fires > 0)
+                foreach (int i in Near(c, radius + 8f, nearFire))
+                {
+                    ref var s = ref live[i];
+                    if (!s.burning || s.fire <= heat) continue;
+                    var k = KindOf(i);
+                    float reach = s.state == PlantState.Standing && k.HasCrown ? k.crownRadii.x * plants[i].scale : TrunkRadius(i) + 0.5f;
+                    if ((Pos2(i) - c).magnitude - reach <= radius) heat = s.fire;
+                }
+            if (grassFuel != null && burningGrass.Count > 0)
+            {
+                int x0 = Mathf.Clamp((int)((c.x - radius) / GrassCell), 0, grassSide - 1), x1 = Mathf.Clamp((int)((c.x + radius) / GrassCell), 0, grassSide - 1);
+                int z0 = Mathf.Clamp((int)((c.y - radius) / GrassCell), 0, grassSide - 1), z1 = Mathf.Clamp((int)((c.y + radius) / GrassCell), 0, grassSide - 1);
+                float reach = radius + GrassCell * 0.5f;
+                for (int z = z0; z <= z1; z++)
+                    for (int x = x0; x <= x1; x++)
+                    {
+                        int cell = z * grassSide + x;
+                        if (grassState[cell] != 1) continue;
+                        if ((GrassMiddle(cell) - c).sqrMagnitude > reach * reach) continue;
+                        heat = Mathf.Max(heat, GrassFire(cell, now));
+                    }
+            }
+            return heat;
+        }
+
+        readonly List<int> nearFire = new List<int>(64);
+
+        /// <summary>A cell's fuel, 0 (bare: cannot burn) .. 255.</summary>
+        public int GrassFuel(int cell) => grassFuel != null ? grassFuel[cell] : 0;
 
         public int GrassIndex(Vector2 p)
         {
@@ -247,10 +425,12 @@ namespace StarForge.World
         /// <summary>Bumped whenever a cell changes state, so the view can rebuild its texture lazily.</summary>
         public int GrassVersion { get; private set; }
 
+        /// <summary>The middle of a cell's grass (not of the cell: a cell at a meadow's
+        /// edge is only partly grown), at ground height.</summary>
         public Vector3 GrassCentre(int cell)
         {
-            int x = cell % grassSide, z = cell / grassSide;
-            return new Vector3((x + 0.5f) * GrassCell, grassY[cell], (z + 0.5f) * GrassCell);
+            var m = GrassMiddle(cell);
+            return new Vector3(m.x, grassY[cell], m.y);
         }
 
         /// <summary>How hard a burning cell is going now, 0..1 (it flares and dies quickly).</summary>
@@ -310,6 +490,12 @@ namespace StarForge.World
             return near;
         }
 
+        /// <summary>Every plant whose cell lies within <paramref name="radius"/> of
+        /// <paramref name="c"/>, into the caller's own list. For presentation (what a
+        /// blast's pressure front tears out of the crowns it crosses), which runs while
+        /// the simulation's own list may be in use.</summary>
+        public List<int> PlantsNear(Vector2 c, float radius, List<int> into) => Near(c, radius, into);
+
         /// <summary>Is this spot under a standing tree's crown (within <paramref name="margin"/> m of its edge)?
         /// Birds feed in the open, where they can be seen.</summary>
         public bool UnderCrown(Vector2 p, float margin)
@@ -352,7 +538,7 @@ namespace StarForge.World
         public void Tick(GameWorld world, float dt)
         {
             if (plants.Length == 0) return;
-            EnsureGrass();
+            EnsureGrass(world);
             CrushUnderMaulers(world);
             TickGrass(world, dt);
 
@@ -667,21 +853,37 @@ namespace StarForge.World
             int blaze = NewBlaze(-1f);
             float v = blazeVig[blaze];
             BurnGrass(world, c, radius * 1.1f, igniteChance * 1.4f, blaze);
-            foreach (int i in Near(c, radius * 1.3f + 3f))
+            foreach (int i in Near(c, radius * 2f + 3f))
             {
                 if (live[i].state == PlantState.Gone) continue;
                 Vector2 d = Pos2(i) - c;
                 float dist = d.magnitude - TrunkRadius(i);
                 var k = KindOf(i);
-                if (dist < radius * 0.6f)
+                // A shell landing beside a tree may take it down -- the reach is well
+                // outside the fireball, because what fells a tree is the blast, not the
+                // flame. (It used to be 0.6 of the radius, under two metres for a
+                // Mauler's shell, so a shell could go off beside a trunk and leave it
+                // standing.) Whether it actually goes over is a chance: near certain
+                // right on top of it, seldom at the edge of the reach, and a thick
+                // trunk stands where a slender one snaps -- so shelling a wood thins
+                // it rather than flattening it, and the same shot twice is not the
+                // same picture. The NavMesh rebuild coalesces, so a whole stand going
+                // over at once is still one rebuild.
+                float reach = radius * 1.35f;
+                if (dist < reach)
                 {
-                    // Thrown over by the blast: the closer it stood, the harder it goes.
                     if (live[i].state == PlantState.Standing)
-                        Fell(world, i, d.sqrMagnitude > 1e-4f ? d / d.magnitude : Vector2.up,
-                             Mathf.Lerp(1.3f, 0.5f, Mathf.Clamp01(dist / Mathf.Max(1f, radius * 0.6f))));
+                    {
+                        float near = 1f - Mathf.Clamp01(dist / reach);
+                        float thick = Mathf.Clamp01(0.30f / Mathf.Max(0.08f, TrunkRadius(i)));
+                        if (rng.F01() < Mathf.Lerp(0.10f, 0.95f, near * near) * thick)
+                            // Thrown over by the blast: the closer it stood, the harder it goes.
+                            Fell(world, i, d.sqrMagnitude > 1e-4f ? d / d.magnitude : Vector2.up,
+                                 Mathf.Lerp(1.5f, 0.35f, Mathf.Clamp01(dist / reach)));
+                    }
                     if (rng.F01() < igniteChance * k.burns * (1f - live[i].wet * 0.9f)) Ignite(world, i, 0, v, blaze);
                 }
-                else if (dist < radius * 1.2f + (k.bush ? 0f : k.crownRadii.x * plants[i].scale * 0.5f))
+                else if (dist < radius * 1.9f + (k.bush ? 0f : k.crownRadii.x * plants[i].scale * 0.5f))
                 {
                     if (rng.F01() < igniteChance * 0.5f * k.burns * (1f - live[i].wet * 0.9f)) Ignite(world, i, 0, v, blaze);
                 }

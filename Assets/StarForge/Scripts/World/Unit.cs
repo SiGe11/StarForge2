@@ -28,11 +28,24 @@ namespace StarForge.World
         [System.NonSerialized] public float hp, buildProgress = 1f, cooldown, damageFlash, deathTimer, bob;
         [System.NonSerialized] public float harvestTimer, queueTimer, repathTimer;
         [System.NonSerialized] public float lastDamagedT = -99f;
+        /// <summary>A structure a wildfire set alight (GameWorld.StructureFires): when it
+        /// caught, when it goes out, the damage still to come, and until when it cannot
+        /// catch again. burnUntil is 0 when it is not burning.</summary>
+        [System.NonSerialized] public float burnStart, burnUntil, burnDamageLeft, burnSafeUntil;
         [System.NonSerialized] public bool dying, working, rallySet, visibleToPlayer, everSeenByPlayer;
         [System.NonSerialized] public Order order;
         [System.NonSerialized] public Vector2 orderPos, rally;
         [System.NonSerialized] public Unit target, buildTarget, harvestNode;
         [System.NonSerialized] public int carrying, kills, rank;
+        /// <summary>Splash shots in a row, fired from about the same place, that burst on
+        /// the ground without catching what they were aimed at -- into a rise between
+        /// the two, or where a moving target used to be. The shooter knows this about
+        /// its own shots, which is what lets a commander move it rather than fire the
+        /// same shot again. <see cref="missFrom"/> is where the streak started: moving
+        /// more than a few metres starts a new one. (Resetting on every move order did
+        /// not work: units re-path every second or so, and the streak never grew.)</summary>
+        [System.NonSerialized] public int shotsMissed;
+        [System.NonSerialized] public Vector2 missFrom;
         [System.NonSerialized] public readonly List<UnitType> queue = new List<UnitType>(5);
         [System.NonSerialized] public NavMeshAgent agent;
         [System.NonSerialized] public UnitView view;
@@ -42,6 +55,11 @@ namespace StarForge.World
 
         public UnitType Type => def.type;
         public bool Complete => buildProgress >= 1f;
+        public bool OnFire => burnUntil > 0f;
+        /// <summary>How hard a burning structure is going, 0..1: it takes hold over a
+        /// couple of seconds and dies down over the last few.</summary>
+        public float FireHeat => burnUntil <= 0f ? 0f
+            : Mathf.Clamp01(Mathf.Min((world.time - burnStart) * 0.5f, (burnUntil - world.time) * 0.3f));
         public float MaxHp => def.hp * (1f + 0.1f * rank);
         public Vector3 Ground => world.Map.Ground(pos);
         public bool HasTurret => def.type == UnitType.Mauler || def.type == UnitType.Sentinel;

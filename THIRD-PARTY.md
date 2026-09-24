@@ -59,7 +59,7 @@ and mixes two of them into the energy weapons.
 
 | Pack | Becomes |
 |---|---|
-| [Sci-Fi Sounds](https://kenney.nl/assets/sci-fi-sounds) | explosions, engines, mining, shields, the laser layer under `bolt_*.wav` / `pulse_*.wav` |
+| [Sci-Fi Sounds](https://kenney.nl/assets/sci-fi-sounds) | explosions, mining, shields, the laser layer under `bolt_*.wav` / `pulse_*.wav`, and the sources `make_audio.py` builds `blast_*.wav`, `blastbig_*.wav` and `engine_heavy.wav` from |
 | [Impact Sounds](https://kenney.nl/assets/impact-sounds) | metal hits, rock, thuds, the wood thump in `treefall_*.wav` |
 | [Interface Sounds](https://kenney.nl/assets/interface-sounds) | `Audio/Sfx/ui_*.ogg` |
 
@@ -97,7 +97,7 @@ What the guns and the felled trees are built from, in `Tools/make_audio.py`.
 | [The Free Firearm Sound Library](https://opengameart.org/content/the-free-firearm-sound-library) | Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney (uploaded by bart) | `rifle_0–3.wav`, `cannon_0–2.wav`, and the muzzle crack under `bolt_*` / `pulse_*` — every gun recorded from beside the shooter and again at a distance, and a shot mixes both |
 | [tree chop fall thud](https://opengameart.org/content/tree-chop-fall-thud) | kheetor | the fall and the crash in `treefall_*.wav` / `treecrash_*.wav` |
 | [Tree Creaking](https://opengameart.org/content/tree-creaking) | AntumDeluge, from a sample by Department64 | the creak in `treefall_*.wav` |
-| [100 CC0 metal and wood SFX](https://opengameart.org/content/100-cc0-metal-and-wood-sfx) | rubberduck | wood breaks in `treecrash_*.wav`, `crush_*.wav` |
+| [100 CC0 metal and wood SFX](https://opengameart.org/content/100-cc0-metal-and-wood-sfx) | rubberduck | wood breaks in `treecrash_*.wav`, `crush_*.wav`; the metal hits `engine_tracks.wav` is built from |
 | [75 CC0 breaking / falling / hit sfx](https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx) | rubberduck | the same |
 
 ## Fonts
@@ -119,10 +119,11 @@ Unity, the Universal Render Pipeline and the other packages in
 manager; none of their files are committed here. They are covered by the Unity
 Companion License and the Unity terms the editor is used under.
 
-One leftover from Unity's URP project template is still committed and unused:
-`Assets/TutorialInfo/` (the template's Readme script, its layout and `URP.png`).
-It is Unity template content under the Unity Companion License — redistributable,
-but it is not ours and nothing refers to it, so it is better deleted than kept.
+Unity's URP project template also left a "URP Empty Template" readme behind —
+`Assets/TutorialInfo/` (a Readme script and editor, a layout, stylesheets and
+`URP.png`) and the `Assets/Readme.asset` that used them. Redistributable under the
+Unity Companion License, but not ours and referenced by nothing, so they were
+deleted. `Tools/check_licences.py` warns if a template upgrade puts them back.
 
 ## Everything else is made for this project
 

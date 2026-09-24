@@ -140,6 +140,8 @@ ShaderVariantCollection:
   - first: {fileID: 4800000, guid: f8b16083d174c4edd878d98382c9c72e, type: 3}
     second:
       variants:
+      - keywords: 
+        passType: 13
       - keywords: INSTANCING_ON
         passType: 13
   - first: {fileID: 4800000, guid: 3ceaac157f00e491c96d3be0400eca19, type: 3}
@@ -186,6 +188,8 @@ ShaderVariantCollection:
   - first: {fileID: 4800000, guid: 11260d10822734213a856d6877a3891a, type: 3}
     second:
       variants:
+      - keywords: 
+        passType: 13
       - keywords: INSTANCING_ON _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SHADOWS_SOFT
         passType: 13
       - keywords: INSTANCING_ON _MAIN_LIGHT_SHADOWS_CASCADE

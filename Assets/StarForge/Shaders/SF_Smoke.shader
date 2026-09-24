@@ -21,7 +21,7 @@ Shader "StarForge/Smoke"
     {
         _MainTex("Puff atlas (2x2: normal xy, occlusion, coverage)", 2D) = "white" {}
         _Billow("Billowing", Range(0, 1)) = 1
-        _Density("Density", Range(0.2, 3)) = 1.2
+        _Density("Density", Range(0.2, 3)) = 1.0
         _SoftFade("Soft fade distance", Float) = 1.5
     }
 
@@ -100,8 +100,11 @@ Shader "StarForge/Smoke"
                     nTS.xy = t.rg * 2.0 - 1.0;
                     nTS.z = sqrt(saturate(1.0 - dot(nTS.xy, nTS.xy)));
                     ao = t.b;
-                    // Thin parts go first as the puff ages; the edge stays soft.
-                    coverage = smoothstep(0.0, 1.0, saturate((t.a - age * 0.5) / 0.6));
+                    // Thin parts go first as the puff ages; the edge stays soft. The
+                    // atlas's coverage stops short of opaque on purpose -- do not
+                    // rescale it back up to 1 here, or one puff draws as a solid
+                    // sprite again and the whole point of it is lost.
+                    coverage = smoothstep(0.0, 1.0, saturate(t.a - age * 0.5));
                 }
                 else
                 {
@@ -130,8 +133,12 @@ Shader "StarForge/Smoke"
                 half3 sky = SampleSH(half3(0, 1, 0));
                 // Thin edges light up when the sun is behind them.
                 half back = pow(saturate(dot(-V, L.direction)), 4.0) * (1.0 - coverage) * 1.5;
-                half3 lit = i.color.rgb * ((sky * (0.2 + 0.6 * up) + L.color * (0.08 + 0.8 * ndl) * (0.35 + 0.65 * up * up))
-                                           * lerp(0.25, 1.0, ao) + L.color * back);
+                // The sky term carries most of the form: smoke over a landscape is
+                // grey with bright tops, not a black mass. It used to be weak enough
+                // that a dark particle colour came out nearly black whatever the sun
+                // was doing.
+                half3 lit = i.color.rgb * ((sky * (0.15 + 1.1 * up) + L.color * (0.08 + 0.8 * ndl) * (0.35 + 0.65 * up * up))
+                                           * lerp(0.20, 1.0, ao) + L.color * back);
 
                 float2 suv = i.screenPos.xy / i.screenPos.w;
                 float sceneEye = LinearEyeDepth(SampleSceneDepth(suv), _ZBufferParams);

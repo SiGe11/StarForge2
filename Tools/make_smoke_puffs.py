@@ -11,10 +11,14 @@ taken as a height field. From it:
   RG  the surface normal (x, y), so the shader can light each billow with the
       sun: lumps catch the light, the folds between them fall into shade;
   B   occlusion of the folds (how far the surface sits below its surroundings);
-  A   coverage: solid in the middle, broken up into wisps at the edge.
+  A   coverage: thickest in the middle, feathering out into wisps at the edge and
+      never reaching opaque -- a cloud is many faint puffs over one another.
 
 The old smoke sheet was a photograph with no alpha and no lighting, so every
-puff was the same flat grey sprite whatever the sun did. Needs only numpy.
+puff was the same flat grey sprite whatever the sun did. The first version of
+this atlas went the other way: its coverage saturated in the core and its rim
+ramp was narrow, so a puff drew as a solid dark shape with a crisp outline.
+Needs only numpy.
 """
 import math
 import os
@@ -61,56 +65,104 @@ def fbm(size, rng, base=4, octaves=4):
     return out / norm
 
 
+def warp(size, rng, amount, base=3, octaves=3):
+    """A pair of low-frequency offsets to push sample positions around with.
+
+    Value noise is built on an axis-aligned grid, and at these amplitudes its
+    grid shows through as a faint star in the middle of the puff. Warping the
+    sample positions before anything is drawn breaks that up, and at the same
+    time it stops every billow being a clean ellipse."""
+    return ((fbm(size, rng, base, octaves) - 0.5) * amount,
+            (fbm(size, rng, base, octaves) - 0.5) * amount)
+
+
 def puff(seed):
     rng = np.random.default_rng(seed)
     s = CELL
     yy, xx = np.mgrid[0:s, 0:s].astype(np.float64)
     c = s / 2.0
+
+    # Warp the cell before a single billow is drawn. The first version of this
+    # atlas put down perfect hemispheres, and you could count them: a puff read
+    # as a pile of billiard balls, each with its own smooth shaded gradient.
+    wx, wy = warp(s, rng, 64.0)
+    sx, sy = xx + wx, yy + wy
+
     height = np.full((s, s), -1e9)
-    balls = []
-    # A core of several large billows (one huge ball reads as a dome) ...
-    for _ in range(rng.integers(5, 8)):
-        a = rng.uniform(0, 2 * math.pi)
-        d = rng.uniform(0, 60)
-        balls.append((c + math.cos(a) * d, c + math.sin(a) * d + 10, rng.uniform(70, 100)))
-    # ... a ring of medium ones round it ...
-    for _ in range(rng.integers(9, 13)):
-        a = rng.uniform(0, 2 * math.pi)
-        d = rng.uniform(80, 135)
-        balls.append((c + math.cos(a) * d, c + math.sin(a) * d * 0.9 + 12, rng.uniform(42, 70)))
-    # ... and small ones breaking up the outline.
-    for _ in range(rng.integers(18, 26)):
-        a = rng.uniform(0, 2 * math.pi)
-        d = rng.uniform(130, 190)
-        balls.append((c + math.cos(a) * d, c + math.sin(a) * d * 0.85 + 16, rng.uniform(16, 38)))
-    for (bx, by, r) in balls:
-        d2 = (xx - bx) ** 2 + (yy - by) ** 2
+
+    def billow(bx, by, r):
+        """One billow: an ellipse at its own angle, not a circle, raised as a
+        dome over its footprint."""
+        ang = rng.uniform(0, math.pi)
+        ca, sa = math.cos(ang), math.sin(ang)
+        u = (sx - bx) * ca + (sy - by) * sa
+        v = -(sx - bx) * sa + (sy - by) * ca
+        k = rng.uniform(0.62, 1.45)
+        d2 = u * u + (v * v) / (k * k)
         inside = d2 < r * r
-        z = np.where(inside, np.sqrt(np.maximum(r * r - d2, 0)) + rng.uniform(-15, 30), -1e9)
-        height = np.maximum(height, z)
+        return np.where(inside, np.sqrt(np.maximum(r * r - d2, 0)) * rng.uniform(0.8, 1.05)
+                        + rng.uniform(-12, 22), -1e9)
+
+    def tier(n, dmin, dmax, rmin, rmax, lift):
+        nonlocal height
+        for _ in range(n):
+            a = rng.uniform(0, 2 * math.pi)
+            d = rng.uniform(dmin, dmax)
+            height = np.maximum(height, billow(c + math.cos(a) * d,
+                                               c + math.sin(a) * d * 0.9 + lift,
+                                               rng.uniform(rmin, rmax)))
+
+    # Four tiers rather than three, more of each and each smaller than the last,
+    # so no one billow carries a whole quarter of the outline and the rim is a
+    # fine fray instead of a few lobes sticking out.
+    tier(rng.integers(7, 10), 0, 50, 58, 86, 10)
+    tier(rng.integers(14, 19), 58, 112, 32, 56, 12)
+    tier(rng.integers(24, 32), 100, 150, 16, 34, 15)
+    tier(rng.integers(30, 42), 132, 176, 7, 18, 17)
+
     covered = height > -1e8
     h = np.where(covered, height, 0.0)
-    # Small billows on every ball, then soften the creases between balls a little.
-    detail = fbm(s, rng, base=14, octaves=3)
-    h = h + (detail - 0.5) * 26.0 * covered
-    h = blur(h, 2.8)
+    # Detail at two scales, warped as well, and strong enough against the billow
+    # radii to actually break their domes up rather than dimple them.
+    dx, dy = warp(s, rng, 26.0, base=6)
+    coarse = fbm(s, rng, base=7, octaves=4)
+    fine = fbm(s, rng, base=20, octaves=3)
+    h = h + ((coarse - 0.5) * 54.0 + (fine - 0.5) * 22.0) * covered
+    h = h + (dx + dy) * 0.25 * covered
+    # Light blur only: the old 2.8 smoothed the detail back off again.
+    h = blur(h, 1.6)
 
-    gy, gx = np.gradient(h)
-    k = 1.0 / 4.5
+    # Normals come off a softer copy: the fine detail belongs in the silhouette,
+    # where it frays the outline, not in per-pixel shading speckle.
+    hn = blur(h, 3.0)
+    gy, gx = np.gradient(hn)
+    k = 1.0 / 5.5
     nx, ny = -gx * k, -gy * k
     nz = np.ones_like(nx)
     n = np.sqrt(nx * nx + ny * ny + nz * nz)
     nx, ny = nx / n, ny / n
 
     # Occlusion: how far a point sits below the blurred surface round it.
-    ao = np.clip(1.0 + (h - blur(h, 16)) * 0.03, 0.3, 1.0)
+    ao = np.clip(1.0 + (hn - blur(hn, 16)) * 0.03, 0.3, 1.0)
 
-    # Coverage: dense in the core, thinning toward the rim, whose outline is eaten
-    # into wisps by noise.
-    cov = blur(covered.astype(np.float64), 10.0)
-    wisp = fbm(s, rng, base=6, octaves=4)
-    thick = np.clip(h / 90.0, 0, 1)
-    alpha = np.clip((cov - 0.35 - (wisp - 0.5) * 1.4) / 0.55, 0, 1) * (0.3 + 0.7 * thick ** 0.6)
+    # Coverage. The old ramp was narrow and the core saturated, so a puff drew as
+    # a solid shape with a crisp outline -- a dark lump of rock rather than smoke.
+    # Now the silhouette is soft and eaten at two scales (big bites out of the rim,
+    # a fine fray over the whole of it, so it stays ragged close up and far away),
+    # the ramp is a smoothstep with no shoulder, and the core stops well short of
+    # opaque: a cloud is built from many faint overlapping puffs, not from one
+    # solid sprite.
+    cov = blur(covered.astype(np.float64), 18.0)
+    wisp = fbm(s, rng, base=5, octaves=5)
+    fray = fbm(s, rng, base=18, octaves=3)
+    thick = np.clip(h / 95.0, 0, 1)
+    a = np.clip((cov - 0.30 - (wisp - 0.5) * 1.15 - (fray - 0.5) * 0.45) / 0.75, 0, 1)
+    a = a * a * (3.0 - 2.0 * a)
+    alpha = a * (0.22 + 0.78 * thick ** 0.75) * 0.80
+    # Thin the outskirts whatever the billows did there, so a stray one out near
+    # the rim reads as a wisp torn off the cloud rather than as a lump beside it.
+    rad = np.sqrt((xx - c) ** 2 + ((yy - c) * 1.05) ** 2) / (s * 0.5)
+    alpha *= np.clip(1.30 - rad * 1.20, 0, 1)
     # Nothing may reach the cell's border.
     edge = np.minimum(np.minimum(xx, s - 1 - xx), np.minimum(yy, s - 1 - yy))
     alpha *= np.clip(edge / 24.0, 0, 1)

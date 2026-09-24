@@ -43,6 +43,25 @@ namespace StarForge.View
 
         public int InstanceCount { get; private set; }
 
+        /// <summary>How many tufts of grass (lush and dry) stand inside a rectangle on the
+        /// ground. For checking the grass fire against what is actually drawn.</summary>
+        public int TuftsIn(Vector2 min, Vector2 max)
+        {
+            if (chunks == null) return 0;
+            int n = 0;
+            int x0 = ClampI((int)(min.x / ChunkSize), 0, side - 1), x1 = ClampI((int)(max.x / ChunkSize), 0, side - 1);
+            int z0 = ClampI((int)(min.y / ChunkSize), 0, side - 1), z1 = ClampI((int)(max.y / ChunkSize), 0, side - 1);
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    var chunk = chunks[z * side + x];
+                    foreach (var list in new[] { chunk.lush, chunk.dry })
+                        foreach (var m in list)
+                            if (m.m03 >= min.x && m.m03 < max.x && m.m23 >= min.y && m.m23 < max.y) n++;
+                }
+            return n;
+        }
+
         void Start()
         {
             if (map == null) map = MapInfo.Instance != null ? MapInfo.Instance : FindAnyObjectByType<MapInfo>();
@@ -141,18 +160,16 @@ namespace StarForge.View
                     float px = x + rng.Range(-0.45f, 0.45f) * cell, pz = z + rng.Range(-0.45f, 0.45f) * cell;
                     float roll = rng.F01();
                     if (px < 1f || pz < 1f || px > size - 1f || pz > size - 1f) continue;
-                    float lichen = W(0, px, pz), gravel = W(1, px, pz), cliff = W(2, px, pz), ash = W(3, px, pz);
-                    float lushChance = Smoothstep(0.2f, 0.65f, lichen);
-                    // Dry tussocks gather in clumps, as they do on poor ground; spread
-                    // evenly they read from above as polka dots.
-                    float clump = Smoothstep(0.5f, 0.72f, Noise.Fbm(px * 0.07f + 3.7f, pz * 0.07f - 9.1f, 3));
-                    float dryChance = (gravel * 0.10f + ash * 0.03f) * clump * 2.2f;
-                    if (roll >= lushChance + dryChance || cliff > 0.25f) continue;
+                    float lichen = W(0, px, pz);
+                    // The same rule the grass fire burns by (MapGenerator.GrassChance).
+                    MapGenerator.GrassChance(new Vector4(lichen, W(1, px, pz), W(2, px, pz), W(3, px, pz)), px, pz,
+                                             out float lushChance, out float dryChance);
+                    if (roll >= lushChance + dryChance) continue;
                     float u = px / size, v = pz / size;
                     float h = td.GetInterpolatedHeight(u, v) + baseY;
                     if (h < water + 0.4f) continue;
                     Vector3 n = td.GetInterpolatedNormal(u, v);
-                    if (n.y < 0.86f || Blocked(px, pz)) continue;
+                    if (n.y < MapGenerator.GrassMinUp || Blocked(px, pz)) continue;
 
                     bool lush = roll < lushChance;
                     float s = rng.Range(0.75f, 1.25f) * (lush ? Mathf.Lerp(0.7f, 1.05f, lichen) : rng.Range(0.6f, 0.85f));

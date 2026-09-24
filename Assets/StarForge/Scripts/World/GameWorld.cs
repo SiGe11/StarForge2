@@ -21,9 +21,12 @@ namespace StarForge.World
         public int supplyUsed, supplyCap;
         public int lost, killed;
         public int oreMined, unitsProduced, structuresBuilt;
+        /// <summary>Splash shells that caught what they were aimed at, and ones that
+        /// burst on the ground short of it or where it used to be.</summary>
+        public int shellHits, shellMisses;
     }
 
-    public enum GameEventKind { Fire, Impact, Death, Promoted, UnitReady, StructureComplete, StructurePlaced, UnderAttack, Refused, Notice, PlantFelled, PlantLanded, PlantIgnited }
+    public enum GameEventKind { Fire, Impact, Death, Promoted, UnitReady, StructureComplete, StructurePlaced, UnderAttack, Refused, Notice, PlantFelled, PlantLanded, PlantIgnited, StructureIgnited }
 
     public struct GameEvent
     {
@@ -202,6 +205,8 @@ namespace StarForge.World
         public void BeginMatch(uint seed)
         {
             rng = new Rng(seed);
+            fireRng = new Rng(seed ^ 0xB0F1u);
+            nextFireCheck = 0f;
             time = 0f;
             winner = -1;
             running = true;
@@ -237,6 +242,7 @@ namespace StarForge.World
             u.Init(this, def, team, nextId++, complete, yaw);
             units.Add(u);
             if (def.building && complete && team < 2) factions[team].supplyCap += def.supplyGive;
+            if (Plants != null) Plants.ClearGrassUnder(u);
             return u;
         }
 
@@ -268,6 +274,65 @@ namespace StarForge.World
                 if (source != null && !source.dying && source.team != u.team && source.team < 2) source.CreditKill();
                 Kill(u);
             }
+        }
+
+        // ------------------------------------------------------------ wildfire at the walls
+        // A structure a wildfire reaches can catch. While a burning plant's crown or a
+        // burning patch of grass is at its walls, each second carries a small chance of
+        // it catching, in proportion to how hard that fire is going. A fire that burns
+        // up to a building delivers 7-20 heat-seconds at its walls (AgentPlay.
+        // BuildingFireTrial), so a little under a third of them set it alight; a tree
+        // blazing against it for a long while more often. Once alight it burns for a quarter of a minute
+        // and loses 6-12% of its health -- enough to see on its bar, never enough to
+        // bring it down (fire alone stops at 1 hp). Then it is safe for a while: what
+        // was burning against it has burnt out. A separate stream of random numbers,
+        // so a fire does not change what the rest of a seeded match draws.
+        const float FireCheck = 0.5f;          // seconds between looks at each building
+        public const float CatchRate = 0.025f; // chance per second of catching, at full heat
+        const float FireReach = 1.5f;          // how far outside its footprint a fire reaches it
+        Rng fireRng = new Rng(0xB0F1u);
+        float nextFireCheck;
+
+        void StructureFires(float dt)
+        {
+            // Burning ones burn down their share, spread over the time they burn.
+            foreach (var u in units)
+            {
+                if (u == null || u.dying || u.burnUntil <= 0f) continue;
+                if (time >= u.burnUntil)
+                {
+                    u.burnUntil = 0f;
+                    u.burnDamageLeft = 0f;
+                    u.burnSafeUntil = time + 45f;
+                    continue;
+                }
+                float d = u.burnDamageLeft * Mathf.Min(1f, dt / (u.burnUntil - time));
+                u.burnDamageLeft -= d;
+                u.hp = Mathf.Max(Mathf.Min(u.hp, 1f), u.hp - d);
+            }
+
+            var veg = Plants;
+            if (veg == null || veg.burning.Count + veg.burningGrass.Count == 0 || time < nextFireCheck) return;
+            nextFireCheck = time + FireCheck;
+            foreach (var u in units)
+            {
+                if (u == null || u.dying || !u.def.building || u.team > 1) continue;
+                if (u.burnUntil > 0f || time < u.burnSafeUntil) continue;
+                float heat = veg.FireNear(u.pos, u.def.radius + FireReach, time);
+                if (heat < 0.1f) continue;
+                if (fireRng.F01() >= 1f - Mathf.Exp(-CatchRate * heat * FireCheck)) continue;
+                Ignite(u);
+            }
+        }
+
+        /// <summary>Set a structure alight (see StructureFires).</summary>
+        public void Ignite(Unit u)
+        {
+            if (u == null || u.dying || !u.def.building || u.burnUntil > 0f) return;
+            u.burnStart = time;
+            u.burnUntil = time + fireRng.Range(13f, 19f);
+            u.burnDamageLeft = u.MaxHp * fireRng.Range(0.06f, 0.12f);
+            Raise(new GameEvent { kind = GameEventKind.StructureIgnited, unit = u, type = u.Type, team = u.team, pos = u.Ground });
         }
 
         void Kill(Unit u)
@@ -364,6 +429,7 @@ namespace StarForge.World
             UpdateProjectiles(dt);
             CrushBoulders(dt);
             if (Plants != null) Plants.Tick(this, dt);
+            StructureFires(dt);
 
             visTimer -= dt;
             if (visTimer <= 0f) { UpdateVisibility(); visTimer = 0.12f; }
@@ -721,6 +787,52 @@ namespace StarForge.World
             Raise(new GameEvent { kind = GameEventKind.Fire, unit = shooter, type = D.type, team = shooter.team, pos = muzzle, dir = fwd, projectileKind = kind });
         }
 
+        /// <summary>How far short of <paramref name="target"/> a Mauler standing at
+        /// <paramref name="from"/> would burst its shell: 0 if it arrives. The same
+        /// muzzle, aim point and flight time as Fire, followed half a metre at a time
+        /// against the terrain. A shell's arc is nearly flat -- at full range it climbs
+        /// about a metre over the line -- so a low rise between the two stops it, and a
+        /// tank on the wrong side of one will shell that rise all day. Only a stretch of
+        /// two metres under the ground counts: a real shell moves a metre or two a
+        /// frame and tests only where it lands, so it goes through a thinner crest.</summary>
+        public float ShellFallsShort(Vector2 from, Unit target, float minUnder = 2f)
+        {
+            if (!Unit.Live(target) || !map.InBounds(from)) return float.MaxValue;
+            Vector2 d2 = target.pos - from;
+            float flat = d2.magnitude;
+            if (flat < 1e-3f) return 0f;
+            Vector2 f2 = d2 / flat;
+            Vector3 muzzle = map.Ground(from) + Vector3.up * 1.70f + new Vector3(f2.x, 0f, f2.y) * 2.9f;
+            Vector3 aim = target.Ground + Vector3.up * (target.def.radius * 0.6f);
+            Vector3 d = aim - muzzle;
+            float t = Clamp(d.magnitude / 55f, 0.25f, 2f);
+            Vector3 v = new Vector3(d.x / t, d.y / t + 0.5f * 42f * t, d.z / t);
+            int steps = Mathf.Max(16, Mathf.CeilToInt(flat / 0.5f));
+            float stepLen = flat / steps, under = 0f;
+            Vector2 entered = Vector2.zero;
+            for (int i = 1; i < steps; i++)
+            {
+                float s = t * i / steps;
+                Vector3 p = muzzle + v * s + Vector3.down * (0.5f * 42f * s * s);
+                var p2 = new Vector2(p.x, p.z);
+                if (!map.InBounds(p2)) return float.MaxValue;
+                if (p.y <= map.HeightAt(p2))
+                {
+                    if (under <= 0f) entered = p2;
+                    under += stepLen;
+                    if (under >= minUnder) return (entered - target.pos).magnitude;
+                }
+                else under = 0f;
+            }
+            return 0f;
+        }
+
+        /// <summary>Does a shell from here do its job? A burst within
+        /// <paramref name="splash"/> of the target counts: a big structure behind a low
+        /// bank is hit through the bank.</summary>
+        public bool ShellClears(Vector2 from, Unit target, float splash) =>
+            ShellFallsShort(from, target) <= splash + target.def.radius;
+
         void UpdateProjectiles(float dt)
         {
             for (int k = projectiles.Count - 1; k >= 0; k--)
@@ -785,6 +897,20 @@ namespace StarForge.World
                         if (d > p.splash + e.def.radius) continue;
                         float falloff = 1f - Saturate((d - e.def.radius) / p.splash) * 0.6f;
                         Damage(e, p.dmg * falloff, c, p.shooter);
+                    }
+                    // Did it catch what it was aimed at, or just dig a hole near it?
+                    if (Unit.Live(p.shooter) && targetOk)
+                    {
+                        bool caught = (t.pos - c).magnitude <= p.splash + t.def.radius;
+                        var sh = p.shooter;
+                        if (caught) { sh.shotsMissed = 0; sh.missFrom = sh.pos; }
+                        else if ((sh.pos - sh.missFrom).sqrMagnitude > 25f) { sh.shotsMissed = 1; sh.missFrom = sh.pos; }
+                        else sh.shotsMissed++;
+                        if (p.team >= 0 && p.team < factions.Length)
+                        {
+                            if (caught) factions[p.team].shellHits++;
+                            else factions[p.team].shellMisses++;
+                        }
                     }
                     Blast(hitAt, p.splash * 0.7f, p.splash * 0.55f, 0.35f, 0.3f);
                 }

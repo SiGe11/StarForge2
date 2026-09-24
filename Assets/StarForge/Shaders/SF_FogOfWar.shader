@@ -7,10 +7,6 @@
 //     view ray, so mist pools in low ground and over water while plateaus stay
 //     clear, plus distance haze and sun in-scattering. Done here rather than per
 //     shader, because this pass already has the world position of everything.
-//  2. Shockwaves: each live explosion pushes the image out in a thin ring
-//     (FXDirector uploads their screen positions), the classic blast ripple.
-//     Free here -- the pass already has the colour buffer -- where a refraction
-//     pass of its own would cost a colour copy.
 //  3. Fog of war: samples the player's visibility texture (r = currently seen,
 //     g = ever seen), which FogOfWarRenderer uploads from the same per-team grid
 //     the AI is fogged by. Explored-but-unwatched ground stays legible as a dim,
@@ -44,26 +40,6 @@ Shader "StarForge/FogOfWar"
             float4 _SF_AtmoSun;      // rgb: linear sun scatter colour, a: strength
             float4 _SF_AtmoSunDir;   // xyz: direction toward the sun
 
-            float4 _SF_Shocks[8];    // xy: screen uv centre, z: radius (uv), w: strength
-            float _SF_ShockCount;
-
-            float2 ShockDistort(float2 uv)
-            {
-                int n = (int)_SF_ShockCount;
-                if (n <= 0) return uv;
-                float aspect = _ScreenParams.x / max(1.0, _ScreenParams.y);
-                float2 push = 0.0;
-                for (int i = 0; i < n; i++)
-                {
-                    float2 v = (uv - _SF_Shocks[i].xy) * float2(aspect, 1.0);
-                    float r = max(_SF_Shocks[i].z, 1e-4);
-                    float d = length(v);
-                    // A thin ring at the wavefront, strongest on the ring itself.
-                    float band = saturate(1.0 - abs(d - r) / (r * 0.35));
-                    push += normalize(v + 1e-6) * (band * band * _SF_Shocks[i].w);
-                }
-                return uv + push * float2(1.0 / aspect, 1.0);
-            }
 
             half3 ApplyAtmosphere(half3 col, float3 wp)
             {
@@ -92,7 +68,7 @@ Shader "StarForge/FogOfWar"
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-                float2 uv = ShockDistort(input.texcoord);
+                float2 uv = input.texcoord;
                 half4 col = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
                 bool fow = _SF_FogParams.y > 0.0;
                 bool atmo = _SF_AtmoParams.w > 0.5;

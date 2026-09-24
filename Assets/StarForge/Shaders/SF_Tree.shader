@@ -103,8 +103,8 @@ Shader "StarForge/Tree"
         #endif
         }
 
-        // The match's wind (Atmosphere uploads it): xy heading, z strength, w gust phase.
-        float4 _SF_Wind;
+        // The match's wind and the live blast pressure fronts.
+        #include "SF_Wind.hlsl"
 
         // Object-space position after foliage loss, and the world position after wind.
         float3 TreeVertex(TreeAttributes v, float4 prm, out float3 posOS, out float3 normalOS)
@@ -144,6 +144,20 @@ Shader "StarForge/Tree"
                          * sin(t * 4.6 + v.color.g * 25.13 + phase * 2.0) * 0.5;
             wp.xz += dir * sway * 1.6 + side.xz * shiver;
             wp.y -= abs(sway) * 0.3 * v.color.b;
+            // A blast's pressure front: the whole plant is thrown away from it and
+            // pressed down, hardest at the crown, and springs back as it passes.
+            // A felled tree is stiff (prm.w), the same as it is to the wind.
+            float2 blast = SFGust(origin.xz) * prm.w;
+            if (dot(blast, blast) > 1e-8)
+            {
+                // Bent about the foot of the trunk, not sheared: the crown swings
+                // over and down, it does not slide sideways and grow taller.
+                float3 rel = wp - origin;
+                float L = length(rel);
+                rel.xz += blast * v.color.b * 1.5;
+                rel.y -= length(blast) * v.color.b * 0.45;
+                wp = origin + rel * (L / max(length(rel), 1e-4));
+            }
             return wp;
         }
 

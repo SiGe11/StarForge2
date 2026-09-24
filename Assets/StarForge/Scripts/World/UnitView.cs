@@ -44,6 +44,10 @@ namespace StarForge.World
         Quaternion legLRest, legRRest, armRest, cutterRest, drumRest, headRest;
         Vector3 gunRest, barrelRest, trolleyRest, loadRest, crystalsRest;
         float recoil, prevCooldown, armDip, cutterAngle, drumAngle, loadFill, oreScale = -1f;
+        // Seconds since the last shot, or -1: the Mauler's hull rocks on its
+        // suspension when the gun goes off (RecoilRock).
+        float recoilT = -1f;
+        float bodyBaseZ;
         float glowFill, glowFlare;
         int prevCarrying;
 
@@ -67,7 +71,7 @@ namespace StarForge.World
             unit = u;
             renderers = GetComponentsInChildren<Renderer>(true);
             mpb = new MaterialPropertyBlock();
-            if (body != null) bodyBaseY = body.localPosition.y;
+            if (body != null) { bodyBaseY = body.localPosition.y; bodyBaseZ = body.localPosition.z; }
 
             // Each renderer's height above the model origin, so the construction
             // line (in object space) lines up across a turret or a raised head.
@@ -115,13 +119,20 @@ namespace StarForge.World
             if (!visible) return;
 
             float t = Time.time, dt = Time.deltaTime;
+            // The turret is a child of the body, so it takes its yaw locally and
+            // rides whatever the hull does under it (the recoil rock below).
             if (turret != null)
-                turret.rotation = Quaternion.Euler(0f, unit.turretYaw * Mathf.Rad2Deg, 0f);
+                turret.localRotation = Quaternion.Euler(0f, (unit.turretYaw - unit.yaw) * Mathf.Rad2Deg, 0f);
 
             // Unit resets its cooldown when it fires.
-            if (unit.cooldown > prevCooldown + 0.05f) recoil = 1f;
+            if (unit.cooldown > prevCooldown + 0.05f) { recoil = 1f; recoilT = 0f; }
             prevCooldown = unit.cooldown;
             recoil = Mathf.MoveTowards(recoil, 0f, dt * 4.5f);
+            if (recoilT >= 0f)
+            {
+                recoilT += dt;
+                if (recoilT > RockTime) recoilT = -1f;
+            }
 
             if (body != null)
             {
@@ -146,7 +157,18 @@ namespace StarForge.World
                     y -= Mathf.SmoothStep(0f, 1f, unit.deathTimer / ttl) * unit.def.visualHeight * (unit.def.building ? 1.1f : 0.7f);
                 }
                 var lp = body.localPosition;
-                body.localPosition = new Vector3(lp.x, y, lp.z);
+                float z = lp.z;
+                // A gun that size shoves the whole tank: the hull is thrown back on
+                // its suspension, the nose comes up, and it rocks down and settles
+                // (a damped swing, not a slide back to rest). Presentation only --
+                // the hull's own position is the simulation's.
+                if (unit.Type == UnitType.Mauler)
+                {
+                    float rock = recoilT >= 0f ? RecoilRock(recoilT) : 0f;
+                    body.localRotation = Quaternion.Euler(-2.6f * rock, 0f, 0f);
+                    z = bodyBaseZ - 0.16f * Mathf.Max(0f, rock);
+                }
+                body.localPosition = new Vector3(lp.x, y, z);
 
                 if (unit.Type == UnitType.Skimmer)
                 {
@@ -175,6 +197,14 @@ namespace StarForge.World
                 shown = false;
             }
         }
+
+        /// <summary>How long the hull goes on rocking after a shot.</summary>
+        const float RockTime = 0.85f;
+
+        /// <summary>The hull's swing after the gun fires, 1 at the shot: a damped
+        /// oscillation, so it is thrown back hard, comes down past level and settles,
+        /// rather than easing home in one direction.</summary>
+        static float RecoilRock(float age) => Mathf.Exp(-5.5f * age) * Mathf.Cos(13f * age);
 
         void AnimateParts(float t, float dt)
         {

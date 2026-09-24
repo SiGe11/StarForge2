@@ -573,6 +573,9 @@ namespace StarForge.UI
                 case GameEventKind.Notice when e.team == me:
                     Alert(e.text, "alert--good");
                     break;
+                case GameEventKind.StructureIgnited when e.team == me:
+                    Alert($"{Defs.Get(e.type).displayName} is on fire", "alert--warn");
+                    break;
                 case GameEventKind.Death when e.team == me && e.unit != null && e.unit.def.building:
                     Alert($"{Defs.Get(e.type).displayName} destroyed", "alert--warn");
                     break;
@@ -872,7 +875,8 @@ namespace StarForge.UI
             "push, a Sentinel wall while it techs to Maulers, a second ore line, a counter-attack while your army is away, " +
             "or a feint. When its picture of you changes, so does its plan.\n\n" +
             "It fights like a player. It focuses fire on the weakest target that can shoot back, pulls its army home when a " +
-            "fight turns against it, sends raiders at your workers rather than your army, and comes back to defend when you hit its base.\n\n" +
+            "fight turns against it, sends raiders at your workers rather than your army, and comes back to defend when you hit its base. " +
+            "A Mauler whose shells keep landing on a ridge in front of you, or where you were a moment ago, is moved to where it can hit.\n\n" +
             "It does not play the same match twice. Each match it opens differently and leans its own way -- more Troopers or more " +
             "Maulers, an early push or a late one. Its attacks go for different things (your base, your production, an outlying " +
             "Foundry, your Diggers), come in straight or round a flank, gather before they go in, and sometimes split to hit two " +

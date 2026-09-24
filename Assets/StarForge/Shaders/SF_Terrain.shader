@@ -287,8 +287,11 @@ Shader "StarForge/Terrain"
                     if (_SF_BurntGrassParams.y > 0.5)
                     {
                         // Burnt ground keeps its ash long after the scorch of a shell fades.
+                        // Only where grass grew (the lichen layer it grows on): the 3 m
+                        // fire grid is filtered, and would otherwise grey the bare
+                        // gravel along a meadow's edge that never burned.
                         half gone = SAMPLE_TEXTURE2D(_SF_BurntGrass, sampler_SF_BurntGrass, wp.xz * _SF_BurntGrassParams.x).r;
-                        half ash = smoothstep(0.3, 0.9, gone);
+                        half ash = smoothstep(0.3, 0.9, gone) * smoothstep(0.1, 0.4, w.r);
                         albedo = lerp(albedo, albedo * half3(0.30, 0.28, 0.27), ash);
                         smooth *= 1.0 - ash * 0.45;
                     }
