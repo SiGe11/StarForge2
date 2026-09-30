@@ -70,7 +70,10 @@ namespace StarForge.AI
             foreach (var r in p.Enemies)
             {
                 var D = Defs.Get(r.type);
-                if (D.building && r.type != UnitType.Sentinel) continue;
+                // Of their structures only the finished guns: a Sentinel, and a Mech Bay's tower
+                // (which hits harder than a Sentinel, and was left out -- waves and scouts routed
+                // past it as if past bare ground). A site going up has no gun yet.
+                if (D.building && (!D.Armed || r.unfinished)) continue;
                 // Stale sightings contribute less; turrets do not wander off.
                 float conf = D.building ? 1f : Mathf.Exp(-(w.time - r.lastSeen) / 25f);
                 if (conf < 0.05f) continue;

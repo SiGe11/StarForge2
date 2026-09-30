@@ -56,20 +56,26 @@ menu items:
 | `StarForge/Build All` | Runs Build steps 0–4 in order |
 | `StarForge/Build/0 … 4` | Render pipeline → materials → unit defs/prefabs/icons → map scene → scene assembly |
 | `StarForge/Build/5 Record Shader Variants` | Run *after* playing a match in the editor; rewrites `Settings/SF_ShaderVariants` preloaded by the player |
-| `StarForge/Evaluate AI/Quick` or `Full` | Play-mode AI vs four scripted archetypes; report in the console and `persistentDataPath/starforge_ai_eval.txt` |
+| `StarForge/Evaluate AI/Quick` or `Full` | Play-mode AI vs four scripted archetypes (720 s / 900 s caps since the Mechs lengthened matches); report in the console and `persistentDataPath/starforge_ai_eval.txt`, each match's line with both sides' Mech Bay and Mech and how the AI's Mech spent its time by intent. `AIEvalMenu.Replay` (set `ReplayKind`/`ReplayGame`, call through `editor.sh call`) replays one game on its seed and logs both Mechs' reasoning every 30 s -- but a replay does not repeat the match exactly (frame timing differs), so read it for behaviour, not for the result |
 | `StarForge/Build macOS Player (Apple silicon)` | Writes `Builds/StarForge.app` (Mono in practice; IL2CPP needs full Xcode). Cached rebuilds ~20 s |
 | `StarForge/Debug/AI Internals` | Editor toggle for the developer-only AI inspector and memory controls |
 | `StarForge/Debug/Check Map Blocking` | Samples the NavMesh under every scenery piece, boulder, tree trunk (and in play, ore and structures) and reports any a ground unit could walk through (`MapChecks.Report`) |
 
-Benchmark the built player (AI vs AI, vsync off; keep the editor idle while it runs):
+Benchmark the built player (AI vs AI; keep the editor idle while it runs). `-sfplay` keeps vsync and
+the 60 cap, as a match runs -- the frame rate a player sees, and the one to compare builds on;
+without it the run is uncapped with vsync off, which on 6000.6.1 comes out bimodal. Mechs land at
+about four minutes, so use 420 s to measure them:
 
 ```bash
-Builds/StarForge.app/Contents/MacOS/StarForge -sfbench 120 -sfbenchout /tmp/starforge_bench.txt
+Builds/StarForge.app/Contents/MacOS/StarForge -sfbench 420 -sfplay -sfbenchout /tmp/starforge_bench.txt
 ```
 
 `-sfgallery <dir>` (with `-sfgalleryquick` to stop early) takes the same screenshots every run on the
 default map -- base close and mid, ore, a shore, a grove before, during and after it is set alight, a
-an animal, a songbird flock feeding and then flushed, the overview, then the first fire-fight -- so art changes can be compared before/after.
+an animal, a songbird flock feeding and then flushed, the overview, the first fire-fight, then the Mechs
+(`9_mech_close`/`9b_mech_mid`, the other side's `9c_mech_other`, three frames of a Mech firing
+`9d_mech_fight_*` and the bay `9e_mech_bay`) -- so art changes can be compared before/after. Use the
+player's gallery for looks, not editor captures: the Editor's Game view is about 810x375.
 The benchmark and evaluation use a fixed match seed (`MatchSettings.fixedSeed`); in play every match
 draws a new one, which is what gives the AI its per-match personality.
 On 6000.6.1 capped frames come out quantised to whole refreshes (16.7/33.3 ms) and uncapped ones
@@ -80,10 +86,34 @@ switches full screen and window four times, logs the sizes the player reports an
 `-logFile` to read them. The terminal has no screen-recording permission, so that log is the check.
 The testing cheat (README) is `Ctrl`/`Cmd`+`Shift`+`M`, +5000 ore, and marks `GameWorld.cheated`.
 WASD pans the camera (unless a modifier is held), so command hotkeys must not use W, A, S or D.
-The High-preset baseline is ~17.3 ms average uncapped on a cool machine, ~18.9 ms capped once it is
-warm, render scale settling at 0.70. The Neo is fanless and drifts about a millisecond as it heats, so
-compare rendering changes in alternating pairs against the previous build (`-sfcap60` matches builds
-from before the uncapping fix).
+Every preset aims adaptive resolution at one 60 Hz refresh (`targetMs` 16.9). With vsync a frame is
+shown for 16.7 or 33.3 ms, so `AdaptiveResolution` judges load under vsync by the share of frames
+that miss a refresh (`SyncedUpdate`: down past `missHigh`, up after a clean spell under `missLow`,
+both set per preset -- High 0.28/0.10, about 47 fps; the others 0.15/0.04, about 52):
+the length rule could never see room to climb (a vsynced frame never measures under 16.7 ms), and
+one heavy fight left a match at its floor. *High* once aimed at 21.5 ms ("~46 fps", 160 m shadows,
+floor 0.80): 47.6 fps uncapped, but 39 in play. Baseline on `-sfplay` 420 s, plugged in, battery not
+charging: *High* (150 m shadows, full grass, floor 0.55, `missHigh` 0.28 -- about 47 fps -- so the
+45 fps allowance goes into pixels) 49.3 fps, 47.3 with a Mech in view, render scale 0.62 (two
+runs agreeing within 0.2); with a 0.60 floor, before the Mechs were fitted out at the drop,
+49.8 / 50.1 -- the armoury's rotary cannons and missile racks are the busiest effects there are,
+so missile trails puff every 1.5 m for ~1 s and the rotary cannon's hits show every sixth round; 160 m
+came to 45.3 with a Mech in view, and a 0.70 floor to 42.6. Runs made while the battery charged
+came out ~3 fps lower, so note `pmset -g batt` with every number. **A locked screen caps the
+player at 20 fps** (every frame 50 ms): when the keep-awake ended the Mac locked, and two runs
+came out at 20.0 fps. Check `ioreg -n Root -d1 -a | plutil -extract IOConsoleUsers json -o - -`
+for `CGSSessionScreenIsLocked` before believing a slow run; unlocking needs the user. The Mech fights are bound by cost that does not shrink
+with resolution (160 m/1.0 grass 43.3 fps with a Mech in view, 110/1.0 46.1, 110/0.7 49.2, all at
+the 0.60 floor): measure shadow distance and grass with `-sfshadows N` / `-sfdensity X`. The report's
+"simulation ..." and "frames over 40 ms ..." lines (`GameWorld.SimMs/TickedMs`,
+`GameBootstrap.MechBrainMs`, GCs, NavMesh island builds) say whether a long frame had a slow
+simulation step; the `frame timing:` line (`FrameTimingManager`, `BuildMac` sets
+`enableFrameTimingStats`) gives main/render thread and present-wait, but its GPU time is not usable
+on Metal (frames overlap: GPU times longer than the frame). On battery this Mac turns Low Power Mode
+on (its battery profile), and a long evaluation drains it even on the charger: check
+`pmset -g batt` before believing a slow run.
+The Neo is fanless and drifts about a millisecond as it heats, so compare rendering changes in
+alternating pairs against the previous build (`-sfcap60` matches builds from before the uncapping fix).
 
 Measure flicker/shimmer on the built player, with the camera held still (`-sfburstzoom 150` to zoom out):
 
@@ -108,7 +138,8 @@ synthesised music were all rejected for looking or sounding home-made. Every one
 *Licences are not optional* above: verified, fetched, registered in `THIRD-PARTY.md`, credited, checked.
 
 Third-party sources (CC0 only: the repo is public) are fetched by `python3 Tools/fetch_assets.py` into
-`Art/Source/` (git-ignored): Poly Haven ground and rock scans, ambientCG leaf atlases, Kenney sound packs,
+`Art/Source/` (git-ignored): Poly Haven ground, rock and plant scans (the plants as .blend, ~700 MB;
+pass asset ids to fetch only some), ambientCG leaf atlases, Kenney sound packs,
 Quaternius animated animals, OpenGameArt music, and the recorded gunshots, tree falls and wood breaks
 (the Free Firearm Sound Library, kheetor, AntumDeluge, rubberduck) the weapons and felled trees are built
 from. There is no 7z in the standard library; macOS's `tar` (libarchive) reads the firearm library's .7z. Packers turn them
@@ -156,12 +187,175 @@ Invariants that must hold for any AI change:
 - Every order goes through the public `GameWorld.Cmd*` methods the mouse uses, paid from `ActionBudget`
   (APM token bucket) and delayed by the per-difficulty reaction time.
 
+**Mechs.** One Mech Bay and one Mech a side, a match (README "Mechs"). Rules live in
+`World/GameWorld.Mech.cs` (the bay: drop timer `MechDropDelay` 120 s, self-repair, repairing
+the Mech, upgrades `CmdMechUpgrade`; the Mech's guns `FireMechGun`; `Faction.bay/mech/design/
+upgrades/researching`), `World/Mech/MechParts.cs` (the fixed parts list, the 100-point budget,
+`Generate(seed)`, upgrade costs -- the balance sheet) and `World/Mech/MechCore.cs` (on the
+Mech's GameObject: stats from parts and upgrades, shield and armour in `Absorb`, every gun
+picking its own target). `Unit.Tick` hands a Mech to `TickMech`; `Unit.Untargetable` is a Mech
+still coming down. Designs are drawn in `BeginMatch` from the match seed, so a seed replays.
+The Mech takes **no orders from its side**: every player `Cmd*` skips `def.Autonomous`; its
+own AI (`AI/MechBrain.cs`, one per side, ticked by `GameBootstrap`) drives it only through
+`CmdMechMove`/`CmdMechFocus`/`CmdMechHalt` and speaks through `MechAdvise`
+(`GameEventKind.MechAdvice`), which the HUD shows as comms and `Commander.OnWorldEvent`
+weighs (heed or ignore, by `Personality.adviceTrust`). Its morale lines are `AI/MechSpeech.cs`:
+406 lines tagged by situation and tone (the user's 400 plus the six it had), picked by a reading
+of the battle about once a second (standing 0.7 armies-and-Mechs, 0.3 bases -- on all assets it
+read "even" through a match one side was losing; fights tracked by area, closed after 15 s with
+no death within 60 m -- one map-wide feed never went quiet; turning points, extremis, near
+defeat, calm global or local to a guarding Mech) with weights and cues. It has its
+own `Rng` and speaks through `MechBrain.Speak`, which does **not** push `nextAdvice` -- speech
+must never delay the calls the Commander acts on -- and it is kept rare (never within 30 s of
+any comms line, 90 s between its own, at most 4 in ten minutes). `MechSpeech.Check` (the
+table: all there, filled in, every bucket reachable) and `MechSpeech.JournalReport` (what the
+player's Mech said this match and why, its calls, repeats and lines a minute) run through
+`editor.sh call`. **The two Mechs are separate minds** (`AI/MechDoctrine.cs`): team 0's (the
+player's) is the guardian with the numbers MechBrain always had; team 1's (the opponent's) is
+a hunter, raider or brawler per match with jitter -- repairs at ~30%, lower caution, readier
+duels, hunts from ~55-62% hull out to 170-210 m, Diggers and Foundries worth more, guard post
+36-45 m out -- except while `homeThreatened` (it then neither hunts nor stands further out,
+so a bay raised in its base still pulls it home: BayEdgeCases case 0). **Only the player's
+Mech talks**: team 1's `Say` raises no event -- its Attack/Defend/Regroup go straight to
+`Commander.HearMech` (`MechBrain.Listener`, set by `GameBootstrap`), the same kind and place
+the event carried, and it has no MechSpeech. The player's comms mark a call about the same
+place within 150 s as `GameEvent.repeat` (a 1.6x bigger incoming force is news): the HUD and
+the radio leave it out, a Commander hearing the event still gets it. The HUD tags calls
+(SUGGESTION / WARNING / REPORT) and shows flavour (Morale) quoted and muted
+(`comms-line--flair`), never pushing a call off the feed. While the enemy Mech is about the
+Commander waits for a bigger army before pushing (`Plan`: x1.5 with its own Mech, x1.9 without,
+and +20% for each wave that Mech beat back, `mechRepulses`, up to four): before the last, it fed a
+defending Mech one wave at a time and matches ran to the cap. The bay mends a Mech at
+`MechCore.BayRepairRate` (50/s once left alone for 4 s, 15 under fire); at 75 a Mech holding its
+base was back to full in under twenty seconds. The evaluation line gives the AI Mech's time by
+intent: withdrawing 30-49% of it at full hull was the brain dithering at the enemy Mech's reach
+(support walked it in, "their Mech has the edge" walked it out), so a Mech that backs off from
+the enemy Mech keeps outside its reach for 12 s (`MechBrain.Shy`), goes in with its own
+attacking army (`withArmy`) and stays in a duel it started while the odds hold (`hold`); and the
+Commander does not start a wave at a Mech-held base while its own Mech is under 60%. The line
+also gives its time by reason (`intentText` without numbers): what was left was "their Mech has
+the edge" -- standing with its army because the odds were under 0.8 even together -- while its
+army attacked on and the regroup call stayed silent (it only fired from 30 m away). Now it
+reads as Holding once it is with the army, and `WarnOff` calls the regroup when its army is
+going at a Mech it cannot beat. **MechBrain is omniscient and has a
+~1,200 APM budget by design** -- the Commander invariants below (fog, APM) do not apply to
+it, and must still hold for the Commander, which learns only what the advice says.
+**Parts are picked at the drop.** `BeginMatch` draws only the pilot (`Faction.design` is a
+placeholder until `designChosen`); at the inbound call `GameWorld.FitOutMech` runs
+`MechArmoury.Compose`: 12 candidates from `MechParts.Generate`, scored against
+`MechArmoury.Read` (the enemy's infantry/armour/Mech/structure value -- omniscient, like
+MechBrain; the Commander never reads it) as offence against that mix x toughness^0.5, less for
+a design with no answer to part of it or that repeats the other side's body, then picked by
+weight (score/best)^3.5, so it adapts but still varies. Extra Hardpoints bought before the drop
+assume two spare mounts (every frame has two; Compose skips candidates with fewer).
+`MechDesigns.ArmourySurvey` measures it over 200 seeds and four enemy mixes: 375-385 distinct
+loadouts in 400, the two sides share a body 3-4% of the time, a flame weapon on 68% of Mechs
+against infantry and 47% against armour, a laser or railgun on 72% and 85%.
+**The Flame Tower** (`MechWeapon.FlameTower`, appended) is a top-mounted turret: `WeaponPart.turret`
+/ `turnRate`, `MechGun.yaw` (relative to the torso) turned in `TickGuns`, `Aimed` and the fire
+cone follow it, `MechCore.Muzzle` rotates the muzzle with it, and `MechView` turns the kit's
+`Turret` group (the other way on a mirrored left-hand mount). Adding it reshuffled the generator
+and the survey found the arm flamer overtuned against a crowd (flamer designs 50 Troopers on
+average, one at 86): it now does 0.16 to infantry in a 16-degree cone.
+**A tracked Mech rides on its tracks** (`MechView.Roll`): the hull settles onto a plane fitted
+through the ground along both runs (7 samples each over the flat length), through a critically
+damped `Spring` with its rate and tilt capped -- up fast, down gently -- its height smoothed as a
+world height (the agent's NavMesh height steps), and is then lifted so no point of either run is
+under the ground at the tilt it actually has. **A positive Euler z lifts the right side**: the
+roll used to be given minus the slope, so a tracked Mech always leaned the wrong way on a side
+slope and its uphill track sank into the hill; and the landing squat (`crouch`) now drops only
+the torso onto the suspension, not the hull into the ground. `Unit.UpdateFacing` steers a tracked
+Mech for `agent.steeringTarget` with a built-up turn rate (`yawVel`), not the agent's velocity of
+the moment. `MechTrackRide` measures all of it against the old motion (`MechView.LegacyTrackRide`)
+over the same three routes, sampling at the end of the frame (a coroutine resumed after Update
+sees the agent moved and the hull not): tracks into the ground at most 162 cm (more than 5 cm in
+92% of frames) -> 5 cm (0%), roll rate 7.9 -> 4.2 deg/s, roll reversals 0.68 -> 0.15/s, max roll
+25 -> 16 degrees, heading reversals from about one a second to 0.05.
+**The Commander plays against the Mech it has seen**: `Perception` reads a visible enemy Mech's
+guns (`Snapshot.eMechAntiLight`, `eMechDesignKnown`, `eMechSeenAgo`); `Plan` leans the Trooper
+share against it (armour against an anti-infantry Mech, rifles against an anti-armour one);
+`MechAway` (seen within 15 s, over 70 m from their base) opens a window wave at the plan's
+Mech-less threshold, weighted to their base and bay; and a wave stages on its own Mech when it is
+fit (`stageWithMech`, waiting for it at the staging point). `Dbg.mechWindows/stagedWithMech`
+count them on the evaluation line.
+**A bay can go up anywhere a Digger can build**, the enemy's base included. `BayEdgeCases`
+(Editor/MechTrials.cs; `Only` picks one case) raises team 0's bay 12 m inside the enemy base, 45 m
+out, in a corner, on a lake shore, in a wood and far out on a flank (map seed 1000, 420 s at 8x)
+and reports the bay's and the Mech's fate, the Mech's time by reason, repair trips (a new docking
+after 10 s away from the gantry) and, for a Mech that fell, its last intents with what had it in
+reach. What it found and what was changed: the Commander ignored a bay in its base (home defence
+counted units only) -- it now counts an enemy Mech Bay (400) or Sentinel (250) within 55 m of its
+base, but only with an army worth `max(450, pushThreshold / 2)`, because without that gate it fed
+Troopers to the bay's tower one at a time and lost the match. MechBrain's `HomeThreat` counts an
+enemy bay (600) or tower (300) beside its structures. A Mech mends only at a bay on its own half
+or one nothing out-guns it at (`BaySafe`, which counts everything whose reach covers the gantry,
+not a fixed 32 m -- it sat in the gantry at 5-13% while their Mech shot it from 45 m, and died
+there in 3 of 5 lake-shore runs); losing hull for 6 s in a forward bay's gantry sends it away for
+20-120 s (`bayShunUntil`, doubling); hurt with no bay to go to it falls back to its own lines
+(`Guard(null)`), and it guards its base, not a forward bay.
+Cases 6 and 7 walk a Digger in at 90 s and place the bay when it arrives, as a player would (a
+site goes up the moment it is ordered, so one ordered from afar is shot down first). A site with
+no work done on it does not use up the side's bay (`MechBookkeeping`, `buildProgress <= 0`), like
+one called off. `Remembered.unfinished` lets the Commander answer a site going up by its base
+with whatever army it has (`site`; the gate above is for finished guns): 45 m out, its Digger died
+15-16 s after the order and it was never finished, against 19-39 s and finished once in three
+with `Commander.IgnoreSites` (the A/B switch; the runners reset it). The bay's gun (1,800 hp,
+22 damage every 0.6 s, 24 m) kills a Digger in two shots, so `RunMacro` step 5b moves Diggers off
+ore an enemy gun covers (`guns`, `SafeOre`: node, its Foundry and the way between out of reach)
+and expansions avoid it; with no safe ore they stand clear, unless the gun covers the main
+Foundry, when they mine on at a loss -- stood clear there, the army never grew and the base fell.
+Every Mech weapon carries three damage multipliers (`WeaponPart.vsLight/vsHeavy/vsStructure`,
+`Projectile.ClassMul`); **the projectile pool is shared**, so `GameWorld.Fire` resets them to 1 --
+before it did, a rifle round reused from a Mech's shell kept its 0.5x against infantry.
+Mech values are kept out of `Snapshot.armyValue/eArmyValue` and the player-style read
+(`mechAlive`, `eMech`, `eMechBay` instead). Presentation: `View/MechView.cs` assembles the
+Mech from `Resources/MechKit` (per-part prefabs and points, `Editor/MechKitBuilder.cs`, run
+by Build step 2 from `Art/Models/mechs.json`), walks it by two-bone IK with planted feet,
+raises `MechView.Footfall`, and hands it to `View/MechWreck.cs` on death. Its springs must hold at
+any frame length -- the evaluation runs the game at 8x and more: the banner's, stepped once a frame,
+went to NaN in one long frame and logged an error every frame after, which stalled a Full evaluation
+for hours (it now steps 20 ms at a time and resets on NaN);
+`View/FXDirector.Mech.cs` has its effects, `AudioDirector` its sounds (`make_audio.py --mech`
+builds only those). Models are drawn `MechCore.ModelScale` (1.2) larger than the kit; the
+sim's muzzle points follow. Balance is measured, not guessed: `MechTrials`/`MechDuel`
+(Editor/MechTrials.cs) fights a Mech against N Maulers or Troopers on a flat corridor of map
+seed 1000 and bisects for the break-even N (targets: 20-25 Maulers, 30-40 Troopers);
+`MechTrials.Watch` logs an AI-vs-AI match's bays, Mechs, upgrades and advice;
+`MechShowcase.Run` and `MechCombatLook.Run` photograph them (`Temp/mech*.png`).
+Trials silence the opponent AI with `Commander.Suspended`, a static: with domain reload off it
+survives into the next play session, and a quick evaluation after a trial that left it on lost
+3 of 4 to an AI that never moved. `AIEvalRunner` and `BenchmarkRunner` now clear it; a one-off
+`Unity_RunCommand` trial must too.
+
+**The Editor stops ticking when the display sleeps.** Its play loop runs off the display
+refresh, so an evaluation or trial left running with the screen off stalls (a replay managed
+69 s of play in 40 minutes) and resumes the moment something pokes the Editor. Run
+`caffeinate -d -i -t 7200` in the background for long runs. It also crawls when it is not the
+frontmost app (App Nap): after a benchmark or gallery run the player had taken the foreground and a
+quick evaluation managed 18 s of play in ten minutes. MCP calls wake it for a moment (the file
+inbox does not); `open -a /Applications/Unity/Hub/Editor/6000.6.1f1/Unity.app` brings the running
+Editor to the front (check `InternalEditorUtility.isApplicationActive`).
+
+**Never edit a script while the Editor is in play mode.** Unity recompiles and reloads the
+domain mid-play: every `[NonSerialized]` array is gone (GroundDeformer threw from every
+`UnitView` each frame) and any running trial loses its state. Stop, edit, compile, play.
+
 **Navigation areas.** Boulders (`World/Boulder.cs`) and the trunks of trees on walkable ground are left
 out of the bake and stand on the `Rubble` area (`NavMeshModifierVolume`s; the trees' all sit on
 `Map/Vegetation`); every agent except the Mauler excludes it. `GameWorld` crushes a rock and
 `Vegetation` fells a tree when a Mauler reaches it or a blast does, then `GameWorld.RequestNavRebuild`
 rebuilds the NavMesh tiles with `NavMeshSurface.UpdateNavMesh`.
-`GameWorld.Awake` swaps in a copy of the baked data first, so a match never edits the asset. Water is
+`GameWorld.Awake` swaps in a copy of the baked data first, so a match never edits the asset. **A rebuild
+takes the path from every agent whose way crossed a changed tile** (it comes back `PathInvalid`, no
+path, nothing pending), and a Mauler fells its own trees: never read "no path" as arrival.
+`Unit.KeepGoing` re-requests it and ends a move order only at the goal, at the end of a partial path or
+after four empty answers; before it did, orders were dropped mid-journey and units stood until clicked
+again (the "units stop reacting to clicks" bug). `GameWorld.Awake` sets
+`NavMesh.pathfindingIterationsPerFrame` to 1000 (Unity's 100 let a rebuild restart long requests, so
+Maulers in a wood waited up to 9 s for a path), and rebuilds start at most every 1.5 s
+(`navRebuildNotBefore`). `AgentPlay.OrderTrial` sends a player army through woods and rocks for three
+minutes and reports order latency, stands and drops with the agent's state; `AgentPlay.StallTrial` does
+the same for an AI-vs-AI match (and counts path requests by unit and order). Water is
 not baked: the lake bed is ground (units wade up to `MapBuilder.WadeDepth`), deeper water is Not
 Walkable volumes on `Map/DeepWater`. Placement and walkability queries use `GameWorld.GroundAreas`, and
 structures need dry ground.
@@ -205,6 +399,14 @@ prefabs, plant kinds), the static scene parts and saving; so map-generation chan
 `MapGenerator`, not `MapBuilder`. The benchmark (`-sfbench`) and AI evaluation use seed 1000;
 `-sfseed N` fixes any run. Scene components (ground cover, atmosphere, quality presets, warmup,
 HUD) are wired by `SceneAssembler`, not added by hand.
+
+**Nested groups do not survive FBX export.** With `bake_space_transform` the FBX writer
+mangles a grandchild's transform (the Digger's `Arm/Cutter` came into Unity turned 270
+degrees and metres out of place). `export_fbx.export_groups` therefore writes every group as
+a direct child of the root (`Arm/Cutter` becomes `Cutter` beside `Arm`), and the game chains
+them again, each keeping where it stands (`UnitView.Bind` for the cutter, `MechView.RigLegs`
+for thigh > shin > foot). `Tools/blender/build_mechs.py` has its own entry point and exports
+only `SF_MECH_*` and `mechs.json`, so the other FBXs are not rewritten.
 
 **Blender → Unity contract.** `Tools/blender/sf_model.py` and `build_models.py` come from the original;
 `build_models_ext.py` (Skimmer, Sentinel), `build_env.py` (scenery) and `build_flora.py` (trees and
@@ -256,11 +458,24 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
 - Scanned rocks use `SF_Rock` (their own UVs and maps), not `SF_Unit`; its shared passes are not
   instancing-aware, so its materials keep GPU instancing off (SRP-batched). Scenery gets a Not Walkable
   volume over its footprint (`MapGenerator.BlockFootprint`), tall enough for pieces set into slopes.
-- Crowns are leaf cards (vertex alpha 1, `CardUV` from build_flora's `card()`, kept by the exporter) over
-  a solid inner canopy (vertex alpha 0) surfaced with the leaf pile (`_LeafTex`/`_NeedleTex`). The card
-  texture, tint, leaf style, blossom and bark style come through the renderer's property blocks
-  (`PlantKind.cardTex/cardNormal/cardTint/needles/bloom/birchBark/leafTiling`); foliage is two-sided
-  (`_Cull` 0). Card crowns cannot be decimated: far copies come from `build_flora.LOD_BUILDERS`.
+- Plants are Poly Haven scans baked by `Tools/blender/bake_scanned_flora.py -- <KIND>` (Cycles on the
+  CPU, 1-6 min a kind; fetch first with `python3 Tools/fetch_assets.py island_tree_01 ...`): the trunk
+  decimated with its own UVs and bark photograph (`Leaves/scan_<KIND>_bark.jpg`, SF_Tree `_BarkStyle` 2,
+  `PlantKind.barkTex`), the leaves and twigs k-means-clustered, each cluster rendered orthographically
+  from out of the crown and up into a tile of `scan_<KIND>_col.png` / `_nrm.png` (normals in the card's
+  frame). A card shows *all* the foliage within a sphere round its cluster (`SPHERE`), with a ragged rim
+  (each leaf island gets its own reach), so neighbouring cards overlap like sprays: showing only its own
+  cluster, a card covered 15-19% of its tile and the crowns read as burnt. Leaf coverage is grown by a
+  texel (`GROW`) against the 0.45 cut-off. The layout goes to `Tools/blender/scanned/<KIND>.json`
+  (committed, game space) and `scanned_flora.py` builds the model from it inside `build_flora`'s kind
+  builders; the procedural builders remain the fallback for a kind with no bake. Cards bring their own
+  occlusion by crown depth (`sf_ao`), which `export_fbx.bake_ao` keeps: ray-cast against a hundred
+  overlapping quads it blackened the crowns. Wind and blast pressure need nothing new, because the vertex
+  colour contract is the procedural one (B the sway weight, A 1 on cards, G random per card). Foliage is
+  two-sided (`_Cull` 0); far copies (`LOD_BUILDERS`) keep every card and thin the trunk. The export
+  rewrites every FBX byte-for-byte differently; restore the ones you did not mean to change.
+  `AgentPlay.TreeGallery` photographs the most isolated plant of each kind at the closest zoom, and the
+  same plant in a held pressure front (`Temp/tree_<KIND>[_pushed].png`, 3x resolution).
 - Wind (`World/Wind.cs`): one heading, one strength and one gust rhythm for the whole match, drawn
   from the map seed in `MapGenerator.Generate` and evaluated as a pure function of the match clock, so
   it needs no state and a seed replays identically. Everything that should agree reads it: fire spreads
@@ -268,7 +483,11 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
   tear off the crowns when it blows hard (`FXDirector.WindBlown`), the cloud shadows drift with it, and
   `Atmosphere` uploads it as `_SF_Wind` (xy heading, z strength, w gust phase) for SF_Tree and SF_Grass.
   Both shaders fall back to a steady breeze when that global is zero, so nothing stands frozen in the
-  scene view. Sway amplitude is per material (`_WindStrength`) times that strength.
+  scene view. Sway amplitude is per material (`_WindStrength`) times that strength. The clouds are the
+  exception to the gusts: they drift with `Wind.Weather` (the day's strength), steadily, at
+  `Atmosphere.cloudDrift` (3.2 m/s) on the windiest day. Driven by `Wind.Speed` at 14 m/s they surged
+  and stalled with every gust and raced across the map ("wind is too fast"). The gust phase advances at
+  `0.45 + 0.95 x speed` (it was `0.5 + 1.4 x`, which thrashed on a windy day).
 - **Blast pressure** (`Shaders/SF_Wind.hlsl`, shared by SF_Tree and SF_Grass): a muzzle blast or a burst
   queues a front in `FXDirector.PressureWave`, which expands at 52 m/s and spends itself as it spreads;
   `UploadGusts` puts the four strongest into `_SF_Gusts` (xy origin, z the front's radius now, w the
@@ -288,10 +507,25 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
   Anything new it should move goes there; anything that would only *show* the front does not.
 - A felled tree (`Vegetation.Topple`) is a rod pivoting on its stump: angular acceleration
   `1.5 g sin(theta) / L`, so it starts slowly, comes down faster the further it goes, and a tall tree
-  takes longer than a short one (measured: 2.4-3.1 s from a Mauler's lean, 1.5-1.7 s when a blast
-  throws it). `Fell(..., push)` is the shove in radians a second (blast 0.5-1.3 by distance, Mauler 0.3,
-  a burned-through snag 0.05, which then goes downwind). It rests on its own boughs (`Live.rest`), and
-  bounces once or twice before settling. `LodgeCheck` hangs it up in a neighbour's crown if one stands
+  takes longer than a short one (measured 1.5-1.7 s when a blast throws it). `Fell(..., push)` is the
+  shove in radians a second (blast 0.5-1.3 by distance, a burned-through snag 0.05, which then goes
+  downwind). It rests on its own boughs (`Live.rest`), and bounces once or twice before settling; the
+  rebound is capped at 0.45 rad/s (proportional to the impact, a tree flung down at 6 rad/s sprang back
+  45 degrees and fell again).
+- **A Mauler shoulders a tree over** (`Vegetation.CrushUnderMaulers`), a kinematic contact rather than a
+  shove: when the trunk meets the hull's nose box (`HullFront` 2.2, `HullSide` 1.6 m, from the model's
+  track runs) it is `Fell` with no push and `Live.pushedBy` the tank, and while it is held there its lean
+  is at least `atan(past / GlacisHeight)` -- `past` being how far the nose has come beyond the trunk's
+  foot -- so the trunk never enters the hull; gravity takes over and it falls away ahead. The blow
+  multiplies `agent.velocity` by 0.3-0.7 by trunk radius, and `Unit.pushLoad` (reset per tick, the roots'
+  resistance) cuts `Unit.UpdateFacing`'s pace by up to 75%, works the engine (`FXDirector.MaulerEffects`)
+  and lifts the hull's nose (`UnitView`). Slowed only through its top speed, the tank lost nothing before
+  the tree was over and flung it down at full tilt. A trunk lying under the hull's footprint is pressed
+  in (`Live.crush`, sinking the pose by up to 0.9 trunk radii) and raises `GameEventKind.PlantCrushed`
+  (splinters, `bank.crush`). `AgentPlay.PushLook` drives one into a lone blocking tree across the camera's
+  view and prints the lean against the hull's position, the tank's speed and the closest the trunk came
+  to the glacis (measured: 4.1 m/s down to 1.4-2.0, down 1.4-1.8 s after contact, gap never below
+  0.27 m), photographing it (`Temp/push_*.png`). `LodgeCheck` hangs it up in a neighbour's crown if one stands
   in the way (`Live.lodged`, `slipAt`), until it slips or that tree goes. `GameEvent.speed` carries the
   crown's speed at the impact, which scales the dust, the debris and the camera shake.
 - Fire (`Vegetation.Ignite/Spread/TickGrass`): every kind burns at `PlantKind.burns`, spread runs
@@ -339,6 +573,44 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
   disconnect a base, expansion or ore field are dropped (`MapGenerator.Blockage`). MapChecks tests a
   ring 0.4 m outside each trunk and base-to-base connectivity. Undergrowth kinds set `drawDistance` and
   `castShadows = false`. Plant kind indices are MapGenerator's constants; append new kinds, never reorder.
+- **The grove check's grid must agree with the NavMesh**, or it turns every grove away: on 17 of 40
+  seeds it did (291-395 "groves dropped", 38 blocking trees, all of them lone trees and snags), because
+  it had lost a target before the first tree. `Blockage` is a 1 m grid of where a unit's *centre* may
+  go: terrain from `WalkableGround` (the bake's own rules on the real heights -- no heightmap triangle
+  within the agent's radius steeper than its slope, not deep water), with no margin of its own, and
+  scenery, boulders and trees as padded discs/stamps that must keep a cell clear round every cell a
+  unit passes. Do not go back to `HeightfieldGenerator.PassableCell`: its 2 m corner-spread rule allows
+  only 29 degrees on a diagonal and walled base B's plateau rim off where units drive over it. Where the
+  NavMesh threads a pass too narrow for 1 m cells, the NavMesh is baked once without trees and its path
+  is written into the grid as a `Link` that trees must keep clear of (logged as "narrow passes kept
+  clear"). That is now a fallback (0 of GroveBatch's 40 seeds): the 3 that needed it were a crack in the
+  terrain (next bullet) or a boulder in a pass mouth. A target within
+  `ReachSlack` (3 m, a Digger's harvest reach) of a reached cell counts; a 7 m square counted ore at the
+  foot of a slope as reached from the terrace above. Expansions are placed only where both sides and all
+  twelve ore fields are reached from a base (a quarter of maps had one in a basin nobody could enter);
+  anything still unreachable is left out of the check with a warning. `AgentPlay.GroveBatch` regenerates
+  40 seeds in play mode and reports drops, blocking trees, links, unreachable places and expansions
+  (measured: 3 seeds dropped a grove, 4 in all; blocking 127-206, mean 168; seed 1000 unchanged at 867
+  plants, 159 blocking). `AgentPlay.GroveGrid` then `GroveGridReport` draws one seed's grid against the
+  NavMesh with its path to base B (`Temp/grove_grid_<seed>.png`).
+- **The bases are joined on the ground units get, not on the generator's cells.** `HeightfieldGenerator`
+  tests A-B on its 2 m `PassableCell` grid (corner spread <= 1.6 m), but the terrain is the Catmull-Rom
+  surface through those corners (`SmoothHeightAt`), which climbs a single terrace step about half again
+  as steeply as its average, past the agent's 40 degrees; seeds 986964719 and 2090223571 passed the
+  generator's test while the NavMesh joined the bases only through a crack 0-0.4 m wide. So
+  `MapGenerator.Generate` floods `WalkableGround` from base A (terrain only, the grove check's grid) and,
+  while base B is not reached, calls `gen.Reconnect` (another `CarveCorridor`, 4.5 cells wide rather than
+  the original's 3.2, which left the narrowest point of the route 3 cells across; on 986964719 the ramp
+  is now 10-20 m wide on the NavMesh, 5.7-14 m at 3.2) and rebuilds the
+  heights (`Result.corridors`, logged). `ComputePassability`'s `pass` is untouched, so a seed that is not
+  carved lays out exactly as before. Boulders must not close a pass either (1217350130: a rock in the
+  mouth of a 7 m pass left 1.2-2.3 m beside a 40-degree slope): one that cuts the grid's way from base A
+  to anything reached before it -- base B, an expansion, an ore field -- is placed elsewhere.
+  `Blockage.MayCut` decides most rocks locally (the rim of a square round the disc still joins up) and
+  keeps the reach map exact without a flood (checked cell for cell against a fresh flood after every
+  boulder on 40 seeds); 0-2 floods a map. On any seed whose grid already reached everything, no rock is
+  moved. Measured on GroveBatch's 40 seeds: 37 identical (seed 1000 included), 2 carved, 1 rock moved,
+  0 links.
 - Fauna (`View/Fauna.cs`): Quaternius FBX in `Art/Fauna/`, imported Legacy-animated with no materials;
   `SceneAssembler.BuildFauna` colours the parts, turns each model to face +Z (the rigs' bones are unnamed,
   so each model's facing is given), sizes it from its skeleton (the imported renderer bounds are
@@ -363,6 +635,23 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
   a 0.17 grey under it came out as a hole in the scene. When cutting smoke back, cut what comes off
   moving units -- exhaust, track dust, shell trails -- not what an explosion or a fire makes, which is
   where the drama lives.
+- **Unit deaths** are `View/UnitWreck`: on the frame a mobile unit dies, `UnitView` hands its `body` (and
+  the Mauler's turret or the Trooper's `Gun`, its legs) to a new wreck object and does nothing more, so
+  `GameWorld` still destroys the unit after 1.3 s and the simulation is unchanged. The wreck is rigid
+  bodies on the terrain collider (which follows the craters): a box from the mesh bounds (readable even
+  when the mesh data is not), centre of mass low, raised out of the ground if the NavMesh had it
+  buried, then frozen kinematic once still (or at 7 s) and sunk. It falls the way `Unit.killDir` points
+  and as hard as `killForce` (set by `GameWorld.Kill`: away from a shell's burst when `Damage(..., splash)`,
+  else from the shooter; the fallback direction comes from the unit id, never the match's random
+  stream, or a seeded match would shift). A Trooper's topple is given about his feet (linear velocity
+  `fall x spin x hips`): spun about his middle, his feet dug in and he stopped at 25 degrees. Machines
+  char through `_Damage` (0.9 falling to 0.6 so the glowing cracks go out) with a low `_Burn` (0.32 down
+  to 0): at the debris' full `_Burn` a hull glowed like lava and bloomed into a yellow lump.
+  `FXDirector.Wrecks` burns and smokes them by `Heat` and dusts a skidding Skimmer; `TrooperDown`
+  replaces the fireball a rifleman used to die in (AudioDirector and GroundMask skip the boom and the
+  scorch for him too). Only what the player saw die leaves a wreck; past 36 the oldest sink early.
+  `AgentPlay.DeathLook` kills one of each on the flattest ground near the base and photographs the
+  deaths (`Temp/death_*.png`, 2x) with each wreck's tilt, travel and heat.
 - Artillery that keeps missing is moved (`Commander.RepositionStuck`). `Unit.shotsMissed` counts splash
   shells in a row, fired from within 5 m of `missFrom`, that burst further than splash + radius from their
   target; it must not reset on `MoveTo` (units re-path every 1.2 s, so it never grew). After three, the
@@ -377,6 +666,9 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
 - Blasts fell trees by **chance**, not by radius (`Vegetation.Blast`): the roll falls off with distance
   over `radius * 1.35` and with trunk thickness. `AgentPlay.FellTrial` shells a wood 60 times and prints
   the rate per distance band -- aim for something like 80/35/17/8% out to 4.3 m for a Mauler's shell.
+  The odds scale with `0.38 / trunkRadius` (thicker stands), so a kind's `trunkRadius` is gameplay as
+  well as the blocking ring: with the scanned trunks (broadleaf 0.48 m, jacaranda 0.40) it measured
+  66/45/21/6%, 27% overall, on a generated map.
 - The Mauler's weight is `FXDirector.MaulerEffects` (engine smoke off the two stacks, dust and stones off
   the tracks, the barrel smoking after a shot) plus the hull's recoil rock in `UnitView` (`RecoilRock`, a
   damped swing; the turret takes its yaw as a *local* rotation so it rides the hull). The stack and track
@@ -426,6 +718,10 @@ bushes, bark slot before foliage, crown shape into `models.json`) are new. The e
   energy under 120 Hz and its spectral centroid, not by ear alone (nothing here can be listened to from
   the agent's side): rifle ~800 Hz, cannon ~180, the engine bed ~220, a shell landing 240-320, a
   structure 150-200. The engine was 83 Hz before its knock was soft-clipped and the bed high-passed.
+  Loudness is relative: "the rifle has no sound" was a shot playing at 0.15 under music at 0.54, not a
+  missing clip. `AgentPlay.RifleCheck`/`RifleCheckReport` stage a fire-fight and report every shot's
+  source (started, audible, virtualised) before anything is changed. `PlayAt` takes a free voice, or
+  the one nearest its end (`FreeVoice`), never simply the next in turn, and idle tank loops are paused.
   Music is `music_<calm|tension|combat>_<n>` tracks played one mood at a time on two crossfading
   sources, each at `musicLoudness` / its RMS from `music.json`; the benchmark report prints how much each
   mood played. The calm set (three tracks, played in turn) has to be warm: a minor-key piano loop under

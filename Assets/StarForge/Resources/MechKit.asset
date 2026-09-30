@@ -1,0 +1,273 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93b2cb775fd1f4a6aad6266e04211d66, type: 3}
+  m_Name: MechKit
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.World.MechKit
+  parts:
+  - model: MECH_LEGS_BIPED
+    prefabs:
+    - {fileID: 5515915909427358620, guid: 9ba22b135213947b78b4b8fce3c48212, type: 3}
+    - {fileID: 5766755560101265578, guid: 3e3dc824150934dfd9ce048847a2b664, type: 3}
+    pointNames:
+    - Waist
+    - HipR
+    - KneeR
+    - AnkleR
+    - HipL
+    - KneeL
+    - AnkleL
+    points:
+    - {x: 0, y: 5.05, z: 0}
+    - {x: 1.12, y: 4.5, z: 0}
+    - {x: 1.24, y: 2.82, z: 0.95}
+    - {x: 1.24, y: 0.74, z: -0.24}
+    - {x: -1.12, y: 4.5, z: 0}
+    - {x: -1.24, y: 2.82, z: 0.95}
+    - {x: -1.24, y: 0.74, z: -0.24}
+    height: 5.05
+    radius: 2.053
+  - model: MECH_LEGS_QUAD
+    prefabs:
+    - {fileID: 6511411115009032109, guid: f611dd992bef64e0f9d58e88bd842785, type: 3}
+    - {fileID: 2497353920422789094, guid: 59d68abf49c024830a739c8c7674ddae, type: 3}
+    pointNames:
+    - Waist
+    - HipFR
+    - KneeFR
+    - FootFR
+    - HipFL
+    - KneeFL
+    - FootFL
+    - HipBR
+    - KneeBR
+    - FootBR
+    - HipBL
+    - KneeBL
+    - FootBL
+    points:
+    - {x: 0, y: 3.9, z: 0}
+    - {x: 1, y: 3.12, z: 1}
+    - {x: 2.0253, y: 4.07, z: 2.0253}
+    - {x: 2.9799, y: 0, z: 2.9799}
+    - {x: -1, y: 3.12, z: 1}
+    - {x: -2.0253, y: 4.07, z: 2.0253}
+    - {x: -2.9799, y: 0, z: 2.9799}
+    - {x: 1, y: 3.12, z: -1}
+    - {x: 2.0253, y: 4.07, z: -2.0253}
+    - {x: 2.9799, y: 0, z: -2.9799}
+    - {x: -1, y: 3.12, z: -1}
+    - {x: -2.0253, y: 4.07, z: -2.0253}
+    - {x: -2.9799, y: 0, z: -2.9799}
+    height: 4.49
+    radius: 4.548
+  - model: MECH_TRACKS
+    prefabs:
+    - {fileID: 6380941160143399344, guid: 3576c9af7f4da4d1db5e8f11988f8678, type: 3}
+    - {fileID: 7631558952094417626, guid: 6b738e06cac994141933672d9454d73b, type: 3}
+    pointNames:
+    - Waist
+    - StackR
+    - StackL
+    points:
+    - {x: 0, y: 2.75, z: 0}
+    - {x: 0.7, y: 2.5, z: -1.86}
+    - {x: -0.7, y: 2.5, z: -1.86}
+    height: 2.75
+    radius: 3.055
+  - model: MECH_HOVER
+    prefabs:
+    - {fileID: 4949595644780498214, guid: 630c3c7c1b43e4306a892243ff4247db, type: 3}
+    - {fileID: 6425953473698542095, guid: 5a1e3f707f846485aad41bb0b0cf12e8, type: 3}
+    pointNames:
+    - Waist
+    - JetFR
+    - JetFL
+    - JetBR
+    - JetBL
+    points:
+    - {x: 0, y: 2.7, z: 0}
+    - {x: 1.72, y: 0.5, z: 1.55}
+    - {x: -1.72, y: 0.5, z: 1.55}
+    - {x: 1.72, y: 0.5, z: -1.55}
+    - {x: -1.72, y: 0.5, z: -1.55}
+    height: 2.7
+    radius: 2.93
+  - model: MECH_FRAME_LIGHT
+    prefabs:
+    - {fileID: 3698464932569911733, guid: 2d3f7e925ff5d4a92a05f3230d3e149c, type: 3}
+    - {fileID: 7400612293788110839, guid: 867a05113ccc649a8b2f68ee6f71522e, type: 3}
+    pointNames:
+    - ArmR
+    - ArmL
+    - Back
+    - ShoulderR
+    - ShoulderL
+    - StackR
+    - StackL
+    - Cockpit
+    - Reactor
+    - Banner
+    points:
+    - {x: 1.677, y: 0.817, z: 0.258}
+    - {x: -1.677, y: 0.817, z: 0.258}
+    - {x: 0, y: 1.849, z: -0.903}
+    - {x: 1.118, y: 1.978, z: -0.215}
+    - {x: -1.118, y: 1.978, z: -0.215}
+    - {x: 0.355, y: 1.9642, z: -1.2556}
+    - {x: -0.355, y: 1.9642, z: -1.2556}
+    - {x: 0, y: 1.376, z: 1.075}
+    - {x: 0, y: 1.333, z: -1.247}
+    - {x: -0.4586, y: 2.924, z: -1.1524}
+    height: 3.122
+    radius: 1.923
+  - model: MECH_FRAME_MEDIUM
+    prefabs:
+    - {fileID: 5709379476478539280, guid: ed5f468f757ec4cafb16b8231127e2b0, type: 3}
+    - {fileID: 7741285561946010825, guid: cc29e719880ed4091aee18006d1e4b4d, type: 3}
+    pointNames:
+    - ArmR
+    - ArmL
+    - ShoulderR
+    - ShoulderL
+    - Back
+    - Chest
+    - StackR
+    - StackL
+    - Cockpit
+    - Reactor
+    - Banner
+    points:
+    - {x: 1.95, y: 0.95, z: 0.3}
+    - {x: -1.95, y: 0.95, z: 0.3}
+    - {x: 1.3, y: 2.3, z: -0.25}
+    - {x: -1.3, y: 2.3, z: -0.25}
+    - {x: 0, y: 2.15, z: -1.05}
+    - {x: 0, y: 0.85, z: 1.25}
+    - {x: 0.48, y: 2.284, z: -1.46}
+    - {x: -0.48, y: 2.284, z: -1.46}
+    - {x: 0, y: 1.6, z: 1.25}
+    - {x: 0, y: 1.55, z: -1.45}
+    - {x: -0.62, y: 3.4, z: -1.34}
+    height: 3.63
+    radius: 2.238
+  - model: MECH_FRAME_HEAVY
+    prefabs:
+    - {fileID: 9049666327506081941, guid: b5fcc587378114d6aa11a8c3a2d9413c, type: 3}
+    - {fileID: 805016217611228798, guid: b7281a094c88548479f3123c1337e1de, type: 3}
+    pointNames:
+    - ArmR
+    - ArmL
+    - ShoulderR
+    - ShoulderL
+    - Back
+    - Chest
+    - Crown
+    - StackR
+    - StackL
+    - Cockpit
+    - Reactor
+    - Banner
+    points:
+    - {x: 2.223, y: 1.083, z: 0.342}
+    - {x: -2.223, y: 1.083, z: 0.342}
+    - {x: 1.482, y: 2.622, z: -0.285}
+    - {x: -1.482, y: 2.622, z: -0.285}
+    - {x: 0, y: 2.451, z: -1.197}
+    - {x: 0, y: 0.969, z: 1.425}
+    - {x: 0, y: 3.477, z: -0.171}
+    - {x: 0.6129, y: 3.1624, z: -1.7784}
+    - {x: -0.6129, y: 3.1624, z: -1.7784}
+    - {x: 0, y: 1.824, z: 1.425}
+    - {x: 0, y: 1.767, z: -1.653}
+    - {x: -0.7916, y: 3.876, z: -1.5276}
+    height: 4.138
+    radius: 2.563
+  - model: MECH_W_AUTOCANNON
+    prefabs:
+    - {fileID: 4730089797604958399, guid: 4bb72907b8be64b778d1dbf55caa4512, type: 3}
+    - {fileID: 6635206922079956326, guid: 51e92c0c22d894691933b83e038a00a0, type: 3}
+    pointNames:
+    - Muzzle
+    points:
+    - {x: 0, y: 0, z: 2.34}
+    height: 0.36
+    radius: 2.324
+  - model: MECH_W_GATLING
+    prefabs:
+    - {fileID: 7411076847910398497, guid: 1c4e243d3ac584272a2668e9c916f607, type: 3}
+    - {fileID: 4536570941501461638, guid: 00ddde8e5c45c4f54b5bcfde7a53821a, type: 3}
+    pointNames:
+    - Muzzle
+    points:
+    - {x: 0, y: 0, z: 2.06}
+    height: 0.4
+    radius: 2.048
+  - model: MECH_W_MISSILES
+    prefabs:
+    - {fileID: 95904249009628445, guid: 6350256387078449d9c240a37e4ba94f, type: 3}
+    - {fileID: 827648190417876724, guid: 323524c2423164b9bb37057ad26686a6, type: 3}
+    pointNames:
+    - Muzzle
+    points:
+    - {x: 0, y: 0.78, z: 0}
+    height: 0.77
+    radius: 0.741
+  - model: MECH_W_MORTAR
+    prefabs:
+    - {fileID: 6510493565636915525, guid: 880a64f34ad3c4d0590ce099575b53af, type: 3}
+    - {fileID: 2818515764160745863, guid: c41779c972c394b71831a91cc2a21160, type: 3}
+    pointNames:
+    - Muzzle
+    points:
+    - {x: 0, y: 1.7398, z: 0.8521}
+    height: 1.862
+    radius: 1.055
+  - model: MECH_W_LASER
+    prefabs:
+    - {fileID: 2486704108130102928, guid: 6e07d78c07e794a17bfa239dd61f5a39, type: 3}
+    - {fileID: 200629966377703961, guid: b53b8bf77e85c4806ba21d69c0268435, type: 3}
+    pointNames:
+    - Muzzle
+    points:
+    - {x: 0, y: 0, z: 2.74}
+    height: 0.36
+    radius: 2.722
+  - model: MECH_W_FLAMER
+    prefabs:
+    - {fileID: 2957105099833834146, guid: 41ddf80bb10324eb6b262a4f179395a8, type: 3}
+    - {fileID: 4998532562514105902, guid: 52e31d9ed1274473fb7a94a0bbd784ac, type: 3}
+    pointNames:
+    - Muzzle
+    points:
+    - {x: 0, y: -0.06, z: 1.92}
+    height: 0.36
+    radius: 1.883
+  - model: MECH_W_RAILGUN
+    prefabs:
+    - {fileID: 7802316481454044156, guid: 83fa55bfd49304df0970266d651a8cfb, type: 3}
+    - {fileID: 4609555281578155677, guid: a59fbc34842044f29b84db0c917786c2, type: 3}
+    pointNames:
+    - Muzzle
+    points:
+    - {x: 0, y: 0.05, z: 3.72}
+    height: 0.36
+    radius: 3.653
+  - model: MECH_W_FLAMETOWER
+    prefabs:
+    - {fileID: 7816827332036696108, guid: 98a7dc7c42f704ad698e9318df4ef25f, type: 3}
+    - {fileID: 2045879738896082876, guid: a94321e865d734b42931ac889c9ef37f, type: 3}
+    pointNames:
+    - Muzzle
+    points:
+    - {x: 0, y: 0.46, z: 1.08}
+    height: 0.71
+    radius: 1.064

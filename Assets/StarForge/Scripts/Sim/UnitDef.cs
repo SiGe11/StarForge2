@@ -11,6 +11,8 @@ namespace StarForge.Sim
         Worker = 0, Trooper, Mauler, Skimmer,
         Foundry, Garrison, Workshop, Bunkhouse, Sentinel,
         Ore, Boulder,
+        // Appended, never reordered: the unit assets store these as numbers.
+        MechBay, Mech,
         Count
     }
 
@@ -58,8 +60,14 @@ namespace StarForge.Sim
         public GameObject Prefab(int team) =>
             prefabs == null || prefabs.Length == 0 ? null : prefabs[Mathf.Clamp(team, 0, prefabs.Length - 1)] ?? prefabs[0];
 
-        public bool IsArmy => !building && !neutral && type != UnitType.Worker;
+        /// <summary>Takes no orders from its side: the Mech, which its own AI drives
+        /// (AI/MechBrain). Selection shows it; commands skip it.</summary>
+        public bool Autonomous => type == UnitType.Mech;
+        public bool IsArmy => !building && !neutral && type != UnitType.Worker && type != UnitType.Mech;
         public bool IsMobile => !building && !neutral;
+        /// <summary>Armour class for the Mech's weapons: infantry, Diggers and Skimmers
+        /// are light; tanks, Mechs and structures heavy.</summary>
+        public bool Heavy => building || type == UnitType.Mauler || type == UnitType.Mech;
         public bool Armed => range > 0f;
     }
 
@@ -89,6 +97,8 @@ namespace StarForge.Sim
                 case UnitType.Mauler: return 150f;
                 case UnitType.Skimmer: return 75f;
                 case UnitType.Worker: return 50f;
+                // As much army as twenty-odd Maulers (MechParts' balance), and valued so.
+                case UnitType.Mech: return 3200f;
                 default: return 0f;
             }
         }
@@ -102,11 +112,15 @@ namespace StarForge.Sim
                 case UnitType.Trooper: return 1.0f;
                 case UnitType.Skimmer: return 1.2f;
                 case UnitType.Sentinel: return 2.5f;
+                case UnitType.MechBay: return 4f;
+                // About twenty-odd Maulers' worth (MechParts' balance): the influence map
+                // should make an army think twice about walking into one.
+                case UnitType.Mech: return 60f;
                 default: return 0.25f;
             }
         }
 
         public static readonly UnitType[] Buildable =
-            { UnitType.Bunkhouse, UnitType.Garrison, UnitType.Workshop, UnitType.Sentinel, UnitType.Foundry };
+            { UnitType.Bunkhouse, UnitType.Garrison, UnitType.Workshop, UnitType.Sentinel, UnitType.Foundry, UnitType.MechBay };
     }
 }

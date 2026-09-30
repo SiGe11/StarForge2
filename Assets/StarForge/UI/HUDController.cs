@@ -44,6 +44,11 @@ namespace StarForge.UI
         MinimapElement minimap;
         OverlayElement screenOverlay;
         bool overlayHadBox;
+        VisualElement mechStrip, commsFeed;
+        Label mechStripTitle, mechStripState, mechStripText;
+        BarElement mechHull, mechShield;
+        /// <summary>The last places the Mech pointed at, drawn on the minimap for a while.</summary>
+        readonly List<(Vector2 pos, float t, MechAdviceKind kind)> advicePings = new List<(Vector2, float, MechAdviceKind)>();
 
         void LateUpdate()
         {
@@ -143,6 +148,15 @@ namespace StarForge.UI
             screenOverlay.DrawOverlay = DrawScreenOverlay;
             memoryToggle = root.Q<Toggle>("memoryToggle");
             inspectorButton = root.Q<Button>("inspectorButton");
+            mechStrip = root.Q("mechStrip");
+            commsFeed = root.Q("commsFeed");
+            mechStripTitle = root.Q<Label>("mechStripTitle");
+            mechStripState = root.Q<Label>("mechStripState");
+            mechStripText = root.Q<Label>("mechStripText");
+            mechHull = root.Q<BarElement>("mechHull");
+            mechShield = root.Q<BarElement>("mechShield");
+            // The strip is a button of sorts: a click finds the Mech (or its bay).
+            mechStrip.RegisterCallback<ClickEvent>(_ => FocusMech());
 
             BuildCommandCard();
             WireMenus();
@@ -368,6 +382,7 @@ namespace StarForge.UI
             }
 
             UpdateSelectionPanel();
+            UpdateMechStrip();
             if ((cardT -= dt) <= 0f || selectionDirty) { cardT = 0.2f; RefreshCommandCard(); }
             if ((minimapT -= dt) <= 0f) { minimapT = 0.1f; UpdateMinimap(); }
             if (inspector.ClassListContains("inspector--visible") && (inspT -= dt) <= 0f) { inspT = 0.25f; UpdateInspector(); }
@@ -435,6 +450,13 @@ namespace StarForge.UI
             hpBar.Value = hpFrac;
             hpBar.FillColor = HealthColor(hpFrac);
             if (d.type == UnitType.Ore) unitStats.text = $"{s.oreLeft} ore remaining";
+            else if (s.mech != null && s.mech.design != null)
+            {
+                var core = s.mech;
+                string shieldText = core.HasShield ? $"  ·  SHIELD {Mathf.CeilToInt(core.shield)}" : "";
+                unitName.text = $"{core.design.callsign} · {core.design.className}" + owner;
+                unitStats.text = $"HULL {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}{shieldText}  ·  ARMOUR {core.Armour * 100f:0}%  ·  KILLS {s.kills}";
+            }
             else if (d.Armed)
                 unitStats.text = $"HP {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}  ·  DMG {d.damage * (1f + 0.15f * s.rank):0}  ·  RANGE {d.range:0}  ·  KILLS {s.kills}";
             else
@@ -442,6 +464,25 @@ namespace StarForge.UI
             unitStatus.text = StatusText(s);
 
             queue.Clear();
+            if (s.Type == UnitType.MechBay && s.team < 2 && world.factions[s.team].researching >= 0 && s.team == player.team)
+            {
+                var F = world.factions[s.team];
+                // One row beside the queue slots: the bar and what it is building.
+                var row = new VisualElement { pickingMode = PickingMode.Ignore };
+                row.style.flexDirection = FlexDirection.Row;
+                row.style.alignItems = Align.Center;
+                var prog = new BarElement { Segmented = false, pickingMode = PickingMode.Ignore };
+                prog.style.width = 160;
+                prog.style.height = 8;
+                prog.style.marginRight = 8;
+                prog.Value = 1f - Mathf.Clamp01(F.researchLeft / Mathf.Max(0.01f, F.researchTotal));
+                prog.FillColor = new Color(1f, 0.71f, 0.28f);
+                var slot = new Label(MechParts.Upgrade((MechUpgrade)F.researching).name.ToUpperInvariant()) { pickingMode = PickingMode.Ignore };
+                slot.AddToClassList("comms-hint");
+                row.Add(prog);
+                row.Add(slot);
+                queue.Add(row);
+            }
             if (s.team == player.team && s.queue.Count > 0)
                 for (int i = 0; i < s.queue.Count; i++)
                 {
@@ -464,11 +505,29 @@ namespace StarForge.UI
         static Color HealthColor(float f) =>
             f > 0.6f ? new Color(0.35f, 0.9f, 0.55f) : f > 0.3f ? new Color(1f, 0.75f, 0.28f) : new Color(1f, 0.35f, 0.3f);
 
-        static string StatusText(Unit u)
+        string StatusText(Unit u)
         {
+            if (u.mech != null)
+            {
+                var core = u.mech;
+                string loadout = core.design != null ? core.design.Loadout(core.Level(MechUpgrade.Hardpoint)) : "";
+                if (u.team != player.team && !MatchSettings.spectate) return loadout;
+                return (string.IsNullOrEmpty(core.intentText) ? "" : core.intentText + "\n") + loadout;
+            }
+            if (u.Type == UnitType.MechBay && u.Complete && u.team < 2)
+            {
+                var F = world.factions[u.team];
+                string mechState = F.mechLost ? "Mech lost" : F.mechDropped ? "Mech in the field" : F.mechInbound ? "Mech inbound"
+                                 : F.mechDropAt >= 0f ? $"Mech drop in {Clock(F.mechDropAt - world.time)}" : "";
+                if (u.team != player.team && !MatchSettings.spectate) return mechState;
+                if (F.researching >= 0)
+                    mechState += $" · upgrading {MechParts.Upgrade((MechUpgrade)F.researching).name} · {F.researchLeft:0}s";
+                return mechState;
+            }
             if (u.def.building)
             {
                 if (!u.Complete) return $"Under construction · {u.buildProgress * 100f:0}%";
+                if (u.team != player.team && !MatchSettings.spectate) return "";   // what it makes is not ours to see
                 if (u.queue.Count > 0) return $"Training {Defs.Get(u.queue[0]).displayName} · {u.queueTimer:0}s";
                 if (u.def.Armed) return u.target != null ? "Engaging" : "Watching";
                 return "Idle";
@@ -477,7 +536,7 @@ namespace StarForge.UI
             switch (u.order)
             {
                 case Order.Harvest: return u.working ? "Mining" : "Heading to ore";
-                case Order.Return: return $"Returning {u.carrying} ore";
+                case Order.Return: return world.NearestDropoff(u) == null ? $"Holding {u.carrying} ore · no Foundry" : $"Returning {u.carrying} ore";
                 case Order.Build: return u.working ? "Constructing" : "Moving to build site";
                 case Order.Attack: return "Attacking";
                 case Order.AttackMove: return u.target != null ? "Engaging" : "Attack-moving";
@@ -563,6 +622,7 @@ namespace StarForge.UI
                     break;
                 case GameEventKind.StructureComplete when e.team == me:
                     Alert($"{Defs.Get(e.type).displayName} complete", "alert--good");
+                    if (e.type == UnitType.MechBay) Alert($"Mech drop in {Clock(GameWorld.MechDropDelay)}", "alert--good");
                     break;
                 case GameEventKind.Promoted when e.team == me:
                     Alert($"{Defs.Get(e.type).displayName} promoted to rank {e.scale:0}", "alert--good");
@@ -578,8 +638,123 @@ namespace StarForge.UI
                     break;
                 case GameEventKind.Death when e.team == me && e.unit != null && e.unit.def.building:
                     Alert($"{Defs.Get(e.type).displayName} destroyed", "alert--warn");
+                    if (e.type == UnitType.MechBay && !world.factions[me].mechDropped)
+                        Alert(world.factions[me].bayPlaced || world.factions[me].bayLost ? "The Mech will not come now"
+                              : "Its Digger never started on it -- the Mech Bay may be placed again", "alert--warn");
+                    break;
+                case GameEventKind.Death when e.type == UnitType.Mech:
+                    if (e.team == me) Alert("Your Mech has fallen", "alert--warn");
+                    else if (e.unit != null && (e.unit.visibleToPlayer || MatchSettings.spectate)) Alert("Enemy Mech destroyed", "alert--good");
+                    break;
+                case GameEventKind.MechInbound when e.team == me:
+                    Alert("Mech inbound -- landing beside the Mech Bay", "alert--good");
+                    break;
+                case GameEventKind.MechLanded when e.team != me && e.unit != null && (e.unit.visibleToPlayer || world.Explored(me, new Vector2(e.pos.x, e.pos.z))):
+                    Alert("Enemy Mech has landed", "alert--warn");
+                    break;
+                case GameEventKind.UpgradeComplete when e.team == me:
+                    Alert(e.text, "alert--good");
+                    break;
+                case GameEventKind.MechAdvice when e.team == me:
+                    Comms(e);
                     break;
             }
+        }
+
+        static string Clock(float seconds)
+        {
+            int t = Mathf.Max(0, Mathf.CeilToInt(seconds));
+            return $"{t / 60}:{t % 60:00}";
+        }
+
+        // ------------------------------------------------------------ the Mech
+        /// <summary>A line from the Mech: who, what, and (a click) where.</summary>
+        void Comms(GameEvent e)
+        {
+            var F = world.factions[e.team];
+            string who = F.design != null ? $"{F.design.callsign} · {F.design.pilot}".ToUpperInvariant() : "MECH";
+            string kind = e.advice switch
+            {
+                MechAdviceKind.Attack => "attack", MechAdviceKind.Defend => "defend", MechAdviceKind.Regroup => "regroup",
+                MechAdviceKind.Warning => "warning", MechAdviceKind.Morale => "morale", _ => "status"
+            };
+            var line = new VisualElement();
+            line.AddToClassList("comms-line");
+            line.AddToClassList("comms-line--" + kind);
+            line.AddToClassList("comms-line--new");
+            var l1 = new Label(who) { pickingMode = PickingMode.Ignore };
+            l1.AddToClassList("comms-who");
+            var l2 = new Label(e.text) { pickingMode = PickingMode.Ignore };
+            l2.AddToClassList("comms-text");
+            line.Add(l1);
+            line.Add(l2);
+            bool placed = e.advice == MechAdviceKind.Attack || e.advice == MechAdviceKind.Defend ||
+                          e.advice == MechAdviceKind.Regroup || e.advice == MechAdviceKind.Warning;
+            Vector2 at = new Vector2(e.pos.x, e.pos.z);
+            if (placed)
+            {
+                var hint = new Label("Click to look · you decide whether to act") { pickingMode = PickingMode.Ignore };
+                hint.AddToClassList("comms-hint");
+                line.Add(hint);
+                advicePings.Add((at, Time.unscaledTime, e.advice));
+                if (advicePings.Count > 4) advicePings.RemoveAt(0);
+            }
+            line.RegisterCallback<ClickEvent>(_ => rig.CenterOn(at));
+            while (commsFeed.childCount >= 3) commsFeed.RemoveAt(0);
+            commsFeed.Add(line);
+            line.schedule.Execute(() => line.RemoveFromClassList("comms-line--new")).StartingIn(30);
+            float life = e.advice == MechAdviceKind.Morale || e.advice == MechAdviceKind.Status ? 11000 : 16000;
+            line.schedule.Execute(() => line.AddToClassList("comms-line--fading")).StartingIn((long)life);
+            line.schedule.Execute(() => line.RemoveFromHierarchy()).StartingIn((long)life + 450);
+        }
+
+        void UpdateMechStrip()
+        {
+            int me = player != null ? player.team : 0;
+            var F = world.factions[me];
+            bool show = F.bayPlaced || F.mechDropped;
+            mechStrip.EnableInClassList("mech-strip--visible", show);
+            if (!show) return;
+            var d = F.design;
+            var m = world.MechOf(me);
+            string name = d == null ? "MECH" : F.designChosen ? $"{d.callsign} · {d.className}".ToUpperInvariant() : $"{d.callsign} · loadout picked at the drop".ToUpperInvariant();
+            mechStripTitle.text = name;
+            if (m != null && m.mech.Landed)
+            {
+                var core = m.mech;
+                float f = m.hp / Mathf.Max(1f, m.MaxHp);
+                mechHull.style.display = DisplayStyle.Flex;
+                mechHull.Value = f;
+                mechHull.FillColor = HealthColor(f);
+                mechShield.style.display = core.HasShield ? DisplayStyle.Flex : DisplayStyle.None;
+                mechShield.Value = core.ShieldMax > 0f ? core.shield / core.ShieldMax : 0f;
+                mechShield.FillColor = new Color(0.45f, 0.8f, 1f);
+                mechStripState.text = $"{f * 100f:0}% hull";
+                mechStripText.text = core.intentText;
+                return;
+            }
+            mechHull.style.display = DisplayStyle.None;
+            mechShield.style.display = DisplayStyle.None;
+            var bay = world.BayOf(me);
+            if (F.mechLost)
+            {
+                mechStripState.text = "lost";
+                mechStripText.text = F.mechDropped ? "Your Mech has fallen. It cannot be replaced." : "The Mech Bay fell before the Mech could land.";
+            }
+            else if (m != null) { mechStripState.text = "inbound"; mechStripText.text = "Coming down beside the Mech Bay"; }
+            else if (bay != null && !bay.Complete) { mechStripState.text = "bay " + Mathf.RoundToInt(bay.buildProgress * 100f) + "%"; mechStripText.text = "Raising the Mech Bay"; }
+            else if (F.mechDropAt >= 0f) { mechStripState.text = Clock(F.mechDropAt - world.time); mechStripText.text = $"{(d != null ? d.pilot : "The Mech")} drops when the count reaches zero"; }
+            else { mechStripState.text = ""; mechStripText.text = ""; }
+        }
+
+        void FocusMech()
+        {
+            int me = player != null ? player.team : 0;
+            var m = world.MechOf(me);
+            var target = m != null ? m : world.BayOf(me);
+            if (target == null) return;
+            rig.CenterOn(target.pos);
+            player.SelectOnly(target);
         }
 
         void Alert(string text, string cls)
@@ -712,7 +887,37 @@ namespace StarForge.UI
                 float r = u.def.building ? 3.6f : (u.def.neutral ? 1.3f : 1.8f);
                 var col = u.team == 0 ? blue : u.team == 1 ? red : ore;
                 if (player.Selection.Contains(u)) col = Color.white;
+                if (u.mech != null)
+                {
+                    // A Mech is a diamond with a bright edge: the one thing on the map to find at a glance.
+                    float k = 5.5f;
+                    p.fillColor = col;
+                    p.BeginPath();
+                    p.MoveTo(c + new Vector2(0f, -k)); p.LineTo(c + new Vector2(k, 0f)); p.LineTo(c + new Vector2(0f, k)); p.LineTo(c + new Vector2(-k, 0f));
+                    p.ClosePath();
+                    p.Fill();
+                    p.strokeColor = new Color(1f, 0.85f, 0.45f);
+                    p.lineWidth = 1.5f;
+                    p.Stroke();
+                    continue;
+                }
                 Paint.Rect(p, c.x - r, c.y - r, r * 2f, r * 2f, col);
+            }
+
+            // Where the Mech last pointed: a slow amber pulse for half a minute.
+            for (int i = advicePings.Count - 1; i >= 0; i--)
+            {
+                var (at, born, kind) = advicePings[i];
+                float age = Time.unscaledTime - born;
+                if (age > 30f) { advicePings.RemoveAt(i); continue; }
+                var c = ToUI(at);
+                float k = (age % 1.6f) / 1.6f;
+                Color pc = kind == MechAdviceKind.Attack || kind == MechAdviceKind.Warning ? new Color(1f, 0.4f, 0.3f) : new Color(1f, 0.72f, 0.28f);
+                p.strokeColor = new Color(pc.r, pc.g, pc.b, (1f - k) * (1f - age / 30f));
+                p.lineWidth = 2f;
+                p.BeginPath();
+                p.Arc(c, 4f + k * 12f, Angle.Degrees(0f), Angle.Degrees(360f));
+                p.Stroke();
             }
 
             foreach (var ping in world.pings)
@@ -812,13 +1017,13 @@ namespace StarForge.UI
             bool won = winner == me;
             if (MatchSettings.spectate)
             {
-                endTitle.text = winner == 0 ? "BLUE WINS" : "RED WINS";
+                endTitle.text = winner > 1 ? "DRAW" : winner == 0 ? "BLUE WINS" : "RED WINS";
                 endTitle.EnableInClassList("end-title--defeat", winner == 1);
             }
             else
             {
-                endTitle.text = won ? "VICTORY" : "DEFEAT";
-                endTitle.EnableInClassList("end-title--defeat", !won);
+                endTitle.text = winner > 1 ? "DRAW" : won ? "VICTORY" : "DEFEAT";   // both sides gone in one tick
+                endTitle.EnableInClassList("end-title--defeat", !won && winner <= 1);
             }
             int t = Mathf.FloorToInt(world.time);
             endSubtitle.text = $"{t / 60}:{t % 60:00} · opponent {bootstrap.AI.Difficulty}";
@@ -860,8 +1065,9 @@ namespace StarForge.UI
             "Camera   WASD / arrows / screen edge pan · Q E rotate · wheel zoom · middle-drag · Space centre\n" +
             "Select   click · drag box · double-click type · Shift add · Ctrl+1-0 group · 1-0 recall · F2 army\n" +
             "Orders   right-click move/attack/mine · R attack-move · C stop · H hold\n" +
-            "Build    Digger: B bunkhouse · G garrison · V workshop · N sentinel · F foundry\n" +
+            "Build    Digger: B bunkhouse · G garrison · V workshop · N sentinel · F foundry · Y mech bay\n" +
             "Train    Foundry U · Garrison T K · Workshop M · X cancel\n" +
+            "Mech     Mech Bay: V servos · B armour · N weapons · M hardpoint · K targeting · click the Mech strip to find it\n" +
             "Other    P pause · , . game speed · Esc menu";
 
         const string OpponentHelp =
@@ -881,6 +1087,17 @@ namespace StarForge.UI
             "Maulers, an early push or a late one. Its attacks go for different things (your base, your production, an outlying " +
             "Foundry, your Diggers), come in straight or round a flank, gather before they go in, and sometimes split to hit two " +
             "places at once. A plan that is not paying off is dropped, and a way in that you beat is not tried again soon.\n\n" +
+            "It has a Mech too. It raises a Mech Bay early, buys its Mech upgrades from spare ore -- guns and hardpoints when it " +
+            "means to attack, armour when it means to hold -- and goes for your Mech Bay while your Mech has not yet landed. " +
+            "Its Mech is not under its command any more than yours is under yours: it listens to what its Mech tells it and " +
+            "sometimes acts on it -- meeting a raid its Mech saw coming, striking when its Mech says the moment has come -- and " +
+            "sometimes does not. Around your Mech it keeps its army together and puts everything it has on it, and it does not " +
+            "feed it: each attack your Mech throws back makes it wait for a bigger army before the next. It builds against your " +
+            "Mech once it has seen its guns -- tanks against one made to burn infantry, a swarm of rifles against one made to kill " +
+            "armour -- strikes your base when your Mech is out in the field far from home, going for your Mech Bay then, and " +
+            "gathers its attacks on its own Mech so they go in together. A Mech Bay or a tower raised beside its base it treats as " +
+            "an attack: it goes for one still going up with whatever it has, clears a finished one once it has the army to, and " +
+            "keeps its Diggers off ore its gun covers.\n\n" +
             "It remembers you. Between matches it keeps a record of how you tend to play and which of its plans worked against " +
             "you, and each new match starts from that. It still scouts every game, so if you change how you play, it will notice.";
     }

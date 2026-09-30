@@ -28,7 +28,21 @@ namespace StarForge.World
             new Vector2(startLocations[team].position.x, startLocations[team].position.z);
 
         public float HeightAt(Vector2 p) =>
-            terrain.SampleHeight(new Vector3(p.x, 0f, p.y)) + terrain.transform.position.y;
+            terrain.SampleHeight(new Vector3(p.x, 0f, p.y)) + TerrainTransform.position.y;
+
+        // Heights are asked for thousands of times a frame, so the terrain's Transform
+        // is kept rather than fetched from the engine on every call.
+        [System.NonSerialized] Terrain transformOf;
+        [System.NonSerialized] Transform terrainTransform;
+
+        Transform TerrainTransform
+        {
+            get
+            {
+                if (!ReferenceEquals(transformOf, terrain)) { transformOf = terrain; terrainTransform = terrain.transform; }
+                return terrainTransform;
+            }
+        }
 
         public Vector3 Ground(Vector2 p) => new Vector3(p.x, HeightAt(p), p.y);
 

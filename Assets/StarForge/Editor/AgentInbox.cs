@@ -634,6 +634,12 @@ namespace StarForge.EditorTools
             Row("blast", b.blast); Row("blastbig", b.blastBig);
             Row("boom", b.boom); Row("bigboom", b.bigBoom);
             One("engineHeavy", b.engineHeavy); One("engineTracks", b.engineTracks); One("engineHover", b.engineHover);
+            // The Mech's: make_audio.py --mech builds them, SceneAssembler loads them.
+            Row("mechStep", b.mechStep); Row("mechServo", b.mechServo);
+            Row("mechAutocan", b.mechAutocannon); Row("mechGatling", b.mechGatling);
+            Row("mechMissile", b.mechMissile); Row("mechMortar", b.mechMortar);
+            Row("mechLaser", b.mechLaser); Row("mechRailgun", b.mechRailgun); Row("mechRadio", b.mechRadio);
+            One("mechDrop", b.mechDrop); One("mechLand", b.mechLand); One("mechFlamer", b.mechFlamer); One("mechHum", b.mechHum);
             return sb.ToString();
         }
 
@@ -784,6 +790,467 @@ namespace StarForge.EditorTools
                 if (src.clip != null && (src.clip.name == "engine_heavy" || src.clip.name == "engine_tracks"))
                     sb.AppendLine($"  {src.clip.name,-14} playing {src.isPlaying} volume {src.volume:0.000} pitch {src.pitch:0.00} pan {src.panStereo:0.00}");
             return sb.Length == 0 ? "no tank voices" : sb.ToString();
+        }
+
+        /// <summary>Two riflemen shooting at each other in front of the camera, with every
+        /// audio source on the AudioDirector watched while they do: how many rifle shots
+        /// were started, how many of those were audible, virtualised by Unity's voice
+        /// limit, or at zero volume, and how many sources were playing at the busiest
+        /// moment. Call RifleCheckReport about fifteen seconds later.</summary>
+        public static string RifleCheck()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var go = new GameObject("RifleCheck");
+            go.AddComponent<RifleChecker>();
+            return "staging; call RifleCheckReport in about fifteen seconds";
+        }
+
+        public static string RifleCheckReport()
+        {
+            var r = UnityEngine.Object.FindAnyObjectByType<RifleChecker>();
+            return r == null ? "no check running" : r.report;
+        }
+
+        /// <summary>The trees as the player sees them: the stand with the most kinds in it on
+        /// open ground, lit for the player, photographed at the closest zoom, a middle
+        /// one and a wide one, and once more with a strong gust and a shell's pressure
+        /// front held on it. Writes Temp/trees_*.png; the report lists the kinds in shot.</summary>
+        public static string TreeLook()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var go = new GameObject("TreeLook");
+            go.AddComponent<TreeLooker>();
+            return "looking; call TreeLookReport in about twenty-five seconds";
+        }
+
+        public static string TreeLookReport()
+        {
+            var r = UnityEngine.Object.FindAnyObjectByType<TreeLooker>();
+            return r == null ? "no look running" : r.report;
+        }
+
+        /// <summary>One close photograph of each plant kind, standing on its own
+        /// ground (Temp/tree_&lt;KIND&gt;.png), then the same plant in a held pressure
+        /// front (Temp/tree_&lt;KIND&gt;_pushed.png) to check it still bends.</summary>
+        public static string TreeGallery()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            new GameObject("TreeGallery").AddComponent<TreeGalleryShooter>();
+            return "shooting; call TreeGalleryReport in about a minute";
+        }
+
+        public static string TreeGalleryReport()
+        {
+            var r = UnityEngine.Object.FindAnyObjectByType<TreeGalleryShooter>();
+            return r == null ? "no gallery running" : r.report;
+        }
+
+        /// <summary>Why units sometimes stand still after an order: runs an AI-vs-AI match
+        /// fast to the middle game, then watches every agent at 1x for two and a half
+        /// minutes -- how long its path requests wait in the pathfinding queue, how long
+        /// units that should be moving stand, and what state the agent is in when they
+        /// do. Probes with its own move orders too, timing each to the first step.</summary>
+        public static string StallTrial()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var go = new GameObject("StallTrial");
+            go.AddComponent<StallTrialRunner>();
+            return "running; call StallTrialReport in about four minutes";
+        }
+
+        public static string StallTrialReport()
+        {
+            var r = UnityEngine.Object.FindAnyObjectByType<StallTrialRunner>();
+            return r == null ? "no trial running" : r.report;
+        }
+
+        /// <summary>The player's side of the stall: a normal match with an army spawned for
+        /// the player, sent about the map every few seconds -- through woods and over
+        /// rocks -- and every order watched: how long before the unit moves, when it
+        /// stands while it should be going, when its order is dropped far from the goal,
+        /// and what the agent and its surroundings look like when it does.</summary>
+        public static string OrderTrial()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var go = new GameObject("OrderTrial");
+            go.AddComponent<OrderTrialRunner>();
+            return "running; call OrderTrialReport in about three minutes";
+        }
+
+        public static string OrderTrialReport()
+        {
+            var r = UnityEngine.Object.FindAnyObjectByType<OrderTrialRunner>();
+            return r == null ? "no trial running" : r.report;
+        }
+
+        /// <summary>Kill one of each unit in front of the camera -- a rifleman shot, one caught
+        /// by a shell, a Mauler, a Digger, a Skimmer at full speed -- photograph the deaths
+        /// as they play out (Temp/death_*.png) and report where each wreck ended up.</summary>
+        public static string DeathLook()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var go = new GameObject("DeathLook");
+            go.AddComponent<DeathLooker>();
+            return "staging; call DeathLookReport in about 25 seconds";
+        }
+
+        public static string DeathLookReport()
+        {
+            var r = UnityEngine.Object.FindAnyObjectByType<DeathLooker>();
+            return r == null ? "no look running" : r.report;
+        }
+
+        /// <summary>Drive a Mauler into a lone tree and over it: the trunk's lean against
+        /// how far the hull has come (does it stay on the glacis, or pass through it),
+        /// the tank's speed and push, photographed (Temp/push_*.png).</summary>
+        public static string PushLook()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var go = new GameObject("PushLook");
+            go.AddComponent<PushLooker>();
+            return "staging; call PushLookReport in about 20 seconds";
+        }
+
+        public static string PushLookReport()
+        {
+            var r = UnityEngine.Object.FindAnyObjectByType<PushLooker>();
+            return r == null ? "no look running" : r.report;
+        }
+
+        /// <summary>Reload the scene on the map whose seed is in Temp/sf_mapseed.txt (play
+        /// mode), to go back to a map a trial found something on.</summary>
+        public static string ReloadMapFromFile()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            if (!uint.TryParse(File.ReadAllText("Temp/sf_mapseed.txt").Trim(), out uint seed)) return "no seed";
+            StarForge.Game.MatchSettings.mapSeed = seed;
+            UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+            return "reloading on map " + seed;
+        }
+
+        /// <summary>Reload the scene on the map in Temp/sf_mapseed.txt (play mode), keeping the
+        /// grove check's grid as it stood before the first grove; then GroveGridReport.</summary>
+        public static string GroveGrid()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            MapGenerator.recordGroveGrid = true;
+            MapGenerator.groveGrid = null;
+            return ReloadMapFromFile() + "; call GroveGridReport once it has loaded";
+        }
+
+        /// <summary>Draws GroveGrid's grid against the baked NavMesh (ground units, trees and
+        /// all) into Temp/grove_grid_<seed>.png, north up, 3 px a metre: green, both walk it
+        /// and the grid reached it from base A; pale green, a pass the grid took from the
+        /// NavMesh; cyan, only the NavMesh walks it (the grid's margin, or ground the grid
+        /// never reached); yellow, only the grid (where trees have grown since); grey, open but
+        /// not reached; red, closed by scenery or a boulder; black, too steep or too deep. Base
+        /// A is white, ore fields and base B blue when the grid reached them and magenta when
+        /// not, and the NavMesh's own path to base B is white (red where the grid had it closed).</summary>
+        public static string GroveGridReport()
+        {
+            var cells = MapGenerator.groveGrid;
+            var map = MapInfo.Instance;
+            if (cells == null || map == null) return "no grid: run GroveGrid first";
+            int n = (int)MapGenerator.Size, mask = GameWorld.GroundAreas, navOnly = 0, gridOnly = 0;
+            var px = new Color32[n * n];
+            for (int z = 0; z < n; z++)
+                for (int x = 0; x < n; x++)
+                {
+                    int i = z * n + x;
+                    var w = new Vector3(x + 0.5f, 0f, z + 0.5f);
+                    w.y = map.terrain.SampleHeight(w);
+                    bool nav = UnityEngine.AI.NavMesh.SamplePosition(w, out var hit, 1.5f, mask)
+                               && new Vector2(hit.position.x - w.x, hit.position.z - w.z).sqrMagnitude < 0.3f * 0.3f;
+                    byte c = cells[i];
+                    bool reached = c == MapGenerator.CellReached || c == MapGenerator.CellLink;
+                    if (c == MapGenerator.CellLink) px[i] = new Color32(150, 240, 150, 255);
+                    else if (reached) px[i] = nav ? new Color32(60, 170, 60, 255) : new Color32(240, 230, 40, 255);
+                    else if (nav) px[i] = new Color32(40, 220, 230, 255);
+                    else px[i] = c == MapGenerator.CellSteep ? new Color32(20, 20, 20, 255)
+                               : c == MapGenerator.CellObject ? new Color32(200, 40, 40, 255) : new Color32(120, 120, 120, 255);
+                    if (reached && !nav) gridOnly++;
+                    if (!reached && nav) navOnly++;
+                }
+            bool Reached(Vector2 t)
+            {
+                for (int dz = -3; dz <= 3; dz++)
+                    for (int dx = -3; dx <= 3; dx++)
+                    {
+                        int x = (int)t.x + dx, z = (int)t.y + dz;
+                        if (x < 0 || z < 0 || x >= n || z >= n) continue;
+                        byte c = cells[z * n + x];
+                        if ((c == MapGenerator.CellReached || c == MapGenerator.CellLink) &&
+                            (new Vector2(x + 0.5f, z + 0.5f) - t).sqrMagnitude <= 9f) return true;
+                    }
+                return false;
+            }
+            void Mark(Vector2 p, Color32 c)
+            {
+                for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int x = (int)p.x + dx, z = (int)p.y + dz;
+                        if (x >= 0 && z >= 0 && x < n && z < n) px[z * n + x] = c;
+                    }
+            }
+            int missed = 0;
+            var targets = new System.Collections.Generic.List<Vector2> { MapGenerator.BaseB };
+            foreach (Transform o in map.oreRoot) targets.Add(new Vector2(o.position.x, o.position.z));
+            foreach (var t in targets)
+            {
+                bool ok = Reached(t);
+                if (!ok) missed++;
+                Mark(t, ok ? new Color32(40, 80, 255, 255) : new Color32(255, 0, 255, 255));
+            }
+            Mark(MapGenerator.BaseA, new Color32(255, 255, 255, 255));
+
+            string route = "no path to base B";
+            var path = new UnityEngine.AI.NavMeshPath();
+            if (UnityEngine.AI.NavMesh.SamplePosition(map.Ground(MapGenerator.BaseA), out var a, 8f, mask) &&
+                UnityEngine.AI.NavMesh.SamplePosition(map.Ground(MapGenerator.BaseB), out var b, 8f, mask) &&
+                UnityEngine.AI.NavMesh.CalculatePath(a.position, b.position, mask, path))
+            {
+                var cs = path.corners;
+                int closed = 0;
+                for (int k = 0; k + 1 < cs.Length; k++)
+                {
+                    float len = Vector3.Distance(cs[k], cs[k + 1]);
+                    for (float t = 0f; t <= len; t += 0.25f)
+                    {
+                        var q = Vector3.Lerp(cs[k], cs[k + 1], len > 0f ? t / len : 0f);
+                        int qx = (int)q.x, qz = (int)q.z;
+                        if (qx < 0 || qz < 0 || qx >= n || qz >= n) continue;
+                        byte c = cells[qz * n + qx];
+                        bool shut = c == MapGenerator.CellSteep || c == MapGenerator.CellObject;
+                        if (shut && px[qz * n + qx].r != 255) closed++;
+                        px[qz * n + qx] = shut ? new Color32(255, 0, 0, 255) : new Color32(255, 255, 255, 255);
+                    }
+                }
+                route = $"NavMesh path to base B {path.status}, through {closed} cells the grid had closed";
+            }
+
+            const int S = 3;
+            var tex = new Texture2D(n * S, n * S, TextureFormat.RGBA32, false);
+            var big = new Color32[n * S * n * S];
+            for (int z = 0; z < n * S; z++)
+                for (int x = 0; x < n * S; x++) big[z * n * S + x] = px[(z / S) * n + x / S];
+            tex.SetPixels32(big);
+            tex.Apply();
+            var outPath = Path.GetFullPath($"Temp/grove_grid_{map.seed}.png");
+            File.WriteAllBytes(outPath, tex.EncodeToPNG());
+            UnityEngine.Object.DestroyImmediate(tex);
+            return $"{outPath}: {missed} of {targets.Count} ore fields and base B not reached by the grid; {navOnly} cells only the NavMesh walks, " +
+                   $"{gridOnly} only the grid; {route}";
+        }
+
+        /// <summary>Regenerates the map (and its NavMesh) on 40 seeds -- the ones that used to
+        /// lose every grove, a few that did not, the default and a fixed random draw -- and
+        /// reports groves dropped, blocking trees, passes the grove check took from the NavMesh,
+        /// places no unit can reach and each map's expansions; then reloads the scene. Play mode.</summary>
+        public static string GroveBatch()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var info = MapInfo.Instance;
+            var rt = info != null ? info.GetComponent<MapRuntime>() : null;
+            if (rt == null || rt.kit == null) return "no map runtime";
+            var seeds = new System.Collections.Generic.List<uint> { 1370439406, 4104226260, 3307429070, 986964719, 1252978921,
+                                                                     2520572947, 862588067, 845192303, 1000 };
+            var rng = new System.Random(20260929);
+            while (seeds.Count < 40) seeds.Add((uint)rng.Next(1, int.MaxValue));
+            var sb = new StringBuilder();
+            int withDrops = 0, cut = 0, totalDrops = 0, minBlock = int.MaxValue, maxBlock = 0, sumBlock = 0, gridWrong = 0, fewExp = 0, carved = 0;
+            MapGenerator.Result prev = null;
+            foreach (var seed in seeds)
+            {
+                var r = MapGenerator.Generate(info, rt.kit, seed, bakeNavMesh: true, sharedMaterials: false);
+                sb.Append($"\n{seed}: {r.plants} plants, {r.blockingPlants} blocking, {r.grovesDropped} dropped, " +
+                          $"{r.navLinks} NavMesh links, {r.unreachable.Count} unreachable, {r.corridors} carved, objects {r.objectsMs} ms, expansions");
+                int oi = 0;
+                foreach (Transform o in info.oreRoot) { if (oi >= 16 && (oi - 16) % 6 == 0) sb.Append($" ({o.position.x:0},{o.position.z:0})"); oi++; }
+                if (oi < 40) fewExp++;
+                if (r.navLinks > 0) gridWrong++;
+                if (r.corridors > 0) carved++;
+                if (r.unreachable.Count > 0) cut++;
+                if (r.grovesDropped > 0) withDrops++;
+                totalDrops += r.grovesDropped;
+                minBlock = Mathf.Min(minBlock, r.blockingPlants); maxBlock = Mathf.Max(maxBlock, r.blockingPlants); sumBlock += r.blockingPlants;
+            }
+            UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+            return $"{seeds.Count} seeds: {cut} with places no unit reaches, {gridWrong} needing NavMesh links, {carved} carved a corridor, {withDrops} dropped any grove ({totalDrops} drops in all), {fewExp} with fewer than 4 expansions, " +
+                   $"blocking trees {minBlock}-{maxBlock}, mean {sumBlock / (float)seeds.Count:0}" + sb;
+        }
+
+        /// <summary>From each base, which of the places a unit is sent (the other base, the
+        /// expansions, the ore) a Trooper and a Mauler can reach, by a full NavMesh query.</summary>
+        public static string ReachReport()
+        {
+            var world = StarForge.World.GameWorld.Instance;
+            if (world == null) return "no world";
+            var sb = new StringBuilder();
+            var from = world.Map.StartPos(0);
+            var goals = new System.Collections.Generic.List<(string, Vector2)> { ("enemy base", world.Map.StartPos(1)) };
+            foreach (var u in world.units) if (u != null && u.Type == StarForge.Sim.UnitType.Ore) goals.Add(("ore", u.pos));
+            int ground = StarForge.World.GameWorld.GroundAreas, bad = 0;
+            foreach (var (name, g) in goals)
+            {
+                foreach (var (who, mask) in new[] { ("trooper", ground), ("mauler", UnityEngine.AI.NavMesh.AllAreas) })
+                {
+                    if (!UnityEngine.AI.NavMesh.SamplePosition(world.Map.Ground(from), out var a, 8f, mask)) { sb.Append($"{who}: base not on mesh; "); continue; }
+                    // Ore stands on carved ground: aim at the nearest spot beside it.
+                    if (!UnityEngine.AI.NavMesh.SamplePosition(world.Map.Ground(g), out var b, 8f, mask)) { sb.Append($"{who}: {name} at {g} has no mesh within 8 m; "); bad++; continue; }
+                    var path = new UnityEngine.AI.NavMeshPath();
+                    UnityEngine.AI.NavMesh.CalculatePath(a.position, b.position, mask, path);
+                    if (path.status != UnityEngine.AI.NavMeshPathStatus.PathComplete)
+                    {
+                        var c = path.corners;
+                        float shortBy = c.Length > 0 ? Vector3.Distance(c[c.Length - 1], b.position) : -1f;
+                        sb.Append($"{who} -> {name} at {g}: {path.status}, {shortBy:0.0} m short; ");
+                        bad++;
+                    }
+                }
+            }
+            return $"{goals.Count} goals x 2 unit kinds, {bad} not fully reachable. " + sb;
+        }
+
+        /// <summary>Does an agent's own path search reach as far as a full query does? A bare
+        /// Trooper-sized agent is sent from each base to the other base and every ore field,
+        /// and its path compared with NavMesh.CalculatePath's (StallTrial saw units stand at
+        /// the end of partial paths 120 m short of goals the full query reaches).</summary>
+        public static string AgentReach()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            foreach (var old in UnityEngine.Object.FindObjectsByType<AgentReacher>()) UnityEngine.Object.Destroy(old.gameObject);
+            var go = new GameObject("AgentReach");
+            go.AddComponent<AgentReacher>();
+            return "running; call AgentReachReport in half a minute";
+        }
+
+        public static string AgentReachReport()
+        {
+            var r = UnityEngine.Object.FindAnyObjectByType<AgentReacher>();
+            return r == null ? "not running" : r.report;
+        }
+
+        /// <summary>A/B: send units to the nearest NavMesh anywhere (as before NavIslands) or
+        /// only to ground joined to theirs. Flips GameWorld.ReachabilityOff.</summary>
+        public static string ReachabilityOffSwitch()
+        {
+            GameWorld.ReachabilityOff = !GameWorld.ReachabilityOff;
+            return "reachable goals " + (GameWorld.ReachabilityOff ? "OFF" : "on");
+        }
+
+        /// <summary>Over a list of maps: how much of the ground NavMesh is cut off from the
+        /// bases, and where the AI's own destinations land when snapped the old way (the
+        /// nearest NavMesh anywhere) and the new (the nearest point joined to its base) --
+        /// its staging points (straight in and round either flank, at the enemy base and
+        /// at the ore beside it), feint point, guard post and scouting samples.</summary>
+        public static string IslandBatch()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            foreach (var old in UnityEngine.Object.FindObjectsByType<IslandBatchRunner>()) UnityEngine.Object.Destroy(old.gameObject);
+            var go = new GameObject("IslandBatch");
+            UnityEngine.Object.DontDestroyOnLoad(go);
+            go.AddComponent<IslandBatchRunner>();
+            return "running; call IslandBatchReport in a minute";
+        }
+
+        public static string IslandBatchReport()
+        {
+            var r = UnityEngine.Object.FindAnyObjectByType<IslandBatchRunner>();
+            return r == null ? "not running" : r.report;
+        }
+
+        /// <summary>The NavMesh's islands on the current map (GameWorld.Islands, rebuilt
+        /// here), checked against NavMesh.CalculatePath: random pairs of points, joined or
+        /// not by the labels and by the path, and each island but the main one tested for
+        /// a way onto the main one (there should be none).</summary>
+        public static string IslandReport()
+        {
+            var world = GameWorld.Instance;
+            if (world == null) return "no world";
+            var isl = world.Islands;
+            isl.Build();
+            var sb = new StringBuilder();
+            sb.Append($"map {MapRuntime.LastSeed}: {isl.Triangles} triangles; triangulate {isl.TriangulateMs:0.0} ms, label {isl.LabelMs:0.0} ms\n");
+            sb.Append($"{isl.Polygons} polygons walked in {isl.WalkMs:0.0} ms, {isl.Truncated} with neighbours cut off\n");
+            for (int m = 0; m < 2; m++)
+            {
+                int n = isl.IslandCount(m), main = isl.MainIsland(m);
+                float total = 0f;
+                for (int i = 0; i < n; i++) total += isl.IslandArea(m, i);
+                // A point on each island: the centre of its largest triangle.
+                var rep = new int[n];
+                var repA = new float[n];
+                for (int t = 0; t < isl.Triangles; t++)
+                {
+                    int l = isl.TriangleIsland(m, t);
+                    if (l >= 0 && isl.TriangleArea(t) > repA[l]) { repA[l] = isl.TriangleArea(t); rep[l] = t; }
+                }
+                var order = Enumerable.Range(0, n).Where(i => i != main).OrderByDescending(i => isl.IslandArea(m, i)).ToList();
+                sb.Append($"{(m == NavIslands.Ground ? "ground" : "with rubble")}: {n} islands, main {isl.IslandArea(m, main):0} m² of {total:0}");
+                sb.Append($"; over 1 m²: {order.Count(i => isl.IslandArea(m, i) > 1f)}; largest others:");
+                foreach (var i in order.Take(8))
+                {
+                    var c = isl.TriangleCentre(rep[i]);
+                    sb.Append($" {isl.IslandArea(m, i):0} m² at ({c.x:0},{c.z:0})");
+                }
+                sb.Append('\n');
+                if (m != NavIslands.Ground) continue;
+
+                // Every island but the main one: is there a way onto the main one after all?
+                int mask = GameWorld.GroundAreas, falseSplits = 0, tested = 0;
+                var path = new UnityEngine.AI.NavMeshPath();
+                var mainAt = isl.TriangleCentre(rep[main]);
+                foreach (var i in order)
+                {
+                    if (isl.IslandArea(m, i) < 0.5f) continue;
+                    tested++;
+                    UnityEngine.AI.NavMesh.CalculatePath(isl.TriangleCentre(rep[i]), mainAt, mask, path);
+                    if (path.status == UnityEngine.AI.NavMeshPathStatus.PathComplete)
+                    {
+                        falseSplits++;
+                        var c = isl.TriangleCentre(rep[i]);
+                        if (falseSplits <= 6) sb.Append($"  joined to main after all: {isl.IslandArea(m, i):0} m² at ({c.x:0},{c.z:0})\n");
+                    }
+                }
+                sb.Append($"islands over 0.5 m² tested for a path onto the main one: {tested}, found joined: {falseSplits}\n");
+
+                // Random pairs of points, weighted by area.
+                var cum = new float[isl.Triangles];
+                float acc = 0f;
+                for (int t = 0; t < isl.Triangles; t++) { if (isl.TriangleIsland(m, t) >= 0) acc += isl.TriangleArea(t); cum[t] = acc; }
+                var rng = new System.Random(7);
+                int Pick()
+                {
+                    float r = (float)rng.NextDouble() * acc;
+                    int k = System.Array.BinarySearch(cum, r);
+                    return Mathf.Clamp(k < 0 ? ~k : k, 0, cum.Length - 1);
+                }
+                int[,] conf = new int[2, 2];
+                int shown = 0, unplaced = 0;
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                for (int k = 0; k < 400; k++)
+                {
+                    int ta = Pick(), tb = Pick();
+                    // Onto the surface first (a triangle's centre sits at its corners' mean
+                    // height, which on a slope can be off the detail mesh), and only if that
+                    // stays on the same triangle.
+                    if (!UnityEngine.AI.NavMesh.SamplePosition(isl.TriangleCentre(ta), out var ha, 3f, mask) ||
+                        !UnityEngine.AI.NavMesh.SamplePosition(isl.TriangleCentre(tb), out var hb, 3f, mask) ||
+                        isl.IslandAt(new Vector2(ha.position.x, ha.position.z), m) != isl.TriangleIsland(m, ta) ||
+                        isl.IslandAt(new Vector2(hb.position.x, hb.position.z), m) != isl.TriangleIsland(m, tb)) { unplaced++; continue; }
+                    var a = ha.position;
+                    var b = hb.position;
+                    UnityEngine.AI.NavMesh.CalculatePath(a, b, mask, path);
+                    bool joined = isl.TriangleIsland(m, ta) == isl.TriangleIsland(m, tb);
+                    bool complete = path.status == UnityEngine.AI.NavMeshPathStatus.PathComplete;
+                    conf[joined ? 1 : 0, complete ? 1 : 0]++;
+                    if (joined != complete && shown++ < 6)
+                        sb.Append($"  mismatch: ({a.x:0},{a.z:0}) island {isl.TriangleIsland(m, ta)} -> ({b.x:0},{b.z:0}) island {isl.TriangleIsland(m, tb)}: path {path.status}, {path.corners.Length} corners\n");
+                }
+                sb.Append($"400 random pairs, {unplaced} not placed ({sw.ElapsedMilliseconds} ms): joined+complete {conf[1, 1]}, apart+partial {conf[0, 0]}, joined+partial {conf[1, 0]}, apart+complete {conf[0, 1]}\n");
+            }
+            return sb.ToString();
         }
 
         /// <summary>Set a dozen plants across the map alight (fire effects, for the recorder).</summary>
@@ -1144,6 +1611,247 @@ namespace StarForge.EditorTools
                      $"  engine: {idleSmoke} smoke particles idling, {driveSmoke} driving at {driveSpeed:0.0} m/s, " +
                      $"{driveTrail} in the trail system; exhaust: {exhaust}\n" +
                      $"  hull rocked {rock:0.00} deg at its furthest{seen}";
+        }
+    }
+
+    /// <summary>Photographs a mixed stand of trees at three zooms, then under a gust
+    /// and a pressure front.</summary>
+    public sealed class TreeLooker : MonoBehaviour
+    {
+        public string report = "looking";
+
+        System.Collections.IEnumerator Start()
+        {
+            var boot = StarForge.Game.GameBootstrap.Instance;
+            var world = StarForge.World.GameWorld.Instance;
+            if (boot == null || world == null) { report = "no world"; yield break; }
+            if (!world.running)
+            {
+                StarForge.Game.MatchSettings.aiMemory = false;
+                boot.StartMatch();
+                yield return new WaitForSecondsRealtime(1.5f);
+            }
+            var veg = world.Plants;
+            var map = MapInfo.Instance;
+            var rig = UnityEngine.Object.FindAnyObjectByType<StarForge.View.RTSCamera>();
+            if (veg == null || map == null || rig == null) { report = "no vegetation/map/camera"; yield break; }
+
+            // The stand with the most different kinds within 16 m, on dry, gentle ground.
+            int best = -1, bestKinds = 0, bestCount = 0;
+            for (int i = 0; i < veg.plants.Length; i += 2)
+            {
+                if (veg.live[i].state != StarForge.World.PlantState.Standing) continue;
+                var c = veg.Pos2(i);
+                if (map.WaterDepth(c) > -1f) continue;
+                float lo = 1e9f, hi = -1e9f;
+                for (int a = 0; a < 8; a++)
+                {
+                    float h = map.HeightAt(c + new Vector2(Mathf.Cos(a * 0.785f), Mathf.Sin(a * 0.785f)) * 12f);
+                    lo = Mathf.Min(lo, h); hi = Mathf.Max(hi, h);
+                }
+                if (hi - lo > 4f) continue;
+                var kinds = new System.Collections.Generic.HashSet<int>();
+                int count = 0;
+                for (int j = 0; j < veg.plants.Length; j++)
+                    if ((veg.Pos2(j) - c).sqrMagnitude < 16f * 16f) { kinds.Add(veg.plants[j].kind); count++; }
+                if (kinds.Count > bestKinds || (kinds.Count == bestKinds && count > bestCount))
+                { bestKinds = kinds.Count; bestCount = count; best = i; }
+            }
+            if (best < 0) { report = "no stand found"; yield break; }
+            Vector2 at = veg.Pos2(best);
+            var names = new StringBuilder();
+            var seenKinds = new System.Collections.Generic.HashSet<int>();
+            for (int j = 0; j < veg.plants.Length; j++)
+                if ((veg.Pos2(j) - at).sqrMagnitude < 16f * 16f && seenKinds.Add(veg.plants[j].kind))
+                    names.Append(veg.kinds[veg.plants[j].kind].name).Append(' ');
+
+            world.Spawn(StarForge.Sim.UnitType.Trooper, 0, at + new Vector2(-6f, -10f));
+            rig.scripted = true;
+            Time.timeScale = 1f;
+            foreach (var (name, zoom, wait) in new[] { ("close", 26f, 5f), ("mid", 48f, 3f), ("wide", 90f, 3f) })
+            {
+                rig.JumpTo(at);
+                rig.ZoomTo(zoom);
+                yield return new WaitForSecondsRealtime(wait);
+                ScreenCapture.CaptureScreenshot($"Temp/trees_{name}.png", 2);
+                yield return new WaitForSecondsRealtime(0.4f);
+            }
+
+            // A pressure front held on the stand, at the closest zoom: the trees must still bend.
+            rig.JumpTo(at);
+            rig.ZoomTo(26f);
+            yield return new WaitForSecondsRealtime(4f);
+            var fx = UnityEngine.Object.FindAnyObjectByType<StarForge.View.FXDirector>();
+            if (fx != null) fx.enabled = false;
+            var gusts = new Vector4[4];
+            var shape = new Vector4[4];
+            gusts[0] = new Vector4(at.x - 4f, at.y - 4f, 9f, 1.0f);
+            shape[0] = new Vector4(0f, 1f, 0f, 5f);
+            Shader.SetGlobalVectorArray("_SF_Gusts", gusts);
+            Shader.SetGlobalVectorArray("_SF_GustShape", shape);
+            Shader.SetGlobalFloat("_SF_GustCount", 0f);
+            yield return null;
+            ScreenCapture.CaptureScreenshot("Temp/trees_still.png");
+            yield return null;
+            Shader.SetGlobalFloat("_SF_GustCount", 1f);
+            yield return null;
+            ScreenCapture.CaptureScreenshot("Temp/trees_pushed.png");
+            yield return null;
+            Shader.SetGlobalFloat("_SF_GustCount", 0f);
+            if (fx != null) fx.enabled = true;
+            report = $"stand at {at}: {bestKinds} kinds, {bestCount} plants within 16 m: {names}";
+        }
+    }
+
+    public sealed class TreeGalleryShooter : MonoBehaviour
+    {
+        public string report = "shooting";
+
+        System.Collections.IEnumerator Start()
+        {
+            var boot = StarForge.Game.GameBootstrap.Instance;
+            var world = StarForge.World.GameWorld.Instance;
+            if (boot == null || world == null) { report = "no world"; yield break; }
+            if (!world.running)
+            {
+                StarForge.Game.MatchSettings.aiMemory = false;
+                boot.StartMatch();
+                yield return new WaitForSecondsRealtime(1.5f);
+            }
+            var veg = world.Plants;
+            var map = MapInfo.Instance;
+            var rig = UnityEngine.Object.FindAnyObjectByType<StarForge.View.RTSCamera>();
+            if (veg == null || map == null || rig == null) { report = "no vegetation/map/camera"; yield break; }
+            var fx = UnityEngine.Object.FindAnyObjectByType<StarForge.View.FXDirector>();
+            rig.scripted = true;
+            Time.timeScale = 1f;
+            var sb = new StringBuilder();
+            for (int k = 0; k < veg.kinds.Length; k++)
+            {
+                // The plant of this kind on the flattest dry ground, clear of scenery.
+                int best = -1; float bestSpread = 1e9f;
+                for (int i = 0; i < veg.plants.Length; i++)
+                {
+                    if (veg.plants[i].kind != k || veg.live[i].state != StarForge.World.PlantState.Standing) continue;
+                    var c = veg.Pos2(i);
+                    if (map.WaterDepth(c) > -0.5f && veg.kinds[k].name != "REEDS") continue;
+                    float lo = 1e9f, hi = -1e9f;
+                    for (int a = 0; a < 8; a++)
+                    {
+                        float h = map.HeightAt(c + new Vector2(Mathf.Cos(a * 0.785f), Mathf.Sin(a * 0.785f)) * 8f);
+                        lo = Mathf.Min(lo, h); hi = Mathf.Max(hi, h);
+                    }
+                    // Prefer one standing clear of other trees, so it is the subject.
+                    int near = 0;
+                    for (int j = 0; j < veg.plants.Length; j++)
+                        if (j != i && !veg.kinds[veg.plants[j].kind].bush && (veg.Pos2(j) - c).sqrMagnitude < 7f * 7f) near++;
+                    float score = (hi - lo) + near * 3f;
+                    if (score < bestSpread) { bestSpread = score; best = i; }
+                }
+                int count = 0;
+                for (int i = 0; i < veg.plants.Length; i++) if (veg.plants[i].kind == k) count++;
+                if (best < 0) { sb.Append(veg.kinds[k].name).Append(": none of ").Append(count).Append("; "); continue; }
+                var at = veg.Pos2(best);
+                bool small = veg.kinds[k].bush;
+                // A trooper beside it lifts the fog there and shows the scale.
+                world.Spawn(StarForge.Sim.UnitType.Trooper, 0, at + new Vector2(-2.5f, -4f));
+                rig.JumpTo(at);
+                rig.ZoomTo(small ? 14f : 24f);
+                yield return new WaitForSecondsRealtime(2.5f);
+                string name = veg.kinds[k].name;
+                ScreenCapture.CaptureScreenshot($"Temp/tree_{name}.png", 3);
+                yield return new WaitForSecondsRealtime(0.3f);
+                // Held pressure front from the south-west, FXDirector off so only the shove shows.
+                if (fx != null) fx.enabled = false;
+                var gusts = new Vector4[4];
+                var shape = new Vector4[4];
+                gusts[0] = new Vector4(at.x - 4f, at.y - 4f, 6f, 1.0f);
+                shape[0] = new Vector4(0f, 1f, 0f, 5f);
+                Shader.SetGlobalVectorArray("_SF_Gusts", gusts);
+                Shader.SetGlobalVectorArray("_SF_GustShape", shape);
+                Shader.SetGlobalFloat("_SF_GustCount", 1f);
+                yield return null;
+                ScreenCapture.CaptureScreenshot($"Temp/tree_{name}_pushed.png", 3);
+                yield return null;
+                Shader.SetGlobalFloat("_SF_GustCount", 0f);
+                if (fx != null) fx.enabled = true;
+                sb.Append(name).Append(" at ").Append(at.ToString("F0")).Append(" (").Append(count).Append("); ");
+                yield return new WaitForSecondsRealtime(0.3f);
+            }
+            report = "done: " + sb;
+        }
+    }
+
+    /// <summary>Stages a rifle fight and watches the audio sources.</summary>
+    public sealed class RifleChecker : MonoBehaviour
+    {
+        public string report = "staging";
+
+        System.Collections.IEnumerator Start()
+        {
+            var boot = StarForge.Game.GameBootstrap.Instance;
+            var world = StarForge.World.GameWorld.Instance;
+            if (boot == null || world == null) { report = "no world"; yield break; }
+            if (!world.running)
+            {
+                StarForge.Game.MatchSettings.aiMemory = false;
+                boot.StartMatch();
+                yield return new WaitForSecondsRealtime(1.5f);
+            }
+            var map = MapInfo.Instance;
+            var rig = UnityEngine.Object.FindAnyObjectByType<StarForge.View.RTSCamera>();
+            var audio = UnityEngine.Object.FindAnyObjectByType<StarForge.View.AudioDirector>();
+            if (map == null || rig == null || audio == null) { report = "no map/camera/audio"; yield break; }
+
+            Vector2 at = map.StartPos(0) + new Vector2(20f, 16f);
+            var a = world.Spawn(StarForge.Sim.UnitType.Trooper, 0, at + new Vector2(-4f, 0f));
+            var b = world.Spawn(StarForge.Sim.UnitType.Trooper, 1, at + new Vector2(4f, 0f));
+            rig.scripted = true;
+            rig.JumpTo(at);
+            rig.ZoomTo(30f);
+
+            int fires = 0;
+            System.Action<StarForge.World.GameEvent> onEvent = e =>
+            {
+                if (e.kind == StarForge.World.GameEventKind.Fire && e.projectileKind == 0) fires++;
+            };
+            world.Event += onEvent;
+            var sources = audio.GetComponents<AudioSource>();
+            var seen = new System.Collections.Generic.HashSet<(AudioSource, int)>();
+            int started = 0, audible = 0, virt = 0, silentVol = 0, peakPlaying = 0, peakRealPlaying = 0;
+            float maxVol = 0f;
+            float until = Time.realtimeSinceStartup + 12f;
+            while (Time.realtimeSinceStartup < until)
+            {
+                int playing = 0, real = 0;
+                foreach (var s in sources)
+                {
+                    if (!s.isPlaying) continue;
+                    playing++;
+                    if (!s.isVirtual) real++;
+                    if (s.clip == null || !s.clip.name.StartsWith("rifle") || s.loop) continue;
+                    // One entry per shot: a source and the moment it was started.
+                    var key = (s, Mathf.RoundToInt((Time.realtimeSinceStartup - s.time / Mathf.Max(0.01f, s.pitch)) * 20f));
+                    if (!seen.Add(key)) continue;
+                    started++;
+                    maxVol = Mathf.Max(maxVol, s.volume);
+                    if (s.isVirtual) virt++;
+                    else if (s.volume < 0.005f) silentVol++;
+                    else audible++;
+                }
+                peakPlaying = Mathf.Max(peakPlaying, playing);
+                peakRealPlaying = Mathf.Max(peakRealPlaying, real);
+                yield return null;
+            }
+            world.Event -= onEvent;
+            var looping = new StringBuilder();
+            foreach (var s in sources)
+                if (s.isPlaying && s.loop) looping.Append($"{(s.clip != null ? s.clip.name : "null")}({s.volume:0.00}{(s.isVirtual ? ",virtual" : "")}) ");
+            report = $"{fires} rifle Fire events; {started} rifle shots started on a voice: {audible} audible, {virt} virtualised, " +
+                     $"{silentVol} at zero volume; loudest {maxVol:0.000}\n" +
+                     $"  sources on the AudioDirector: {sources.Length}; playing at the busiest {peakPlaying} ({peakRealPlaying} real)\n" +
+                     $"  looping now: {looping}\n  AudioSettings real voices {AudioSettings.GetConfiguration().numRealVoices}, " +
+                     $"master {audio.masterVolume:0.00}, bank rifles {(audio.bank.rifle != null ? audio.bank.rifle.Length : -1)}; troopers alive {StarForge.World.Unit.Live(a)} {StarForge.World.Unit.Live(b)}";
         }
     }
 
@@ -1775,6 +2483,781 @@ namespace StarForge.EditorTools
             ScreenCapture.CaptureScreenshot("Temp/wind_b.png");
             yield return new WaitForSecondsRealtime(0.5f);
             report = $"grove of {bestNear} at {p}; wind {StarForge.World.Wind.Speed(t0):0.00} heading {StarForge.World.Wind.Direction(t0)}, global {Shader.GetGlobalVector("_SF_Wind")}";
+        }
+    }
+
+    public sealed class IslandBatchRunner : MonoBehaviour
+    {
+        public string report = "starting";
+        static readonly uint[] Seeds = { 1000, 1370439406, 2090223571, 2755433643, 4104226260, 3307429070, 986964719, 1252978921, 1986061563, 1217350130 };
+
+        System.Collections.IEnumerator Start()
+        {
+            var sb = new StringBuilder();
+            var kinds = new[] { "stage", "feint", "guard", "scout" };
+            var oldOff = new System.Collections.Generic.Dictionary<string, int>();
+            var all = new System.Collections.Generic.Dictionary<string, int>();
+            int newOff = 0;
+            float cutShare = 0f;
+            foreach (var seed in Seeds)
+            {
+                report = $"map {seed}";
+                StarForge.Game.MatchSettings.mapSeed = seed;
+                UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+                for (int f = 0; f < 3; f++) yield return null;
+                var world = GameWorld.Instance;
+                while (world == null || world.Map == null) { yield return null; world = GameWorld.Instance; }
+                var isl = world.Islands;
+                isl.Build();
+                int m = NavIslands.Ground, n = isl.IslandCount(m);
+                float total = 0f;
+                for (int i = 0; i < n; i++) total += isl.IslandArea(m, i);
+                int mainOf0 = isl.IslandAt(world.Map.StartPos(0), m);
+                float cut = 1f - isl.IslandArea(m, mainOf0) / Mathf.Max(1f, total);
+                cutShare += cut;
+                var rng = new System.Random((int)seed);
+                int mapOld = 0, mapPts = 0, mapNew = 0;
+                var where = new StringBuilder();
+                for (int t = 0; t < 2; t++)
+                {
+                    Vector2 home = world.Map.StartPos(t), enemy = world.Map.StartPos(1 - t);
+                    Vector2 dir = (enemy - home).normalized, side = new Vector2(-dir.y, dir.x);
+                    Vector2 guard = home + dir * 16f;
+                    // The ore their main Foundry mines, as the Workers wave aims at it.
+                    Vector2 ore = enemy;
+                    float bestD = 30f;
+                    foreach (var u in world.units)
+                        if (u != null && u.Type == StarForge.Sim.UnitType.Ore && (u.pos - enemy).magnitude < bestD) { bestD = (u.pos - enemy).magnitude; ore = u.pos; }
+                    var pts = new System.Collections.Generic.List<(string, Vector2, float)>();
+                    foreach (var to in new[] { enemy, ore })
+                    {
+                        float len = (to - guard).magnitude;
+                        pts.Add(("stage", Vector2.Lerp(guard, to, 0.55f), 48f));
+                        foreach (float sgn in new[] { 1f, -1f })
+                            pts.Add(("stage", Vector2.Lerp(guard, to, 0.6f) + side * sgn * Mathf.Clamp(len * 0.35f, 22f, 45f), 48f));
+                    }
+                    pts.Add(("feint", enemy + side * 42f, 48f));
+                    pts.Add(("guard", guard, 48f));
+                    for (int k = 0; k < 28; k++)
+                    {
+                        float a = (float)rng.NextDouble() * Mathf.PI * 2f, r = (float)rng.NextDouble() * 30f;
+                        pts.Add(("scout", enemy + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r, 12f));
+                    }
+                    foreach (var (kind, p, reach) in pts)
+                    {
+                        mapPts++;
+                        all[kind] = all.TryGetValue(kind, out int ca) ? ca + 1 : 1;
+                        var before = world.NearestWalkable(p, reach);
+                        if (!isl.Connected(home, before, m))
+                        {
+                            mapOld++;
+                            oldOff[kind] = oldOff.TryGetValue(kind, out int co) ? co + 1 : 1;
+                            if (kind != "scout") where.Append($" {kind} {before} (island of {isl.IslandArea(m, isl.IslandAt(before, m)):0} m²)");
+                        }
+                        var after = world.NearestReachable(home, p);
+                        if (!isl.Connected(home, after, m)) mapNew++;
+                    }
+                }
+                newOff += mapNew;
+                sb.Append($"map {seed}: {n} islands, {cut:P0} of the ground NavMesh cut off from the bases; AI points {mapPts}, cut off the old way {mapOld}, the new way {mapNew};{where}\n");
+            }
+            StarForge.Game.MatchSettings.mapSeed = 0;
+            sb.Append($"mean share of ground cut off {cutShare / Seeds.Length:P0}; old way cut off by kind:");
+            foreach (var k in kinds) sb.Append($" {k} {(oldOff.TryGetValue(k, out int o) ? o : 0)}/{(all.TryGetValue(k, out int a2) ? a2 : 0)}");
+            sb.Append($"; new way cut off {newOff}");
+            report = sb.ToString();
+        }
+    }
+
+    public sealed class StallTrialRunner : MonoBehaviour
+    {
+        public string report = "starting";
+
+        // Per unit id: when its current path request started waiting, and when it
+        // started standing while it should be moving.
+        readonly System.Collections.Generic.Dictionary<int, float> pendingSince = new System.Collections.Generic.Dictionary<int, float>();
+        readonly System.Collections.Generic.Dictionary<int, float> standSince = new System.Collections.Generic.Dictionary<int, float>();
+        readonly System.Collections.Generic.Dictionary<int, string> standState = new System.Collections.Generic.Dictionary<int, string>();
+        readonly System.Collections.Generic.Dictionary<int, StarForge.Sim.Order> lastOrder = new System.Collections.Generic.Dictionary<int, StarForge.Sim.Order>();
+        readonly System.Collections.Generic.List<float> waits = new System.Collections.Generic.List<float>();
+        readonly System.Collections.Generic.List<float> probeWaits = new System.Collections.Generic.List<float>();
+        readonly System.Collections.Generic.Dictionary<string, int> standCauses = new System.Collections.Generic.Dictionary<string, int>();
+        readonly System.Collections.Generic.List<float> stands = new System.Collections.Generic.List<float>();
+        int frames, pendingSum, pendingMax, offMesh, dropped, unitsMax;
+        readonly System.Collections.Generic.Dictionary<string, int> requestsBy = new System.Collections.Generic.Dictionary<string, int>();
+        // Every new move or attack-move goal, checked against the NavMesh's islands
+        // (NavIslands): is it on ground joined to where the unit stands, and which of
+        // its commander's points was it spread round?
+        readonly System.Collections.Generic.Dictionary<int, Vector2> seenGoal = new System.Collections.Generic.Dictionary<int, Vector2>();
+        readonly System.Collections.Generic.Dictionary<int, string> goalSource = new System.Collections.Generic.Dictionary<int, string>();
+        readonly System.Collections.Generic.Dictionary<string, int> goalsBy = new System.Collections.Generic.Dictionary<string, int>();
+        readonly System.Collections.Generic.Dictionary<string, int> cutOffBy = new System.Collections.Generic.Dictionary<string, int>();
+        readonly StringBuilder cutOffFirst = new StringBuilder();
+        int goalsSeen, goalsCutOff;
+        // While a unit stands: frames with a path request pending, and new requests made.
+        readonly System.Collections.Generic.Dictionary<int, int> standPendFrames = new System.Collections.Generic.Dictionary<int, int>();
+        readonly System.Collections.Generic.Dictionary<int, int> standFrames = new System.Collections.Generic.Dictionary<int, int>();
+        readonly System.Collections.Generic.Dictionary<int, int> standRequests = new System.Collections.Generic.Dictionary<int, int>();
+
+        static int Count(System.Collections.Generic.Dictionary<int, int> d, int id) => d.TryGetValue(id, out int v) ? v : 0;
+
+        static int IslandMask(StarForge.World.Unit u) =>
+            u.agent != null && u.agent.areaMask == UnityEngine.AI.NavMesh.AllAreas ? NavIslands.WithRubble : NavIslands.Ground;
+
+        static readonly string[] CommanderPoints = { "stagePoint", "rally", "harassTarget", "prongAt", "waveAt" };
+
+        /// <summary>Which of its commander's points a unit's goal was spread round (CmdMove
+        /// scatters a group's goals a few metres round the point it was given).</summary>
+        static string Source(StarForge.World.Unit u)
+        {
+            var boot = StarForge.Game.GameBootstrap.Instance;
+            var cmd = boot == null ? null : u.team == 1 ? boot.AI : boot.PlayerProxy;
+            if (cmd == null) return "no commander";
+            var T = typeof(StarForge.AI.Commander);
+            const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
+            string best = "other";
+            float bestD = 16f;
+            foreach (var name in CommanderPoints)
+            {
+                float d = ((Vector2)T.GetField(name, F).GetValue(cmd) - u.orderPos).magnitude;
+                if (d < bestD) { bestD = d; best = name; }
+            }
+            if ((cmd.Dbg.scoutTarget - u.orderPos).magnitude < bestD) best = "scout";
+            if (best == "rally")
+                best += (bool)T.GetField("staging", F).GetValue(cmd) ? " (staging)"
+                      : (bool)T.GetField("waveOn", F).GetValue(cmd) ? " (wave)" : " (guard, defence or feint)";
+            return best;
+        }
+
+        /// <summary>A new move or attack-move goal: on ground joined to the unit's?</summary>
+        void AuditGoal(StarForge.World.GameWorld world, StarForge.World.Unit u)
+        {
+            if (u.order != StarForge.Sim.Order.Move && u.order != StarForge.Sim.Order.AttackMove) return;
+            if (seenGoal.TryGetValue(u.id, out var sg) && (sg - u.orderPos).sqrMagnitude <= 0.01f) return;
+            seenGoal[u.id] = u.orderPos;
+            string src = Source(u);
+            goalSource[u.id] = src;
+            string gk = $"{u.order} from {src}";
+            goalsBy[gk] = goalsBy.TryGetValue(gk, out int gc) ? gc + 1 : 1;
+            goalsSeen++;
+            if (world.Islands.Connected(u.pos, u.orderPos, IslandMask(u))) return;
+            goalsCutOff++;
+            cutOffBy[gk] = cutOffBy.TryGetValue(gk, out int cc) ? cc + 1 : 1;
+            CutOff(world, u, out string det);
+            if (goalsCutOff <= 10) cutOffFirst.Append($"[{u.Type} {gk} at {world.time:0}s: at {u.pos} goal {u.orderPos}; {det}] ");
+        }
+
+        /// <summary>Whose ground is cut off, for grouping the stands.</summary>
+        static string CutOff(StarForge.World.GameWorld world, StarForge.World.Unit u, out string detail)
+        {
+            var isl = world.Islands;
+            int m = IslandMask(u);
+            int iu = isl.IslandAt(u.pos, m), ig = isl.IslandAt(u.orderPos, m), main = isl.MainIsland(m);
+            detail = $"unit on island {iu} ({isl.IslandArea(m, iu):0} m²), goal on {ig} ({isl.IslandArea(m, ig):0} m²), main {main} ({isl.IslandArea(m, main):0} m²)";
+            return iu == ig ? "goal joined" : iu != main ? "unit cut off" : "goal cut off";
+        }
+
+        System.Collections.IEnumerator Start()
+        {
+            var boot = StarForge.Game.GameBootstrap.Instance;
+            var world = StarForge.World.GameWorld.Instance;
+            if (boot == null || world == null) { report = "no match"; yield break; }
+            if (!world.running)
+            {
+                StarForge.Game.MatchSettings.spectate = true;
+                StarForge.Game.MatchSettings.aiMemory = false;
+                StarForge.Game.MatchSettings.fixedSeed = true;
+                boot.StartMatch();
+            }
+            var rig = UnityEngine.Object.FindAnyObjectByType<StarForge.View.RTSCamera>();
+            if (rig != null) rig.scripted = true;
+            Time.timeScale = 4f;
+            report = "fast-forwarding";
+            while (world.time < 420f)
+            {
+                report = $"fast-forwarding: {world.time:0}s";
+                foreach (var u in world.units)
+                    if (u != null && !u.dying && u.agent != null && u.agent.enabled) AuditGoal(world, u);
+                yield return null;
+            }
+            Time.timeScale = 1f;
+            report = "measuring";
+            float until = Time.time + 150f, nextProbe = Time.time + 2f;
+            var rng = new System.Random(5);
+            int probeId = -1; float probeAt = 0f; bool probeFlowing = false;
+            var sb = new StringBuilder();
+            while (Time.time < until && world.running)
+            {
+                frames++;
+                int pending = 0, units = 0;
+                float now = Time.time;
+                foreach (var u in world.units)
+                {
+                    if (u == null || u.dying || u.agent == null || !u.agent.enabled) continue;
+                    units++;
+                    var a = u.agent;
+                    if (!a.isOnNavMesh) offMesh++;
+                    bool pend = a.isOnNavMesh && a.pathPending;
+                    if (pend)
+                    {
+                        pending++;
+                        if (!pendingSince.ContainsKey(u.id))
+                        {
+                            pendingSince[u.id] = now;
+                            string key = $"{u.Type}/{u.order}";
+                            requestsBy[key] = requestsBy.TryGetValue(key, out int rc) ? rc + 1 : 1;
+                            if (standSince.ContainsKey(u.id)) standRequests[u.id] = standRequests.TryGetValue(u.id, out int sr) ? sr + 1 : 1;
+                        }
+                    }
+                    else if (pendingSince.TryGetValue(u.id, out float ps))
+                    {
+                        waits.Add(now - ps);
+                        pendingSince.Remove(u.id);
+                    }
+
+                    // An order dropped far from where it was going.
+                    if (lastOrder.TryGetValue(u.id, out var was) && was == StarForge.Sim.Order.Move &&
+                        u.order == StarForge.Sim.Order.Idle && u.Dist(u.orderPos) > 4f) dropped++;
+                    lastOrder[u.id] = u.order;
+
+                    AuditGoal(world, u);
+
+                    bool wants = (u.order == StarForge.Sim.Order.Move || u.order == StarForge.Sim.Order.AttackMove) &&
+                                 u.target == null && u.Dist(u.orderPos) > 4f;
+                    bool still = a.velocity.sqrMagnitude < 0.15f * 0.15f;
+                    if (standFrames.ContainsKey(u.id) && standSince.ContainsKey(u.id))
+                    {
+                        standFrames[u.id]++;
+                        if (pend) standPendFrames[u.id]++;
+                    }
+                    if (wants && still)
+                    {
+                        if (!standSince.ContainsKey(u.id))
+                        {
+                            standSince[u.id] = now;
+                            standFrames[u.id] = standPendFrames[u.id] = standRequests[u.id] = 0;
+                            float nu = 99f; string nt = "";
+                            foreach (var ou in world.units)
+                                if (ou != null && ou != u && !ou.dying) { float dd = (ou.pos - u.pos).magnitude - ou.def.radius; if (dd < nu) { nu = dd; nt = ou.Type + (ou.def.IsMobile ? (ou.agent != null && ou.agent.velocity.sqrMagnitude > 0.04f ? "(moving)" : "(still)") : ""); } }
+                            float nb = 99f;
+                            foreach (var bo in world.boulders) if (bo != null && !bo.smashed) nb = Mathf.Min(nb, (bo.Pos - u.pos).magnitude - bo.Radius);
+                            // Is the goal really out of reach, or did the search give up? Ask the
+                            // NavMesh for the whole way, and for a second leg from where it ends.
+                            string reach = "";
+                            if (a.isOnNavMesh && a.pathStatus == UnityEngine.AI.NavMeshPathStatus.PathPartial)
+                            {
+                                var goal = world.Map.Ground(u.orderPos);
+                                var np = new UnityEngine.AI.NavMeshPath();
+                                UnityEngine.AI.NavMesh.CalculatePath(u.transform.position, goal, a.areaMask, np);
+                                var c = np.corners;
+                                Vector3 end = c.Length > 0 ? c[c.Length - 1] : u.transform.position;
+                                reach = $" | full query: {np.status} {c.Length} corners, ends {Vector3.Distance(end, u.transform.position):0.0}m from it, {Vector3.Distance(end, goal):0.0}m short";
+                                bool goalOnMesh = UnityEngine.AI.NavMesh.SamplePosition(goal, out var gh, 3f, a.areaMask);
+                                reach += $"; goal on its mesh {goalOnMesh}{(goalOnMesh ? $" ({Vector3.Distance(gh.position, goal):0.0}m off)" : "")}";
+                                if (goalOnMesh)
+                                {
+                                    var back = new UnityEngine.AI.NavMeshPath();
+                                    UnityEngine.AI.NavMesh.CalculatePath(gh.position, u.transform.position, a.areaMask, back);
+                                    var bc = back.corners;
+                                    reach += $"; from the goal back: {back.status}, ends {(bc.Length > 0 ? Vector3.Distance(bc[bc.Length - 1], u.transform.position) : -1f):0.0}m from it";
+                                }
+                                reach += $"; at {u.pos} goal {u.orderPos}";
+                            }
+                            string cut = CutOff(world, u, out string islands);
+                            reach += $" | {islands}; at {u.pos} goal {u.orderPos}";
+                            standState[u.id] = $"{u.Type}/{u.order} {cut} from {(goalSource.TryGetValue(u.id, out var gs) ? gs : "?")} pend={pend} hasPath={(a.isOnNavMesh && a.hasPath)} status={(a.isOnNavMesh ? a.pathStatus.ToString() : "offmesh")} stopped={(a.isOnNavMesh && a.isStopped)} rem={(a.isOnNavMesh ? a.remainingDistance : -1f):0.0} dist={u.Dist(u.orderPos):0.0} want={a.desiredVelocity.magnitude:0.0} spd={a.speed:0.0} steer={(a.isOnNavMesh ? Vector3.Distance(a.steeringTarget, u.transform.position) : -1f):0.0} corners={(a.isOnNavMesh ? a.path.corners.Length : 0)} unit {nu:0.0} {nt} boulder {nb:0.0}{reach}";
+                        }
+                    }
+                    else if (standSince.TryGetValue(u.id, out float ss))
+                    {
+                        float d = now - ss;
+                        if (d > 1.0f)
+                        {
+                            stands.Add(d);
+                            string key = standState[u.id];
+                            key = key.Substring(0, key.IndexOf(" rem="));
+                            standCauses[key] = standCauses.TryGetValue(key, out int c) ? c + 1 : 1;
+                            if (stands.Count <= 12) sb.Append($"[{d:0.0}s {standState[u.id]} || pending {Count(standPendFrames, u.id)}/{Count(standFrames, u.id)} frames, {Count(standRequests, u.id)} new requests] ");
+                        }
+                        standSince.Remove(u.id);
+                    }
+                }
+                pendingSum += pending;
+                pendingMax = Mathf.Max(pendingMax, pending);
+                unitsMax = Mathf.Max(unitsMax, units);
+
+                // Probe: a team-1 army unit sent 25 m away; how long until its path is in
+                // and it is on its way (the AI may take it back, which only ends the probe).
+                if (probeId >= 0)
+                {
+                    var pu = world.units.Find(x => x != null && x.id == probeId);
+                    if (pu == null || pu.dying || pu.agent == null || !pu.agent.enabled) probeId = -1;
+                    else if (!probeFlowing && !(pu.agent.isOnNavMesh && pu.agent.pathPending))
+                    {
+                        probeWaits.Add(now - probeAt);
+                        probeFlowing = true;
+                        probeId = -1;
+                    }
+                    else if (now - probeAt > 10f) { probeWaits.Add(10f); probeId = -1; }
+                }
+                if (probeId < 0 && now > nextProbe)
+                {
+                    nextProbe = now + 1.5f;
+                    var army = world.units.FindAll(x => StarForge.World.Unit.Live(x) && x.team == 1 && x.def.IsArmy && x.agent != null && x.agent.enabled);
+                    if (army.Count > 0)
+                    {
+                        var pu = army[rng.Next(army.Count)];
+                        float ang = (float)rng.NextDouble() * Mathf.PI * 2f;
+                        var dest = world.NearestWalkable(pu.pos + new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * 25f, 8f);
+                        world.CmdMove(new[] { pu }, dest, false);
+                        probeId = pu.id; probeAt = now; probeFlowing = false;
+                        seenGoal[pu.id] = pu.orderPos;          // the trial's order, not the AI's
+                        goalSource[pu.id] = "trial probe";
+                    }
+                }
+                report = $"measuring, {until - Time.time:0}s left";
+                yield return null;
+            }
+
+            // Stands still going when the window closed (the longest of all).
+            int stillStanding = 0;
+            foreach (var kv in standSince)
+            {
+                float d = Time.time - kv.Value;
+                if (d <= 1f || !standState.TryGetValue(kv.Key, out var st)) continue;
+                stands.Add(d);
+                stillStanding++;
+                string key = st.Substring(0, st.IndexOf(" rem=")) + " (still standing at the end)";
+                standCauses[key] = standCauses.TryGetValue(key, out int c) ? c + 1 : 1;
+                var su = world.units.Find(x => x != null && x.id == kv.Key);
+                string endState = su == null || su.agent == null || !su.agent.enabled ? "gone" :
+                    $"now at {su.pos} order {su.order} target {(su.target != null ? su.target.Type.ToString() : "none")} pend {su.agent.pathPending} has {su.agent.hasPath} " +
+                    $"status {su.agent.pathStatus} stale {su.agent.isPathStale} stopped {su.agent.isStopped} dest {su.agent.destination} repath {su.repathTimer:0.00}; " +
+                    $"pending {Count(standPendFrames, kv.Key)}/{Count(standFrames, kv.Key)} frames, {Count(standRequests, kv.Key)} new requests";
+                if (stands.Count <= 16) sb.Append($"[{d:0.0}s+ {st} || {endState}] ");
+            }
+
+            waits.Sort(); probeWaits.Sort(); stands.Sort();
+            float P(System.Collections.Generic.List<float> l, float q) => l.Count == 0 ? 0f : l[Mathf.Min(l.Count - 1, (int)(q * l.Count))];
+            var o = new StringBuilder();
+            o.Append($"iterationsPerFrame={UnityEngine.AI.NavMesh.pathfindingIterationsPerFrame} frames={frames} units<= {unitsMax} ");
+            o.Append($"pending/frame mean {(float)pendingSum / Mathf.Max(1, frames):0.0} max {pendingMax}; offMesh agent-frames {offMesh}; move orders dropped far from goal {dropped}\n");
+            o.Append($"path waits (any agent, n={waits.Count}): p50 {P(waits, 0.5f):0.00}s p90 {P(waits, 0.9f):0.00}s p99 {P(waits, 0.99f):0.00}s max {P(waits, 1f):0.00}s\n");
+            o.Append($"probe orders (n={probeWaits.Count}): p50 {P(probeWaits, 0.5f):0.00}s p90 {P(probeWaits, 0.9f):0.00}s max {P(probeWaits, 1f):0.00}s\n");
+            o.Append($"stood >1s while ordered to move: {stands.Count} times ({stillStanding} still standing at the end), p50 {P(stands, 0.5f):0.0}s p90 {P(stands, 0.9f):0.0}s max {P(stands, 1f):0.0}s\n");
+            foreach (var kv in standCauses) o.Append($"  {kv.Value} x {kv.Key}\n");
+            var isl = world.Islands;
+            o.Append($"map {MapRuntime.LastSeed}; NavMesh islands (ground): {isl.IslandCount(NavIslands.Ground)}, main {isl.IslandArea(NavIslands.Ground, isl.MainIsland(NavIslands.Ground)):0} m²; ");
+            o.Append($"worked out {isl.Builds} times, last {isl.TriangulateMs:0.0} + {isl.LabelMs:0.0} ms\n");
+            o.Append($"reachable goals {(GameWorld.ReachabilityOff ? "OFF (nearest NavMesh anywhere, as before)" : "on")}; move/attack-move goals given over the whole match: {goalsSeen}, on ground cut off from the unit: {goalsCutOff}\n  given:");
+            foreach (var kv in goalsBy) o.Append($" {kv.Key} {kv.Value};");
+            o.Append("\n  cut off:");
+            foreach (var kv in cutOffBy) o.Append($" {kv.Key} {kv.Value};");
+            o.Append("\n  first cut off: ").Append(cutOffFirst).Append('\n');
+            o.Append("requests by unit/order:");
+            foreach (var kv in requestsBy) o.Append($" {kv.Key} {kv.Value};");
+            o.Append("\nfirst ones: ").Append(sb);
+            report = o.ToString();
+            Time.timeScale = 1f;
+        }
+    }
+
+    public sealed class OrderTrialRunner : MonoBehaviour
+    {
+        public string report = "starting";
+        public float seconds = 180f;
+
+        System.Collections.IEnumerator Start()
+        {
+            var boot = StarForge.Game.GameBootstrap.Instance;
+            var world = StarForge.World.GameWorld.Instance;
+            if (boot == null || world == null) { report = "no match"; yield break; }
+            if (!world.running)
+            {
+                StarForge.Game.MatchSettings.spectate = false;
+                StarForge.Game.MatchSettings.aiMemory = false;
+                StarForge.Game.MatchSettings.fixedSeed = true;
+                boot.StartMatch();
+            }
+            yield return null;
+            var rig = UnityEngine.Object.FindAnyObjectByType<StarForge.View.RTSCamera>();
+            if (rig != null) rig.scripted = true;
+            var navField = typeof(StarForge.World.GameWorld).GetField("navRebuild", BindingFlags.NonPublic | BindingFlags.Instance);
+
+            // An army for the player.
+            var basePos = world.Map.StartPos(0);
+            var toward = (world.Map.StartPos(1) - basePos).normalized;
+            var kinds = new[] { StarForge.Sim.UnitType.Mauler, StarForge.Sim.UnitType.Mauler, StarForge.Sim.UnitType.Mauler, StarForge.Sim.UnitType.Mauler,
+                                StarForge.Sim.UnitType.Mauler, StarForge.Sim.UnitType.Trooper, StarForge.Sim.UnitType.Trooper, StarForge.Sim.UnitType.Trooper,
+                                StarForge.Sim.UnitType.Trooper, StarForge.Sim.UnitType.Trooper, StarForge.Sim.UnitType.Trooper, StarForge.Sim.UnitType.Trooper,
+                                StarForge.Sim.UnitType.Trooper, StarForge.Sim.UnitType.Skimmer, StarForge.Sim.UnitType.Skimmer, StarForge.Sim.UnitType.Skimmer,
+                                StarForge.Sim.UnitType.Skimmer };
+            for (int k = 0; k < kinds.Length; k++)
+            {
+                var p = world.NearestWalkable(basePos + toward * 16f + new Vector2((k % 6 - 2.5f) * 3.2f, (k / 6 - 1f) * 3.2f), 10f);
+                world.Spawn(kinds[k], 0, p, true, Mathf.Atan2(toward.x, toward.y));
+            }
+            Time.timeScale = 2f;
+
+            var rng = new System.Random(3);
+            var orderedAt = new System.Collections.Generic.Dictionary<int, float>();
+            var started = new System.Collections.Generic.HashSet<int>();
+            var standSince = new System.Collections.Generic.Dictionary<int, float>();
+            var standNote = new System.Collections.Generic.Dictionary<int, string>();
+            var lastOrder = new System.Collections.Generic.Dictionary<int, StarForge.Sim.Order>();
+            var starts = new System.Collections.Generic.List<float>();
+            var stands = new System.Collections.Generic.List<float>();
+            var log = new StringBuilder();
+            int orders = 0, drops = 0, logged = 0;
+            float lastRebuildDone = -99f; bool rebuilding = false;
+            var near = new System.Collections.Generic.List<int>();
+            float until = world.time + seconds * Time.timeScale, nextOrder = world.time + 1f;
+
+            string Describe(StarForge.World.Unit u)
+            {
+                var a = u.agent;
+                var sb = new StringBuilder();
+                sb.Append($"{u.Type}#{u.id} t={world.time:0.0} dist={u.Dist(u.orderPos):0.0} ");
+                if (!a.isOnNavMesh) return sb.Append("OFFMESH").ToString();
+                sb.Append($"pend={a.pathPending} hasPath={a.hasPath} {a.pathStatus} stale={a.isPathStale} rem={a.remainingDistance:0.0} ");
+                sb.Append($"v={a.velocity.magnitude:0.00} want={a.desiredVelocity.magnitude:0.00} spd={a.speed:0.0} corners={a.path.corners.Length} ");
+                sb.Append($"steer={Vector3.Distance(a.steeringTarget, u.transform.position):0.0} drift={Vector3.Distance(a.nextPosition, u.transform.position):0.00} ");
+                sb.Append($"rebuilt {world.time - lastRebuildDone:0.0}s ago{(rebuilding ? " (rebuilding)" : "")} ");
+                if (UnityEngine.AI.NavMesh.SamplePosition(u.transform.position, out var h, 0.6f, UnityEngine.AI.NavMesh.AllAreas))
+                    sb.Append($"area={h.mask} ");
+                float nb = 99f;
+                foreach (var b in world.boulders) if (b != null && !b.smashed) nb = Mathf.Min(nb, (b.Pos - u.pos).magnitude - b.Radius);
+                float nt = 99f;
+                if (world.Plants != null)
+                    foreach (int i in world.Plants.PlantsNear(u.pos, 6f, near))
+                        if (world.Plants.live[i].state == StarForge.World.PlantState.Standing && !world.Plants.KindOf(i).bush)
+                            nt = Mathf.Min(nt, (world.Plants.Pos2(i) - u.pos).magnitude - world.Plants.TrunkRadius(i));
+                float nu = 99f; string nuType = "";
+                foreach (var o in world.units)
+                    if (o != null && o != u && !o.dying)
+                    {
+                        float d = (o.pos - u.pos).magnitude - o.def.radius;
+                        if (d < nu) { nu = d; nuType = o.Type + (o.def.IsMobile ? (o.Moving ? "(moving)" : "(still)") : ""); }
+                    }
+                sb.Append($"boulder {nb:0.0} trunk {nt:0.0} unit {nu:0.0} {nuType}");
+                return sb.ToString();
+            }
+
+            while (world.time < until && world.running)
+            {
+                var op = navField?.GetValue(world) as AsyncOperation;
+                bool nowRebuilding = op != null && !op.isDone;
+                if (rebuilding && !nowRebuilding) lastRebuildDone = world.time;
+                rebuilding = nowRebuilding;
+
+                var army = world.units.FindAll(x => StarForge.World.Unit.Live(x) && x.team == 0 && x.def.IsArmy && x.agent != null && x.agent.enabled);
+                if (world.time > nextOrder && army.Count > 0)
+                {
+                    nextOrder = world.time + 3f + (float)rng.NextDouble() * 3f;
+                    // Somewhere in a wood, by a rock, or anywhere.
+                    Vector2 goal;
+                    double roll = rng.NextDouble();
+                    if (roll < 0.45 && world.Plants != null && world.Plants.plants.Length > 0)
+                        goal = world.Plants.Pos2(rng.Next(world.Plants.plants.Length));
+                    else if (roll < 0.7 && world.boulders.Count > 0)
+                        goal = world.boulders[rng.Next(world.boulders.Count)].Pos;
+                    else goal = army[0].pos + new Vector2((float)rng.NextDouble() - 0.5f, (float)rng.NextDouble() - 0.5f) * 90f;
+                    goal = world.NearestWalkable(goal, 12f);
+                    var pick = new System.Collections.Generic.List<StarForge.World.Unit>();
+                    int n = 1 + rng.Next(Mathf.Min(6, army.Count));
+                    int first = rng.Next(army.Count);
+                    for (int k = 0; k < n; k++) pick.Add(army[(first + k) % army.Count]);
+                    world.CmdMove(pick, goal, false);
+                    foreach (var u in pick) { orderedAt[u.id] = world.time; started.Remove(u.id); standSince.Remove(u.id); }
+                    orders++;
+                }
+
+                foreach (var u in army)
+                {
+                    var a = u.agent;
+                    bool going = u.order == StarForge.Sim.Order.Move && u.Dist(u.orderPos) > 4f;
+                    float v = a.velocity.magnitude;
+                    if (orderedAt.TryGetValue(u.id, out float ot) && !started.Contains(u.id))
+                    {
+                        if (v > 0.5f || !going) { started.Add(u.id); starts.Add(world.time - ot); }
+                        else if (world.time - ot > 2f && !standNote.ContainsKey(-u.id))
+                        {
+                            standNote[-u.id] = "x";
+                            if (logged++ < 25) log.Append("SLOW START ").AppendLine(Describe(u));
+                        }
+                    }
+                    if (lastOrder.TryGetValue(u.id, out var was) && was == StarForge.Sim.Order.Move && u.order == StarForge.Sim.Order.Idle && u.Dist(u.orderPos) > 4f)
+                    {
+                        drops++;
+                        if (logged++ < 25) log.Append("DROPPED ").AppendLine(Describe(u));
+                    }
+                    lastOrder[u.id] = u.order;
+                    if (going && v < 0.15f)
+                    {
+                        if (!standSince.TryGetValue(u.id, out float ss)) standSince[u.id] = world.time;
+                        else if (world.time - ss > 1.5f && !standNote.ContainsKey(u.id))
+                        {
+                            standNote[u.id] = Describe(u);
+                            if (logged++ < 25) log.Append("STANDING ").AppendLine(standNote[u.id]);
+                        }
+                    }
+                    else if (standSince.TryGetValue(u.id, out float ss))
+                    {
+                        if (world.time - ss > 1.5f) stands.Add(world.time - ss);
+                        standSince.Remove(u.id);
+                        standNote.Remove(u.id);
+                    }
+                }
+                report = $"measuring, {(until - world.time) / Time.timeScale:0}s left; {orders} orders";
+                yield return null;
+            }
+            Time.timeScale = 1f;
+            starts.Sort(); stands.Sort();
+            float P(System.Collections.Generic.List<float> l, float q) => l.Count == 0 ? 0f : l[Mathf.Min(l.Count - 1, (int)(q * l.Count))];
+            report = $"{orders} orders; start latency (game s) p50 {P(starts, 0.5f):0.00} p90 {P(starts, 0.9f):0.00} max {P(starts, 1f):0.00}; " +
+                     $"stood >1.5s while ordered {stands.Count}x (p50 {P(stands, 0.5f):0.0}s max {P(stands, 1f):0.0}s); orders dropped far from goal {drops}\n" + log;
+        }
+    }
+
+    public sealed class DeathLooker : MonoBehaviour
+    {
+        public string report = "staging";
+
+        System.Collections.IEnumerator Start()
+        {
+            var boot = StarForge.Game.GameBootstrap.Instance;
+            var world = StarForge.World.GameWorld.Instance;
+            if (boot == null || world == null) { report = "no match"; yield break; }
+            if (!world.running)
+            {
+                StarForge.Game.MatchSettings.spectate = false;
+                StarForge.Game.MatchSettings.aiMemory = false;
+                StarForge.Game.MatchSettings.fixedSeed = true;
+                boot.StartMatch();
+                yield return null;
+            }
+            var rig = UnityEngine.Object.FindAnyObjectByType<StarForge.View.RTSCamera>();
+            Time.timeScale = 1f;
+            var basePos = world.Map.StartPos(0);
+            var toward = (world.Map.StartPos(1) - basePos).normalized;
+            var across = new Vector2(toward.y, -toward.x);
+            // Flat, dry ground near the base, so how they land is theirs and not the slope's.
+            Vector2 centre = world.NearestWalkable(basePos + toward * 24f, 10f);
+            float flattest = float.MaxValue;
+            for (int ring = 0; ring < 6; ring++)
+                for (int a = 0; a < 16; a++)
+                {
+                    var c = basePos + new Vector2(Mathf.Cos(a * Mathf.PI / 8f), Mathf.Sin(a * Mathf.PI / 8f)) * (18f + ring * 8f);
+                    if (!world.Walkable(c, 1f) || world.Map.WaterDepth(c) > -1f) continue;
+                    float lo = float.MaxValue, hi = float.MinValue;
+                    for (int x = -3; x <= 3; x++)
+                        for (int z = -2; z <= 2; z++)
+                        {
+                            var q = c + across * (x * 5f) + toward * (z * 4f);
+                            float h = world.Map.HeightAt(q);
+                            lo = Mathf.Min(lo, h); hi = Mathf.Max(hi, h);
+                            if (!world.Walkable(q, 1f)) hi += 10f;
+                        }
+                    if (hi - lo < flattest) { flattest = hi - lo; centre = c; }
+                }
+            var types = new[] { StarForge.Sim.UnitType.Trooper, StarForge.Sim.UnitType.Trooper, StarForge.Sim.UnitType.Mauler,
+                                StarForge.Sim.UnitType.Worker, StarForge.Sim.UnitType.Skimmer };
+            var victims = new StarForge.World.Unit[types.Length];
+            for (int n = 0; n < types.Length; n++)
+            {
+                var p = world.NearestWalkable(centre + across * ((n - 2) * 5.5f), 6f);
+                victims[n] = world.Spawn(types[n], 0, p, true, Mathf.Atan2(toward.x, toward.y));
+                victims[n].order = StarForge.Sim.Order.Hold;
+            }
+            // The Skimmer gets going first, across the line.
+            var sk = victims[4];
+            var skGoal = world.NearestWalkable(sk.pos + across * 30f, 8f);
+            world.CmdMove(new[] { sk }, skGoal, false);
+            var shooter = world.Spawn(StarForge.Sim.UnitType.Trooper, 1, world.NearestWalkable(centre + toward * 14f, 8f), true, 0f);
+            shooter.order = StarForge.Sim.Order.Hold;
+            if (rig != null)
+            {
+                rig.scripted = true;
+                rig.JumpTo(centre);
+                rig.ZoomTo(30f);
+            }
+            yield return new WaitForSeconds(1.6f);
+
+            var start = new Vector3[types.Length];
+            for (int n = 0; n < types.Length; n++) start[n] = victims[n].transform.position;
+            // A rifle round, a shell beside him, and the machines from the shooter's side.
+            world.Damage(victims[0], 1e6f, shooter.pos, shooter, false);
+            world.Damage(victims[1], 1e6f, victims[1].pos + toward * 1.5f, shooter, true);
+            world.Damage(victims[2], 1e6f, victims[2].pos + toward * 1.2f + across * 0.5f, shooter, true);
+            world.Damage(victims[3], 1e6f, victims[3].pos + toward * 1.2f, shooter, true);
+            world.Damage(victims[4], 1e6f, shooter.pos, shooter, false);
+            float t0 = Time.time;
+            var sb = new StringBuilder();
+            foreach (var at in new[] { 0.2f, 0.5f, 1.0f, 2.0f, 4.0f, 9.0f })
+            {
+                while (Time.time - t0 < at) yield return null;
+                ScreenCapture.CaptureScreenshot($"Temp/death_{at:0.0}s.png", 2);
+                sb.Append($"\n t={at:0.0}s: ");
+                foreach (var w in StarForge.View.UnitWreck.Active)
+                {
+                    var h = w.HullTransform;
+                    if (h == null) continue;
+                    float tilt = Vector3.Angle(h.up, Vector3.up);
+                    var hp = h.position;
+                    float gy = world.Map.HeightAt(new Vector2(hp.x, hp.z));
+                    int idx = -1; float best = 99f;
+                    for (int n = 0; n < types.Length; n++) if (types[n] == w.type) { float dd = Vector3.Distance(start[n], hp); if (dd < best) { best = dd; idx = n; } }
+                    sb.Append($"[{w.type} tilt {tilt:0}deg moved {best:0.0}m y+{hp.y - gy:0.00} heat {w.Heat:0.00} skid {w.Skid:0.0}{(w.Frozen ? " frozen" : "")}");
+                    var pt = w.PartTransform;
+                    if (pt != null) sb.Append($" part {Vector3.Distance(pt.position, hp):0.0}m off, y+{pt.position.y - world.Map.HeightAt(new Vector2(pt.position.x, pt.position.z)):0.00}");
+                    sb.Append("] ");
+                }
+            }
+            report = $"ground varies {flattest:0.00}m over the stage; wrecks:" + sb;
+            if (rig != null) rig.scripted = false;
+        }
+    }
+
+    public sealed class PushLooker : MonoBehaviour
+    {
+        public string report = "staging";
+
+        System.Collections.IEnumerator Start()
+        {
+            var boot = StarForge.Game.GameBootstrap.Instance;
+            var world = StarForge.World.GameWorld.Instance;
+            var veg = world != null ? world.Plants : null;
+            if (boot == null || world == null || veg == null) { report = "no match"; yield break; }
+            if (!world.running)
+            {
+                StarForge.Game.MatchSettings.spectate = false;
+                StarForge.Game.MatchSettings.aiMemory = false;
+                StarForge.Game.MatchSettings.fixedSeed = true;
+                boot.StartMatch();
+                yield return null;
+            }
+            var rig = UnityEngine.Object.FindAnyObjectByType<StarForge.View.RTSCamera>();
+            Time.timeScale = 1f;
+            // A tall standing tree with open ground to one side of it, near the player's half.
+            var home = world.Map.StartPos(0);
+            int best = -1; float bestScore = float.MaxValue; Vector2 from = default;
+            var near = new System.Collections.Generic.List<int>();
+            for (int i = 0; i < veg.plants.Length; i++)
+            {
+                var k = veg.KindOf(i);
+                if (k.bush || !k.HasCrown || veg.live[i].state != StarForge.World.PlantState.Standing || !veg.Blocks(i)) continue;
+                var c = veg.Pos2(i);
+                float dHome = (c - home).magnitude;
+                if (dHome < 25f || dHome > 110f) continue;
+                if (veg.PlantsNear(c, 7f, near).Exists(j => j != i && !veg.KindOf(j).bush && veg.live[j].state == StarForge.World.PlantState.Standing && (veg.Pos2(j) - c).magnitude < 7f)) continue;
+                // Across the camera's view, so the fall is seen from the side.
+                float cy = (rig != null ? rig.yaw : 45f) * Mathf.Deg2Rad;
+                for (int a = 0; a < 2; a++)
+                {
+                    var dir = new Vector2(Mathf.Cos(cy), -Mathf.Sin(cy)) * (a == 0 ? 1f : -1f);
+                    var p = c - dir * 11f;
+                    if (!world.Walkable(p, 1.6f) || !world.Walkable(c + dir * 12f, 1.6f) || !world.Walkable(c - dir * 5f, 1.6f)) continue;
+                    // A straight run for a Mauler all the way through the tree and out the far side.
+                    var g0 = world.Map.Ground(p); var g1 = world.Map.Ground(c + dir * 14f);
+                    if (!UnityEngine.AI.NavMesh.SamplePosition(g0, out var h0, 1f, UnityEngine.AI.NavMesh.AllAreas) ||
+                        UnityEngine.AI.NavMesh.Raycast(h0.position, g1, out _, UnityEngine.AI.NavMesh.AllAreas)) continue;
+                    float score = dHome - k.height * veg.plants[i].scale * 3f;
+                    if (score < bestScore) { bestScore = score; best = i; from = p; }
+                    break;
+                }
+            }
+            if (best < 0) { report = "no suitable tree"; yield break; }
+            var tree = veg.Pos2(best);
+            var go = (tree - from).normalized;
+            var m = world.Spawn(StarForge.Sim.UnitType.Mauler, 0, from, true, Mathf.Atan2(go.x, go.y));
+            if (rig != null)
+            {
+                rig.scripted = true;
+                rig.JumpTo(tree + go * 2f);
+                rig.ZoomTo(26f);
+            }
+            yield return new WaitForSeconds(1.2f);
+            world.CmdMove(new[] { m }, tree + go * 14f, false);
+            var sb = new StringBuilder();
+            var kk = veg.KindOf(best);
+            sb.Append($"{kk.name} h{kk.height * veg.plants[best].scale:0.0}m trunk r{veg.TrunkRadius(best):0.00}m; Mauler from {(tree - from).magnitude:0.0}m\n");
+            float t0 = Time.time, lastLog = -1f, contactAt = -1f, downAt = -1f, minGap = 99f, maxLoad = 0f;
+            bool shotContact = false, shotMid = false, shotDown = false, shotOver = false;
+            float speedBefore = 0f, slowest = 99f;
+            while (Time.time - t0 < 16f)
+            {
+                var s = veg.live[best];
+                float ahead = Vector2.Dot(tree - m.pos, new Vector2(Mathf.Sin(m.yaw), Mathf.Cos(m.yaw)));
+                float side = Vector2.Dot(tree - m.pos, new Vector2(Mathf.Cos(m.yaw), -Mathf.Sin(m.yaw)));
+                float spd = m.agent != null && m.agent.enabled ? m.agent.velocity.magnitude : 0f;
+                // The trunk's horizontal offset at glacis height against where the nose is.
+                float trunkAt = Mathf.Tan(Mathf.Min(s.fallAngle, 1.5f)) * 1.1f;
+                float nose = 2.2f - ahead;   // how far the nose is past the foot
+                if (s.state == StarForge.World.PlantState.Standing) speedBefore = spd;
+                else if (contactAt < 0f) { contactAt = Time.time - t0; }
+                if (s.pushedBy != null) { minGap = Mathf.Min(minGap, trunkAt - nose); slowest = Mathf.Min(slowest, spd); }
+                maxLoad = Mathf.Max(maxLoad, m.pushLoad);
+                if (contactAt >= 0f && downAt < 0f && s.state == StarForge.World.PlantState.Down) downAt = Time.time - t0;
+                if (Time.time - lastLog > 0.2f)
+                {
+                    lastLog = Time.time;
+                    sb.Append($"t{Time.time - t0:0.0} ahead {ahead:0.0} side {side:0.0} v{spd:0.0} load {m.pushLoad:0.00} lean {s.fallAngle * Mathf.Rad2Deg:0} crush {s.crush:0.00} {s.state}; ");
+                }
+                if (!shotContact && contactAt >= 0f && Time.time - t0 > contactAt + 0.25f) { shotContact = true; ScreenCapture.CaptureScreenshot("Temp/push_contact.png", 2); }
+                if (!shotMid && s.fallAngle > 0.7f) { shotMid = true; ScreenCapture.CaptureScreenshot("Temp/push_mid.png", 2); }
+                if (!shotDown && downAt >= 0f && Time.time - t0 > downAt + 0.3f) { shotDown = true; ScreenCapture.CaptureScreenshot("Temp/push_down.png", 2); }
+                if (!shotOver && s.crush > 0.5f) { shotOver = true; ScreenCapture.CaptureScreenshot("Temp/push_over.png", 2); }
+                yield return null;
+            }
+            sb.Append($"\ncontact at {contactAt:0.0}s, down at {downAt:0.0}s ({downAt - contactAt:0.0}s after contact); speed before {speedBefore:0.0}, slowest while pushing {slowest:0.0}; max load {maxLoad:0.00}; ");
+            sb.Append($"trunk-to-nose gap at glacis height, min {minGap:0.00}m (negative = nose through the trunk)");
+            report = sb.ToString();
+            if (rig != null) rig.scripted = false;
+        }
+    }
+
+    public sealed class AgentReacher : MonoBehaviour
+    {
+        public string report = "running";
+
+        System.Collections.IEnumerator Start()
+        {
+            var world = StarForge.World.GameWorld.Instance;
+            if (world == null) { report = "no world"; yield break; }
+            int mask = StarForge.World.GameWorld.GroundAreas;
+            var goals = new System.Collections.Generic.List<Vector2> { world.Map.StartPos(1), world.Map.StartPos(0) };
+            foreach (var u in world.units) if (u != null && u.Type == StarForge.Sim.UnitType.Ore) goals.Add(u.pos);
+            var probe = new GameObject("ReachProbe");
+            var agent = probe.AddComponent<UnityEngine.AI.NavMeshAgent>();
+            agent.radius = 0.58f; agent.height = 2f; agent.speed = 0.01f; agent.acceleration = 0.01f;
+            agent.areaMask = mask; agent.obstacleAvoidanceType = UnityEngine.AI.ObstacleAvoidanceType.NoObstacleAvoidance;
+            var sb = new StringBuilder();
+            int agentPartial = 0, fullPartial = 0, tried = 0;
+            foreach (int b in new[] { 0, 1 })
+            {
+                if (!UnityEngine.AI.NavMesh.SamplePosition(world.Map.Ground(world.Map.StartPos(b)), out var start, 10f, mask)) continue;
+                foreach (var g in goals)
+                {
+                    if ((g - world.Map.StartPos(b)).magnitude < 30f) continue;
+                    if (!UnityEngine.AI.NavMesh.SamplePosition(world.Map.Ground(g), out var end, 8f, mask)) continue;
+                    agent.Warp(start.position);
+                    agent.SetDestination(end.position);
+                    int frames = 0;
+                    while (agent.pathPending && frames < 300) { frames++; yield return null; }
+                    var full = new UnityEngine.AI.NavMeshPath();
+                    UnityEngine.AI.NavMesh.CalculatePath(start.position, end.position, mask, full);
+                    tried++;
+                    var ac = agent.path.corners;
+                    float aShort = ac.Length > 0 ? Vector3.Distance(ac[ac.Length - 1], end.position) : -1f;
+                    if (agent.pathStatus != UnityEngine.AI.NavMeshPathStatus.PathComplete) agentPartial++;
+                    if (full.status != UnityEngine.AI.NavMeshPathStatus.PathComplete) fullPartial++;
+                    if (agent.pathStatus != full.status)
+                        sb.Append($"[base {b} -> {g}: agent {agent.pathStatus} {aShort:0}m short after {frames} frames, full {full.status}, {Vector3.Distance(start.position, end.position):0}m apart] ");
+                    agent.ResetPath();
+                }
+            }
+            Destroy(probe);
+            report = $"{tried} paths: agent partial {agentPartial}, full query partial {fullPartial}. " + sb;
         }
     }
 }

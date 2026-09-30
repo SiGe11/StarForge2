@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: MechBay
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 11
+  displayName: Mech Bay
+  blurb: 'Calls down your Mech two minutes after it stands: a war machine with a mind of its own, allied to you but not under your orders. One a match, never rebuilt. Guards itself with a gun tower, mends itself, repairs the Mech and sells its upgrades.'
+  building: 1
+  neutral: 0
+  radius: 4.2
+  hp: 1800
+  speed: 0
+  turnRate: 3
+  range: 24
+  damage: 22
+  cooldown: 0.6
+  splash: 0
+  sight: 30
+  bonusVsWorkers: 1
+  buildTime: 35
+  cost: 100
+  supplyCost: 0
+  supplyGive: 0
+  hotkey: 89
+  producer: -1
+  requires: -1
+  prefabs:
+  - {fileID: 5390738020634335613, guid: 839c00c2f2ba54c769d2efb3c8af16b6, type: 3}
+  - {fileID: 8100231601725816872, guid: 3ddadcc22cbe34a5d8bfe5323e8074b7, type: 3}
+  icon: {fileID: 2800000, guid: 265a7ba3ea21d4a288b5767a50a38740, type: 3}
+  visualRadius: 4.494
+  visualHeight: 6.8

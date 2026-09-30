@@ -124,6 +124,8 @@ namespace StarForge.AI
         public Vector2 pos;
         public float firstSeen, lastSeen;
         public bool stillVisible;
+        /// <summary>A structure still going up when last seen (scaffolding shows).</summary>
+        public bool unfinished;
     }
 
     public sealed class Snapshot
@@ -135,6 +137,10 @@ namespace StarForge.AI
         public readonly int[] queuedType = new int[(int)UnitType.Count];
         public int ore, supplyUsed, supplyCap;
         public float armyValue;
+        /// <summary>Its own Mech Bay and Mech (the Mech is not part of the army value: it
+        /// takes no orders, it only joins in).</summary>
+        public bool mechBay, mechAlive;
+        public float mechHpFrac;
 
         // Believed enemy state, derived only from what has actually been observed.
         public int eWorkers, eTroopers, eMaulers, eSkimmers;
@@ -150,6 +156,17 @@ namespace StarForge.AI
         public bool enemyBaseKnown;
         public Vector2 enemyBase;
         public float scoutConfidence;    // 0..1, how fresh our picture of them is
+        /// <summary>Their Mech, as seen: whether one is remembered, and where. Their Mech
+        /// Bay likewise. Neither counts toward their army value or their aggression --
+        /// the Mech is not the player's doing.</summary>
+        public bool eMech, eMechBay;
+        public Vector2 eMechPos, eMechBayPos;
+        /// <summary>Their Mech's guns, as seen (a Mech's weapons are on the outside): the
+        /// share of its firepower meant for infantry (0 all anti-armour .. 1 all
+        /// anti-infantry), whether it has been seen close enough to tell, and how long ago
+        /// it was last seen.</summary>
+        public float eMechAntiLight = 0.5f, eMechSeenAgo = 1e9f;
+        public bool eMechDesignKnown;
 
         public void Clear()
         {
@@ -167,6 +184,11 @@ namespace StarForge.AI
             enemyBaseKnown = false;
             enemyBase = Vector2.zero;
             scoutConfidence = 0f;
+            mechBay = mechAlive = false;
+            mechHpFrac = 0f;
+            eMech = eMechBay = false;
+            eMechAntiLight = 0.5f; eMechSeenAgo = 1e9f; eMechDesignKnown = false;
+            eMechPos = eMechBayPos = Vector2.zero;
         }
     }
 
@@ -177,7 +199,7 @@ namespace StarForge.AI
     public enum Approach { Direct = 0, FlankLeft, FlankRight }
 
     /// <summary>What an attack wave goes for.</summary>
-    public enum WaveTarget { Base = 0, Production, Expansion, Workers }
+    public enum WaveTarget { Base = 0, Production, Expansion, Workers, MechBay }
 
     /// <summary>A match's playing style, drawn at the start from the seed and from what
     /// the AI did in its last few matches, so no two matches play out alike. It
@@ -192,11 +214,13 @@ namespace StarForge.AI
         public float timing;          // push threshold multiplier (0.8 .. 1.3)
         public float flankTaste;      // 0 .. 1, how much it likes to come in from the side
         public float raidTaste;       // 0 .. 1, how readily it splits off a second prong
+        public float adviceTrust;     // 0.35 .. 0.95, how readily it acts on what its Mech tells it
+        public float mechBayAt;       // seconds into the match it raises its Mech Bay
         public readonly float[] taste = new float[(int)Strategy.Count];   // per-plan score offsets
 
         public string Describe() =>
             $"{opening}, troopers {trooperShift:+0.00;-0.00}, skimmers +{extraSkimmers}, workshops {workshopShift:+0;-0;0}, " +
-            $"timing x{timing:0.00}, flank {flankTaste:0.0}, raid {raidTaste:0.0}";
+            $"timing x{timing:0.00}, flank {flankTaste:0.0}, raid {raidTaste:0.0}, trusts its Mech {adviceTrust:0.00}, bay at {mechBayAt:0}s";
     }
 
     public sealed class AIDebug
@@ -219,5 +243,13 @@ namespace StarForge.AI
         public string personality = "";
         public string wave = "";
         public int waves;
+        public string mechAdvice = "";
+        public int adviceHeeded, adviceIgnored, upgradesBought;
+        /// <summary>Waves sent while their Mech was away, and waves gathered on its own Mech.</summary>
+        public int mechWindows, stagedWithMech;
+        /// <summary>Enemy guns over its ore: what it last saw, and Diggers moved to safe ore
+        /// or stood clear.</summary>
+        public string guns = "";
+        public int diggersMoved, diggersCleared;
     }
 }

@@ -7,7 +7,8 @@
 // noise never reaches its own extremes, so skipping this gives a map with no
 // low ground and no water), terraced into plateaus, rim mountains, flattened
 // base plateaus, and a carved corridor whenever the bases are disconnected --
-// so every generated map is playable.
+// so every generated map is playable. (MapGenerator carves more through Reconnect
+// when the smoothed ground it builds from these corners joins them only by a crack.)
 //
 // New here: beaches. Terracing makes every lake a pit walled by cliffs, so
 // selected stretches of shore are slumped into long slopes running down into
@@ -155,8 +156,9 @@ namespace StarForge.World
         }
 
         // Routes a least-resistance line between the bases (crossing cliffs at high
-        // cost) then reshapes the height field along it into a walkable ramp.
-        void CarveCorridor(Vector2 a, Vector2 b)
+        // cost) then reshapes the height field along it into a walkable ramp, `radius`
+        // cells to either side.
+        void CarveCorridor(Vector2 a, Vector2 b, float radius = 3.2f)
         {
             int ax = (int)Clamp(a.x / CELL, 0, N - 1), az = (int)Clamp(a.y / CELL, 0, N - 1);
             int bx = (int)Clamp(b.x / CELL, 0, N - 1), bz = (int)Clamp(b.y / CELL, 0, N - 1);
@@ -228,7 +230,7 @@ namespace StarForge.World
                 var sw = prof; prof = tmp; tmp = sw;
             }
 
-            float R = 3.2f * CELL;
+            float R = radius * CELL;
             for (int i = 0; i < M; i++)
             {
                 int cx = path[i] % N, cz = path[i] / N;
@@ -244,6 +246,19 @@ namespace StarForge.World
                         h[z * VN + x] = Lerp(h[z * VN + x], prof[i], w * 0.85f);
                     }
             }
+        }
+
+        /// <summary>Carves one more corridor between the bases and recomputes passability.
+        /// Connected tests the bases on these 2 m cells, but the ground is the Catmull-Rom
+        /// surface through their corners (SmoothHeightAt), which climbs a single terrace step
+        /// about half again as steeply as the step's average: a seed can pass here while the
+        /// NavMesh joins the bases only through a crack between two slopes. MapGenerator tests
+        /// the ground it builds and calls this while that test fails. Wider than the original's
+        /// corridor (3.2 cells), which left the narrowest point of the route 3 m across.</summary>
+        public void Reconnect(Vector2 baseA, Vector2 baseB)
+        {
+            CarveCorridor(baseA, baseB, 4.5f);
+            ComputePassability();
         }
 
         /// <summary>Shore cells slumped into beaches, for the build log.</summary>

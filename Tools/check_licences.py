@@ -72,6 +72,30 @@ SOURCES = [
       "https://polyhaven.com/a/cliff_side", ("polyhaven", "cliff_side"), [], ["cliff_side"],
       "fetched as a spare; nothing committed"),
 
+    # Poly Haven -- scanned plants, baked into the game's trees by
+    # Tools/blender/bake_scanned_flora.py (CC0, https://polyhaven.com/license)
+    S("Island Tree 01", "Rob Tuytel, Rico Cilliers", CC0, "https://polyhaven.com/a/island_tree_01",
+      ("polyhaven", "island_tree_01"),
+      [T + "Leaves/scan_TREE_BROAD_*", M + "SF_TREE_BROAD.fbx", M + "SF_TREE_BROAD_LOD1.fbx"], ["island_tree_01"]),
+    S("Fir Tree 01", "Rob Tuytel, Rico Cilliers", CC0, "https://polyhaven.com/a/fir_tree_01",
+      ("polyhaven", "fir_tree_01"),
+      [T + "Leaves/scan_TREE_PINE_*", M + "SF_TREE_PINE.fbx", M + "SF_TREE_PINE_LOD1.fbx"], ["fir_tree_01"]),
+    S("Tree Small 02", "Rico Cilliers", CC0, "https://polyhaven.com/a/tree_small_02",
+      ("polyhaven", "tree_small_02"),
+      [T + "Leaves/scan_TREE_TALL_*", M + "SF_TREE_TALL.fbx", M + "SF_TREE_TALL_LOD1.fbx"], ["tree_small_02"]),
+    S("Jacaranda Tree", "Rob Tuytel, Rico Cilliers", CC0, "https://polyhaven.com/a/jacaranda_tree",
+      ("polyhaven", "jacaranda_tree"),
+      [T + "Leaves/scan_TREE_BIRCH_*", M + "SF_TREE_BIRCH.fbx", M + "SF_TREE_BIRCH_LOD1.fbx"], ["jacaranda_tree"]),
+    S("Searsia Burchellii", "James Ray Cock, Jenelle van Heerden", CC0, "https://polyhaven.com/a/searsia_burchellii",
+      ("polyhaven", "searsia_burchellii"),
+      [T + "Leaves/scan_BUSH_col*", T + "Leaves/scan_BUSH_nrm*", M + "SF_BUSH.fbx", M + "SF_BUSH_LOD1.fbx"],
+      ["searsia_burchellii"]),
+    S("Searsia Lucida", "James Ray Cock, Jenelle van Heerden", CC0, "https://polyhaven.com/a/searsia_lucida",
+      ("polyhaven", "searsia_lucida"),
+      [T + "Leaves/scan_BUSH_FLOWER_*", M + "SF_BUSH_FLOWER.fbx", M + "SF_BUSH_FLOWER_LOD1.fbx"], ["searsia_lucida"]),
+    S("Fern 02", "Rob Tuytel, Rico Cilliers", CC0, "https://polyhaven.com/a/fern_02",
+      ("polyhaven", "fern_02"),
+      [T + "Leaves/scan_FERN_*", M + "SF_FERN.fbx", M + "SF_FERN_LOD1.fbx"], ["fern_02"]),
     # ambientCG -- leaf atlases (CC0, https://ambientcg.com/license)
     S("Leaf Set 016", "ambientCG", CC0, "https://ambientcg.com/view?id=LeafSet016",
       ("ambientcg", "LeafSet016"), [T + "Leaves/oak_*"], ["LeafSet016"]),
@@ -88,10 +112,20 @@ SOURCES = [
        A + "Sfx/bigboom_0.ogg", A + "Sfx/rumble_0.ogg", A + "Sfx/crystal_*.ogg",
        # make_audio.py builds these from the same pack: the explosion crunches with a
        # thump and a rolling report under them, and the engine bed dropped an octave.
-       A + "Sfx/blast_*.wav", A + "Sfx/blastbig_*.wav", A + "Sfx/engine_heavy.wav"], ["sci-fi-sounds"]),
+       A + "Sfx/blast_*.wav", A + "Sfx/blastbig_*.wav", A + "Sfx/engine_heavy.wav",
+       # The Mech's (make_audio.py --mech): the leg hydraulics are the pack's doors
+       # slowed down, the missiles its thrusters, the laser and the railgun its
+       # lasers, the drop its large engine and thrusters, the landing its crunch,
+       # the standing hum its low engine.
+       A + "Sfx/mech_servo_*.wav", A + "Sfx/mech_missile_*.wav", A + "Sfx/mech_laser_*.wav",
+       A + "Sfx/mech_railgun_*.wav", A + "Sfx/mech_drop.wav", A + "Sfx/mech_land.wav", A + "Sfx/mech_hum.wav"],
+      ["sci-fi-sounds"]),
     S("Impact Sounds", "Kenney", CC0, "https://kenney.nl/assets/impact-sounds", ("kenney", None),
       [A + "Sfx/hitmetal_*.ogg", A + "Sfx/rock_*.ogg", A + "Sfx/thud_0.ogg", A + "Sfx/stomp_0.ogg",
-       A + "Sfx/build_0.ogg"], ["impact-sounds"]),
+       A + "Sfx/build_0.ogg",
+       # The Mech's footfalls (heavy plates, punches and mining crunches), the
+       # mortar's tube (a heavy bell hit) and the landing.
+       A + "Sfx/mech_step_*.wav", A + "Sfx/mech_mortar_*.wav", A + "Sfx/mech_land.wav"], ["impact-sounds"]),
     S("Interface Sounds", "Kenney", CC0, "https://kenney.nl/assets/interface-sounds", ("kenney", None),
       [A + "Sfx/ui_*.ogg"], ["interface-sounds"]),
 
@@ -124,7 +158,12 @@ SOURCES = [
     S("The Free Firearm Sound Library", "Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney", CC0,
       "https://opengameart.org/content/the-free-firearm-sound-library",
       ("oga", "the-free-firearm-sound-library"),
-      [A + "Sfx/rifle_*.wav", A + "Sfx/cannon_*.wav", A + "Sfx/bolt_*.wav", A + "Sfx/pulse_*.wav"],
+      [A + "Sfx/rifle_*.wav", A + "Sfx/cannon_*.wav", A + "Sfx/bolt_*.wav", A + "Sfx/pulse_*.wav",
+       # The Mech's guns: an AK and a .30-06 pitched down for the autocannon, a PPSh's
+       # rounds run together for the rotary cannon, pistol cracks under the missiles
+       # and the laser, shotguns for the mortar, rifles for the railgun's crack.
+       A + "Sfx/mech_autocannon_*.wav", A + "Sfx/mech_gatling_*.wav", A + "Sfx/mech_missile_*.wav",
+       A + "Sfx/mech_mortar_*.wav", A + "Sfx/mech_laser_*.wav", A + "Sfx/mech_railgun_*.wav"],
       ["firearms.7z"]),
     S("tree chop fall thud", "kheetor", CC0, "https://opengameart.org/content/tree-chop-fall-thud",
       ("oga", "tree-chop-fall-thud"), [A + "Sfx/treefall_*.wav", A + "Sfx/treecrash_*.wav"],
@@ -135,10 +174,22 @@ SOURCES = [
       "https://opengameart.org/content/100-cc0-metal-and-wood-sfx", ("oga", "100-cc0-metal-and-wood-sfx"),
       # engine_tracks.wav is built from this pack's metal hits: the cleats and the
       # road wheels of a tracked hull.
-      [A + "Sfx/crush_*.wav", A + "Sfx/engine_tracks.wav"], ["100-CC0-wood-metal-SFX.zip"]),
+      [A + "Sfx/crush_*.wav", A + "Sfx/engine_tracks.wav",
+       # The ring of the Mech's leg as a foot comes down, and the metal in its landing.
+       A + "Sfx/mech_step_*.wav", A + "Sfx/mech_land.wav"], ["100-CC0-wood-metal-SFX.zip"]),
     S("75 CC0 breaking / falling / hit sfx", "rubberduck", CC0,
       "https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx",
       ("oga", "75-cc0-breaking-falling-hit-sfx"), [], ["sfx_breaking_and_falling.zip"]),
+
+    # JangaFX -- EmberGen fluid simulations (OpenVDB), rendered into the fire and
+    # explosion flipbooks by Tools/blender/render_flipbooks.py (CC0, stated on the
+    # download page and in the LICENSE.txt inside each archive)
+    S("Small Camp Fire (free VDB)", "JangaFX", CC0,
+      "https://jangafx.com/software/embergen/download/free-vdb-animations", ("jangafx", None),
+      [T + "fx_flame.png"], ["SmallCampfire"]),
+    S("Ground Explosion (free VDB)", "JangaFX", CC0,
+      "https://jangafx.com/software/embergen/download/free-vdb-animations", ("jangafx", None),
+      [T + "fx_explosion.png"], ["GroundExplosion"]),
 
     # Fonts -- the only assets here with conditions; checked in the file itself
     S("Inter", "The Inter Project Authors", "SIL OFL 1.1", "https://rsms.me/inter/",
@@ -161,6 +212,7 @@ OWN = [
     "Assets/StarForge/Art/AppIcon.png",
     "Assets/icon.png", "Assets/cursor.png",
     A + "Ambience/*.wav",
+    A + "Sfx/mech_radio_*.wav", A + "Sfx/mech_flamer.wav",   # synthesised by make_audio.py --mech
     "Assets/StarForge/Scenes/**/*.exr",   # baked lighting
 ]
 # Unity's own project-template leftovers: redistributable (Unity Companion
@@ -226,6 +278,10 @@ def verify(src):
         said = (m.group(1).strip() if m else "?")
         badge = "publicdomain/zero" in page
         return (badge and said.upper().replace(" ", "") == "CC0", f"the page states {said!r}")
+    if kind == "jangafx":
+        page = fetch(src["url"])
+        text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", page)))
+        return ("CC0" in text and "Public Domain" in text, "the download page states CC0 (Public Domain)")
     if kind == "font":
         said = font_licence(os.path.join(ROOT, src["files"][0]))
         return (key in said, said[:120])
@@ -256,8 +312,10 @@ def fetched_ids():
         return set(re.findall(pattern, m.group(1))) if m else set()
 
     ids = block("TEXTURES", r'"([a-z0-9_]+)":') | block("MODELS", r'"([a-z0-9_]+)":')
+    ids |= block("FLORA", r'"([a-z0-9_]+)":')
     ids |= block("AMBIENTCG", r'"(LeafSet\d+)"') | block("KENNEY", r'"([a-z\-]+)":')
     ids |= block("QUATERNIUS", r'"([A-Za-z0-9_\.]+)":') | block("SFX", r':\s*"([^"]+)"')
+    ids |= block("JANGAFX", r'"([A-Za-z0-9_]+)":')
     ids |= {t for _, _, t in re.findall(r'\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)',
                                        re.search(r"MUSIC\s*=\s*\{(.*?)\n\}", src, re.S).group(1))}
     return ids
@@ -318,7 +376,7 @@ def main():
             print(f"  FAIL THIRD-PARTY.md does not mention {s['name']}")
             bad += 1
     readme = open(os.path.join(ROOT, "README.md")).read()
-    for who in ("Poly Haven", "ambientCG", "Kenney", "Quaternius", "OpenGameArt", "Inter", "Roboto Mono"):
+    for who in ("Poly Haven", "ambientCG", "Kenney", "Quaternius", "JangaFX", "OpenGameArt", "Inter", "Roboto Mono"):
         if who not in readme:
             print(f"  FAIL the README credits no {who}")
             bad += 1

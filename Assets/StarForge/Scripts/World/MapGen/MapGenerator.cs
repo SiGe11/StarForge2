@@ -52,6 +52,15 @@ namespace StarForge.World
             public Material terrainMaterial;
             public Mesh water, backdrop;
             public int plants, blockingPlants, ore, boulders, scenery, grovesDropped;
+            /// <summary>Passes the grove check took from the NavMesh because its grid could not
+            /// resolve them (Blockage.Link).</summary>
+            public int navLinks;
+            /// <summary>Corridors carved between the bases because the ground joined them only
+            /// through a pass too narrow for a unit (Generate). Usually 0.</summary>
+            public int corridors;
+            /// <summary>Bases, expansions and ore fields no ground unit can reach from base A
+            /// even before a tree grows. Should be empty.</summary>
+            public readonly List<Vector2> unreachable = new List<Vector2>();
             public long heightsMs, splatMs, objectsMs, navMs;
         }
 
@@ -72,6 +81,19 @@ namespace StarForge.World
             info.seed = seed;
 
             var heights = BuildHeights(gen);
+            // The generator joins the bases on its own 2 m cells, but the ground is the smoothed
+            // surface through their corners, steeper at a single terrace step than the step's
+            // average: a seed could pass its test while the NavMesh joined the bases only through
+            // a crack between two 40-47 degree slopes. So test the ground itself, on the grid the
+            // grove check uses, and carve another corridor while a unit cannot cross it.
+            var walk = WalkableGround(info, heights);
+            while (r.corridors < 4 && !new Blockage(walk).Connected(BaseA, new List<Vector2> { BaseB }))
+            {
+                gen.Reconnect(BaseA, BaseB);
+                heights = BuildHeights(gen);
+                walk = WalkableGround(info, heights);
+                r.corridors++;
+            }
             r.terrainData = BuildTerrainData(heights, kit);
             r.heightsMs = clock.ElapsedMilliseconds;
 
@@ -87,7 +109,7 @@ namespace StarForge.World
             r.water = BuildWater(info, heights, kit);
             BuildDeepWater(info, heights);
             r.backdrop = BuildBackdrop(info, gen, heights, kit);
-            PlaceMapObjects(info, kit, gen, seed, r);
+            PlaceMapObjects(info, kit, gen, walk, seed, r);
             r.objectsMs = clock.ElapsedMilliseconds - t0;
 
             if (bakeNavMesh)
@@ -365,6 +387,65 @@ namespace StarForge.World
             return mesh;
         }
 
+        /// <summary>Whether the 1 m cell at (x, z) is too deep to wade: only if every sample
+        /// in it is, so the edge of the walkable shallows follows the shallow side.</summary>
+        static bool Deep(float[,] heights, int x, int z)
+        {
+            float hi = float.MinValue;
+            for (int k = 0; k < 5; k++)
+            {
+                float sx = x + (k == 4 ? 0.5f : (k & 1)), sz = z + (k == 4 ? 0.5f : (k >> 1));
+                hi = Mathf.Max(hi, Sample(heights, sx, sz));
+            }
+            return hi < HeightfieldGenerator.WATER - WadeDepth;
+        }
+
+        /// <summary>The 1 m cells a ground unit's centre may stand on, by the rules the
+        /// NavMesh bake applies to the same heights: no heightmap triangle within the
+        /// agent's radius of the cell's centre steeper than its slope limit (either
+        /// diagonal, so this errs strict), and not deep water (BuildDeepWater; a marked
+        /// area, which the bake does not erode). The height field's own 2 m cells
+        /// (PassableCell) are far stricter -- a corner spread of 1.6 m allows 39 degrees
+        /// along an axis but only 29 on a diagonal -- and cut a base plateau's rim off
+        /// where units drive over it.</summary>
+        static bool[] WalkableGround(MapInfo info, float[,] heights)
+        {
+            const int R = (int)Size;
+            const float step = Size / (HeightRes - 1);
+            var surface = info.GetComponent<NavMeshSurface>();
+            var agent = UnityEngine.AI.NavMesh.GetSettingsByID(surface != null ? surface.agentTypeID : 0);
+            float maxRise = Mathf.Tan(Mathf.Clamp(agent.agentSlope, 5f, 60f) * Mathf.Deg2Rad) * step;
+            float reach = Mathf.Max(0f, agent.agentRadius);
+            var walk = new bool[R * R];
+            Parallel.For(0, R, z =>
+            {
+                int qz0 = Mathf.Max(0, Mathf.FloorToInt((z + 0.5f - reach) / step));
+                int qz1 = Mathf.Min(HeightRes - 2, Mathf.FloorToInt((z + 0.5f + reach) / step));
+                for (int x = 0; x < R; x++)
+                {
+                    bool ok = !Deep(heights, x, z);
+                    int qx0 = Mathf.Max(0, Mathf.FloorToInt((x + 0.5f - reach) / step));
+                    int qx1 = Mathf.Min(HeightRes - 2, Mathf.FloorToInt((x + 0.5f + reach) / step));
+                    for (int qz = qz0; ok && qz <= qz1; qz++)
+                        for (int qx = qx0; ok && qx <= qx1; qx++)
+                        {
+                            float ex = Mathf.Max(0f, Mathf.Max(qx * step - (x + 0.5f), x + 0.5f - (qx + 1) * step));
+                            float ez = Mathf.Max(0f, Mathf.Max(qz * step - (z + 0.5f), z + 0.5f - (qz + 1) * step));
+                            if (ex * ex + ez * ez >= reach * reach && (ex > 0f || ez > 0f)) continue;   // beyond a unit's radius
+                            float h00 = heights[qz, qx], h10 = heights[qz, qx + 1];
+                            float h01 = heights[qz + 1, qx], h11 = heights[qz + 1, qx + 1];
+                            // The four right triangles of the quad's two splittings.
+                            if (Rise(h10 - h00, h01 - h00) > maxRise || Rise(h11 - h01, h11 - h10) > maxRise ||
+                                Rise(h10 - h00, h11 - h10) > maxRise || Rise(h11 - h01, h01 - h00) > maxRise) ok = false;
+                        }
+                    walk[z * R + x] = ok;
+                }
+            });
+            return walk;
+        }
+
+        static float Rise(float dx, float dz) => Mathf.Sqrt(dx * dx + dz * dz);
+
         /// <summary>Where the water is deeper than WadeDepth, the lake bed is marked
         /// Not Walkable with box volumes: runs of 1 m cells merged row by row, then
         /// stacked while the next row has the same run.</summary>
@@ -375,18 +456,7 @@ namespace StarForge.World
             var deep = new bool[R * R];
             Parallel.For(0, R, z =>
             {
-                for (int x = 0; x < R; x++)
-                {
-                    // Deep only if every sample in the cell is deep, so the edge of
-                    // the walkable shallows follows the shallow side.
-                    float hi = float.MinValue;
-                    for (int k = 0; k < 5; k++)
-                    {
-                        float sx = x + (k == 4 ? 0.5f : (k & 1)), sz = z + (k == 4 ? 0.5f : (k >> 1));
-                        hi = Mathf.Max(hi, Sample(heights, sx, sz));
-                    }
-                    deep[z * R + x] = hi < W - WadeDepth;
-                }
+                for (int x = 0; x < R; x++) deep[z * R + x] = Deep(heights, x, z);
             });
 
             if (info.deepWater == null)
@@ -567,32 +637,83 @@ namespace StarForge.World
         /// units walked with half their body inside the trunk.</summary>
         const float UnitPad = 0.75f;
 
-        /// <summary>A 1 m grid of what ground units can cross -- the generator's passable
-        /// cells, less scenery, boulders and blocking trees -- for checking that a grove
-        /// does not wall anything off.</summary>
+        /// <summary>How near a unit's centre must come to a place for it to count as reached:
+        /// a Digger harvests from about 3.8 m of an ore field's centre (Unit.UpdateHarvest).</summary>
+        const float ReachSlack = 3f;
+
+        /// <summary>Set by the editor (AgentPlay.GroveGrid): the next map keeps the grove
+        /// check's grid as it stood before the first grove in groveGrid, one Cell* byte a
+        /// 1 m cell, row by row from the south-west corner.</summary>
+        public static bool recordGroveGrid;
+        public static byte[] groveGrid;
+        public const byte CellSteep = 0, CellObject = 1, CellOpen = 2, CellReached = 3, CellLink = 4;
+
+        /// <summary>A 1 m grid of where a ground unit's centre can go -- the terrain the
+        /// NavMesh walks (WalkableGround), less scenery, boulders and blocking trees -- for
+        /// placing expansions only where units can get to, and checking that a grove does
+        /// not wall anything off.</summary>
         sealed class Blockage
         {
-            readonly int[] count;   // >0: closed
+            readonly bool[] walk;   // terrain a unit's centre may stand on
+            readonly int[] count;   // objects closing the cell, each padded by a unit's radius
+            bool[] link;            // on a NavMesh path the grid cannot resolve (Link)
+            int[] linkBase;         // count on and round a link cell when it was laid
             readonly int n;
 
-            public Blockage(HeightfieldGenerator gen, MapInfo info, List<(Vector2 p, float r)> scenery)
+            public Blockage(bool[] walk)
             {
                 n = (int)Size;
+                this.walk = walk;
                 count = new int[n * n];
-                for (int z = 0; z < n; z++)
-                    for (int x = 0; x < n; x++)
-                        if (!gen.PassableWorld(x + 0.5f, z + 0.5f)) count[z * n + x] = 1;
-                foreach (var sc in scenery) Disc(sc.p, sc.r * 0.85f);
-                if (info.boulderRoot != null)
-                    foreach (Transform b in info.boulderRoot)
-                        if (b.gameObject.activeSelf) Disc(new Vector2(b.position.x, b.position.z), 1.15f * b.localScale.x + 0.3f);
             }
 
-            void Disc(Vector2 c, float r)
+            public void Disc(Vector2 c, float r, int d = 1)
             {
                 for (int z = Mathf.Max(0, (int)(c.y - r)); z <= Mathf.Min(n - 1, (int)(c.y + r)); z++)
                     for (int x = Mathf.Max(0, (int)(c.x - r)); x <= Mathf.Min(n - 1, (int)(c.x + r)); x++)
-                        if ((new Vector2(x + 0.5f, z + 0.5f) - c).sqrMagnitude <= r * r) count[z * n + x]++;
+                        if ((new Vector2(x + 0.5f, z + 0.5f) - c).sqrMagnitude <= r * r) count[z * n + x] += d;
+            }
+
+            /// <summary>The half-width of the square MayCut looks in round a disc of radius r.</summary>
+            public static int CutReach(float r) => Mathf.CeilToInt(r) + 3;
+
+            /// <summary>Whether a disc of radius r just stamped at c may have cut a way the flood
+            /// `seen` took. It cannot when every cell the flood reached on the rim of a square round
+            /// the disc (CutReach, beyond the disc and the cell of room Fits wants) still joins every
+            /// other inside the square: a way through the disc goes round it. Then `shut` gets the
+            /// cells inside the square the flood reached that nothing joins to the rim any more, so
+            /// clearing them from `seen` leaves it as a new flood would find it.</summary>
+            public bool MayCut(bool[] seen, Vector2 c, float r, List<int> shut)
+            {
+                shut.Clear();
+                int h = CutReach(r), x0 = (int)c.x - h, z0 = (int)c.y - h, w = 2 * h + 1;
+                if (x0 < 1 || z0 < 1 || x0 + w > n - 1 || z0 + w > n - 1) return true;
+                int Cell(int i) => (z0 + i / w) * n + x0 + i % w;
+                bool Rim(int i) => i % w == 0 || i % w == w - 1 || i / w == 0 || i / w == w - 1;
+                bool Pass(int i) => Fits(x0 + i % w, z0 + i / w);
+                int rim = 0, first = -1;
+                for (int i = 0; i < w * w; i++)
+                    if (Rim(i) && seen[Cell(i)] && Pass(i)) { rim++; if (first < 0) first = i; }
+                var mark = new bool[w * w];
+                if (first >= 0)
+                {
+                    var stack = new Stack<int>();
+                    mark[first] = true;
+                    stack.Push(first);
+                    while (stack.Count > 0)
+                    {
+                        int i = stack.Pop(), x = i % w;
+                        if (Rim(i) && seen[Cell(i)]) rim--;
+                        if (x + 1 < w && !mark[i + 1] && Pass(i + 1)) { mark[i + 1] = true; stack.Push(i + 1); }
+                        if (x > 0 && !mark[i - 1] && Pass(i - 1)) { mark[i - 1] = true; stack.Push(i - 1); }
+                        if (i + w < w * w && !mark[i + w] && Pass(i + w)) { mark[i + w] = true; stack.Push(i + w); }
+                        if (i >= w && !mark[i - w] && Pass(i - w)) { mark[i - w] = true; stack.Push(i - w); }
+                    }
+                    if (rim > 0) return true;
+                }
+                for (int i = 0; i < w * w; i++)
+                    if (seen[Cell(i)] && !mark[i]) shut.Add(Cell(i));
+                return false;
             }
 
             public void Stamp(Vector2 c, float half, int d)
@@ -602,11 +723,24 @@ namespace StarForge.World
                         count[z * n + x] += d;
             }
 
-            bool Free(int x, int z) => x >= 0 && z >= 0 && x < n && z < n && count[z * n + x] <= 0;
+            bool In(int x, int z) => x >= 0 && z >= 0 && x < n && z < n;
+            bool Clear(int x, int z) => In(x, z) && count[z * n + x] <= 0;
+            bool Free(int x, int z) => Clear(x, z) && walk[z * n + x];
+            bool Unchanged(int x, int z) => !In(x, z) || count[z * n + x] <= linkBase[z * n + x];
 
-            /// <summary>A unit fits: the cell and its neighbours are open (a corridor
-            /// at least about 2 m wide).</summary>
-            bool Fits(int x, int z) => Free(x, z) && Free(x + 1, z) && Free(x - 1, z) && Free(x, z + 1) && Free(x, z - 1);
+            /// <summary>A unit passes: its centre may stand here, and no object is within a
+            /// cell of it. The terrain needs no margin (WalkableGround already keeps a
+            /// unit's radius off the slopes, as the bake does), so a pass as narrow as the
+            /// NavMesh's counts; objects keep a cell clear on every side (two stamps need
+            /// about 3 m between them), so a grove never leaves only a gap to file through.
+            /// On a link (a NavMesh path the grid is too coarse to see, Link) a unit passes
+            /// while nothing placed since has closed the cell or its neighbours.</summary>
+            bool Fits(int x, int z)
+            {
+                if (link != null && In(x, z) && link[z * n + x])
+                    return Unchanged(x, z) && Unchanged(x + 1, z) && Unchanged(x - 1, z) && Unchanged(x, z + 1) && Unchanged(x, z - 1);
+                return Free(x, z) && Clear(x + 1, z) && Clear(x - 1, z) && Clear(x, z + 1) && Clear(x, z - 1);
+            }
 
             public bool Open(Vector2 c, float r)
             {
@@ -616,20 +750,63 @@ namespace StarForge.World
                 return true;
             }
 
-            /// <summary>Whether a unit could walk from `from` to within a few metres of
-            /// every target (targets stand on closed ground themselves: ore, bases).</summary>
-            public bool Connected(Vector2 from, List<Vector2> targets)
+            /// <summary>Marks a path the NavMesh takes as passable, cell by cell (4-connected),
+            /// where the grid's terrain or objects closed it: a pass between two slopes can be
+            /// a sliver of NavMesh the 1 m cells cannot resolve. A tree placed later still
+            /// closes it (Fits).</summary>
+            public void Link(Vector3[] corners)
+            {
+                if (link == null)
+                {
+                    link = new bool[n * n];
+                    linkBase = new int[n * n];
+                    for (int i = 0; i < linkBase.Length; i++) linkBase[i] = -1;
+                }
+                void Mark(int x, int z)
+                {
+                    if (!In(x, z)) return;
+                    link[z * n + x] = true;
+                    for (int k = 0; k < 5; k++)
+                    {
+                        int ax = x + (k == 1 ? 1 : k == 2 ? -1 : 0), az = z + (k == 3 ? 1 : k == 4 ? -1 : 0);
+                        if (In(ax, az) && linkBase[az * n + ax] < 0) linkBase[az * n + ax] = count[az * n + ax];
+                    }
+                }
+                for (int k = 0; k + 1 < corners.Length; k++)
+                {
+                    Vector2 a = new Vector2(corners[k].x, corners[k].z), b = new Vector2(corners[k + 1].x, corners[k + 1].z);
+                    int steps = Mathf.CeilToInt((b - a).magnitude / 0.25f), px = (int)a.x, pz = (int)a.y;
+                    Mark(px, pz);
+                    for (int s = 1; s <= steps; s++)
+                    {
+                        var q = Vector2.Lerp(a, b, s / (float)steps);
+                        int qx = (int)q.x, qz = (int)q.y;
+                        if (qx != px && qz != pz) Mark(qx, pz);   // no diagonal steps
+                        Mark(qx, qz);
+                        px = qx; pz = qz;
+                    }
+                }
+            }
+
+            /// <summary>Every cell a unit could walk to from any of `from`.</summary>
+            public bool[] Flood(params Vector2[] from)
             {
                 var seen = new bool[n * n];
                 var queue = new Queue<int>();
-                // Start on the nearest open cell round the start point.
-                for (int r = 0; r < 12 && queue.Count == 0; r++)
-                    for (int dz = -r; dz <= r && queue.Count == 0; dz++)
-                        for (int dx = -r; dx <= r; dx++)
-                        {
-                            int x = (int)from.x + dx, z = (int)from.y + dz;
-                            if (Fits(x, z)) { queue.Enqueue(z * n + x); seen[z * n + x] = true; break; }
-                        }
+                foreach (var f in from)
+                {
+                    // Start on the nearest open cell round the start point.
+                    bool found = false;
+                    for (int r = 0; r < 12 && !found; r++)
+                        for (int dz = -r; dz <= r && !found; dz++)
+                            for (int dx = -r; dx <= r && !found; dx++)
+                            {
+                                int x = (int)f.x + dx, z = (int)f.y + dz;
+                                if (!Fits(x, z)) continue;
+                                found = true;
+                                if (!seen[z * n + x]) { queue.Enqueue(z * n + x); seen[z * n + x] = true; }
+                            }
+                }
                 while (queue.Count > 0)
                 {
                     int i = queue.Dequeue(), x = i % n, z = i / n;
@@ -638,18 +815,42 @@ namespace StarForge.World
                     if (z + 1 < n && !seen[i + n] && Fits(x, z + 1)) { seen[i + n] = true; queue.Enqueue(i + n); }
                     if (z > 0 && !seen[i - n] && Fits(x, z - 1)) { seen[i - n] = true; queue.Enqueue(i - n); }
                 }
-                foreach (var t in targets)
-                {
-                    bool ok = false;
-                    for (int dz = -7; dz <= 7 && !ok; dz++)
-                        for (int dx = -7; dx <= 7 && !ok; dx++)
-                        {
-                            int x = (int)t.x + dx, z = (int)t.y + dz;
-                            if (x >= 0 && z >= 0 && x < n && z < n && seen[z * n + x]) ok = true;
-                        }
-                    if (!ok) return false;
-                }
+                return seen;
+            }
+
+            /// <summary>Whether the flood came within ReachSlack of `t`: close enough for a
+            /// Digger to harvest an ore field there. (A 7 m square used to count ore at the
+            /// foot of a slope as reached from the terrace above it.)</summary>
+            public bool Reached(bool[] seen, Vector2 t)
+            {
+                int r = Mathf.CeilToInt(ReachSlack);
+                for (int dz = -r; dz <= r; dz++)
+                    for (int dx = -r; dx <= r; dx++)
+                    {
+                        int x = (int)t.x + dx, z = (int)t.y + dz;
+                        if (In(x, z) && seen[z * n + x] &&
+                            (new Vector2(x + 0.5f, z + 0.5f) - t).sqrMagnitude <= ReachSlack * ReachSlack) return true;
+                    }
+                return false;
+            }
+
+            /// <summary>Whether a unit could walk from `from` to every target.</summary>
+            public bool Connected(Vector2 from, List<Vector2> targets)
+            {
+                var seen = Flood(from);
+                foreach (var t in targets) if (!Reached(seen, t)) return false;
                 return true;
+            }
+
+            /// <summary>The grid for groveGrid: what closes each cell, or that the flood
+            /// `seen` reached it.</summary>
+            public byte[] Snapshot(bool[] seen)
+            {
+                var cells = new byte[n * n];
+                for (int i = 0; i < cells.Length; i++)
+                    cells[i] = seen[i] ? (link != null && link[i] ? CellLink : CellReached)
+                             : !walk[i] ? CellSteep : count[i] > 0 ? CellObject : CellOpen;
+                return cells;
             }
         }
 
@@ -659,6 +860,8 @@ namespace StarForge.World
             readonly List<(Vector2 p, float r)> taken = new List<(Vector2, float)>();
             public Placer(HeightfieldGenerator g) { gen = g; }
             public void Take(Vector2 p, float r) => taken.Add((p, r));
+            public int Mark => taken.Count;
+            public void Rollback(int mark) => taken.RemoveRange(mark, taken.Count - mark);
 
             public bool Walkable(Vector2 p)
             {
@@ -727,10 +930,11 @@ namespace StarForge.World
             return field;
         }
 
-        static void PlaceMapObjects(MapInfo info, MapKit kit, HeightfieldGenerator gen, uint seed, Result result)
+        static void PlaceMapObjects(MapInfo info, MapKit kit, HeightfieldGenerator gen, bool[] walk, uint seed, Result result)
         {
             var rng = new Rng(seed ^ 0x51F0u);
             var placer = new Placer(gen);
+            var ground = new Blockage(walk);
             var oreRoot = Container(info, ref info.oreRoot, "Ore");
             var boulderRoot = Container(info, ref info.boulderRoot, "Boulders");
 
@@ -763,29 +967,68 @@ namespace StarForge.World
             }
 
             // Expansions, mirrored through the map centre so both players get
-            // the same distances -- the original placed these independently.
+            // the same distances -- the original placed these independently. Both
+            // sides, and every ore field of both, must be ground a unit can walk to
+            // from a base: a basin ringed by slopes too steep to climb passes the
+            // placer's local test, and a quarter of maps had an expansion in one
+            // (while its mirror, the other player's, was fine).
             var expansions = new List<Vector2>();
+            var reach = ground.Flood(BaseA, BaseB);
             int placedPairs = 0;
-            for (int tries = 0; tries < 400 && placedPairs < 2; tries++)
+            for (int tries = 0; tries < 1500 && placedPairs < 2; tries++)
             {
                 var p = new Vector2(rng.Range(35f, Size - 35f), rng.Range(35f, Size - 35f));
                 var q = new Vector2(Size, Size) - p;
                 if ((p - q).magnitude < 50f) continue;
                 if ((p - BaseA).magnitude < 60f || (p - BaseB).magnitude < 60f) continue;
                 if (!placer.Clear(p, 7f) || !placer.Clear(q, 7f)) continue;
+                // Lay the ore out first, and keep the pair only if a Digger can get to
+                // every field (NearestWalkable may put one at the foot of a slope).
+                int mark = placer.Mark;
+                var fields = new List<Vector2>();
+                bool ok = ground.Reached(reach, p) && ground.Reached(reach, q);
                 foreach (var c in new[] { p, q })
                 {
-                    for (int i = 0; i < 6; i++)
+                    for (int i = 0; i < 6 && ok; i++)
                     {
                         float a = TAU * i / 6f;
                         var o = placer.NearestWalkable(c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 5f);
-                        SpawnOre(kit, o, oreRoot, rng, Ground);
+                        ok = ground.Reached(reach, o);
+                        fields.Add(o);
                         placer.Take(o, 2.2f);
                     }
                     placer.Take(c, 4f);
-                    expansions.Add(c);
                 }
+                if (!ok) { placer.Rollback(mark); continue; }
+                foreach (var o in fields) SpawnOre(kit, o, oreRoot, rng, Ground);
+                expansions.Add(p);
+                expansions.Add(q);
                 placedPairs++;
+            }
+
+            // A boulder must not close a pass: in the mouth of a narrow one its Rubble left ground
+            // units a gap of a metre or two beside a 40-degree slope (map 1217350130), which the
+            // grove check then had to take from the NavMesh. One that cuts the grid's way from base
+            // A to anything reached before -- the other base, an expansion, an ore field -- goes
+            // elsewhere. MayCut settles most rocks without a flood and keeps `seen` exact.
+            var targets = new List<Vector2> { BaseB };
+            targets.AddRange(expansions);
+            foreach (Transform o in oreRoot) targets.Add(new Vector2(o.position.x, o.position.z));
+            var seen = ground.Flood(BaseA);
+            targets.RemoveAll(t => !ground.Reached(seen, t));
+            var shut = new List<int>();
+            bool Cuts(Vector2 p, float r)
+            {
+                var now = seen;
+                if (ground.MayCut(seen, p, r, shut)) now = ground.Flood(BaseA);
+                else foreach (int k in shut) seen[k] = false;
+                if (targets.Exists(t => !ground.Reached(now, t)))
+                {
+                    foreach (int k in shut) seen[k] = true;
+                    return true;
+                }
+                seen = now;
+                return false;
             }
 
             for (int i = 0; i < 55; i++)
@@ -794,14 +1037,18 @@ namespace StarForge.World
                     var p = new Vector2(rng.Range(10f, Size - 10f), rng.Range(10f, Size - 10f));
                     if ((p - BaseA).magnitude < 30f || (p - BaseB).magnitude < 30f) continue;
                     if (!placer.Clear(p, 2.5f)) continue;
+                    float yaw = rng.Range(0f, 360f), scale = rng.Range(0.8f, 1.6f);
+                    float disc = 1.15f * scale + 0.3f;
+                    ground.Disc(p, disc);
+                    if (Cuts(p, disc)) { ground.Disc(p, disc, -1); continue; }
                     // The variant comes from the position, not the generator's random
                     // stream, so a seed lays out the same map whatever the rock kit holds.
                     int variant = (int)(((uint)(p.x * 7919f) * 2654435761u ^ (uint)(p.y * 104729f)) % (uint)kit.boulderPrefabs.Length);
                     var b = Instantiate(kit.boulderPrefabs[variant], boulderRoot);
                     b.name = "Boulder";
                     b.transform.position = Ground(p) + Vector3.down * 0.15f;
-                    b.transform.rotation = Quaternion.Euler(0f, rng.Range(0f, 360f), 0f);
-                    b.transform.localScale = Vector3.one * rng.Range(0.8f, 1.6f);
+                    b.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+                    b.transform.localScale = Vector3.one * scale;
                     // Maulers crush boulders, and the rock is not baked as an obstacle:
                     // the ground under it is Rubble, which only a Mauler's path may cross
                     // (Boulder.cs).
@@ -810,7 +1057,7 @@ namespace StarForge.World
                     rubble.area = RubbleArea;
                     rubble.center = new Vector3(0f, 1f, 0f);
                     // The rock's radius and a unit's (UnitPad), in the rock's own scale.
-                    float half = 1.15f + UnitPad / b.transform.localScale.x;
+                    float half = 1.15f + UnitPad / scale;
                     rubble.size = new Vector3(half * 2f, 4f, half * 2f);
                     placer.Take(p, 3f);
                     result.boulders++;
@@ -818,10 +1065,11 @@ namespace StarForge.World
                 }
 
             var scenery = PlaceScenery(info, kit, gen, seed, result);
+            foreach (var sc in scenery) ground.Disc(sc.p, sc.r * 0.85f);
             var ore = new List<Vector2>();
             foreach (Transform o in oreRoot) ore.Add(new Vector2(o.position.x, o.position.z));
             result.ore = ore.Count;
-            PlaceVegetation(info, kit, gen, seed, placer, ore, expansions, scenery, result);
+            PlaceVegetation(info, kit, gen, ground, seed, placer, ore, expansions, scenery, result);
         }
 
         /// <summary>Set dressing -- rock spires and shelves, a crashed dropship, ruined
@@ -929,7 +1177,7 @@ namespace StarForge.World
         /// use mark the ground under their trunks Rubble (Vegetation.cs), and stay out of
         /// the bases, the ore fields, the expansions and narrow passages, so a grove is
         /// something to go round or crash through, never a wall across the map.</summary>
-        static void PlaceVegetation(MapInfo info, MapKit kit, HeightfieldGenerator gen, uint seed, Placer placer,
+        static void PlaceVegetation(MapInfo info, MapKit kit, HeightfieldGenerator gen, Blockage ground, uint seed, Placer placer,
                                     List<Vector2> ore, List<Vector2> expansions, List<(Vector2 p, float r)> scenery, Result result)
         {
             var rng = new Rng(seed ^ 0x7EE5u);
@@ -982,7 +1230,6 @@ namespace StarForge.World
             // Rubble volumes are made at the end, once every grove has passed the
             // connectivity check below.
             var blockHalf = new List<float>();
-            var ground = new Blockage(gen, info, scenery);
 
             float BlockHalf(byte kind, float scale)
             {
@@ -1020,6 +1267,48 @@ namespace StarForge.World
                 if (H(p) < HeightfieldGenerator.WATER + 1.2f || Nrm(p).y < 0.9f) return false;
                 return W(p).x >= lichenMin && ClearOfScenery(p, 3f);
             }
+
+            // Before any tree, whatever the grid cannot reach from base A is put to the
+            // NavMesh, baked once without trees. A pass it threads between two slopes,
+            // too narrow for the grid's cells, is written into the grid as a link the
+            // groves must keep clear of; a place it cannot reach either is no grove's
+            // doing and is left out of the check (and logged), or every grove would be
+            // turned away.
+            var seen = ground.Flood(BaseA);
+            if (mustReach.Exists(t => !ground.Reached(seen, t)))
+            {
+                var surface = info.GetComponent<NavMeshSurface>();
+                if (surface != null)
+                {
+                    surface.BuildNavMesh();   // replaced by the final bake (or the editor's)
+                    // Before the scene has woken, the surface has not added its data yet.
+                    var inst = surface.isActiveAndEnabled ? default
+                             : UnityEngine.AI.NavMesh.AddNavMeshData(surface.navMeshData, surface.transform.position, surface.transform.rotation);
+                    int mask = GameWorld.GroundAreas;
+                    var path = new UnityEngine.AI.NavMeshPath();
+                    Vector3 At(Vector2 p) => new Vector3(p.x, H(p), p.y);
+                    if (UnityEngine.AI.NavMesh.SamplePosition(At(BaseA), out var a, 8f, mask))
+                        foreach (var t in mustReach)
+                        {
+                            if (ground.Reached(seen, t)) continue;
+                            if (!UnityEngine.AI.NavMesh.SamplePosition(At(t), out var b, ReachSlack, mask) ||
+                                !UnityEngine.AI.NavMesh.CalculatePath(a.position, b.position, mask, path) ||
+                                path.status != UnityEngine.AI.NavMeshPathStatus.PathComplete) continue;
+                            ground.Link(path.corners);
+                            result.navLinks++;
+                            seen = ground.Flood(BaseA);
+                        }
+                    inst.Remove();
+                }
+                foreach (var t in mustReach) if (!ground.Reached(seen, t)) result.unreachable.Add(t);
+                if (result.unreachable.Count > 0)
+                {
+                    mustReach.RemoveAll(t => result.unreachable.Contains(t));
+                    Debug.LogWarning($"[StarForge] map {seed}: no ground unit can reach {result.unreachable.Count} of the bases, " +
+                                     $"expansions and ore fields from base A: {string.Join(" ", result.unreachable)}");
+                }
+            }
+            if (recordGroveGrid) { groveGrid = ground.Snapshot(seen); recordGroveGrid = false; }
 
             // Groves on open meadow: every trunk needs walkable ground all round it,
             // which keeps them off ramps and out of narrow passes.

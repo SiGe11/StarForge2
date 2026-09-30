@@ -82,6 +82,27 @@ namespace StarForge.AI
             }
 
             if (F.supplyCap - F.supplyUsed < 5 && F.ore >= 100 && pending == 0) { PlaceAndBuild(UnitType.Bunkhouse); return; }
+            // A structure whose Digger was killed gets another one.
+            foreach (var e in w.units)
+            {
+                if (e == null || e.dying || e.team != team || !e.def.building || e.Complete) continue;
+                bool tended = false;
+                foreach (var h in w.units)
+                    if (h != null && !h.dying && h.team == team && h.Type == UnitType.Worker && h.order == Order.Build && h.buildTarget == e) { tended = true; break; }
+                if (tended) continue;
+                var ws = Own(UnitType.Worker);
+                if (ws.Count > 0) { w.CmdSmart(new List<Unit> { ws[ws.Count - 1] }, e.pos, e); return; }
+            }
+            // Every archetype raises its Mech Bay (it is cheap and needs nothing); only the
+            // macro player spends on the Mech's upgrades, and only from spare ore.
+            if (!F.bayPlaced && w.time > 75f && F.ore >= 100 && pending == 0) { PlaceAndBuild(UnitType.MechBay); return; }
+            if (kind == Kind.Macro && F.ore > 450 && F.researching < 0)
+            {
+                var bay = w.BayOf(team);
+                if (bay != null && bay.Complete)
+                    for (int i = 0; i < (int)MechUpgrade.Count; i++)
+                        if (w.UpgradeCost(team, (MechUpgrade)i) > 0 && w.CmdMechUpgrade(bay, (MechUpgrade)i)) break;
+            }
             if (rax < wantRax && F.ore >= 150 && pending == 0) { PlaceAndBuild(UnitType.Garrison); return; }
             if (rax >= 1 && fac < wantFac && F.ore >= 200 && pending == 0) { PlaceAndBuild(UnitType.Workshop); return; }
             if (kind == Kind.Macro && ccs < 2 && F.ore >= 400 && pending == 0) { PlaceAndBuild(UnitType.Foundry); return; }

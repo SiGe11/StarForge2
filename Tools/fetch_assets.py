@@ -3,7 +3,10 @@
 
     python3 Tools/fetch_assets.py
 
-Textures and rock scans come from Poly Haven (https://polyhaven.com), leaf
+    python3 Tools/fetch_assets.py island_tree_01 ...   # just these Poly Haven assets
+    python3 Tools/fetch_assets.py --jangafx [name ...] # just the EmberGen simulations
+
+Textures, rock scans and scanned trees come from Poly Haven (https://polyhaven.com), leaf
 atlases from ambientCG (https://ambientcg.com), sound effects from Kenney
 (https://kenney.nl), and from OpenGameArt (https://opengameart.org) the music,
 the animated animals (by Quaternius) and the recorded gunshots, tree falls and
@@ -46,6 +49,21 @@ MODELS = {
     "rock_moss_set_02": "boulders: grey, mossy",
     "rock_moss_set_01": "boulders: warmer, lichen",
     "boulder_01": "large outcrop",
+}
+
+
+# Scanned trees, shrubs and a fern, as .blend with 1k textures (smaller than the
+# glTF for the big ones: the fir's .bin alone is 470 MB). Millions of triangles
+# each, of individual leaves; Tools/blender/build_scanned_flora.py keeps their
+# trunks and branches, decimated, and renders their leaves into leaf cards.
+FLORA = {
+    "island_tree_01": "TREE_BROAD: a gnarled broadleaf with a full crown",
+    "fir_tree_01": "TREE_PINE: three firs",
+    "tree_small_02": "TREE_TALL: a slender broadleaf",
+    "jacaranda_tree": "TREE_BIRCH: a light, feathery crown (drawn with birch bark)",
+    "searsia_burchellii": "BUSH: dense, rounded shrubs",
+    "searsia_lucida": "BUSH_FLOWER: leafy shrubs (tinted with blossom in the game)",
+    "fern_02": "FERN: three ferns",
 }
 
 
@@ -94,6 +112,49 @@ QUATERNIUS = {
     "Animals_Pack_by_Quaternius": "https://opengameart.org/sites/default/files/Animals%20Pack%20by%20Quaternius.zip",
     "Animal_Pack_Vol.2_by_Quaternius": "https://opengameart.org/sites/default/files/Animal%20Pack%20Vol.2%20by%20%40Quaternius.zip",
 }
+
+
+# JangaFX's free EmberGen simulations, OpenVDB sequences, CC0
+# (https://jangafx.com/software/embergen/download/free-vdb-animations: "licensed as CC0
+# (Public Domain)"). Hosted on MediaFire; the page carries the direct link.
+# Tools/blender/render_flipbooks.py renders them into the fire and explosion flipbooks.
+JANGAFX = {
+    "SmallCampfire": "https://www.mediafire.com/file/9xx9icyomy2txv7/SmallCampfireVDB.zip/file",
+    "GroundExplosion": "https://www.mediafire.com/file/vm64xg0vta64qgl/GroundExplosionVDB.zip/file",
+}
+
+
+def fetch_jangafx(only=None):
+    import re
+    import subprocess
+    out = os.path.join(ROOT, "Art", "Source", "jangafx")
+    os.makedirs(out, exist_ok=True)
+    for name, page in JANGAFX.items():
+        folder = os.path.join(out, name)
+        if (only and name not in only) or os.path.isdir(folder):
+            continue
+        req = urllib.request.Request(page, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            html = r.read().decode("utf-8", "replace")
+        m = re.search(r'href="(https://download[^"]+)"', html)
+        if not m:
+            raise RuntimeError(f"{page}: no download link on the page")
+        url = m.group(1)
+        archive = os.path.join(out, name + os.path.splitext(url)[1])
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=3600) as r, open(archive + ".part", "wb") as f:
+            while True:
+                block = r.read(1 << 22)
+                if not block:
+                    break
+                f.write(block)
+        os.replace(archive + ".part", archive)
+        print(f"  jangafx {name}  {os.path.getsize(archive) / 1e6:.1f} MB")
+        # zip and rar alike: macOS's tar (libarchive) reads both.
+        os.makedirs(folder + ".part", exist_ok=True)
+        subprocess.run(["tar", "-xf", archive, "-C", folder + ".part"], check=True)
+        os.replace(folder + ".part", folder)
+        os.remove(archive)
 
 
 def fetch_ambientcg():
@@ -219,13 +280,19 @@ def fetch(url, path, want_md5, size):
 def main():
     manifest = {}
     total = 0
-    for aid, role in {**TEXTURES, **MODELS}.items():
+    only = [a for a in sys.argv[1:] if not a.startswith("-")]
+    if "--jangafx" in sys.argv:
+        fetch_jangafx(only)
+        return
+    for aid, role in {**TEXTURES, **MODELS, **FLORA}.items():
+        if only and aid not in only:
+            continue
         info = get_json(f"{API}/info/{aid}")
         files = get_json(f"{API}/files/{aid}")
         entry = {
             "name": info.get("name", aid),
             "role": role,
-            "type": "texture" if aid in TEXTURES else "model",
+            "type": "texture" if aid in TEXTURES else ("flora" if aid in FLORA else "model"),
             "authors": sorted(info.get("authors", {}).keys()),
             "license": "CC0 1.0",
             "source": f"https://polyhaven.com/a/{aid}",
@@ -243,23 +310,32 @@ def main():
                 entry["files"][m] = name
                 total += f["size"]
         else:
-            g = files["gltf"]["1k"]["gltf"]
+            fmt = "blend" if aid in FLORA else "gltf"
+            g = files[fmt]["1k"][fmt]
             name = os.path.basename(g["url"])
             fetch(g["url"], os.path.join(OUT, aid, name), g["md5"], g["size"])
-            entry["files"]["gltf"] = name
+            entry["files"][fmt] = name
             total += g["size"]
             for rel, f in g["include"].items():
                 fetch(f["url"], os.path.join(OUT, aid, rel), f["md5"], f["size"])
                 total += f["size"]
         manifest[aid] = entry
     os.makedirs(OUT, exist_ok=True)
-    with open(os.path.join(OUT, "manifest.json"), "w") as f:
+    path = os.path.join(OUT, "manifest.json")
+    if only and os.path.exists(path):
+        # A partial fetch adds to the manifest instead of replacing it.
+        with open(path) as f:
+            manifest = {**json.load(f), **manifest}
+    with open(path, "w") as f:
         json.dump(manifest, f, indent=2)
     print(f"{len(manifest)} assets, {total / 1e6:.1f} MB, in {os.path.relpath(OUT, ROOT)}")
+    if only:
+        return
     fetch_kenney()
     fetch_ambientcg()
     fetch_sfx()
     fetch_plain()
+    fetch_jangafx()
 
 
 if __name__ == "__main__":

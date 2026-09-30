@@ -1,0 +1,1138 @@
+{
+  "MECH_LEGS_BIPED": {
+    "radius": 2.053,
+    "height": 5.05,
+    "triangles": 6040,
+    "materials": [
+      "armor_dark",
+      "shadowed",
+      "dark",
+      "steel",
+      "team",
+      "armor",
+      "glow_amber",
+      "glow_cyan",
+      "armor_lit"
+    ],
+    "groups": {
+      "ThighR": [
+        1.12,
+        4.5,
+        0.0
+      ],
+      "ShinR": [
+        1.24,
+        2.82,
+        0.95
+      ],
+      "FootR": [
+        1.24,
+        0.74,
+        -0.24
+      ],
+      "ThighL": [
+        -1.12,
+        4.5,
+        0.0
+      ],
+      "ShinL": [
+        -1.24,
+        2.82,
+        0.95
+      ],
+      "FootL": [
+        -1.24,
+        0.74,
+        -0.24
+      ]
+    },
+    "points": {
+      "Waist": [
+        0.0,
+        5.05,
+        0.0
+      ],
+      "HipR": [
+        1.12,
+        4.5,
+        0.0
+      ],
+      "KneeR": [
+        1.24,
+        2.82,
+        0.95
+      ],
+      "AnkleR": [
+        1.24,
+        0.74,
+        -0.24
+      ],
+      "HipL": [
+        -1.12,
+        4.5,
+        0.0
+      ],
+      "KneeL": [
+        -1.24,
+        2.82,
+        0.95
+      ],
+      "AnkleL": [
+        -1.24,
+        0.74,
+        -0.24
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_LEGS_QUAD": {
+    "radius": 4.548,
+    "height": 4.49,
+    "triangles": 6264,
+    "materials": [
+      "armor_dark",
+      "armor",
+      "dark",
+      "glow_amber",
+      "steel",
+      "team",
+      "armor_lit",
+      "glow_cyan"
+    ],
+    "groups": {
+      "LegFR": [
+        1.0,
+        3.12,
+        1.0
+      ],
+      "ShinFR": [
+        2.025,
+        4.07,
+        2.025
+      ],
+      "LegFL": [
+        -1.0,
+        3.12,
+        1.0
+      ],
+      "ShinFL": [
+        -2.025,
+        4.07,
+        2.025
+      ],
+      "LegBR": [
+        1.0,
+        3.12,
+        -1.0
+      ],
+      "ShinBR": [
+        2.025,
+        4.07,
+        -2.025
+      ],
+      "LegBL": [
+        -1.0,
+        3.12,
+        -1.0
+      ],
+      "ShinBL": [
+        -2.025,
+        4.07,
+        -2.025
+      ]
+    },
+    "points": {
+      "Waist": [
+        0.0,
+        3.9,
+        0.0
+      ],
+      "HipFR": [
+        1.0,
+        3.12,
+        1.0
+      ],
+      "KneeFR": [
+        2.0253,
+        4.07,
+        2.0253
+      ],
+      "FootFR": [
+        2.9799,
+        0.0,
+        2.9799
+      ],
+      "HipFL": [
+        -1.0,
+        3.12,
+        1.0
+      ],
+      "KneeFL": [
+        -2.0253,
+        4.07,
+        2.0253
+      ],
+      "FootFL": [
+        -2.9799,
+        0.0,
+        2.9799
+      ],
+      "HipBR": [
+        1.0,
+        3.12,
+        -1.0
+      ],
+      "KneeBR": [
+        2.0253,
+        4.07,
+        -2.0253
+      ],
+      "FootBR": [
+        2.9799,
+        0.0,
+        -2.9799
+      ],
+      "HipBL": [
+        -1.0,
+        3.12,
+        -1.0
+      ],
+      "KneeBL": [
+        -2.0253,
+        4.07,
+        -2.0253
+      ],
+      "FootBL": [
+        -2.9799,
+        0.0,
+        -2.9799
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_TRACKS": {
+    "radius": 3.055,
+    "height": 2.75,
+    "triangles": 4316,
+    "materials": [
+      "rubber",
+      "dark",
+      "steel",
+      "armor_dark",
+      "team",
+      "armor",
+      "armor_lit",
+      "glow_dim"
+    ],
+    "groups": {},
+    "points": {
+      "Waist": [
+        0.0,
+        2.75,
+        0.0
+      ],
+      "StackR": [
+        0.7,
+        2.5,
+        -1.86
+      ],
+      "StackL": [
+        -0.7,
+        2.5,
+        -1.86
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_HOVER": {
+    "radius": 2.93,
+    "height": 2.7,
+    "triangles": 3268,
+    "materials": [
+      "armor",
+      "armor_lit",
+      "dark",
+      "glow_cyan",
+      "team",
+      "armor_dark",
+      "steel",
+      "glow_amber"
+    ],
+    "groups": {
+      "FanFR": [
+        1.72,
+        1.0,
+        1.55
+      ],
+      "FanFL": [
+        -1.72,
+        1.0,
+        1.55
+      ],
+      "FanBR": [
+        1.72,
+        1.0,
+        -1.55
+      ],
+      "FanBL": [
+        -1.72,
+        1.0,
+        -1.55
+      ]
+    },
+    "points": {
+      "Waist": [
+        0.0,
+        2.7,
+        0.0
+      ],
+      "JetFR": [
+        1.72,
+        0.5,
+        1.55
+      ],
+      "JetFL": [
+        -1.72,
+        0.5,
+        1.55
+      ],
+      "JetBR": [
+        1.72,
+        0.5,
+        -1.55
+      ],
+      "JetBL": [
+        -1.72,
+        0.5,
+        -1.55
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_FRAME_LIGHT": {
+    "radius": 1.923,
+    "height": 3.122,
+    "triangles": 5228,
+    "materials": [
+      "dark",
+      "armor_dark",
+      "shadowed",
+      "armor",
+      "armor_lit",
+      "team",
+      "glow_cyan",
+      "glow_amber",
+      "steel",
+      "glow_warm"
+    ],
+    "groups": {
+      "Banner": [
+        -0.459,
+        2.924,
+        -1.152
+      ],
+      "Plates1": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Plates2": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Plates3": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Uplink": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Mast": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Emitters": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Nanites": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Reactive": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "points": {
+      "ArmR": [
+        1.677,
+        0.817,
+        0.258
+      ],
+      "ArmL": [
+        -1.677,
+        0.817,
+        0.258
+      ],
+      "Back": [
+        0.0,
+        1.849,
+        -0.903
+      ],
+      "ShoulderR": [
+        1.118,
+        1.978,
+        -0.215
+      ],
+      "ShoulderL": [
+        -1.118,
+        1.978,
+        -0.215
+      ],
+      "StackR": [
+        0.355,
+        1.9642,
+        -1.2556
+      ],
+      "StackL": [
+        -0.355,
+        1.9642,
+        -1.2556
+      ],
+      "Cockpit": [
+        0.0,
+        1.376,
+        1.075
+      ],
+      "Reactor": [
+        0.0,
+        1.333,
+        -1.247
+      ],
+      "Banner": [
+        -0.4586,
+        2.924,
+        -1.1524
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_FRAME_MEDIUM": {
+    "radius": 2.238,
+    "height": 3.63,
+    "triangles": 4928,
+    "materials": [
+      "dark",
+      "armor_dark",
+      "shadowed",
+      "armor",
+      "armor_lit",
+      "team",
+      "glow_cyan",
+      "glow_amber",
+      "steel",
+      "glow_warm"
+    ],
+    "groups": {
+      "Banner": [
+        -0.62,
+        3.4,
+        -1.34
+      ],
+      "Plates1": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Plates2": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Plates3": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Uplink": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Mast": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Emitters": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Nanites": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Reactive": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "points": {
+      "ArmR": [
+        1.95,
+        0.95,
+        0.3
+      ],
+      "ArmL": [
+        -1.95,
+        0.95,
+        0.3
+      ],
+      "ShoulderR": [
+        1.3,
+        2.3,
+        -0.25
+      ],
+      "ShoulderL": [
+        -1.3,
+        2.3,
+        -0.25
+      ],
+      "Back": [
+        0.0,
+        2.15,
+        -1.05
+      ],
+      "Chest": [
+        0.0,
+        0.85,
+        1.25
+      ],
+      "StackR": [
+        0.48,
+        2.284,
+        -1.46
+      ],
+      "StackL": [
+        -0.48,
+        2.284,
+        -1.46
+      ],
+      "Cockpit": [
+        0.0,
+        1.6,
+        1.25
+      ],
+      "Reactor": [
+        0.0,
+        1.55,
+        -1.45
+      ],
+      "Banner": [
+        -0.62,
+        3.4,
+        -1.34
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_FRAME_HEAVY": {
+    "radius": 2.563,
+    "height": 4.138,
+    "triangles": 5340,
+    "materials": [
+      "dark",
+      "armor_dark",
+      "shadowed",
+      "armor",
+      "armor_lit",
+      "team",
+      "glow_cyan",
+      "glow_amber",
+      "steel",
+      "glow_warm"
+    ],
+    "groups": {
+      "Banner": [
+        -0.792,
+        3.876,
+        -1.528
+      ],
+      "Plates1": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Plates2": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Plates3": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Uplink": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Mast": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Emitters": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Nanites": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Reactive": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "points": {
+      "ArmR": [
+        2.223,
+        1.083,
+        0.342
+      ],
+      "ArmL": [
+        -2.223,
+        1.083,
+        0.342
+      ],
+      "ShoulderR": [
+        1.482,
+        2.622,
+        -0.285
+      ],
+      "ShoulderL": [
+        -1.482,
+        2.622,
+        -0.285
+      ],
+      "Back": [
+        0.0,
+        2.451,
+        -1.197
+      ],
+      "Chest": [
+        0.0,
+        0.969,
+        1.425
+      ],
+      "Crown": [
+        0.0,
+        3.477,
+        -0.171
+      ],
+      "StackR": [
+        0.6129,
+        3.1624,
+        -1.7784
+      ],
+      "StackL": [
+        -0.6129,
+        3.1624,
+        -1.7784
+      ],
+      "Cockpit": [
+        0.0,
+        1.824,
+        1.425
+      ],
+      "Reactor": [
+        0.0,
+        1.767,
+        -1.653
+      ],
+      "Banner": [
+        -0.7916,
+        3.876,
+        -1.5276
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_W_AUTOCANNON": {
+    "radius": 2.324,
+    "height": 0.36,
+    "triangles": 720,
+    "materials": [
+      "armor_dark",
+      "armor",
+      "armor_lit",
+      "team",
+      "dark",
+      "steel",
+      "shadowed"
+    ],
+    "groups": {
+      "Barrel": [
+        0,
+        0,
+        1.0
+      ]
+    },
+    "points": {
+      "Muzzle": [
+        0,
+        0,
+        2.34
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_W_GATLING": {
+    "radius": 2.048,
+    "height": 0.4,
+    "triangles": 776,
+    "materials": [
+      "armor_dark",
+      "armor",
+      "team",
+      "dark",
+      "steel"
+    ],
+    "groups": {
+      "Spin": [
+        0,
+        0,
+        0
+      ]
+    },
+    "points": {
+      "Muzzle": [
+        0,
+        0,
+        2.06
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_W_MISSILES": {
+    "radius": 0.741,
+    "height": 0.77,
+    "triangles": 824,
+    "materials": [
+      "dark",
+      "armor_dark",
+      "team",
+      "shadowed",
+      "glow_amber"
+    ],
+    "groups": {},
+    "points": {
+      "Muzzle": [
+        0,
+        0.78,
+        0
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_W_MORTAR": {
+    "radius": 1.055,
+    "height": 1.862,
+    "triangles": 572,
+    "materials": [
+      "armor_dark",
+      "armor",
+      "dark",
+      "team"
+    ],
+    "groups": {
+      "Tube": [
+        0.0,
+        0.38,
+        -0.1
+      ]
+    },
+    "points": {
+      "Muzzle": [
+        0.0,
+        1.7398,
+        0.8521
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_W_LASER": {
+    "radius": 2.722,
+    "height": 0.36,
+    "triangles": 744,
+    "materials": [
+      "armor_dark",
+      "armor",
+      "armor_lit",
+      "team",
+      "steel",
+      "glow_cyan",
+      "shadowed",
+      "dark"
+    ],
+    "groups": {},
+    "points": {
+      "Muzzle": [
+        0,
+        0,
+        2.74
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_W_FLAMER": {
+    "radius": 1.883,
+    "height": 0.36,
+    "triangles": 760,
+    "materials": [
+      "armor_dark",
+      "rust",
+      "steel",
+      "team",
+      "dark",
+      "glow_warm"
+    ],
+    "groups": {},
+    "points": {
+      "Muzzle": [
+        0,
+        -0.06,
+        1.92
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_W_RAILGUN": {
+    "radius": 3.653,
+    "height": 0.36,
+    "triangles": 804,
+    "materials": [
+      "armor_dark",
+      "armor",
+      "glow_cyan",
+      "team",
+      "steel"
+    ],
+    "groups": {
+      "Barrel": [
+        0,
+        0.05,
+        0.95
+      ]
+    },
+    "points": {
+      "Muzzle": [
+        0,
+        0.05,
+        3.72
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_W_FLAMETOWER": {
+    "radius": 1.064,
+    "height": 0.71,
+    "triangles": 1228,
+    "materials": [
+      "armor_dark",
+      "team",
+      "armor",
+      "armor_lit",
+      "steel",
+      "dark",
+      "glow_warm",
+      "rust"
+    ],
+    "groups": {
+      "Turret": [
+        0,
+        0.17,
+        0
+      ]
+    },
+    "points": {
+      "Muzzle": [
+        0,
+        0.46,
+        1.08
+      ]
+    },
+    "chunks": 0
+  },
+  "MECH_BAY": {
+    "radius": 4.494,
+    "height": 6.247,
+    "triangles": 2968,
+    "materials": [
+      "dark",
+      "armor_dark",
+      "team",
+      "glow_amber",
+      "steel",
+      "glow_cyan",
+      "armor",
+      "shadowed",
+      "glow_warm",
+      "armor_lit",
+      "rust"
+    ],
+    "groups": {
+      "Trolley": [
+        -1.7,
+        4.85,
+        -0.7
+      ],
+      "Head": [
+        2.85,
+        5.6,
+        -0.7
+      ]
+    },
+    "points": {
+      "ArmR": [
+        2.0,
+        3.88,
+        3.0
+      ],
+      "ArmL": [
+        -2.0,
+        3.88,
+        3.0
+      ],
+      "GunMount": [
+        -2.55,
+        4.78,
+        -2.35
+      ],
+      "Beacon": [
+        0,
+        0.7,
+        0.3
+      ]
+    },
+    "chunks": 10
+  },
+  "MECH_BAY_GUN": {
+    "radius": 1.991,
+    "height": 0.83,
+    "triangles": 540,
+    "materials": [
+      "armor",
+      "armor_lit",
+      "team",
+      "glow_amber",
+      "steel",
+      "dark"
+    ],
+    "groups": {
+      "Barrels": [
+        0,
+        0.42,
+        0.55
+      ]
+    },
+    "points": {},
+    "chunks": 0
+  },
+  "_frames": {
+    "LIGHT": {
+      "scale": 0.86,
+      "mounts": [
+        [
+          "ArmR",
+          "arm",
+          [
+            1.677,
+            0.817,
+            0.258
+          ]
+        ],
+        [
+          "ArmL",
+          "arm",
+          [
+            -1.677,
+            0.817,
+            0.258
+          ]
+        ],
+        [
+          "Back",
+          "top",
+          [
+            0.0,
+            1.849,
+            -0.903
+          ]
+        ],
+        [
+          "ShoulderR",
+          "top",
+          [
+            1.118,
+            1.9779999999999998,
+            -0.215
+          ]
+        ],
+        [
+          "ShoulderL",
+          "top",
+          [
+            -1.118,
+            1.9779999999999998,
+            -0.215
+          ]
+        ]
+      ]
+    },
+    "MEDIUM": {
+      "scale": 1.0,
+      "mounts": [
+        [
+          "ArmR",
+          "arm",
+          [
+            1.95,
+            0.95,
+            0.3
+          ]
+        ],
+        [
+          "ArmL",
+          "arm",
+          [
+            -1.95,
+            0.95,
+            0.3
+          ]
+        ],
+        [
+          "ShoulderR",
+          "top",
+          [
+            1.3,
+            2.3,
+            -0.25
+          ]
+        ],
+        [
+          "ShoulderL",
+          "top",
+          [
+            -1.3,
+            2.3,
+            -0.25
+          ]
+        ],
+        [
+          "Back",
+          "top",
+          [
+            0.0,
+            2.15,
+            -1.05
+          ]
+        ],
+        [
+          "Chest",
+          "arm",
+          [
+            0.0,
+            0.85,
+            1.25
+          ]
+        ]
+      ]
+    },
+    "HEAVY": {
+      "scale": 1.14,
+      "mounts": [
+        [
+          "ArmR",
+          "arm",
+          [
+            2.223,
+            1.083,
+            0.34199999999999997
+          ]
+        ],
+        [
+          "ArmL",
+          "arm",
+          [
+            -2.223,
+            1.083,
+            0.34199999999999997
+          ]
+        ],
+        [
+          "ShoulderR",
+          "top",
+          [
+            1.482,
+            2.6219999999999994,
+            -0.285
+          ]
+        ],
+        [
+          "ShoulderL",
+          "top",
+          [
+            -1.482,
+            2.6219999999999994,
+            -0.285
+          ]
+        ],
+        [
+          "Back",
+          "top",
+          [
+            0.0,
+            2.4509999999999996,
+            -1.1969999999999998
+          ]
+        ],
+        [
+          "Chest",
+          "arm",
+          [
+            0.0,
+            0.9689999999999999,
+            1.4249999999999998
+          ]
+        ],
+        [
+          "Crown",
+          "top",
+          [
+            0.0,
+            3.4769999999999994,
+            -0.17099999999999999
+          ]
+        ]
+      ]
+    }
+  }
+}

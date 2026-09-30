@@ -41,9 +41,31 @@ which scan each rock came from.
 | [Boulder 01](https://polyhaven.com/a/boulder_01) | Rico Cilliers | `Art/Models/SF_SCAN_CRAG_B.fbx` + `Art/Textures/Rocks/boulder_01_*.jpg` |
 | [Rocky Trail](https://polyhaven.com/a/rocky_trail), [Cliff Side](https://polyhaven.com/a/cliff_side) | Amal Kumar; Dario Barresi, James Ray Cock, Jenelle van Heerden | fetched as spares, nothing committed |
 
+## Poly Haven plants — CC0 1.0 (<https://polyhaven.com/license>)
+
+Scanned trees, shrubs and a fern, baked into the game's plants by
+`Tools/blender/bake_scanned_flora.py`: each scan's trunk decimated with its own
+UVs and bark photograph, and its leaves and twigs rendered in clusters into an
+atlas of leaf cards (`Art/Textures/Leaves/scan_<KIND>_col.png`, `_nrm.png`,
+`_bark.jpg`) plus a card layout (`Tools/blender/scanned/<KIND>.json`, also
+derived from the scan), which `Tools/blender/scanned_flora.py` turns into the
+models. The procedural plants in `build_flora.py` remain as the fallback.
+
+| Asset | Author(s) | Becomes |
+|---|---|---|
+| [Island Tree 01](https://polyhaven.com/a/island_tree_01) | Rob Tuytel, Rico Cilliers | `TREE_BROAD`: `Art/Models/SF_TREE_BROAD.fbx`, `SF_TREE_BROAD_LOD1.fbx`, `Art/Textures/Leaves/scan_TREE_BROAD_*` |
+| [Fir Tree 01](https://polyhaven.com/a/fir_tree_01) | Rob Tuytel, Rico Cilliers | `TREE_PINE` (the tallest of the three firs): `SF_TREE_PINE*.fbx`, `scan_TREE_PINE_*` |
+| [Tree Small 02](https://polyhaven.com/a/tree_small_02) | Rico Cilliers | `TREE_TALL`: `SF_TREE_TALL*.fbx`, `scan_TREE_TALL_*` |
+| [Jacaranda Tree](https://polyhaven.com/a/jacaranda_tree) | Rob Tuytel, Rico Cilliers | `TREE_BIRCH` (the kind keeps its old name): `SF_TREE_BIRCH*.fbx`, `scan_TREE_BIRCH_*` |
+| [Searsia Burchellii](https://polyhaven.com/a/searsia_burchellii) | James Ray Cock, Jenelle van Heerden | `BUSH` (the large shrub): `SF_BUSH.fbx`, `SF_BUSH_LOD1.fbx`, `scan_BUSH_col.png`, `scan_BUSH_nrm.png` |
+| [Searsia Lucida](https://polyhaven.com/a/searsia_lucida) | James Ray Cock, Jenelle van Heerden | `BUSH_FLOWER` (shrub "b"): `SF_BUSH_FLOWER*.fbx`, `scan_BUSH_FLOWER_*` |
+| [Fern 02](https://polyhaven.com/a/fern_02) | Rob Tuytel, Rico Cilliers | `FERN` (fern "b"): `SF_FERN*.fbx`, `scan_FERN_*` |
+
 ## ambientCG — CC0 1.0 (<https://ambientcg.com/license>)
 
 Leaf atlases, cut into the crowns' leaf sprays by `Tools/blender/make_leaf_cards.py`.
+Since the scanned plants above replaced the procedural crowns, these sprays only
+dress the procedural fallback (`build_flora.py`, used when a kind has no bake).
 
 | Asset | Becomes |
 |---|---|
@@ -59,8 +81,8 @@ and mixes two of them into the energy weapons.
 
 | Pack | Becomes |
 |---|---|
-| [Sci-Fi Sounds](https://kenney.nl/assets/sci-fi-sounds) | explosions, mining, shields, the laser layer under `bolt_*.wav` / `pulse_*.wav`, and the sources `make_audio.py` builds `blast_*.wav`, `blastbig_*.wav` and `engine_heavy.wav` from |
-| [Impact Sounds](https://kenney.nl/assets/impact-sounds) | metal hits, rock, thuds, the wood thump in `treefall_*.wav` |
+| [Sci-Fi Sounds](https://kenney.nl/assets/sci-fi-sounds) | explosions, mining, shields, the laser layer under `bolt_*.wav` / `pulse_*.wav`, and the sources `make_audio.py` builds `blast_*.wav`, `blastbig_*.wav` and `engine_heavy.wav` from; for the Mech (`make_audio.py --mech`), the doors slowed into its leg hydraulics (`mech_servo_*.wav`), the thrusters in `mech_missile_*.wav` and `mech_drop.wav`, the lasers in `mech_laser_*.wav` and `mech_railgun_*.wav`, the crunch in `mech_land.wav` and the low engine in `mech_hum.wav` |
+| [Impact Sounds](https://kenney.nl/assets/impact-sounds) | metal hits, rock, thuds, the wood thump in `treefall_*.wav`; the Mech's footfalls (`mech_step_*.wav`), the mortar's tube in `mech_mortar_*.wav` and the stones in `mech_land.wav` |
 | [Interface Sounds](https://kenney.nl/assets/interface-sounds) | `Audio/Sfx/ui_*.ogg` |
 
 ## Quaternius — CC0 1.0 (<https://quaternius.com>)
@@ -73,6 +95,22 @@ bird into a flying one and paints it with a palette texture.
 |---|---|
 | [Animals Pack](https://opengameart.org/content/5-low-poly-animals) | `Art/Fauna/Fox.fbx`, `Songbird.fbx`, `Songbird_palette.png` |
 | [Animal Pack Vol. 2](https://opengameart.org/content/animated-animales-low-poly) | `Art/Fauna/Wolf.fbx`, `Eagle.fbx` |
+
+## JangaFX — CC0 1.0 (<https://jangafx.com/software/embergen/download/free-vdb-animations>)
+
+Fluid simulations made with EmberGen and published as OpenVDB sequences, "licensed
+as CC0 (Public Domain)" on the download page and in the `LICENSE.txt` inside each
+archive. `Tools/fetch_assets.py --jangafx` downloads them (from the MediaFire links
+the page gives); `Tools/blender/render_flipbooks.py` renders them with Cycles into
+the game's fire and explosion flipbooks, three passes a frame packed into one
+texture (the smoke lit by the sun and by the sky, the fire's own light, and its
+coverage), which `SF_Flipbook` relights and composites.
+`Tools/blender/flipbooks/<kind>.json` records which simulation frames each sheet holds.
+
+| Simulation | Becomes |
+|---|---|
+| [Small Camp Fire (free VDB)](https://jangafx.com/software/embergen/download/free-vdb-animations) | `Art/Textures/fx_flame.png` (burning trees, grass, buildings and wrecks; the Mech's flamers) |
+| [Ground Explosion (free VDB)](https://jangafx.com/software/embergen/download/free-vdb-animations) | `Art/Textures/fx_explosion.png` (every explosion; its fireball stretch for flare-ups and jets) |
 
 ## OpenGameArt — CC0 1.0: music
 
@@ -94,10 +132,10 @@ What the guns and the felled trees are built from, in `Tools/make_audio.py`.
 
 | Source | Author(s) | Becomes |
 |---|---|---|
-| [The Free Firearm Sound Library](https://opengameart.org/content/the-free-firearm-sound-library) | Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney (uploaded by bart) | `rifle_0–3.wav`, `cannon_0–2.wav`, and the muzzle crack under `bolt_*` / `pulse_*` — every gun recorded from beside the shooter and again at a distance, and a shot mixes both |
+| [The Free Firearm Sound Library](https://opengameart.org/content/the-free-firearm-sound-library) | Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney (uploaded by bart) | `rifle_0–3.wav`, `cannon_0–2.wav`, and the muzzle crack under `bolt_*` / `pulse_*` — every gun recorded from beside the shooter and again at a distance, and a shot mixes both; and the Mech's guns: `mech_autocannon_*.wav` (an AK-47 and a 1917 pitched down), `mech_gatling_*.wav` (a PPSh's rounds run together), `mech_mortar_*.wav` (shotguns an octave and a half down), `mech_railgun_*.wav`, and the cracks under `mech_missile_*.wav` and `mech_laser_*.wav` |
 | [tree chop fall thud](https://opengameart.org/content/tree-chop-fall-thud) | kheetor | the fall and the crash in `treefall_*.wav` / `treecrash_*.wav` |
 | [Tree Creaking](https://opengameart.org/content/tree-creaking) | AntumDeluge, from a sample by Department64 | the creak in `treefall_*.wav` |
-| [100 CC0 metal and wood SFX](https://opengameart.org/content/100-cc0-metal-and-wood-sfx) | rubberduck | wood breaks in `treecrash_*.wav`, `crush_*.wav`; the metal hits `engine_tracks.wav` is built from |
+| [100 CC0 metal and wood SFX](https://opengameart.org/content/100-cc0-metal-and-wood-sfx) | rubberduck | wood breaks in `treecrash_*.wav`, `crush_*.wav`; the metal hits `engine_tracks.wav` is built from; the ring of the Mech's leg in `mech_step_*.wav` and the metal in `mech_land.wav` |
 | [75 CC0 breaking / falling / hit sfx](https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx) | rubberduck | the same |
 
 ## Fonts
@@ -131,13 +169,17 @@ Not third party, and not on the list above:
 
 - **Models** — every `SF_*.fbx` except the `SF_SCAN_*` rocks: built by
   `Tools/blender/build_models.py`, `build_models_ext.py`, `build_env.py` and
-  `build_flora.py`.
+  `build_flora.py`, and the Mech kit (`SF_MECH_*.fbx`, `mechs.json`: the legs,
+  frames, weapons and the Mech Bay) by `Tools/blender/build_mechs.py`. No
+  third-party model went into the Mechs: no CC0 kit had modular parts in the
+  game's style.
 - **Shaders, scripts, UI** — written for this project.
 - **Generated textures** — `armor.png`/`armor_n.png`, `flames.png`,
   `smoke_puffs.png`, `foliage_*.png`, the icons, the cloud cookie and the lens
   dirt: made by the `Tools/make_*.py` generators.
 - **Synthesised audio** — `Audio/Ambience/*.wav` (wind, water, fire, birds),
-  written by `Tools/make_audio.py` out of filtered noise.
+  and the Mech's comms chirp and flamer roar (`Audio/Sfx/mech_radio_*.wav`,
+  `mech_flamer.wav`), written by `Tools/make_audio.py` out of filtered noise and tones.
 - **Textures carried over from the original StarForge** — `clouds.jpg`,
   `crystal.jpg`, `explosion.jpg`, `particles.jpg`, `scorch.jpg`, `smoke.jpg`,
   `terrain-macro.jpg`, `water-height.jpg`, `water_n.jpg`, `trak.png`,

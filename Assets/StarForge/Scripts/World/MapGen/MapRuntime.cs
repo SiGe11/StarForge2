@@ -34,7 +34,9 @@ namespace StarForge.World
             LastSeed = seed;
             Debug.Log($"[StarForge] new map from seed {seed}: terrain {r.heightsMs} ms, textures {r.splatMs} ms, " +
                       $"objects {r.objectsMs} ms, NavMesh {r.navMs} ms; {r.ore} ore, {r.boulders} boulders, " +
-                      $"{r.scenery} scenery, {r.plants} plants ({r.blockingPlants} blocking, {r.grovesDropped} groves dropped to keep paths open)");
+                      $"{r.scenery} scenery, {r.plants} plants ({r.blockingPlants} blocking, {r.grovesDropped} groves dropped to keep paths open" +
+                      (r.navLinks > 0 ? $", narrow passes kept clear: {r.navLinks}" : "") + ")" +
+                      (r.corridors > 0 ? $"; {r.corridors} corridor(s) carved between the bases" : ""));
         }
 
         static uint ChooseSeed()

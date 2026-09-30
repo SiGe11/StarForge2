@@ -74,6 +74,13 @@ namespace StarForge.View
             if (ground != null) ground.Deformed += Resettle;
         }
 
+        /// <summary>Grow the cover again at the current <see cref="density"/>: a preset picked
+        /// on the title screen, after Start had grown it at the old one (QualityController).</summary>
+        public void Regrow()
+        {
+            if (grassMesh != null && map != null) Grow();
+        }
+
         GroundDeformer ground;
 
         /// <summary>A crater opened: everything growing or lying in it moves with the ground.</summary>

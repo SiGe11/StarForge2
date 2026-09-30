@@ -44,8 +44,8 @@ namespace StarForge.EditorTools
             if (meta == null)
             {
                 meta = new Dictionary<string, ModelMeta>();
-                // models.json from export_fbx.py, rocks.json from build_rocks.py.
-                foreach (string file in new[] { "models.json", "rocks.json" })
+                // models.json from export_fbx.py, rocks.json from build_rocks.py, mechs.json from build_mechs.py.
+                foreach (string file in new[] { "models.json", "rocks.json", "mechs.json" })
                 {
                     string path = Path.Combine(SFAssetPostprocessor.ModelDir, file);
                     if (!File.Exists(path)) continue;

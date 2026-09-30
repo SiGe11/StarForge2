@@ -253,6 +253,127 @@
     translate: 0 -10px;
 }
 
+/* ------------------------------------------------------------ the Mech: status strip and comms */
+.comms {
+    position: absolute;
+    top: 52px;
+    left: 10px;
+    width: 430px;
+}
+
+.mech-strip {
+    background-color: var(--panel);
+    border-width: 1px;
+    border-left-width: 3px;
+    border-color: var(--panel-edge);
+    border-left-color: var(--amber);
+    border-radius: var(--radius);
+    padding: 7px 10px 8px 10px;
+    margin-bottom: 8px;
+    display: none;
+}
+
+.mech-strip--visible {
+    display: flex;
+}
+
+.mech-strip:hover {
+    background-color: rgba(14, 24, 36, 0.92);
+}
+
+.mech-strip-head {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.mech-strip-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    color: var(--amber);
+}
+
+.mech-strip-state {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.mech-strip-bar {
+    height: 7px;
+    margin-top: 5px;
+}
+
+.mech-strip-bar--shield {
+    height: 3px;
+    margin-top: 2px;
+}
+
+.mech-strip-text {
+    font-size: 13px;
+    color: var(--text);
+    margin-top: 4px;
+    white-space: normal;
+}
+
+.comms-feed {
+    flex-direction: column;
+}
+
+.comms-line {
+    background-color: rgba(7, 12, 19, 0.86);
+    border-width: 1px;
+    border-left-width: 3px;
+    border-color: rgba(255, 181, 71, 0.30);
+    border-left-color: var(--amber);
+    border-radius: 4px;
+    padding: 6px 10px 7px 10px;
+    margin-bottom: 6px;
+    opacity: 1;
+    translate: 0 0;
+    transition-duration: 0.4s;
+}
+
+.comms-line:hover {
+    background-color: rgba(14, 24, 36, 0.95);
+}
+
+.comms-line--new {
+    opacity: 0;
+    translate: -24px 0;
+}
+
+.comms-line--fading {
+    opacity: 0;
+}
+
+.comms-line--attack { border-left-color: var(--danger); }
+.comms-line--defend { border-left-color: var(--amber); }
+.comms-line--regroup { border-left-color: #c99bff; }
+.comms-line--warning { border-left-color: var(--danger); }
+.comms-line--morale { border-left-color: #ffd873; }
+.comms-line--status { border-left-color: var(--accent); }
+
+.comms-who {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: var(--amber);
+}
+
+.comms-text {
+    font-size: 14px;
+    color: var(--text);
+    white-space: normal;
+    margin-top: 2px;
+}
+
+.comms-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+}
+
 .bottom-bar {
     flex-direction: row;
     align-items: flex-end;

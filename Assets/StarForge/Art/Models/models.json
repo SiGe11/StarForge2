@@ -347,76 +347,94 @@
     "lod1_triangles": 0
   },
   "TREE_PINE": {
-    "radius": 3.779,
-    "height": 9.508,
-    "triangles": 718,
+    "radius": 1.974,
+    "height": 10.486,
+    "triangles": 1020,
     "materials": [
       "bark",
       "needle"
     ],
     "groups": {},
     "chunks": 0,
-    "lod1_triangles": 462,
+    "lod1_triangles": 529,
     "foliage": {
       "center": [
-        0.0,
-        4.75,
-        0.0
+        -0.014,
+        5.863,
+        0.145
       ],
       "radii": [
-        3.705,
-        4.758,
-        3.705
+        1.781,
+        4.581,
+        1.781
       ]
-    }
+    },
+    "scanned": "fir_tree_01",
+    "leaf_albedo": [
+      0.091,
+      0.1182,
+      0.0368
+    ]
   },
   "TREE_BROAD": {
-    "radius": 5.344,
-    "height": 8.023,
-    "triangles": 1392,
+    "radius": 4.782,
+    "height": 8.042,
+    "triangles": 1900,
     "materials": [
       "bark",
       "leaf"
     ],
     "groups": {},
     "chunks": 0,
-    "lod1_triangles": 522,
+    "lod1_triangles": 780,
     "foliage": {
       "center": [
-        0.0,
-        5.018,
-        0.0
+        0.198,
+        4.571,
+        0.18
       ],
       "radii": [
-        5.135,
-        3.005,
-        5.135
+        4.004,
+        3.351,
+        4.004
       ]
-    }
+    },
+    "scanned": "island_tree_01",
+    "leaf_albedo": [
+      0.098,
+      0.1048,
+      0.0242
+    ]
   },
   "TREE_TALL": {
-    "radius": 2.29,
-    "height": 10.632,
-    "triangles": 854,
+    "radius": 7.234,
+    "height": 10.871,
+    "triangles": 1680,
     "materials": [
       "bark",
       "leaf"
     ],
     "groups": {},
     "chunks": 0,
-    "lod1_triangles": 502,
+    "lod1_triangles": 699,
     "foliage": {
       "center": [
-        0.0,
-        6.624,
-        0.0
+        0.521,
+        7.095,
+        -1.895
       ],
       "radii": [
-        2.056,
-        4.008,
-        2.056
+        5.074,
+        3.638,
+        5.074
       ]
-    }
+    },
+    "scanned": "tree_small_02",
+    "leaf_albedo": [
+      0.0847,
+      0.1308,
+      0.0412
+    ]
   },
   "TREE_DEAD": {
     "radius": 1.85,
@@ -430,74 +448,92 @@
     "lod1_triangles": 135
   },
   "BUSH": {
-    "radius": 1.706,
-    "height": 1.74,
-    "triangles": 64,
+    "radius": 1.742,
+    "height": 1.864,
+    "triangles": 80,
     "materials": [
       "leaf"
     ],
     "groups": {},
     "chunks": 0,
-    "lod1_triangles": 44,
+    "lod1_triangles": 80,
     "foliage": {
       "center": [
-        0.0,
-        0.773,
-        0.0
+        0.067,
+        0.843,
+        -0.142
       ],
       "radii": [
-        1.514,
-        0.967,
-        1.514
+        1.413,
+        0.935,
+        1.413
       ]
-    }
+    },
+    "scanned": "searsia_burchellii",
+    "leaf_albedo": [
+      0.1108,
+      0.1013,
+      0.0488
+    ]
   },
   "TREE_BIRCH": {
-    "radius": 3.061,
-    "height": 9.495,
-    "triangles": 886,
+    "radius": 5.961,
+    "height": 9.074,
+    "triangles": 1240,
     "materials": [
       "bark",
       "leaf"
     ],
     "groups": {},
     "chunks": 0,
-    "lod1_triangles": 538,
+    "lod1_triangles": 610,
     "foliage": {
       "center": [
-        0.0,
-        6.193,
-        0.0
+        -0.247,
+        4.999,
+        -0.12
       ],
       "radii": [
-        2.792,
-        3.302,
-        2.792
+        5.527,
+        3.997,
+        5.527
       ]
-    }
+    },
+    "scanned": "jacaranda_tree",
+    "leaf_albedo": [
+      0.1165,
+      0.1429,
+      0.0307
+    ]
   },
   "FERN": {
-    "radius": 0.762,
-    "height": 0.458,
-    "triangles": 36,
+    "radius": 0.78,
+    "height": 0.479,
+    "triangles": 28,
     "materials": [
       "leaf"
     ],
     "groups": {},
     "chunks": 0,
-    "lod1_triangles": 24,
+    "lod1_triangles": 28,
     "foliage": {
       "center": [
-        0.0,
-        0.239,
-        0.0
+        -0.004,
+        0.179,
+        -0.08
       ],
       "radii": [
-        0.757,
-        0.219,
-        0.757
+        0.579,
+        0.266,
+        0.579
       ]
-    }
+    },
+    "scanned": "fern_02",
+    "leaf_albedo": [
+      0.0496,
+      0.0791,
+      0.0097
+    ]
   },
   "REEDS": {
     "radius": 0.969,
@@ -524,27 +560,33 @@
     }
   },
   "BUSH_FLOWER": {
-    "radius": 1.708,
-    "height": 1.937,
+    "radius": 1.083,
+    "height": 2.025,
     "triangles": 64,
     "materials": [
       "leaf"
     ],
     "groups": {},
     "chunks": 0,
-    "lod1_triangles": 44,
+    "lod1_triangles": 64,
     "foliage": {
       "center": [
-        0.0,
-        0.797,
-        0.0
+        -0.028,
+        0.998,
+        0.128
       ],
       "radii": [
-        1.548,
-        1.14,
-        1.548
+        0.814,
+        0.985,
+        0.814
       ]
-    }
+    },
+    "scanned": "searsia_lucida",
+    "leaf_albedo": [
+      0.156,
+      0.1662,
+      0.0677
+    ]
   },
   "_mounts": {
     "SENTINEL_HEAD_Y": 1.4

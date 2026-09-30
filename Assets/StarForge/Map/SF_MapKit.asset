@@ -68,19 +68,21 @@ MonoBehaviour:
     bush: 0
     trunkRadius: 0.3
     blockRadius: 1.6
-    height: 9.508
-    crownCenter: {x: 0, y: 4.75, z: 0}
-    crownRadii: {x: 3.705, y: 4.758, z: 3.705}
+    height: 10.486
+    crownCenter: {x: -0.014, y: 5.863, z: 0.145}
+    crownRadii: {x: 1.781, y: 4.581, z: 1.781}
     leaf: {r: 0.12, g: 0.25, b: 0.14, a: 1}
     leaf2: {r: 0.2, g: 0.31, b: 0.15, a: 1}
     bark: {r: 0.3, g: 0.22, b: 0.16, a: 1}
-    cardTex: {fileID: 2800000, guid: 148bf09747f4a481aa0556a415aa8e07, type: 3}
-    cardNormal: {fileID: 2800000, guid: 809a50805f1e04c34af02b6d66a9c970, type: 3}
-    cardTint: {r: 0.55, g: 0.66, b: 0.58, a: 1}
+    cardTex: {fileID: 2800000, guid: a021646711ca542958528a9bb2af927c, type: 3}
+    cardNormal: {fileID: 2800000, guid: ad5a152d864eb46e483ab2d23dd72c5b, type: 3}
+    cardTint: {r: 0.65351146, g: 0.8178454, b: 0.79644895, a: 1}
     needles: 1
     bloom: {r: 1, g: 1, b: 1, a: 0}
     birchBark: 0
+    barkTex: {fileID: 2800000, guid: 8f3e93f0b8f59452fbc8ef4091f048c6, type: 3}
     leafTiling: 0.6
+    burns: 1.25
     drawDistance: 0
     castShadows: 1
   - name: TREE_BROAD
@@ -89,21 +91,23 @@ MonoBehaviour:
     foliageSubmesh: 1
     lodMesh: {fileID: -332171140838494577, guid: ba74c40d795384987a019c3304484988, type: 3}
     bush: 0
-    trunkRadius: 0.38
+    trunkRadius: 0.48
     blockRadius: 1.5
-    height: 8.023
-    crownCenter: {x: 0, y: 5.018, z: 0}
-    crownRadii: {x: 5.135, y: 3.005, z: 5.135}
+    height: 8.042
+    crownCenter: {x: 0.198, y: 4.571, z: 0.18}
+    crownRadii: {x: 4.004, y: 3.351, z: 4.004}
     leaf: {r: 0.14, g: 0.27, b: 0.08, a: 1}
     leaf2: {r: 0.28, g: 0.35, b: 0.1, a: 1}
     bark: {r: 0.3, g: 0.24, b: 0.18, a: 1}
-    cardTex: {fileID: 2800000, guid: cc2b5deaeb8fc4fbfa3e90bbf723eae9, type: 3}
-    cardNormal: {fileID: 2800000, guid: f24df1237f1cf466cacb422862591024, type: 3}
-    cardTint: {r: 0.42, g: 0.5, b: 0.34, a: 1}
+    cardTex: {fileID: 2800000, guid: b562dd7f3266f4ce4846a8f7c9252fb8, type: 3}
+    cardNormal: {fileID: 2800000, guid: ce843a2b9c28545f9b9ca025b9190325, type: 3}
+    cardTint: {r: 0.91445816, g: 1.102903, b: 0.9194477, a: 1}
     needles: 0
     bloom: {r: 1, g: 1, b: 1, a: 0}
     birchBark: 0
+    barkTex: {fileID: 2800000, guid: c3431b763e6be4ea5ac655d82f37445e, type: 3}
     leafTiling: 0.42
+    burns: 0.75
     drawDistance: 0
     castShadows: 1
   - name: TREE_TALL
@@ -114,19 +118,21 @@ MonoBehaviour:
     bush: 0
     trunkRadius: 0.26
     blockRadius: 1.1
-    height: 10.632
-    crownCenter: {x: 0, y: 6.624, z: 0}
-    crownRadii: {x: 2.056, y: 4.008, z: 2.056}
+    height: 10.871
+    crownCenter: {x: 0.521, y: 7.095, z: -1.895}
+    crownRadii: {x: 5.074, y: 3.638, z: 5.074}
     leaf: {r: 0.16, g: 0.29, b: 0.09, a: 1}
     leaf2: {r: 0.29, g: 0.35, b: 0.1, a: 1}
     bark: {r: 0.5, g: 0.48, b: 0.43, a: 1}
-    cardTex: {fileID: 2800000, guid: 1c779ba44b8e94ae5b2992fb26b53612, type: 3}
-    cardNormal: {fileID: 2800000, guid: b2108d6211fee4d5ead8483289e674df, type: 3}
-    cardTint: {r: 0.48, g: 0.56, b: 0.42, a: 1}
+    cardTex: {fileID: 2800000, guid: 2c770caf0ba65486584def857d3c4ccb, type: 3}
+    cardNormal: {fileID: 2800000, guid: 44992c1d3a59f4548bc1bd579b14f14e, type: 3}
+    cardTint: {r: 0.91944766, g: 0.9802496, b: 0.7573092, a: 1}
     needles: 0
     bloom: {r: 1, g: 1, b: 1, a: 0}
     birchBark: 0
+    barkTex: {fileID: 2800000, guid: 5aba464628c1e4e3d926fc93e5802660, type: 3}
     leafTiling: 0.5
+    burns: 0.8
     drawDistance: 0
     castShadows: 1
   - name: TREE_DEAD
@@ -149,7 +155,9 @@ MonoBehaviour:
     needles: 0
     bloom: {r: 1, g: 1, b: 1, a: 0}
     birchBark: 0
+    barkTex: {fileID: 0}
     leafTiling: 0.9
+    burns: 1.6
     drawDistance: 0
     castShadows: 1
   - name: BUSH
@@ -160,19 +168,21 @@ MonoBehaviour:
     bush: 1
     trunkRadius: 0.55
     blockRadius: 0
-    height: 1.74
-    crownCenter: {x: 0, y: 0.773, z: 0}
-    crownRadii: {x: 1.514, y: 0.967, z: 1.514}
+    height: 1.864
+    crownCenter: {x: 0.067, y: 0.843, z: -0.142}
+    crownRadii: {x: 1.413, y: 0.935, z: 1.413}
     leaf: {r: 0.13, g: 0.25, b: 0.08, a: 1}
     leaf2: {r: 0.25, g: 0.32, b: 0.1, a: 1}
     bark: {r: 0.3, g: 0.24, b: 0.18, a: 1}
-    cardTex: {fileID: 2800000, guid: 1c779ba44b8e94ae5b2992fb26b53612, type: 3}
-    cardNormal: {fileID: 2800000, guid: b2108d6211fee4d5ead8483289e674df, type: 3}
-    cardTint: {r: 0.46, g: 0.54, b: 0.4, a: 1}
+    cardTex: {fileID: 2800000, guid: 551d7410b05a744929c7637b889c13cc, type: 3}
+    cardNormal: {fileID: 2800000, guid: c02ce8cbd6dda453e987947cec7aa860, type: 3}
+    cardTint: {r: 0.81626785, g: 1.1200635, b: 0.74339753, a: 1}
     needles: 0
     bloom: {r: 1, g: 1, b: 1, a: 0}
     birchBark: 0
+    barkTex: {fileID: 0}
     leafTiling: 0.75
+    burns: 1.1
     drawDistance: 0
     castShadows: 1
   - name: TREE_BIRCH
@@ -181,21 +191,23 @@ MonoBehaviour:
     foliageSubmesh: 1
     lodMesh: {fileID: -1812804490399563503, guid: 4ac3acc5c399e42dca09dd8219ebd638, type: 3}
     bush: 0
-    trunkRadius: 0.22
-    blockRadius: 1.1
-    height: 9.495
-    crownCenter: {x: 0, y: 6.193, z: 0}
-    crownRadii: {x: 2.792, y: 3.302, z: 2.792}
+    trunkRadius: 0.4
+    blockRadius: 1.3
+    height: 9.074
+    crownCenter: {x: -0.247, y: 4.999, z: -0.12}
+    crownRadii: {x: 5.527, y: 3.997, z: 5.527}
     leaf: {r: 0.22, g: 0.34, b: 0.08, a: 1}
     leaf2: {r: 0.38, g: 0.44, b: 0.12, a: 1}
     bark: {r: 0.8, g: 0.78, b: 0.73, a: 1}
-    cardTex: {fileID: 2800000, guid: 29497913df6f84f9c8e04ad706b10605, type: 3}
-    cardNormal: {fileID: 2800000, guid: 1235e146ecf6f42a695e853a9c01d309, type: 3}
-    cardTint: {r: 0.56, g: 0.62, b: 0.44, a: 1}
+    cardTex: {fileID: 2800000, guid: 642fac4423bb94b5a88a75d2c756191d, type: 3}
+    cardNormal: {fileID: 2800000, guid: 918cb20d17d9343528458004b8c5e41f, type: 3}
+    cardTint: {r: 0.87014085, g: 0.9910256, b: 0.89713705, a: 1}
     needles: 0
     bloom: {r: 1, g: 1, b: 1, a: 0}
     birchBark: 1
+    barkTex: {fileID: 2800000, guid: c084e182e6a2c4de6942f5c7b5a0353f, type: 3}
     leafTiling: 0.6
+    burns: 0.9
     drawDistance: 0
     castShadows: 1
   - name: FERN
@@ -206,19 +218,21 @@ MonoBehaviour:
     bush: 1
     trunkRadius: 0.3
     blockRadius: 0
-    height: 0.458
-    crownCenter: {x: 0, y: 0.239, z: 0}
-    crownRadii: {x: 0.757, y: 0.219, z: 0.757}
+    height: 0.479
+    crownCenter: {x: -0.004, y: 0.179, z: -0.08}
+    crownRadii: {x: 0.579, y: 0.266, z: 0.579}
     leaf: {r: 0.14, g: 0.28, b: 0.07, a: 1}
     leaf2: {r: 0.26, g: 0.38, b: 0.09, a: 1}
     bark: {r: 0.25, g: 0.2, b: 0.15, a: 1}
-    cardTex: {fileID: 2800000, guid: 148bf09747f4a481aa0556a415aa8e07, type: 3}
-    cardNormal: {fileID: 2800000, guid: 809a50805f1e04c34af02b6d66a9c970, type: 3}
-    cardTint: {r: 0.5, g: 0.6, b: 0.46, a: 1}
+    cardTex: {fileID: 2800000, guid: 10cdd511b4fe343b99277b320549807b, type: 3}
+    cardNormal: {fileID: 2800000, guid: c8f8843aec41646ebaf4c385b2bd5d92, type: 3}
+    cardTint: {r: 1.0903779, g: 1.2085786, b: 1.2554362, a: 1}
     needles: 0
     bloom: {r: 1, g: 1, b: 1, a: 0}
     birchBark: 0
+    barkTex: {fileID: 0}
     leafTiling: 1.2
+    burns: 1.2
     drawDistance: 95
     castShadows: 0
   - name: REEDS
@@ -241,7 +255,9 @@ MonoBehaviour:
     needles: 0
     bloom: {r: 1, g: 1, b: 1, a: 0}
     birchBark: 0
+    barkTex: {fileID: 0}
     leafTiling: 1
+    burns: 1.5
     drawDistance: 110
     castShadows: 0
   - name: BUSH_FLOWER
@@ -252,18 +268,20 @@ MonoBehaviour:
     bush: 1
     trunkRadius: 0.55
     blockRadius: 0
-    height: 1.937
-    crownCenter: {x: 0, y: 0.797, z: 0}
-    crownRadii: {x: 1.548, y: 1.14, z: 1.548}
+    height: 2.025
+    crownCenter: {x: -0.028, y: 0.998, z: 0.128}
+    crownRadii: {x: 0.814, y: 0.985, z: 0.814}
     leaf: {r: 0.14, g: 0.25, b: 0.08, a: 1}
     leaf2: {r: 0.25, g: 0.32, b: 0.1, a: 1}
     bark: {r: 0.3, g: 0.24, b: 0.18, a: 1}
-    cardTex: {fileID: 2800000, guid: 29497913df6f84f9c8e04ad706b10605, type: 3}
-    cardNormal: {fileID: 2800000, guid: 1235e146ecf6f42a695e853a9c01d309, type: 3}
-    cardTint: {r: 0.5, g: 0.56, b: 0.42, a: 1}
+    cardTex: {fileID: 2800000, guid: 6531d9525872c44c5aaeb4413931f5b0, type: 3}
+    cardNormal: {fileID: 2800000, guid: d2c2322d0c3d9463f8759ea88278dca1, type: 3}
+    cardTint: {r: 0.74373853, g: 0.9272217, b: 0.67528045, a: 1}
     needles: 0
     bloom: {r: 0.95, g: 0.78, b: 0.88, a: 0.34}
     birchBark: 0
+    barkTex: {fileID: 0}
     leafTiling: 0.8
+    burns: 1
     drawDistance: 140
     castShadows: 1

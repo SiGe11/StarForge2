@@ -32,6 +32,19 @@ namespace StarForge.View
         Vector4[] seenParams;
         bool[] seenGone;
 
+        // What Vegetation.Pose read when seenPose was worked out: the only inputs of it
+        // that change in a match (where a plant stands, its turn, size and kind are
+        // fixed when the map is built). Most plants stand untouched all match, so their
+        // pose is not rebuilt every frame they are in sight.
+        struct PoseKey
+        {
+            public float groundShift, sink, crush, fallAngle, flatten, fallX, fallY;
+        }
+        PoseKey[] poseKey;
+        bool[] poseKnown;
+        Plant[] posePlants;
+        PlantKind[] poseKinds;
+
         [Tooltip("Beyond this distance from the camera a plant draws its decimated copy.")]
         public float lodDistance = 70f;
 
@@ -61,6 +74,7 @@ namespace StarForge.View
         static readonly int CardTexId = Shader.PropertyToID("_CardTex");
         static readonly int CardNormalId = Shader.PropertyToID("_CardNormal");
         static readonly int CardTintId = Shader.PropertyToID("_CardTint");
+        static readonly int BarkTexId = Shader.PropertyToID("_BarkTex");
 
         public int DrawnLastFrame { get; private set; }
 
@@ -74,6 +88,10 @@ namespace StarForge.View
             seenPose = new Matrix4x4[n];
             seenParams = new Vector4[n];
             seenGone = new bool[n];
+            poseKey = new PoseKey[n];
+            poseKnown = new bool[n];
+            posePlants = vegetation.plants;
+            poseKinds = vegetation.kinds;
             batches = new Batch[vegetation.kinds.Length * 2];
             for (int k = 0; k < batches.Length; k++)
             {
@@ -91,7 +109,8 @@ namespace StarForge.View
                     mpb.SetVector(RadiiId, kind.crownRadii);
                     mpb.SetFloat(LeafStyleId, kind.needles ? 1f : 0f);
                     mpb.SetColor(BloomId, kind.bloom);
-                    mpb.SetFloat(BarkStyleId, kind.birchBark ? 1f : 0f);
+                    mpb.SetFloat(BarkStyleId, kind.barkTex != null ? 2f : kind.birchBark ? 1f : 0f);
+                    if (kind.barkTex != null) mpb.SetTexture(BarkTexId, kind.barkTex);
                     mpb.SetFloat(LeafTilingId, kind.leafTiling);
                     if (kind.cardTex != null) mpb.SetTexture(CardTexId, kind.cardTex);
                     if (kind.cardNormal != null) mpb.SetTexture(CardNormalId, kind.cardNormal);
@@ -104,7 +123,18 @@ namespace StarForge.View
         void Remember(int i)
         {
             ref var s = ref vegetation.live[i];
-            seenPose[i] = vegetation.Pose(i);
+            ref var key = ref poseKey[i];
+            if (!poseKnown[i] || key.groundShift != s.groundShift || key.sink != s.sink || key.crush != s.crush ||
+                key.fallAngle != s.fallAngle || key.flatten != s.flatten || key.fallX != s.fallDir.x || key.fallY != s.fallDir.y)
+            {
+                seenPose[i] = vegetation.Pose(i);
+                key = new PoseKey
+                {
+                    groundShift = s.groundShift, sink = s.sink, crush = s.crush,
+                    fallAngle = s.fallAngle, flatten = s.flatten, fallX = s.fallDir.x, fallY = s.fallDir.y
+                };
+                poseKnown[i] = true;
+            }
             // Felled and lying trees stop swaying; embers glow with the fire.
             float sway = s.state == PlantState.Standing ? 1f : 0f;
             seenParams[i] = new Vector4(s.charred, s.fire, s.foliageLost, sway);
@@ -115,6 +145,13 @@ namespace StarForge.View
         {
             var cam = Camera.main;
             if (cam == null || vegetation.live.Length != seenPose.Length) return;
+            // A map built again in place (the grove trials) brings new plants.
+            if (!ReferenceEquals(posePlants, vegetation.plants) || !ReferenceEquals(poseKinds, vegetation.kinds))
+            {
+                System.Array.Clear(poseKnown, 0, poseKnown.Length);
+                posePlants = vegetation.plants;
+                poseKinds = vegetation.kinds;
+            }
 
             int team = player != null ? player.team : 0;
             bool all = world == null || !world.running || MatchSettings.spectate;

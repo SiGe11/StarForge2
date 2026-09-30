@@ -107,7 +107,7 @@ def copy_sfx():
     # including a sound that used to be copied from Kenney (.ogg) and is now built
     # here (.wav) under the same name.
     want = {name: ".ogg" for name in SFX}
-    want.update({name: ".wav" for name in list(WEAPONS) + list(WOOD) + list(BLASTS)})
+    want.update({name: ".wav" for name in list(WEAPONS) + list(WOOD) + list(BLASTS) + MECH_SOUNDS})
     want["engine_heavy"] = ".wav"
     want["engine_tracks"] = ".wav"
     for f in os.listdir(out):
@@ -132,24 +132,36 @@ def copy_sfx():
 # ---------------------------------------------------------------- weapons and wood
 # Guns: (near take, far take, pitch, length, extra layers). The near take gives the
 # crack, the far one the report coming back off the ground a moment later.
-RMS = {"rifle": 0.085, "cannon": 0.125, "bolt": 0.10, "pulse": 0.10,
+RMS = {"rifle": 0.095, "cannon": 0.14, "bolt": 0.10, "pulse": 0.10,
        "treefall": 0.055, "treecrash": 0.095, "crush": 0.05,
-       "blast": 0.135, "blastbig": 0.15}
+       "blast": 0.135, "blastbig": 0.15,
+       # The Mech's (make_mech_audio).
+       "mech_step": 0.11, "mech_servo": 0.045, "mech_autocannon": 0.12, "mech_gatling": 0.10,
+       "mech_missile": 0.085, "mech_mortar": 0.14, "mech_laser": 0.10, "mech_railgun": 0.13,
+       "mech_drop": 0.11, "mech_land": 0.15, "mech_radio": 0.055}
 WEAPONS = {
-    "rifle_0": dict(near="AR-15/D_32P.wav", far="AR-15/D_24P.wav", pitch=1.04, length=0.85),
-    "rifle_1": dict(near="SKS/U_14P.wav", far="SKS/U_19P.wav", pitch=1.0, length=0.85),
-    "rifle_2": dict(near="Savage 10 .300 Blackout/T_27P.wav", far="Savage 10 .300 Blackout/T_17P.wav", pitch=1.08, length=0.8),
-    "rifle_3": dict(near="Tikka/W_29P.wav", far="Tikka/W_24P.wav", pitch=0.96, length=0.9),
+    # The Trooper's rifle: an AK-47 above all -- the 7.62x39 has a body the AR-15's
+    # 5.56 snap lacks, and a thin crack vanishes under music and a tank battle --
+    # with the SKS (the same cartridge) and one AR-15 for variety. A short punch at
+    # 110 Hz gives each shot weight a laptop speaker can play.
+    "rifle_0": dict(near="AK-47/C_28P.wav", far="AK-47/C_31P.wav", pitch=0.97, length=0.9, far_gain=0.6,
+                    weight=0.35, sub=(0.10, 110, 0.10)),
+    "rifle_1": dict(near="AK-47/C_28P.wav", far="AK-47/C_31P.wav", pitch=1.03, length=0.85, far_gain=0.55,
+                    weight=0.3, sub=(0.09, 118, 0.09)),
+    "rifle_2": dict(near="SKS/U_14P.wav", far="SKS/U_19P.wav", pitch=0.98, length=0.85, far_gain=0.55,
+                    weight=0.3, sub=(0.09, 112, 0.10)),
+    "rifle_3": dict(near="AR-15/D_32P.wav", far="AR-15/D_24P.wav", pitch=0.95, length=0.85, far_gain=0.55,
+                    weight=0.35, sub=(0.10, 105, 0.10)),
     # The Mauler's gun: a 12-gauge and a .30-06 rifle, both pitched down about an octave.
     # The sub and the roll are deliberately well under the crack. A sine at 45 Hz
     # carries enormous energy for its loudness, and the first pass at these had the
     # shot 95% below 120 Hz: all thud, no gun.
-    "cannon_0": dict(near="Mossberg/N_30P.wav", far="Mossberg/N_26P.wav", pitch=0.50, length=2.8, far_gain=0.6,
-                     far_delay=0.09, tone=1000, weight=0.9, sub=(0.22, 46, 1.3), roll=(0.34, 1.8, 850)),
-    "cannon_1": dict(near="1917/B_24P.wav", far="1917/B_16P.wav", pitch=0.52, length=2.8, far_gain=0.6,
-                     far_delay=0.08, tone=1050, weight=0.85, sub=(0.20, 50, 1.2), roll=(0.32, 1.8, 900)),
-    "cannon_2": dict(near="Model 12/K_22P.wav", far="Model 12/K_17P.wav", pitch=0.48, length=3.0, far_gain=0.55,
-                     far_delay=0.10, tone=950, weight=1.0, sub=(0.25, 42, 1.5), roll=(0.38, 2.0, 800)),
+    "cannon_0": dict(near="Mossberg/N_30P.wav", far="Mossberg/N_26P.wav", pitch=0.45, length=3.0, far_gain=0.65,
+                     far_delay=0.10, tone=900, weight=1.1, sub=(0.30, 44, 1.4), roll=(0.40, 2.0, 800)),
+    "cannon_1": dict(near="1917/B_24P.wav", far="1917/B_16P.wav", pitch=0.47, length=3.0, far_gain=0.65,
+                     far_delay=0.09, tone=950, weight=1.05, sub=(0.28, 47, 1.3), roll=(0.38, 2.0, 850)),
+    "cannon_2": dict(near="Model 12/K_22P.wav", far="Model 12/K_17P.wav", pitch=0.43, length=3.2, far_gain=0.6,
+                     far_delay=0.11, tone=850, weight=1.2, sub=(0.32, 40, 1.6), roll=(0.44, 2.2, 750)),
     # Energy weapons: the Kenney sound with a real muzzle crack under it.
     "bolt_0": dict(near="Ruger Mark III/R_35P.wav", far=None, pitch=0.8, length=0.7, gain=0.5,
                    kenney="sci-fi-sounds/laserLarge_000", kenney_gain=0.85),
@@ -500,6 +512,255 @@ def make_weapons():
     print(f"engine and track beds -> {os.path.relpath(out, ROOT)}")
 
 
+# ---------------------------------------------------------------- the Mech
+# Everything the Mech makes, built from the recordings the guns already use (the Free
+# Firearm Sound Library), Kenney's Sci-Fi and Impact packs and the CC0 metal hits,
+# with the same thump/roll/high-pass treatment as the rest: the weight is aimed at
+# 80-400 Hz, which a laptop speaker can play, not at 40 Hz, which it cannot.
+MECH_SOUNDS = (["mech_step_%d" % i for i in range(4)] + ["mech_servo_%d" % i for i in range(3)] +
+               ["mech_autocannon_%d" % i for i in range(3)] + ["mech_gatling_%d" % i for i in range(2)] +
+               ["mech_missile_%d" % i for i in range(3)] + ["mech_mortar_%d" % i for i in range(2)] +
+               ["mech_laser_%d" % i for i in range(2)] + ["mech_railgun_%d" % i for i in range(2)] +
+               ["mech_drop", "mech_land", "mech_radio_0", "mech_radio_1", "mech_flamer", "mech_hum"])
+
+
+def gun(near, far=None, pitch=1.0, length=1.0, far_gain=0.55, far_delay=0.045):
+    x = pitched(onset(decode(os.path.join(GUNS, near))), pitch)
+    if far:
+        x = add(x, pitched(onset(decode(os.path.join(GUNS, far))), pitch), far_delay, far_gain)
+    return x[:int(length * SR)]
+
+
+def finish(x, length, fade=0.05, hp=45):
+    x = hipass_lin(np.asarray(x)[:int(length * SR)], hp, 2)
+    n = int(fade * SR)
+    if len(x) > n:
+        x[-n:] *= np.linspace(1, 0, n)
+    return x
+
+
+def mech_step(i):
+    """A footfall: a heavy steel plate meeting the ground, the ground taking it (a
+    low punch and a crunch of stones), the metal ringing briefly in the leg."""
+    rng = np.random.default_rng(700 + i)
+    plate = pitched(onset(kenney_clip("impact-sounds", "impactPlate_heavy_00%d" % (i % 5))), 0.55 + 0.05 * i)
+    punch = pitched(onset(kenney_clip("impact-sounds", "impactPunch_heavy_00%d" % ((i + 1) % 5))), 0.6)
+    grit = pitched(onset(kenney_clip("impact-sounds", "impactMining_00%d" % ((i + 2) % 5))), 0.5)
+    ring = pitched(onset(decode(os.path.join(WOOD_SRC, "metal_hit_0%d.ogg" % (1 + i % 5)))), 0.38)
+    out = add(np.zeros(1), hipass_lin(punch, 110, 2), 0.0, 0.8)
+    out = add(out, plate, 0.004, 1.0)
+    out = add(out, grit, 0.01, 0.7)
+    out = add(out, filt_lin(ring, 1400, 1), 0.012, 0.3)
+    # The weight goes in at 100-160 Hz, where a small speaker still moves air; a
+    # deeper thump was 85-90% of the energy and came out as nothing but a hum.
+    out = add(out, thump(150 + 8 * i, 0.09, 96), 0.0, 0.35)
+    out = slapback(out, 0.08)
+    out = add(out, rolling(out, 0.9, 700), 0.05, 0.18)
+    return finish(out, 1.1 + rng.uniform(0, 0.1), hp=80)
+
+
+def mech_servo(i):
+    """The hydraulics of a leg: a sci-fi door's pneumatic run, slowed right down."""
+    src = kenney_clip("sci-fi-sounds", ["doorOpen_000", "doorClose_001", "doorOpen_002"][i])
+    out = filt_lin(pitched(onset(src), 0.62 + 0.05 * i), 2600, 1)
+    return finish(out, 0.8, 0.12, hp=90)
+
+
+def mech_autocannon(i):
+    """40 mm: a rifle's crack given a cannon's body -- an AK and a .30-06 pitched down,
+    a short heavy thump under each round."""
+    near, far = [("AK-47/C_36P.wav", "AK-47/C_27P.wav"), ("1917/B_24P.wav", "1917/B_16P.wav"),
+                 ("AK-47/C_29P.wav", "AK-47/C_34P.wav")][i]
+    out = gun(near, far, 0.62 + 0.03 * i, 1.3, 0.6, 0.07)
+    out = slapback(out, 0.1)
+    out = out + filt_lin(out, 220, 2) * 0.8
+    out = add(out, thump(70, 0.16, 46), 0.004, 0.5)
+    out = add(out, rolling(out, 1.2, 700), 0.1, 0.25)
+    return finish(out, 1.3)
+
+
+def mech_gatling(i):
+    """A rotary cannon's burst: a submachine gun's rounds run together at fourteen a
+    second, pitched down, over the whine of the motor spinning the barrels."""
+    shot = gun(["PPSh/P_32P.wav", "PPSh/P_22P.wav"][i], None, 0.8, 0.25)
+    shot = shot / max(1e-9, np.max(np.abs(shot)))
+    n = int(0.62 * SR)
+    out = np.zeros(n)
+    rng = np.random.default_rng(900 + i)
+    t = 0.0
+    while t < 0.56:
+        g = rng.uniform(0.75, 1.0)
+        out = add(out, pitched(shot, rng.uniform(0.95, 1.05)) * g, t)
+        t += 1.0 / 14.0 * rng.uniform(0.92, 1.08)
+    tt = np.arange(len(out)) / SR
+    whine = np.sin(2 * np.pi * np.cumsum(820 + 60 * np.sin(tt * 9)) / SR) * 0.04
+    out = out + whine
+    out = slapback(out, 0.1)
+    out = out + filt_lin(out, 260, 2) * 0.5
+    return finish(out, 0.8, 0.12)
+
+
+def mech_missile(i):
+    """A missile leaving its rack: the motor lighting with a bang and a rush of
+    thrust tearing away."""
+    thrust = pitched(onset(kenney_clip("sci-fi-sounds", "thrusterFire_00%d" % (i + 1))), 0.75)
+    crack = gun(["Walther PPQ/X_39P.wav", "Bersa/F_41P.wav", "Ruger Mark III/R_35P.wav"][i], None, 0.7, 0.4)
+    out = add(np.zeros(1), crack, 0.0, 0.45)
+    out = add(out, thrust, 0.01, 1.0)
+    tt = np.arange(int(0.9 * SR)) / SR
+    rush = RNG.normal(size=len(tt)) * np.exp(-tt / 0.35)
+    out = add(out, filt_lin(hipass_lin(rush, 900, 2), 5000, 1), 0.02, 0.35)
+    out = slapback(out, 0.08)
+    return finish(out, 1.2, 0.2)
+
+
+def mech_mortar(i):
+    """The mortar: a hollow, heavy thunk out of the tube -- a 12-gauge an octave and
+    a half down, a steel impact for the tube, and a thump you feel."""
+    out = gun(["Mossberg/N_26P.wav", "Model 12/K_22P.wav"][i], ["Mossberg/N_30P.wav", "Model 12/K_17P.wav"][i], 0.38, 2.6, 0.6, 0.1)
+    tube = pitched(onset(kenney_clip("impact-sounds", "impactBell_heavy_00%d" % (i + 1))), 0.5)
+    out = add(out, filt_lin(tube, 900, 2), 0.0, 0.35)
+    out = slapback(out, 0.12)
+    out = filt_lin(out, 1000, 1)
+    out = out + filt_lin(out, 180, 2) * 1.0
+    out = add(out, thump(52, 0.35, 34), 0.004, 0.35)
+    out = add(out, rolling(out, 2.2, 700), 0.12, 0.4)
+    return finish(out, 2.8, 0.2)
+
+
+def mech_laser(i):
+    """The laser lance: a charged, searing zap -- Kenney's large laser slowed, an
+    electric crackle along it, and a real crack under it for the air it burns."""
+    zap = pitched(onset(kenney_clip("sci-fi-sounds", "laserLarge_00%d" % (i + 3))), 0.62)
+    crack = gun("Ruger Mark III/R_30P.wav", None, 0.6, 0.5)
+    tt = np.arange(int(0.6 * SR)) / SR
+    crackle = RNG.normal(size=len(tt)) * (RNG.random(len(tt)) < 0.02) * np.exp(-tt / 0.18)
+    out = add(np.zeros(1), zap, 0.0, 1.0)
+    out = add(out, crack, 0.0, 0.35)
+    out = add(out, filt_lin(hipass_lin(crackle, 1500, 2), 7000, 1), 0.0, 0.8)
+    out = add(out, thump(180, 0.05, 120), 0.0, 0.08)
+    out = slapback(out, 0.08)
+    return finish(out, 1.0, 0.15, hp=110)
+
+
+def mech_railgun(i):
+    """The railgun: a rising capacitor whine for a tenth of a second, then a crack
+    like the sky splitting and a long tearing roll after it."""
+    tt = np.arange(int(0.12 * SR)) / SR
+    charge = np.sin(2 * np.pi * np.cumsum(400 + 5200 * (tt / tt[-1]) ** 2) / SR) * np.linspace(0, 1, len(tt)) * 0.3
+    crack = gun(["1917/B_24P.wav", "Tikka/W_24P.wav"][i], ["1917/B_16P.wav", "Tikka/W_29P.wav"][i], 0.8, 1.6, 0.7, 0.05)
+    zap = pitched(onset(kenney_clip("sci-fi-sounds", "laserRetro_00%d" % (i + 3))), 0.45)
+    out = add(np.zeros(1), charge, 0.0)
+    out = add(out, crack, 0.12, 1.0)
+    out = add(out, zap, 0.12, 0.5)
+    out = add(out, thump(64, 0.3, 40), 0.125, 0.35)
+    out = slapback(out, 0.14)
+    out = add(out, rolling(out, 2.4, 1200), 0.2, 0.45)
+    return finish(out, 3.0, 0.3)
+
+
+def mech_drop():
+    """Re-entry: a rising roar of air and the retro-rockets firing to brake, over
+    about six seconds (it starts playing a few seconds before the Mech lands)."""
+    n = int(6.5 * SR)
+    tt = np.arange(n) / SR
+    rise = np.clip(tt / 5.2, 0, 1) ** 2
+    roar = filt_lin(RNG.normal(size=n), 700, 2) * (0.2 + 0.8 * rise)
+    eng = seamless(pitched(kenney_clip("sci-fi-sounds", "spaceEngineLarge_002"), 0.55), n)
+    eng = eng / max(1e-9, np.std(eng)) * 0.25 * rise
+    out = roar / max(1e-9, np.std(roar)) * 0.5 + eng
+    for k, at in enumerate((3.9, 4.5, 5.0)):
+        out = add(out, pitched(onset(kenney_clip("sci-fi-sounds", "thrusterFire_00%d" % k)), 0.6), at, 0.9)
+    out[-int(0.2 * SR):] *= np.linspace(1, 0, int(0.2 * SR))
+    return finish(out, 6.5, 0.2)
+
+
+def mech_land():
+    """It lands: a building's worth of steel hitting the earth, the ground heaving,
+    and everything loose round it rattling down after."""
+    crunch = pitched(onset(kenney_clip("sci-fi-sounds", "explosionCrunch_002")), 0.5)
+    plate = pitched(onset(kenney_clip("impact-sounds", "impactPlate_heavy_002")), 0.4)
+    metal = pitched(onset(decode(os.path.join(WOOD_SRC, "metal_hit_03.ogg"))), 0.3)
+    out = add(np.zeros(1), crunch, 0.0, 0.7)
+    out = add(out, plate, 0.0, 1.0)
+    out = add(out, filt_lin(metal, 1200, 1), 0.02, 0.6)
+    out = add(out, thump(58, 0.5, 30), 0.0, 0.6)
+    for k in range(6):
+        out = add(out, pitched(onset(kenney_clip("impact-sounds", "impactMining_00%d" % (k % 5))), 0.8), 0.25 + k * 0.13, 0.25)
+    out = slapback(out, 0.14)
+    out = add(out, rolling(out, 3.0, 700), 0.15, 0.45)
+    return finish(out, 3.6, 0.3)
+
+
+def mech_radio(i):
+    """The comms: a squelch of static, a two-note chirp, a click."""
+    n = int(0.42 * SR)
+    tt = np.arange(n) / SR
+    static = filt_lin(hipass_lin(RNG.normal(size=n), 1200, 2), 3400, 2) * np.exp(-tt / 0.06) * 0.8
+    f = np.where(tt < 0.16, [1250, 1480][i], [1660, 1320][i])
+    tone = np.sin(2 * np.pi * np.cumsum(f) / SR) * ((tt > 0.08) & (tt < 0.26)) * 0.5
+    click = np.zeros(n)
+    click[int(0.34 * SR):int(0.34 * SR) + 60] = np.hanning(60) * 0.8
+    out = static + filt_lin(tone, 3000, 1) + click
+    return finish(out, 0.42, 0.03, hp=300)
+
+
+def mech_flamer(seconds=3.0):
+    """The flamer's roar, looped while it plays: a jet of burning gel is a dense,
+    bright rush of noise with a pulsing low flutter."""
+    n = int(seconds * SR)
+    body = shaped_noise(n, bandpass(180, 2400, 2))
+    body = body / np.std(body)
+    flutter = 0.7 + 0.3 * np.sin(2 * np.pi * np.arange(n) / n * 36)
+    hiss = shaped_noise(n, bandpass(2500, 7000, 2))
+    hiss = hiss / np.std(hiss)
+    return normalize(body * flutter * 0.8 + hiss * 0.25, 0.8)
+
+
+def mech_hum(seconds=6.0):
+    """The Mech standing: a reactor's low hum and the tick of its systems."""
+    n = int(seconds * SR)
+    body = seamless(pitched(kenney_clip("sci-fi-sounds", "spaceEngineLow_003"), 0.5), n)
+    body = body / max(1e-9, np.std(body))
+    growl = shaped_noise(n, bandpass(90, 400, 2))
+    growl = growl / np.std(growl)
+    mix = body * 0.5 + growl * 0.25
+    return normalize(filt(mix, lambda f: lowpass(1600, 2)(f) * highpass(50, 2)(f)), 0.8)
+
+
+def spectrum_report(name, x):
+    """What CLAUDE.md asks of a new sound: how much energy under 120 Hz, and where
+    its spectral centroid sits."""
+    spec = np.abs(np.fft.rfft(x)) ** 2
+    f = np.fft.rfftfreq(len(x), 1.0 / SR)
+    tot = max(1e-12, spec.sum())
+    return "%-18s %5.1f s  under-120Hz %4.0f%%  centroid %5.0f Hz" % (name, len(x) / SR, 100 * spec[f < 120].sum() / tot, (spec * f).sum() / tot)
+
+
+def make_mech_audio():
+    out = os.path.join(AUDIO, "Sfx")
+    os.makedirs(out, exist_ok=True)
+    built = {}
+    for i in range(4): built["mech_step_%d" % i] = mech_step(i)
+    for i in range(3): built["mech_servo_%d" % i] = mech_servo(i)
+    for i in range(3): built["mech_autocannon_%d" % i] = mech_autocannon(i)
+    for i in range(2): built["mech_gatling_%d" % i] = mech_gatling(i)
+    for i in range(3): built["mech_missile_%d" % i] = mech_missile(i)
+    for i in range(2): built["mech_mortar_%d" % i] = mech_mortar(i)
+    for i in range(2): built["mech_laser_%d" % i] = mech_laser(i)
+    for i in range(2): built["mech_railgun_%d" % i] = mech_railgun(i)
+    built["mech_drop"] = mech_drop()
+    built["mech_land"] = mech_land()
+    for i in range(2): built["mech_radio_%d" % i] = mech_radio(i)
+    for name, x in built.items():
+        x = match(x, name if name[-1].isdigit() else name + "_0")
+        write_wav(os.path.join(out, name + ".wav"), x)
+        print(spectrum_report(name, x))
+    write_wav(os.path.join(out, "mech_flamer.wav"), mech_flamer())
+    write_wav(os.path.join(out, "mech_hum.wav"), mech_hum())
+    print("%d Mech sounds -> %s" % (len(built) + 2, os.path.relpath(out, ROOT)))
+
+
 # ---------------------------------------------------------------- helpers
 def write_wav(path, data):
     """data: (n,) mono or (n, 2) stereo float in -1..1."""
@@ -706,8 +967,12 @@ def copy_music():
 
 
 def main():
+    if "--mech" in sys.argv:
+        make_mech_audio()       # the Mech's sounds only, leaving everything else as it is
+        return
     copy_sfx()
     make_weapons()
+    make_mech_audio()
     amb = os.path.join(AUDIO, "Ambience")
     os.makedirs(amb, exist_ok=True)
     write_wav(os.path.join(amb, "wind.wav"), make_wind())

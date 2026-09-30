@@ -120,7 +120,9 @@ namespace StarForge.View
                     if (e.scale > 1f) Stamp(burn, e.pos, 1.3f * e.scale, 200);
                     break;
                 case GameEventKind.Death:
-                    if (e.type == UnitType.Ore || e.type == UnitType.Boulder) break;
+                    // Nor for a rifleman, who falls rather than burns (a shell that
+                    // killed him scorched the ground with its own burst).
+                    if (e.type == UnitType.Ore || e.type == UnitType.Boulder || e.type == UnitType.Trooper) break;
                     float r = e.unit != null && e.unit.def.building ? e.unit.def.radius * 1.5f : 1.6f * Mathf.Max(1f, e.scale);
                     Stamp(burn, e.pos, r, 255);
                     break;

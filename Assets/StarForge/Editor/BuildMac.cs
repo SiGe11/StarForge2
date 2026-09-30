@@ -39,6 +39,10 @@ namespace StarForge.EditorTools
             PlayerSettings.macOS.buildNumber = "1";
             PlayerSettings.bundleVersion = "1.0";
             PlayerSettings.SetApplicationIdentifier(target, "com.starforge.game");
+            // CPU, GPU and present-wait times per frame (FrameTimingManager) for the
+            // benchmark: frame times alone could not tell the game's cost from the wait for
+            // the display, when runs came out as 8 and 80 ms frames.
+            PlayerSettings.enableFrameTimingStats = true;
             ConfigureIcon();
 
             Directory.CreateDirectory(Path.GetDirectoryName(OutputPath));

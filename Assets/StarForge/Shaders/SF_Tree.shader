@@ -10,12 +10,15 @@
 // Foliage normals are bent toward the crown's outward direction (_CanopyCenter,
 // _CanopyRadii, per kind), so a crown lights as one soft mass rather than as a
 // pile of lumps, and light through the leaves when the camera looks toward the
-// sun. A crown is leaf cards over a solid inner canopy (build_flora.py): cards
-// (vertex alpha 1) show a photographed leaf spray (_CardTex, per kind; made by
-// Tools/blender/make_leaf_cards.py from ambientCG's leaf atlases) and are cut
-// out on its alpha, drawn from both sides; the canopy inside (vertex alpha 0)
-// is the generated leaf pile (Tools/make_leaf_textures.py), triplanar and a
-// shade darker, so the sky never shows through a crown.
+// sun. A crown is leaf cards (vertex alpha 1), cut out on their alpha and drawn
+// from both sides. The scanned plants (Tools/blender/bake_scanned_flora.py) are
+// all cards: each one a cluster of a Poly Haven scan's own leaves and twigs,
+// rendered into a tile of the kind's atlas (_CardTex, _CardNormal), over the
+// scan's trunk with its bark photograph on its own UVs (_BarkStyle 2, _BarkTex).
+// The procedural fallback (build_flora.py) sets photographed sprays (made by
+// Tools/blender/make_leaf_cards.py from ambientCG's leaf atlases) over a solid
+// inner canopy (vertex alpha 0), the generated leaf pile
+// (Tools/make_leaf_textures.py), triplanar and a shade darker.
 // Per kind (property block): card texture, leaf style, blossom, bark style.
 // The cards are the one place StarForge alpha-tests: nothing else reads as
 // leaves at this range, and only foliage pays for it (the bark material culls
@@ -38,7 +41,8 @@ Shader "StarForge/Tree"
         _LeafNormal("Leaf normal strength", Range(0, 2)) = 0.9
         _LeafStyle("0 broad leaves, 1 needles", Float) = 0
         _Bloom("Blossom colour (rgb), share (a)", Color) = (1, 1, 1, 0)
-        _BarkStyle("0 furrowed, 1 birch", Float) = 0
+        _BarkStyle("0 furrowed, 1 birch, 2 scanned (_BarkTex)", Float) = 0
+        _BarkTex("Scanned bark, on the trunk's own UVs", 2D) = "white" {}
         _CardTex("Leaf spray cards (colour, coverage)", 2D) = "white" {}
         _CardNormal("Leaf spray normals", 2D) = "bump" {}
         _CardTint("Card colour multiplier", Color) = (1, 1, 1, 1)
@@ -72,6 +76,7 @@ Shader "StarForge/Tree"
         CBUFFER_END
 
         TEXTURE2D(_CardTex); SAMPLER(sampler_CardTex);
+        TEXTURE2D(_BarkTex); SAMPLER(sampler_BarkTex);
         TEXTURE2D(_CardNormal);
 
         // Card coverage; everything that is not a card (vertex alpha 0) is solid.
@@ -302,9 +307,14 @@ Shader "StarForge/Tree"
                     // Per card and per tree a little lighter or darker, warmer or cooler.
                     c *= lerp(0.82, 1.12, saturate(i.color.g * 0.7 + i.rnd * 0.3)) * lerp(0.9, 1.08, patch);
                     c = lerp(c * half3(0.85, 0.94, 1.05), c * half3(1.08, 1.04, 0.9), height);
-                    // Blossom: whole cards, a share of them picked by their random value.
-                    half bloom = step(1.0 - _Bloom.a, frac(i.color.g * 7.31)) * step(0.35, dot(tex.rgb, half3(0.33, 0.33, 0.33)));
-                    albedo = lerp(c, _Bloom.rgb * (0.7 + 0.3 * tex.g), bloom * 0.85);
+                    // Blossom: clusters of flowers a few centimetres across among the
+                    // leaves, picked by a noise over the atlas (so the same spray always
+                    // flowers in the same places), a share of the leaf area set by _Bloom.a.
+                    // (It used to pick whole cards by their brightness; the scanned leaves
+                    // are too dark to pass, and a whole pink card read as a pink board.)
+                    half bn = TreeNoise3(float3(i.uv * 64.0, i.color.g * 5.0));
+                    half bloom = smoothstep(1.0 - _Bloom.a * 0.85, 1.0 - _Bloom.a * 0.85 + 0.06, bn);
+                    albedo = lerp(c, _Bloom.rgb * (0.55 + 0.45 * saturate(tex.g * 3.0)), bloom * 0.9);
                     ao *= lerp(0.65, 1.0, height);
                     smooth = 0.25;
                     leafMask = 1;
@@ -330,6 +340,14 @@ Shader "StarForge/Tree"
                     ao *= lerp(0.6, 1.0, height) * lerp(0.5, 1.0, pile.b);
                     smooth = lerp(0.22, 0.3, bloom);
                     leafMask = 1;
+                }
+                else if (_BarkStyle > 1.5)
+                {
+                    // A scanned trunk (Tools/blender/bake_scanned_flora.py): the scan's
+                    // own bark photograph on its own UVs, a little darker toward the foot.
+                    albedo = SAMPLE_TEXTURE2D(_BarkTex, sampler_BarkTex, i.uv).rgb;
+                    albedo *= lerp(0.8, 1.0, saturate(p.y * 0.6));
+                    smooth = 0.1;
                 }
                 else if (_BarkStyle > 0.5)
                 {

@@ -345,6 +345,13 @@ namespace StarForge.EditorTools
                 uiPlace = One("Sfx/ui_place.ogg"),
                 wind = One("Ambience/wind.wav"), water = One("Ambience/water.wav"), fire = One("Ambience/fire.wav"),
                 birds = Takes("Ambience", "bird", "wav"),
+                mechStep = Takes("Sfx", "mech_step", "wav"), mechServo = Takes("Sfx", "mech_servo", "wav"),
+                mechAutocannon = Takes("Sfx", "mech_autocannon", "wav"), mechGatling = Takes("Sfx", "mech_gatling", "wav"),
+                mechMissile = Takes("Sfx", "mech_missile", "wav"), mechMortar = Takes("Sfx", "mech_mortar", "wav"),
+                mechLaser = Takes("Sfx", "mech_laser", "wav"), mechRailgun = Takes("Sfx", "mech_railgun", "wav"),
+                mechRadio = Takes("Sfx", "mech_radio", "wav"),
+                mechDrop = One("Sfx/mech_drop.wav"), mechLand = One("Sfx/mech_land.wav"),
+                mechFlamer = One("Sfx/mech_flamer.wav"), mechHum = One("Sfx/mech_hum.wav"),
             };
             // Music: music_<mood>_<n>.ogg|mp3, with the loudness make_audio.py measured.
             string json = System.IO.File.Exists(Dir + "Music/music.json") ? System.IO.File.ReadAllText(Dir + "Music/music.json") : "";
@@ -396,6 +403,20 @@ namespace StarForge.EditorTools
             AssetDatabase.SaveAssets();
         }
 
+        /// <summary>Rebuilds only the effect materials, on the FXDirector of the open game
+        /// scene: for a new or re-rendered sheet, without assembling the scene again.</summary>
+        [MenuItem("StarForge/Build/4b Rebuild FX Materials", priority = 5)]
+        public static string RebuildFxMaterials()
+        {
+            var fx = Object.FindAnyObjectByType<FXDirector>();
+            if (fx == null) return "no FXDirector in the open scene (open Battlefield first)";
+            BuildFxMaterials(fx);
+            EditorUtility.SetDirty(fx);
+            EditorSceneManager.MarkSceneDirty(fx.gameObject.scene);
+            EditorSceneManager.SaveScene(fx.gameObject.scene);
+            return $"fire: {fx.fireMaterial.shader.name}, flame: {fx.flameMaterial.shader.name}";
+        }
+
         static void BuildFxMaterials(FXDirector fx)
         {
             SFEditorUtil.EnsureFolder(FxDir);
@@ -430,8 +451,28 @@ namespace StarForge.EditorTools
                 return m;
             }
 
-            fx.fireMaterial = Particle("FX_Fire", "explosion.jpg", false, 0.03f, 1.5f);
-            fx.flameMaterial = Particle("FX_Flame", "flames.png", false, 0.02f, 1.9f);
+            // Fire and explosions from the simulated flipbooks (JangaFX's EmberGen sims
+            // rendered by Tools/blender/render_flipbooks.py), premultiplied so the smoke
+            // in them darkens what is behind; the photographed sheets until they exist.
+            var flipbook = Shader.Find("StarForge/Flipbook");
+            Material Flipbook(string name, string sheet, float fireGain, float coverage, float soft)
+            {
+                var sheetTex = AssetDatabase.LoadAssetAtPath<Texture2D>(tex + sheet);
+                if (flipbook == null || sheetTex == null) return null;
+                var m = SFEditorUtil.CreateOrLoadMaterial($"{FxDir}/{name}.mat", flipbook);
+                m.SetTexture("_MainTex", sheetTex);
+                m.SetFloat("_FireGain", fireGain);
+                m.SetFloat("_Coverage", coverage);
+                m.SetFloat("_SoftFade", soft);
+                m.renderQueue = 3000;
+                EditorUtility.SetDirty(m);
+                return m;
+            }
+            fx.fireMaterial = Flipbook("FX_Fire", "fx_explosion.png", 5f, 1f, 1.2f)
+                              ?? Particle("FX_Fire", "explosion.jpg", false, 0.03f, 1.5f);
+            // A campfire's flames are thin: more coverage gives them body against sunlit ground.
+            fx.flameMaterial = Flipbook("FX_Flame", "fx_flame.png", 4f, 3f, 0.6f)
+                               ?? Particle("FX_Flame", "flames.png", false, 0.02f, 1.9f);
             var smokeShader = Shader.Find("StarForge/Smoke");
             var puffs = AssetDatabase.LoadAssetAtPath<Texture2D>(tex + "smoke_puffs.png");
             Material Smoke(string name, float billow, float density)

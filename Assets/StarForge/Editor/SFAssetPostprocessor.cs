@@ -38,8 +38,9 @@ namespace StarForge.EditorTools
 
             if (assetPath.Contains("/Leaves/") && file.EndsWith("_col"))
             {
-                // Leaf-spray cards (Tools/blender/make_leaf_cards.py): alpha is coverage,
-                // and the mipmaps keep it, or distant crowns thin out to nothing.
+                // Leaf-spray cards (Tools/blender/make_leaf_cards.py) and the scanned
+                // trees' baked clusters (bake_scanned_flora.py): alpha is coverage, and
+                // the mipmaps keep it, or distant crowns thin out to nothing.
                 ti.sRGBTexture = true;
                 ti.alphaSource = TextureImporterAlphaSource.FromInput;
                 ti.alphaIsTransparency = true;
@@ -51,9 +52,11 @@ namespace StarForge.EditorTools
             else if (file.EndsWith("_nrm"))
             {
                 // Scanned normal maps (Tools/fetch_assets.py): already OpenGL
-                // tangent space, imported as they are.
+                // tangent space, imported as they are. The leaf-card atlases' tiles
+                // must not wrap into each other.
                 ti.textureType = TextureImporterType.NormalMap;
                 ti.convertToNormalmap = false;
+                if (assetPath.Contains("/Leaves/")) ti.wrapMode = TextureWrapMode.Clamp;
             }
             else if (file.EndsWith("_ch"))
             {
@@ -89,6 +92,17 @@ namespace StarForge.EditorTools
                 ti.wrapMode = TextureWrapMode.Clamp;
                 ti.alphaSource = TextureImporterAlphaSource.FromInput;
                 ti.alphaIsTransparency = false;
+            }
+            else if (file.StartsWith("fx_"))
+            {
+                // Simulated flipbooks (Tools/blender/render_flipbooks.py): 8x8 cells of 256,
+                // four data channels premultiplied by coverage -- sun-lit smoke, fire,
+                // sky-lit smoke, coverage (SF_Flipbook).
+                ti.sRGBTexture = false;
+                ti.wrapMode = TextureWrapMode.Clamp;
+                ti.alphaSource = TextureImporterAlphaSource.FromInput;
+                ti.alphaIsTransparency = false;
+                ti.maxTextureSize = 2048;
             }
             else if (file == "explosion" || file == "flames" || file == "particles" || file == "scorch")
             {

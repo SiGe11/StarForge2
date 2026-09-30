@@ -57,6 +57,10 @@ namespace StarForge.View
         public AudioClip[] musicCalm, musicTension, musicCombat;
         [Tooltip("Each music clip's RMS loudness (music.json), in the same order, so all play at one level.")]
         public float[] rmsCalm, rmsTension, rmsCombat;
+        [Tooltip("The Mech's, built by make_audio.py --mech: footfalls, leg hydraulics, its guns, the comms chirp.")]
+        public AudioClip[] mechStep, mechServo, mechAutocannon, mechGatling, mechMissile, mechMortar, mechLaser, mechRailgun, mechRadio;
+        [Tooltip("The Mech coming down from orbit, landing; the flamer's roar and the reactor's hum (loops).")]
+        public AudioClip mechDrop, mechLand, mechFlamer, mechHum;
     }
 
     public sealed class AudioDirector : MonoBehaviour
@@ -100,6 +104,11 @@ namespace StarForge.View
         uint noiseState = 0x12345678;
         float combatHeat, birdsQuietUntil, nextBird, nextMine, nextScan, fireAlertT = -99f;
         float waterNear, fireNear, hoverMoving, enemiesInSight;
+        // The Mechs: their reactor hum, the flamer's roar, sounds held back a moment.
+        AudioSource humSrc, flamerSrc;
+        float humNear, flamerNear;
+        struct Pending { public float at; public Vector3 pos; public AudioClip clip; public float volume; }
+        readonly List<Pending> pending = new List<Pending>(8);
 
         void Awake()
         {
@@ -122,6 +131,8 @@ namespace StarForge.View
             for (int i = 0; i < TankVoices; i++)
                 tanks[i] = new TankVoice { engine = Loop(bank.engineHeavy), tracks = Loop(bank.engineTracks) };
             hoverSrc = Loop(bank.engineHover);
+            humSrc = Loop(bank.mechHum);
+            flamerSrc = Loop(bank.mechFlamer);
             birdSrc = gameObject.AddComponent<AudioSource>();
             birdSrc.playOnAwake = false;
             StartMusic();
@@ -162,6 +173,7 @@ namespace StarForge.View
                 player.OrderMarker += OnOrder;
                 player.SelectionChanged += OnSelect;
             }
+            MechView.Footfall += OnFootfall;
         }
 
         void OnDisable()
@@ -172,6 +184,16 @@ namespace StarForge.View
                 player.OrderMarker -= OnOrder;
                 player.SelectionChanged -= OnSelect;
             }
+            MechView.Footfall -= OnFootfall;
+        }
+
+        /// <summary>A Mech's foot coming down: the ground taking a building's weight and,
+        /// now and then, the hydraulics in the leg.</summary>
+        void OnFootfall(Unit u, Vector3 at, float weight)
+        {
+            if (u == null || !(u.visibleToPlayer || MatchSettings.spectate || u.team == (player != null ? player.team : 0))) return;
+            PlayAt(at, bank.mechStep, 0.30f + 0.35f * weight, 0.06f);
+            if (Random.value < 0.45f) PlayAt(at + Vector3.up * 3f, bank.mechServo, 0.18f, 0.2f);
         }
 
         // ------------------------------------------------------------ events
@@ -189,18 +211,65 @@ namespace StarForge.View
             int me = player != null ? player.team : 0;
             switch (e.kind)
             {
+                case GameEventKind.Fire when e.type == UnitType.Mech:
+                    if (!Seen(e.pos)) return;
+                    Heat(e.pos, 0.1f);
+                    if (e.projectileKind == 4) PlayAt(e.pos, bank.mechAutocannon, 0.62f, 0.08f, cannon);
+                    else if (e.projectileKind == 5) PlayAt(e.pos, bank.mechMissile, 0.45f, 0.07f, pulse);
+                    else if (e.projectileKind == 6) { PlayAt(e.pos, bank.mechMortar, 0.9f, 0.2f, cannon); PlayAt(e.pos, bank.thud, 0.4f, 0.2f); }
+                    break;
+                case GameEventKind.Beam:
+                    if (!Seen(e.pos) && !Seen(e.end)) return;
+                    Heat(e.pos, 0.05f);
+                    switch ((MechWeapon)e.projectileKind)
+                    {
+                        // The rotary cannon's bursts are 0.6 s of rounds: one covers a volley.
+                        case MechWeapon.Gatling: PlayAt(e.pos, bank.mechGatling, 0.5f, 0.52f, rifle); break;
+                        case MechWeapon.Laser: PlayAt(e.pos, bank.mechLaser, 0.62f, 0.12f, bolt); break;
+                        case MechWeapon.Railgun: PlayAt(e.pos, bank.mechRailgun, 1f, 0.3f, cannon); PlayAt(e.end, bank.hitMetal, 0.3f, 0.1f); break;
+                    }
+                    break;
+                case GameEventKind.MechInbound:
+                    if (e.team != me && !Seen(e.pos)) return;
+                    // The roar and the retro-rockets, timed so the braking burns come just
+                    // before it strikes the ground.
+                    if (bank.mechDrop != null)
+                        pending.Add(new Pending { at = Time.time + GameWorld.MechInboundLead - 5.3f, pos = e.pos, clip = bank.mechDrop, volume = 0.8f });
+                    break;
+                case GameEventKind.MechLanded:
+                    if (!Seen(e.pos)) return;
+                    Heat(e.pos, 0.5f);
+                    QuietBirds(e.pos);
+                    PlayAt(e.pos, bank.mechLand, 1f, 0.3f, bigBoom);
+                    PlayAt(e.pos, bank.rumble, 0.6f, 0.3f);
+                    break;
+                case GameEventKind.MechAdvice when e.team == me:
+                    if (bank.mechRadio != null && bank.mechRadio.Length > 0) PlayUI(bank.mechRadio[Random.Range(0, bank.mechRadio.Length)], 0.5f, 1f);
+                    break;
+                case GameEventKind.UpgradeComplete when e.team == me:
+                    PlayUI(bank.uiPromote != null ? bank.uiPromote : promote, 0.5f, 1f);
+                    break;
+                case GameEventKind.Impact when e.projectileKind >= 5:
+                    if (!Seen(e.pos)) return;
+                    Heat(e.pos, 0.2f);
+                    if (e.projectileKind == 5) PlayAt(e.pos, bank.boom, 0.4f, 0.06f, boom);
+                    else PlayAt(e.pos, bank.blast != null && bank.blast.Length > 0 ? bank.blast : bank.boom, e.projectileKind == 6 ? 0.8f : 0.55f, 0.06f, boom);
+                    QuietBirds(e.pos);
+                    break;
                 case GameEventKind.Fire:
                     if (!Seen(e.pos)) return;
                     Heat(e.pos, 0.06f);
                     switch (e.projectileKind)
                     {
                         case 1:
-                            PlayAt(e.pos, bank.cannon, 0.75f, 0.06f, cannon);
-                            PlayAt(e.pos, bank.thud, 0.3f, 0.06f);
+                            PlayAt(e.pos, bank.cannon, 0.92f, 0.06f, cannon);
+                            PlayAt(e.pos, bank.thud, 0.42f, 0.06f);
                             break;
                         case 2: PlayAt(e.pos, bank.pulse, 0.3f, 0.03f, pulse); break;
                         case 3: PlayAt(e.pos, bank.bolt, 0.4f, 0.04f, bolt); break;
-                        default: PlayAt(e.pos, bank.rifle, e.type == UnitType.Worker ? 0.1f : 0.22f, 0.025f, rifle); break;
+                        // A rifle at 0.22 was lost once tanks and shells got their weight:
+                        // the shot was playing, under everything else.
+                        default: PlayAt(e.pos, bank.rifle, e.type == UnitType.Worker ? 0.16f : 0.40f, 0.025f, rifle); break;
                     }
                     break;
                 case GameEventKind.Impact:
@@ -220,6 +289,16 @@ namespace StarForge.View
                     QuietBirds(e.pos);
                     if (e.type == UnitType.Ore) { PlayAt(e.pos, bank.crystal, 0.6f, 0.1f); PlayAt(e.pos, crystal, 0.35f, 0.1f); }
                     else if (e.type == UnitType.Boulder) { PlayAt(e.pos, bank.rock, 0.55f, 0.05f, boom); PlayAt(e.pos, bank.stomp, 0.3f, 0.05f); }
+                    // A rifleman does not blow up: the round rings off his armour and he
+                    // goes down (the wreck, UnitWreck, is him falling).
+                    else if (e.type == UnitType.Trooper) { PlayAt(e.pos, bank.hitMetal, 0.28f, 0.05f); PlayAt(e.pos, bank.stomp, 0.22f, 0.08f); }
+                    else if (e.type == UnitType.Mech)
+                    {
+                        // The reactor: the loudest thing in a match.
+                        PlayAt(e.pos, bank.blastBig != null && bank.blastBig.Length > 0 ? bank.blastBig : bank.bigBoom, 1f, 0.2f, bigBoom);
+                        PlayAt(e.pos, bank.rumble, 0.9f, 0.2f);
+                        PlayAt(e.pos, bank.mechLand, 0.7f, 0.2f);
+                    }
                     else if (e.unit != null && e.unit.def.building)
                     {
                         PlayAt(e.pos, bank.blastBig != null && bank.blastBig.Length > 0 ? bank.blastBig : bank.bigBoom, 1f, 0.2f, bigBoom);
@@ -244,6 +323,10 @@ namespace StarForge.View
                     else PlayAt(e.pos, bank.treeFall, 0.45f * Mathf.Clamp(e.scale, 0.7f, 1.3f), 0.12f);
                     break;
                 }
+                case GameEventKind.PlantCrushed:
+                    // A fallen trunk splitting under a Mauler's tracks.
+                    if (Seen(e.pos)) PlayAt(e.pos, bank.crush, 0.4f, 0.2f);
+                    break;
                 case GameEventKind.PlantLanded:
                     // And the crash as it lands, quieter than any explosion.
                     if (Seen(e.pos)) PlayAt(e.pos, bank.treeCrash, 0.5f * Mathf.Clamp(e.scale, 0.7f, 1.3f), 0.15f, boom);
@@ -306,13 +389,35 @@ namespace StarForge.View
             if (att < 0.02f) return;
             Vector3 vp = rig.cam.WorldToViewportPoint(pos);
             lastPlayed[key] = Time.unscaledTime;
-            var s = voices[next];
-            next = (next + 1) % voices.Count;
+            var s = FreeVoice();
             s.clip = clip;
             s.volume = volume * att * masterVolume;
             s.pitch = Random.Range(0.92f, 1.08f);
             s.panStereo = Mathf.Clamp((vp.x - 0.5f) * 1.4f, -0.9f, 0.9f);
             s.Play();
+        }
+
+        /// <summary>A voice for a new one-shot: an idle one if there is any, and only if
+        /// every voice is busy, the one nearest its end. Handing them out in strict
+        /// rotation cut shells' and bursts' rolling tails short whenever a volley of rifle
+        /// fire came through, and cut rifle shots off in turn.</summary>
+        AudioSource FreeVoice()
+        {
+            int n = voices.Count;
+            for (int k = 0; k < n; k++)
+            {
+                var v = voices[(next + k) % n];
+                if (!v.isPlaying) { next = (next + k + 1) % n; return v; }
+            }
+            AudioSource best = voices[next];
+            float left = float.MaxValue;
+            foreach (var v in voices)
+            {
+                if (v.clip == null) return v;
+                float remaining = (v.clip.length - v.time) / Mathf.Max(0.01f, v.pitch);
+                if (remaining < left) { left = remaining; best = v; }
+            }
+            return best;
         }
 
         void PlayUI(AudioClip clip, float volume, float pitch)
@@ -336,6 +441,10 @@ namespace StarForge.View
             Fade(fireSrc, 0.55f * Mathf.Clamp01(fireNear) * masterVolume, dt, 2.5f);
             Tanks(dt, paused);
             Fade(hoverSrc, (paused ? 0f : 0.12f * Mathf.Clamp01(hoverMoving)) * masterVolume, dt, 3f);
+            Fade(humSrc, (paused ? 0f : 0.22f * Mathf.Clamp01(humNear)) * masterVolume, dt, 2f);
+            Fade(flamerSrc, (paused ? 0f : 0.5f * Mathf.Clamp01(flamerNear)) * masterVolume, dt, 6f);
+            for (int i = pending.Count - 1; i >= 0; i--)
+                if (Time.time >= pending[i].at) { PlayAt(pending[i].pos, pending[i].clip, pending[i].volume, 0f); pending.RemoveAt(i); }
             Birds();
             Mining();
             Music(dt);
@@ -354,12 +463,13 @@ namespace StarForge.View
                 tankPick.Clear();
                 foreach (var u in world.units)
                 {
-                    if (u == null || u.dying || u.Type != UnitType.Mauler || !u.Complete) continue;
+                    bool tracked = u != null && u.mech != null && u.mech.design != null && u.mech.design.locomotion == MechLocomotion.Tracks && u.mech.Landed;
+                    if (u == null || u.dying || (u.Type != UnitType.Mauler && !tracked) || !u.Complete) continue;
                     if (!(u.visibleToPlayer || MatchSettings.spectate)) continue;
                     float att = Attenuation(u.Ground);
                     if (att < 0.03f) continue;
                     float spd = u.agent != null && u.agent.enabled ? u.agent.velocity.magnitude : 0f;
-                    tankPick.Add((att * (0.35f + Mathf.Clamp01(spd / Mathf.Max(1f, u.def.speed))), u));
+                    tankPick.Add((att * (tracked ? 1.5f : 1f) * (0.35f + Mathf.Clamp01(spd / Mathf.Max(1f, u.Speed))), u));
                 }
                 tankPick.Sort(LoudestFirst);
                 int keep = Mathf.Min(TankVoices, tankPick.Count);
@@ -391,7 +501,7 @@ namespace StarForge.View
                     var at = u.Ground;
                     want = Attenuation(at);
                     float spd = u.agent != null && u.agent.enabled ? u.agent.velocity.magnitude : 0f;
-                    thr = Mathf.Clamp01(spd / Mathf.Max(1f, u.def.speed));
+                    thr = Mathf.Clamp01(spd / Mathf.Max(1f, u.Speed));
                     // Full engine and no speed is a tank pushing something out of its way.
                     load = u.Moving && thr < 0.25f ? 0.9f : thr;
                     if (rig.cam != null) pan = Mathf.Clamp((rig.cam.WorldToViewportPoint(at).x - 0.5f) * 1.4f, -0.9f, 0.9f);
@@ -411,6 +521,11 @@ namespace StarForge.View
                     v.tracks.panStereo = pan;
                 }
                 if (!v.wanted && v.level < 0.005f) v.unit = null;
+                // A tank voice nobody is using is paused, not left playing at zero: Unity
+                // mixes 32 voices, and six silent loops held six of them.
+                bool live = v.unit != null || v.level > 0.005f;
+                if (!live && v.engine.isPlaying) { v.engine.Pause(); if (v.tracks != null) v.tracks.Pause(); }
+                else if (live && !v.engine.isPlaying) { v.engine.UnPause(); if (v.tracks != null) v.tracks.UnPause(); }
             }
         }
 
@@ -451,7 +566,7 @@ namespace StarForge.View
                 if (u != null && !u.dying && u.OnFire && (u.visibleToPlayer || u.team == (player != null ? player.team : 0)))
                     fireNear += u.FireHeat * Attenuation(u.Ground) * 1.2f;
 
-            hoverMoving = enemiesInSight = 0f;
+            hoverMoving = enemiesInSight = humNear = flamerNear = 0f;
             int me = player != null ? player.team : 0;
             foreach (var u in world.units)
             {
@@ -459,6 +574,16 @@ namespace StarForge.View
                 bool seen = u.team == me || MatchSettings.spectate || u.visibleToPlayer;
                 if (!seen) continue;
                 if (u.team != me && u.def.IsArmy) enemiesInSight += 1f;
+                if (u.mech != null && u.mech.Landed)
+                {
+                    float a = Attenuation(u.Ground);
+                    if (u.team != me) enemiesInSight += 4f;
+                    humNear = Mathf.Max(humNear, a);
+                    foreach (var g in u.mech.guns)
+                        if (g.part.Flame && g.firing > 0.3f) flamerNear = Mathf.Max(flamerNear, a * 1.4f);
+                    if (u.mech.design.locomotion == MechLocomotion.Hover && u.agent != null && u.agent.enabled)
+                        hoverMoving += a * (0.5f + Mathf.Clamp01(u.agent.velocity.magnitude / 4f));
+                }
                 if (u.agent == null || !u.agent.enabled || u.agent.velocity.sqrMagnitude < 0.5f) continue;
                 float att = Attenuation(u.Ground);
                 if (u.Type == UnitType.Skimmer) hoverMoving += att * 0.4f;

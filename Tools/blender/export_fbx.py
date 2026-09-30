@@ -182,7 +182,13 @@ def bake_ao(model, radius):
 
     for part in model.parts:
         col = part.verts.layers.float_color.get('Col') or part.verts.layers.float_color.new('Col')
+        # A part that brings its own occlusion (the scanned trees' leaf cards,
+        # which ray casts would treat as solid boards) keeps it.
+        own = part.verts.layers.float.get('sf_ao')
         for v in part.verts:
+            if own is not None:
+                v[col] = (v[own], S.get_vdata(part, v, S.VDATA_G), S.get_vdata(part, v, S.VDATA_B), S.get_vdata(part, v, S.VDATA_A, 0.0))
+                continue
             n = v.normal if v.normal.length > 1e-6 else Vector((0.0, 0.0, 1.0))
             t = n.orthogonal().normalized()
             b = n.cross(t)
@@ -267,20 +273,22 @@ def export(objs, path):
 
 
 def export_groups(model, slots, out_dir):
-    """The body as the root object and each group as a child at its pivot."""
+    """The body as the root object and each group as a child at its pivot.
+
+    Every group is exported as a direct child of the root, even a nested one
+    ('Arm/Cutter' comes out as 'Cutter' beside 'Arm'): the FBX writer, with
+    bake_space_transform, mangles a grandchild's transform -- the Digger's cutter
+    came into Unity turned 270 degrees and out of place under its arm. The game
+    chains them again (UnitView, MechView), each keeping where it stands."""
     by_group = {'': []}
     for part, g in zip(model.parts, model.part_groups):
         by_group.setdefault(g, []).append(part)
 
     root, tris = make_object(model.name, by_group[''], slots)
     objs = [root]
-    placed = {'': (root, (0.0, 0.0, 0.0))}
-    # Sorted, so a parent ('Arm') is always made before its child ('Arm/Cutter').
     for g in sorted(k for k in by_group if k):
-        parent_name, _, leaf = g.rpartition('/')
-        parent, parent_pivot = placed[parent_name]
-        obj, t = make_object(leaf, by_group[g], slots, model.groups[g], parent, parent_pivot)
-        placed[g] = (obj, model.groups[g])
+        leaf = g.rpartition('/')[2]
+        obj, t = make_object(leaf, by_group[g], slots, model.groups[g], root, (0.0, 0.0, 0.0))
         objs.append(obj)
         tris += t
     export(objs, os.path.join(out_dir, 'SF_%s.fbx' % model.name))

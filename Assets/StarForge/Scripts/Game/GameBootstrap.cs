@@ -61,8 +61,22 @@ namespace StarForge.Game
         public Commander AI { get; private set; }
         /// <summary>When spectating, a second adaptive AI plays the player's side.</summary>
         public Commander PlayerProxy { get; private set; }
+        /// <summary>Each side's Mech's own AI (idle until that side's Mech lands).</summary>
+        public readonly MechBrain[] MechBrains = new MechBrain[2];
+        /// <summary>For the benchmark: what the Mech brains cost in the last tick.</summary>
+        public static float MechBrainMs;
+        static readonly System.Diagnostics.Stopwatch brainWatch = new System.Diagnostics.Stopwatch();
         public MatchState State { get; private set; } = MatchState.Menu;
         public float MatchTime => world != null ? world.time : 0f;
+        /// <summary>The game speed the player picked (',' and '.'). A pause stops the clock
+        /// and gives this back unchanged: it used to come back at x1.</summary>
+        public float Speed { get; private set; } = 1f;
+
+        public void SetSpeed(float s)
+        {
+            Speed = Mathf.Clamp(s, 0.5f, 3f);
+            if (State == MatchState.Playing) Time.timeScale = Speed;
+        }
 
         public event Action MatchStarted;
         public event Action<int> MatchEnded;
@@ -90,7 +104,7 @@ namespace StarForge.Game
         void SetState(MatchState s)
         {
             State = s;
-            Time.timeScale = s == MatchState.Playing ? 1f : (s == MatchState.Menu ? 1f : 0f);
+            Time.timeScale = s == MatchState.Playing ? Speed : (s == MatchState.Menu ? 1f : 0f);
             StateChanged?.Invoke(s);
         }
 
@@ -123,6 +137,11 @@ namespace StarForge.Game
                 PlayerProxy = new Commander();
                 PlayerProxy.Init(world, 0, seed ^ 0xABCDu, MatchSettings.difficulty, false, null);
             }
+            for (int t = 0; t < 2; t++)
+            {
+                MechBrains[t] = new MechBrain();
+                MechBrains[t].Init(world, t, seed);
+            }
             world.Ticked += OnTick;
             SetState(MatchState.Playing);
             MatchStarted?.Invoke();
@@ -132,6 +151,9 @@ namespace StarForge.Game
         {
             AI?.Update(dt);
             PlayerProxy?.Update(dt);
+            brainWatch.Restart();
+            foreach (var b in MechBrains) b?.Update(dt);
+            MechBrainMs = (float)brainWatch.Elapsed.TotalMilliseconds;
             if (world.winner >= 0 && State == MatchState.Playing) EndMatch();
         }
 
@@ -176,6 +198,9 @@ namespace StarForge.Game
         void OnDestroy()
         {
             if (world != null) world.Ticked -= OnTick;
+            foreach (var b in MechBrains) b?.Dispose();
+            AI?.Dispose();
+            PlayerProxy?.Dispose();
             gpu?.Dispose();
             if (Instance == this) Instance = null;
         }

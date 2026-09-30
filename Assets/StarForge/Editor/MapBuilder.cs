@@ -300,7 +300,7 @@ namespace StarForge.EditorTools
             new PlantKind { name = "TREE_PINE", burns = 1.25f, trunkRadius = 0.30f, blockRadius = 1.6f, bark = new Color(0.30f, 0.22f, 0.16f),
                             leaf = new Color(0.12f, 0.25f, 0.14f), leaf2 = new Color(0.20f, 0.31f, 0.15f), needles = true, leafTiling = 0.6f,
                             cardTint = new Color(0.55f, 0.66f, 0.58f) },
-            new PlantKind { name = "TREE_BROAD", burns = 0.75f, trunkRadius = 0.38f, blockRadius = 1.5f, bark = new Color(0.30f, 0.24f, 0.18f),
+            new PlantKind { name = "TREE_BROAD", burns = 0.75f, trunkRadius = 0.48f, blockRadius = 1.5f, bark = new Color(0.30f, 0.24f, 0.18f),
                             leaf = new Color(0.14f, 0.27f, 0.08f), leaf2 = new Color(0.28f, 0.35f, 0.10f), leafTiling = 0.42f,
                             cardTint = new Color(0.42f, 0.5f, 0.34f) },
             new PlantKind { name = "TREE_TALL", burns = 0.8f, trunkRadius = 0.26f, blockRadius = 1.1f, bark = new Color(0.50f, 0.48f, 0.43f),
@@ -310,7 +310,7 @@ namespace StarForge.EditorTools
             new PlantKind { name = "BUSH", bush = true, burns = 1.1f, trunkRadius = 0.55f, bark = new Color(0.30f, 0.24f, 0.18f),
                             leaf = new Color(0.13f, 0.25f, 0.08f), leaf2 = new Color(0.25f, 0.32f, 0.10f), leafTiling = 0.75f,
                             cardTint = new Color(0.46f, 0.54f, 0.4f) },
-            new PlantKind { name = "TREE_BIRCH", burns = 0.9f, trunkRadius = 0.22f, blockRadius = 1.1f, bark = new Color(0.80f, 0.78f, 0.73f), birchBark = true,
+            new PlantKind { name = "TREE_BIRCH", burns = 0.9f, trunkRadius = 0.40f, blockRadius = 1.3f, bark = new Color(0.80f, 0.78f, 0.73f), birchBark = true,
                             leaf = new Color(0.22f, 0.34f, 0.08f), leaf2 = new Color(0.38f, 0.44f, 0.12f), leafTiling = 0.6f,
                             cardTint = new Color(0.56f, 0.62f, 0.44f) },
             new PlantKind { name = "FERN", bush = true, burns = 1.2f, trunkRadius = 0.3f, bark = new Color(0.25f, 0.2f, 0.15f),
@@ -322,6 +322,22 @@ namespace StarForge.EditorTools
             new PlantKind { name = "BUSH_FLOWER", bush = true, burns = 1.0f, trunkRadius = 0.55f, bark = new Color(0.30f, 0.24f, 0.18f),
                             leaf = new Color(0.14f, 0.25f, 0.08f), leaf2 = new Color(0.25f, 0.32f, 0.10f), leafTiling = 0.8f,
                             bloom = new Color(0.95f, 0.78f, 0.88f, 0.34f), drawDistance = 140f, cardTint = new Color(0.5f, 0.56f, 0.42f) },
+        };
+
+        /// <summary>The mean leaf albedo (linear) each scanned kind's cards are tinted to.
+        /// The scans were photographed in their own light and season -- the island tree
+        /// olive, the searsia a dusty grey -- so each atlas's measured mean (models.json
+        /// "leaf_albedo", written by Tools/blender/scanned_flora.py) is scaled onto a green
+        /// that sits with the grass, keeping the variation inside it.</summary>
+        static readonly Dictionary<string, Color> ScanAlbedo = new Dictionary<string, Color>
+        {
+            { "TREE_BROAD", new Color(0.080f, 0.130f, 0.020f) },
+            { "TREE_TALL", new Color(0.070f, 0.125f, 0.022f) },
+            { "TREE_BIRCH", new Color(0.085f, 0.140f, 0.024f) },
+            { "TREE_PINE", new Color(0.035f, 0.075f, 0.022f) },
+            { "BUSH", new Color(0.070f, 0.130f, 0.025f) },
+            { "BUSH_FLOWER", new Color(0.080f, 0.140f, 0.028f) },
+            { "FERN", new Color(0.060f, 0.120f, 0.016f) },
         };
 
         static PlantKind[] LoadPlantKinds()
@@ -346,7 +362,19 @@ namespace StarForge.EditorTools
                     "TREE_TALL" => "beech", "BUSH" => "beech",
                     _ => null,
                 };
-                if (spray != null)
+                // A scanned tree (Tools/blender/bake_scanned_flora.py) brings its own
+                // atlas of baked leaf clusters and its own bark.
+                string scan = $"{SFAssetPostprocessor.TextureDir}Leaves/scan_{d.name}";
+                var scanCol = AssetDatabase.LoadAssetAtPath<Texture2D>(scan + "_col.png");
+                if (scanCol != null)
+                {
+                    kind.cardTex = scanCol;
+                    kind.cardNormal = AssetDatabase.LoadAssetAtPath<Texture2D>(scan + "_nrm.png");
+                    kind.barkTex = AssetDatabase.LoadAssetAtPath<Texture2D>(scan + "_bark.jpg")
+                                   ?? AssetDatabase.LoadAssetAtPath<Texture2D>(scan + "_bark.png");
+                    kind.cardTint = Color.white;
+                }
+                else if (spray != null)
                 {
                     kind.cardTex = AssetDatabase.LoadAssetAtPath<Texture2D>($"{SFAssetPostprocessor.TextureDir}Leaves/{spray}_col.png");
                     kind.cardNormal = AssetDatabase.LoadAssetAtPath<Texture2D>($"{SFAssetPostprocessor.TextureDir}Leaves/{spray}_nrm.png");
@@ -378,6 +406,15 @@ namespace StarForge.EditorTools
                     kind.crownRadii = ParseVec(fol.Groups[2].Value);
                 }
                 else kind.crownRadii = Vector3.zero;
+                // A scanned kind's tint: its target albedo over the atlas's measured one,
+                // in linear terms (the renderer's SetColor converts from gamma, hence .gamma).
+                var albedo = System.Text.RegularExpressions.Regex.Match(entry, "\"leaf_albedo\":\\s*\\[([^\\]]*)\\]");
+                if (scanCol != null && albedo.Success && ScanAlbedo.TryGetValue(d.name, out var want))
+                {
+                    var have = ParseVec(albedo.Groups[1].Value);
+                    var t = new Color(want.r / Mathf.Max(have.x, 1e-3f), want.g / Mathf.Max(have.y, 1e-3f), want.b / Mathf.Max(have.z, 1e-3f));
+                    kind.cardTint = t.gamma;
+                }
             }
             return kinds;
         }

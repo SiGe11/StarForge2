@@ -13,7 +13,8 @@
 // Surface state goes to StarForge/Unit through one property block per renderer
 // -- damage charring, the construction hologram, a hit flash, burning on death --
 // set only while something shows, so idle renderers stay SRP-batched. A
-// destroyed structure is swapped for its pre-cut debris.
+// destroyed structure is swapped for its pre-cut debris; a unit that dies hands its
+// model to a UnitWreck, which plays the death out with rigid bodies.
 using UnityEngine;
 using StarForge.Sim;
 using StarForge.View;
@@ -37,8 +38,13 @@ namespace StarForge.World
         MaterialPropertyBlock mpb;
         bool shown = true;
         bool blockActive;
-        bool debrisSpawned;
+        bool debrisSpawned, handedOff;
         float bodyBaseY;
+        // How the model has been moving (the agent is switched off by the time the
+        // unit is dead, and its wreck carries on the way it was going).
+        Vector3 lastPos, velocity;
+        // A Mauler shouldering a tree: how far its nose is up, and the jolt as it meets the trunk.
+        float pushLean, bumpT = -1f, prevPush;
 
         Transform legL, legR, gun, arm, cutter, drum, barrel, head, trolley, load, crystals;
         Quaternion legLRest, legRRest, armRest, cutterRest, drumRest, headRest;
@@ -72,6 +78,7 @@ namespace StarForge.World
             renderers = GetComponentsInChildren<Renderer>(true);
             mpb = new MaterialPropertyBlock();
             if (body != null) { bodyBaseY = body.localPosition.y; bodyBaseZ = body.localPosition.z; }
+            lastPos = transform.position;
 
             // Each renderer's height above the model origin, so the construction
             // line (in object space) lines up across a turret or a raised head.
@@ -97,13 +104,32 @@ namespace StarForge.World
                     case "Crystals": crystals = t; crystalsRest = t.localScale; break;
                 }
             }
+            // The exporter writes nested groups side by side (Tools/blender/export_fbx.py):
+            // the cutter rides the arm.
+            if (cutter != null && arm != null && cutter.parent != arm)
+            {
+                cutter.SetParent(arm, true);
+                cutterRest = cutter.localRotation;
+            }
         }
 
         public void OnDeath() { }
 
         void LateUpdate()
         {
-            if (unit == null) return;
+            if (unit == null || handedOff) return;
+
+            // A unit (not a structure or an ore seam) that dies leaves a wreck, if the
+            // player saw it go; one that dies out of sight just disappears.
+            if (unit.dying && unit.def.IsMobile)
+            {
+                handedOff = true;
+                if (shown && body != null) UnitWreck.Create(unit, body, turret, gun, legL, legR, velocity);
+                return;
+            }
+            float step = Time.deltaTime;
+            if (step > 1e-4f) velocity = Vector3.Lerp(velocity, (transform.position - lastPos) / step, 0.5f);
+            lastPos = transform.position;
 
             // Enemy units vanish outside vision; enemy structures stay once seen
             // (what the player remembers of a base), as in any fogged RTS.
@@ -165,8 +191,22 @@ namespace StarForge.World
                 if (unit.Type == UnitType.Mauler)
                 {
                     float rock = recoilT >= 0f ? RecoilRock(recoilT) : 0f;
-                    body.localRotation = Quaternion.Euler(-2.6f * rock, 0f, 0f);
-                    z = bodyBaseZ - 0.16f * Mathf.Max(0f, rock);
+                    // Shouldering a tree over: the nose rides up the trunk while it
+                    // pushes, with a jolt as the glacis meets it, and settles after.
+                    float push = unit.pushLoad;
+                    if (push > 0.05f && prevPush <= 0.05f) bumpT = 0f;
+                    prevPush = push;
+                    pushLean = Mathf.MoveTowards(pushLean, push, dt * (push > pushLean ? 3f : 1.5f));
+                    float bump = 0f;
+                    if (bumpT >= 0f)
+                    {
+                        bumpT += dt;
+                        bump = RecoilRock(bumpT) * 0.8f;
+                        if (bumpT > RockTime) bumpT = -1f;
+                    }
+                    body.localRotation = Quaternion.Euler(-2.6f * rock - 3.2f * pushLean + 1.8f * bump, 0f, 0f);
+                    z = bodyBaseZ - 0.16f * Mathf.Max(0f, rock) - 0.06f * bump;
+                    y += 0.09f * pushLean;
                 }
                 body.localPosition = new Vector3(lp.x, y, z);
 

@@ -47,6 +47,7 @@ from mathutils import Matrix, Vector, Quaternion, noise
 
 import sf_model as S
 from sf_model import Model, cyl
+import scanned_flora as SF
 
 MESH_TREE_PINE, MESH_TREE_BROAD, MESH_TREE_TALL, MESH_TREE_DEAD, MESH_BUSH = 40, 41, 42, 43, 44
 MESH_TREE_BIRCH, MESH_FERN, MESH_REEDS, MESH_BUSH_FLOWER = 45, 46, 47, 48
@@ -549,10 +550,30 @@ def build_bush_flower(lod=False):
     return finish(m, 1.5, 1.3)
 
 
+def _scanned(fn, mesh_id, name):
+    """The scanned tree baked for this kind (scanned_flora.py) when there is
+    one, else the procedural builder."""
+    def build(lod=False):
+        if SF.available(name):
+            return SF.build(mesh_id, name, lod)
+        return fn(lod)
+    build.__name__ = fn.__name__
+    return build
+
+
+build_tree_pine = _scanned(build_tree_pine, MESH_TREE_PINE, 'TREE_PINE')
+build_tree_broad = _scanned(build_tree_broad, MESH_TREE_BROAD, 'TREE_BROAD')
+build_tree_tall = _scanned(build_tree_tall, MESH_TREE_TALL, 'TREE_TALL')
+build_bush = _scanned(build_bush, MESH_BUSH, 'BUSH')
+build_tree_birch = _scanned(build_tree_birch, MESH_TREE_BIRCH, 'TREE_BIRCH')
+build_fern = _scanned(build_fern, MESH_FERN, 'FERN')
+build_bush_flower = _scanned(build_bush_flower, MESH_BUSH_FLOWER, 'BUSH_FLOWER')
+
 FLORA_BUILDERS = [build_tree_pine, build_tree_broad, build_tree_tall, build_tree_dead, build_bush,
                   build_tree_birch, build_fern, build_reeds, build_bush_flower]
 
-# Far copies with fewer, larger cards (card models cannot be decimated).
+# Far copies with fewer, larger cards (card models cannot be decimated); the
+# scanned ones keep their cards and thin the trunk.
 LOD_BUILDERS = {
     'TREE_PINE': lambda: build_tree_pine(True),
     'TREE_BROAD': lambda: build_tree_broad(True),

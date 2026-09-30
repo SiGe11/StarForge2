@@ -30,6 +30,8 @@ namespace StarForge.EditorTools
             SFEditorUtil.EnsureFolder(DefsDir);
             SFEditorUtil.EnsureFolder(IconDir);
             SFEditorUtil.EnsureFolder("Assets/StarForge/Resources");
+            // The Mech's parts first: the Mech prefab and its icon are made from them.
+            MechKitBuilder.Build();
 
             var defs = new List<UnitDef>
             {
@@ -54,6 +56,14 @@ namespace StarForge.EditorTools
                     "Defensive gun turret. Requires a Garrison."),
                 Def(UnitType.Ore,      "Ore Seam", false, true,  1.6f, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ' ', "Crystal ore. Diggers carry 8 per trip."),
                 Def(UnitType.Boulder,  "Boulder",  false, true,  1.1f, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ' ', ""),
+                Def(UnitType.MechBay,  "Mech Bay", true,  false, 4.2f, 1800, 0, 3.0f, 24f, 22, 0.60f, 0f, 30, 35, 100, 0, 0, 'Y',
+                    "Calls down your Mech two minutes after it stands: a war machine with a mind of its own, allied to you " +
+                    "but not under your orders. One a match, never rebuilt. Guards itself with a gun tower, mends itself, " +
+                    "repairs the Mech and sells its upgrades."),
+                // The Mech's real numbers come from its parts (World/MechParts); these are
+                // what the rest of the game reads before one exists.
+                Def(UnitType.Mech,     "Mech",     false, false, 2.5f, 3700, 5.0f, 2.1f, 30f, 1, 1.00f, 0f, 36, 0, 0, 0, 0, ' ',
+                    "An autonomous war machine from the Mech Bay. Fights on your side, by its own judgement."),
             };
             Find(defs, UnitType.Worker).producer = UnitType.Foundry;
             Find(defs, UnitType.Trooper).producer = UnitType.Garrison;
@@ -81,6 +91,11 @@ namespace StarForge.EditorTools
         }
 
         static UnitDef Find(List<UnitDef> l, UnitType t) => l.Find(d => d.type == t);
+
+        /// <summary>Where the bay's gun tower head sits (Tools/blender/build_mechs.py writes
+        /// it into models.json as MECH_BAY's _mount).</summary>
+        static Vector3 MechBayTowerMount() =>
+            MechKitBuilder.TryPoint("MECH_BAY", "GunMount", out var at) ? at : new Vector3(-2.55f, 4.78f, -2.35f);
 
         static UnitDef Def(UnitType t, string name, bool bld, bool neu, float rad, float hp, float spd, float turn,
                            float rng, float dmg, float cd, float spl, float sight, float bt, int cost, int sup, int give,
@@ -113,15 +128,21 @@ namespace StarForge.EditorTools
                 case UnitType.Bunkhouse: return "BUNKHOUSE";
                 case UnitType.Sentinel: return "SENTINEL_BASE";
                 case UnitType.Ore: return "ORE";
+                case UnitType.MechBay: return "MECH_BAY";
+                case UnitType.Mech: return null;          // assembled from the Mech kit when it drops
                 default: return "SCAN_BOULDER_A";   // MapBuilder makes the other scanned variants
             }
         }
 
         static void BuildPrefabs(UnitDef d)
         {
-            var meta = ModelFactory.Meta(ModelFor(d.type));
+            string model = ModelFor(d.type);
+            bool hasModel = model != null && ModelFactory.LoadSource(model) != null;
+            var meta = hasModel ? ModelFactory.Meta(model) : new ModelFactory.ModelMeta { radius = d.radius * 1.2f, height = 5f };
             d.visualRadius = Mathf.Min(meta.radius, d.radius * 1.6f);
             d.visualHeight = meta.height;
+            if (d.type == UnitType.Mech) { d.visualRadius = 3.6f; d.visualHeight = 9.0f; }
+            if (d.type == UnitType.MechBay) d.visualHeight = Mathf.Max(d.visualHeight, 6.8f);
             if (d.type == UnitType.Mauler) d.visualHeight = 1.40f + ModelFactory.Meta("MAULER_TURRET").height;
             if (d.type == UnitType.Sentinel) d.visualHeight = 1.40f + ModelFactory.Meta("SENTINEL_HEAD").height;
             if (d.type == UnitType.Skimmer) d.visualHeight = meta.height + 0.35f;
@@ -134,7 +155,7 @@ namespace StarForge.EditorTools
                 var root = new GameObject(d.displayName);
                 var body = new GameObject("Body").transform;
                 body.SetParent(root.transform, false);
-                ModelFactory.Create(ModelFor(d.type), team, body);
+                if (hasModel) ModelFactory.Create(model, team, body);
 
                 Transform turret = null;
                 if (d.type == UnitType.Mauler || d.type == UnitType.Sentinel)
@@ -144,6 +165,13 @@ namespace StarForge.EditorTools
                     turret.localPosition = new Vector3(0f, 1.40f, 0f);
                     ModelFactory.Create(d.type == UnitType.Mauler ? "MAULER_TURRET" : "SENTINEL_HEAD", team, turret);
                 }
+                if (d.type == UnitType.MechBay)
+                {
+                    turret = new GameObject("Turret").transform;
+                    turret.SetParent(body, false);
+                    turret.localPosition = MechBayTowerMount();
+                    if (ModelFactory.LoadSource("MECH_BAY_GUN") != null) ModelFactory.Create("MECH_BAY_GUN", team, turret);
+                }
 
                 if (d.type == UnitType.Boulder)
                     root.AddComponent<Boulder>();   // Maulers crush it (GameWorld.CrushBoulders)
@@ -152,11 +180,22 @@ namespace StarForge.EditorTools
                     var unit = root.AddComponent<Unit>();
                     unit.def = d;
                     unit.team = d.neutral ? 2 : team;
-                    var view = root.AddComponent<UnitView>();
-                    view.body = body;
-                    view.turret = turret;
-                    view.hoverHeight = d.type == UnitType.Skimmer ? 0.35f : 0f;
-                    if (d.building) view.debris = BuildDebrisPrefab(d, team);
+                    if (d.type == UnitType.Mech)
+                    {
+                        // Assembled from its parts when it drops (MechView), and animated,
+                        // dressed and wrecked by it; UnitView has no part in it.
+                        root.AddComponent<MechCore>();
+                        var mv = root.AddComponent<MechView>();
+                        mv.body = body;
+                    }
+                    else
+                    {
+                        var view = root.AddComponent<UnitView>();
+                        view.body = body;
+                        view.turret = turret;
+                        view.hoverHeight = d.type == UnitType.Skimmer ? 0.35f : 0f;
+                        if (d.building && hasModel) view.debris = BuildDebrisPrefab(d, team);
+                    }
                 }
 
                 if (d.IsMobile)
@@ -167,6 +206,7 @@ namespace StarForge.EditorTools
                     agent.speed = d.speed;
                     agent.angularSpeed = 0f;
                     agent.updateRotation = false;
+                    if (d.type == UnitType.Mech) agent.height = 7f;
                 }
                 else if (d.building || d.type == UnitType.Ore)
                 {
@@ -257,7 +297,19 @@ namespace StarForge.EditorTools
                     if (d.type == UnitType.Boulder) continue;
                     var prefab = d.Prefab(0);
                     if (prefab == null) continue;
-                    var inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                    GameObject inst;
+                    if (d.type == UnitType.Mech)
+                    {
+                        // The Mech has no fixed model: portray a representative one.
+                        inst = new GameObject("MechPortrait");
+                        var design = new MechDesign { locomotion = MechLocomotion.Biped, frame = MechFrame.Medium };
+                        design.weapons.Add(MechWeapon.Autocannon);
+                        design.weapons.Add(MechWeapon.Laser);
+                        design.weapons.Add(MechWeapon.Missiles);
+                        design.weapons.Add(MechWeapon.Missiles);
+                        MechView.AssembleStatic(inst.transform, design, 0);
+                    }
+                    else inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
                     inst.transform.SetParent(stage.transform, false);
                     inst.transform.localRotation = Quaternion.Euler(0f, 205f, 0f);
                     foreach (var c in inst.GetComponentsInChildren<MonoBehaviour>()) c.enabled = false;

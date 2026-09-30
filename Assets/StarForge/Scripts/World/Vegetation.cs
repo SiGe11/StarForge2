@@ -82,6 +82,8 @@ namespace StarForge.World
         public Color bloom = new Color(1f, 1f, 1f, 0f);
         [Tooltip("Pale birch bark with dark marks instead of furrowed bark.")]
         public bool birchBark;
+        [Tooltip("A scanned tree's own bark photograph, on its trunk's UVs (Tools/blender/bake_scanned_flora.py); replaces the drawn bark.")]
+        public Texture2D barkTex;
         [Tooltip("Leaf texture repeats per metre: smaller leaves on smaller plants.")]
         public float leafTiling = 0.9f;
         [Tooltip("How readily it catches and passes fire on: 1 is ordinary green growth, dead wood and dry reeds more, sappy green leaves less.")]
@@ -114,6 +116,8 @@ namespace StarForge.World
             public float rest;                   // the angle it comes to rest at (a crown holds it off the ground)
             public int lodged;                   // the tree it is hung up on, or -1
             public float slipAt;                 // when a hung-up tree gives way
+            public Unit pushedBy;                // a Mauler shouldering it over, while the trunk is against its hull
+            public float crush;                  // a fallen trunk pressed into the ground under tracks, 0..1
             public float flatten;        // a crushed bush, 0..1
             public float sink;           // metres into the ground as it rots away
             public float groundShift;    // craters opened under it since the match began
@@ -516,13 +520,15 @@ namespace StarForge.World
         public Vector2 Pos2(int i) => new Vector2(plants[i].pos.x, plants[i].pos.z);
         public bool Blocks(int i) => plants[i].volume >= 0 && live[i].state == PlantState.Standing;
 
-        /// <summary>The plant's transform as it stands, falls or lies now.</summary>
+        /// <summary>The plant's transform as it stands, falls or lies now.
+        /// VegetationRenderer keeps it until one of the Live fields read here changes
+        /// (its PoseKey): a new changing input must go into that key too.</summary>
         public Matrix4x4 Pose(int i)
         {
             ref var p = ref plants[i];
             ref var s = ref live[i];
             var k = kinds[p.kind];
-            Vector3 pos = p.pos + Vector3.up * (s.groundShift - s.sink);
+            Vector3 pos = p.pos + Vector3.up * (s.groundShift - s.sink - s.crush * k.trunkRadius * p.scale * 0.9f);
             var rot = Quaternion.Euler(0f, p.yaw, 0f);
             if (s.fallAngle > 0f)
             {
@@ -539,7 +545,8 @@ namespace StarForge.World
         {
             if (plants.Length == 0) return;
             EnsureGrass(world);
-            CrushUnderMaulers(world);
+            CrushUnderMaulers(world, dt);
+            CrushUnderMechs(world, dt);
             TickGrass(world, dt);
 
             burning.Clear();
@@ -607,23 +614,182 @@ namespace StarForge.World
             ticking = false;
         }
 
-        void CrushUnderMaulers(GameWorld world)
+        // The Mauler's hull, for what it runs into: the nose is this far ahead of its
+        // centre and the sides this far out (Tools/blender/build_models.py: track runs
+        // 1.30 m out, 0.66 m wide, 1.9 m either way of the middle), and the glacis
+        // meets a trunk about this high up.
+        const float HullFront = 2.2f, HullSide = 1.6f, GlacisHeight = 1.1f;
+
+        /// <summary>Maulers flatten the bushes they drive into and shoulder the trees over.
+        /// A trunk struck by the nose is held against it: however far the hull has come
+        /// past the foot of the trunk, the tree leans at least that far (a rod pivoting
+        /// on its roots, pushed at glacis height), until it goes over faster than the
+        /// tank drives and falls away ahead of it. Pushing it costs the Mauler its way
+        /// (Unit.pushLoad), the more the thicker the trunk. A trunk it then runs over is
+        /// pressed into the ground and splintered under the tracks.</summary>
+        void CrushUnderMaulers(GameWorld world, float dt)
         {
             foreach (var u in world.units)
             {
                 if (u == null || u.dying || u.Type != UnitType.Mauler || u.agent == null || !u.agent.enabled) continue;
-                if (u.agent.velocity.sqrMagnitude < 0.25f) continue;
+                u.pushLoad = 0f;
+                bool driving = u.agent.velocity.sqrMagnitude >= 0.25f;
                 Vector2 heading = new Vector2(Mathf.Sin(u.yaw), Mathf.Cos(u.yaw));
-                foreach (int i in Near(u.pos, 6f))
+                Vector2 right = new Vector2(heading.y, -heading.x);
+                foreach (int i in Near(u.pos, 8f))
                 {
-                    if (live[i].state != PlantState.Standing) continue;
-                    float reach = u.def.radius * 0.85f + TrunkRadius(i) + (KindOf(i).bush ? 0.6f : 0.1f);
+                    ref var s = ref live[i];
+                    if (s.state == PlantState.Gone) continue;
+                    var k = KindOf(i);
                     Vector2 d = Pos2(i) - u.pos;
-                    if (d.sqrMagnitude > reach * reach) continue;
-                    // Pushed over ahead of the hull, leaning a little off the side it was
-                    // struck on. A Mauler leans on it and it goes slowly at first.
-                    Fell(world, i, Norm(heading * 1.6f + Norm(d) * 0.6f), 0.3f);
+                    if (k.bush)
+                    {
+                        if (!driving || s.state != PlantState.Standing) continue;
+                        float reach = u.def.radius * 0.85f + TrunkRadius(i) + 0.6f;
+                        if (d.sqrMagnitude > reach * reach) continue;
+                        Fell(world, i, Norm(heading * 1.6f + Norm(d) * 0.6f), 0.3f);
+                        continue;
+                    }
+
+                    float tr = TrunkRadius(i);
+                    float ahead = Vector2.Dot(d, heading), across = Vector2.Dot(d, right);
+                    if (s.state == PlantState.Standing)
+                    {
+                        // The nose (or a front corner) meets the trunk: it starts over the
+                        // way the hull is going, glancing off the side a corner struck it on.
+                        if (!driving || ahead < 0f || ahead > HullFront + tr || Mathf.Abs(across) > HullSide + tr) continue;
+                        float side = Mathf.Clamp(across / (HullSide + tr), -1f, 1f);
+                        Fell(world, i, Norm(heading + right * side * 0.6f), 0.02f);
+                        live[i].pushedBy = u;
+                        // The blow takes the way off the hull at once -- most of it against
+                        // a thick trunk -- and the tank then shoves it over at a crawl.
+                        // (Only slowed through its top speed, it had not lost any before
+                        // the tree was over and flung it down at full tilt.)
+                        u.agent.velocity *= Mathf.Lerp(0.7f, 0.3f, Mathf.Clamp01((tr - 0.15f) / 0.3f));
+                        continue;
+                    }
+
+                    if (s.state == PlantState.Falling && s.pushedBy == u && s.lodged < 0)
+                    {
+                        // Held against the glacis.
+                        float past = HullFront + tr - ahead;
+                        float lean = Mathf.Atan2(Mathf.Max(0f, past), GlacisHeight);
+                        if (lean > s.fallAngle)
+                        {
+                            s.fallSpeed = Mathf.Max(s.fallSpeed, (lean - s.fallAngle) / Mathf.Max(dt, 1e-3f));
+                            s.fallAngle = lean;
+                            // The roots hold hardest at first and give as it goes over.
+                            u.pushLoad = Mathf.Max(u.pushLoad, Mathf.Clamp(tr / 0.3f, 0.45f, 1f) * Mathf.Sqrt(1f - lean / (Mathf.PI * 0.5f)));
+                        }
+                        // Past this it is falling away faster than any tank drives.
+                        if (s.fallAngle > 1.1f || ahead < -HullFront) s.pushedBy = null;
+                        continue;
+                    }
+
+                    if (s.state == PlantState.Down || (s.state == PlantState.Falling && s.fallAngle > 1.25f))
+                    {
+                        // A trunk lying under the hull: its thick lower half, which the
+                        // tracks bear down on; the boughs of the crown just part.
+                        float len = k.height * plants[i].scale * plants[i].stretch;
+                        Vector2 rel = u.pos - Pos2(i);
+                        float along = Vector2.Dot(rel, s.fallDir);
+                        float off = Mathf.Abs(Vector2.Dot(rel, new Vector2(s.fallDir.y, -s.fallDir.x)));
+                        if (along < -HullFront || along > len * 0.5f + HullFront || off > HullSide + tr) continue;
+                        if (!driving || s.crush >= 1f) continue;
+                        float was = s.crush;
+                        s.crush = Mathf.Min(1f, s.crush + dt * 1.6f);
+                        // The hull climbs onto it before it gives.
+                        u.pushLoad = Mathf.Max(u.pushLoad, 0.35f * (1f - s.crush) * Mathf.Clamp01(tr / 0.35f));
+                        if (was < 0.3f && s.crush >= 0.3f)
+                            world.Raise(new GameEvent
+                            {
+                                kind = GameEventKind.PlantCrushed, team = 2, index = i,
+                                pos = new Vector3(u.pos.x, plants[i].pos.y + s.groundShift + tr, u.pos.y),
+                                dir = new Vector3(heading.x, 0f, heading.y), scale = tr
+                            });
+                    }
                 }
+            }
+        }
+
+        /// <summary>A Mech wades through a wood: whatever stands in its way goes over ahead
+        /// of it (a trunk is no more to it than a fence post is to a man), shoved the way
+        /// it walks and a little aside, bushes are trodden flat, and a trunk lying under
+        /// its feet or treads is pressed into the ground. It is slowed only a little, by
+        /// the thickest trunks. A grav skirt shoves them over with its bow wave too.</summary>
+        void CrushUnderMechs(GameWorld world, float dt)
+        {
+            foreach (var u in world.units)
+            {
+                if (u == null || u.dying || u.mech == null || !u.mech.Landed || u.agent == null || !u.agent.enabled) continue;
+                u.pushLoad = 0f;
+                Vector2 v = new Vector2(u.agent.velocity.x, u.agent.velocity.z);
+                bool moving = v.sqrMagnitude > 0.2f;
+                Vector2 heading = moving ? v.normalized : new Vector2(Mathf.Sin(u.yaw), Mathf.Cos(u.yaw));
+                float body = u.agent.radius;
+                // The model's own footprint, which is wider than its agent: the hull, and on
+                // four legs the legs round it. Anything standing inside it went through the
+                // Mech -- one that landed in a wood wore a tree through its torso, since only
+                // what stood within half the agent's radius of a Mech at rest was felled.
+                bool quad = u.mech.design != null && u.mech.design.locomotion == MechLocomotion.Quad;
+                float footprint = Mathf.Max(body * 0.85f, u.def.visualRadius * (quad ? 1.1f : 0.8f));
+                foreach (int i in Near(u.pos, footprint + 4f))
+                {
+                    ref var s = ref live[i];
+                    if (s.state == PlantState.Gone) continue;
+                    var k = KindOf(i);
+                    Vector2 d = Pos2(i) - u.pos;
+                    float tr = TrunkRadius(i);
+                    float dist = d.magnitude;
+                    if (s.state == PlantState.Standing)
+                    {
+                        // What it walks into, or anything under its body.
+                        float reach = footprint + tr + (k.bush ? 0.3f : 0.1f);
+                        if (dist > reach) continue;
+                        Vector2 away = dist > 1e-3f ? d / dist : heading;
+                        if (moving && Vector2.Dot(away, heading) < -0.2f && dist > body * 0.5f) continue;   // behind it
+                        // Walking, it shoves them over ahead; standing (just landed), outward.
+                        Vector2 push = moving ? Norm(heading * 1.4f + away * 0.8f) : away;
+                        Fell(world, i, push, k.bush ? 0.4f : Mathf.Lerp(0.55f, 0.25f, Mathf.Clamp01((tr - 0.15f) / 0.35f)));
+                        u.pushLoad = Mathf.Max(u.pushLoad, k.bush ? 0.05f : Mathf.Clamp(tr / 0.5f, 0.1f, 0.35f));
+                        continue;
+                    }
+                    if (s.state == PlantState.Down || (s.state == PlantState.Falling && s.fallAngle > 1.25f))
+                    {
+                        if (!moving || s.crush >= 1f) continue;
+                        float len = k.height * plants[i].scale * plants[i].stretch;
+                        Vector2 rel = u.pos - Pos2(i);
+                        float along = Vector2.Dot(rel, s.fallDir);
+                        float off = Mathf.Abs(Vector2.Dot(rel, new Vector2(s.fallDir.y, -s.fallDir.x)));
+                        if (along < -body || along > len * 0.5f + body || off > body * 0.8f + tr) continue;
+                        float was = s.crush;
+                        s.crush = Mathf.Min(1f, s.crush + dt * 2.5f);
+                        if (was < 0.3f && s.crush >= 0.3f)
+                            world.Raise(new GameEvent
+                            {
+                                kind = GameEventKind.PlantCrushed, team = 2, index = i,
+                                pos = new Vector3(u.pos.x, plants[i].pos.y + s.groundShift + tr, u.pos.y),
+                                dir = new Vector3(heading.x, 0f, heading.y), scale = tr * 1.4f
+                            });
+                    }
+                }
+            }
+        }
+
+        /// <summary>Fire played over the ground (the Mech's flamer): the grass takes, and
+        /// what stands in it may catch, without being knocked down.</summary>
+        public void Scorch(GameWorld world, Vector2 c, float radius, float chance)
+        {
+            if (plants.Length == 0 && grassFuel == null) return;
+            int blaze = NewBlaze(-1f);
+            float v = blazeVig[blaze];
+            BurnGrass(world, c, radius, chance, blaze);
+            foreach (int i in Near(c, radius + 2f))
+            {
+                ref var s = ref live[i];
+                if (s.state == PlantState.Gone || s.burning) continue;
+                if ((Pos2(i) - c).magnitude - TrunkRadius(i) > radius) continue;
+                if (rng.F01() < chance * KindOf(i).burns * (1f - s.wet * 0.9f)) Ignite(world, i, 0, v, blaze);
             }
         }
 
@@ -670,7 +836,10 @@ namespace StarForge.World
                 if (hit > 0.35f)
                 {
                     // Down it comes: the trunk thumps, springs back a little and settles.
-                    s.fallSpeed = -hit * 0.22f;
+                    // A little whatever the speed: a crown landing hard does not throw a
+                    // trunk back up (uncapped, one shoved over by a Mauler at full tilt
+                    // rebounded 45 degrees and fell again).
+                    s.fallSpeed = -Mathf.Min(hit * 0.22f, 0.45f);
                     s.fallAngle -= 0.02f;
                     world.Raise(new GameEvent
                     {
@@ -875,7 +1044,10 @@ namespace StarForge.World
                     if (live[i].state == PlantState.Standing)
                     {
                         float near = 1f - Mathf.Clamp01(dist / reach);
-                        float thick = Mathf.Clamp01(0.30f / Mathf.Max(0.08f, TrunkRadius(i)));
+                        // A thick trunk stands where a slender one snaps. Scaled so the
+                        // scanned broadleaf's bole (0.48 m) takes about what the drawn one's
+                        // 0.38 m did; the firs and the smaller trees are not held at all.
+                        float thick = Mathf.Clamp01(0.38f / Mathf.Max(0.08f, TrunkRadius(i)));
                         if (rng.F01() < Mathf.Lerp(0.10f, 0.95f, near * near) * thick)
                             // Thrown over by the blast: the closer it stood, the harder it goes.
                             Fell(world, i, d.sqrMagnitude > 1e-4f ? d / d.magnitude : Vector2.up,

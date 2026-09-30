@@ -11,7 +11,7 @@ using StarForge.World;
 
 namespace StarForge.View
 {
-    public enum CardKind { None, Build, Train, AttackMove, Stop, Hold, CancelQueue, CancelConstruction, CancelPlacement }
+    public enum CardKind { None, Build, Train, AttackMove, Stop, Hold, CancelQueue, CancelConstruction, CancelPlacement, MechUpgrade, CancelUpgrade, Info }
 
     public struct CardAction
     {
@@ -26,6 +26,7 @@ namespace StarForge.View
         public Texture2D icon;
         public string glyph;
         public bool enabled;
+        public MechUpgrade upgrade;
     }
 
     public sealed class PlayerController : MonoBehaviour
@@ -47,6 +48,10 @@ namespace StarForge.View
         public Vector2 DragStart { get; private set; }
         public Vector2 DragEnd { get; private set; }
         public bool CanCommand => !MatchSettings.spectate;
+        /// <summary>Orders go in only while the match is played: the command card's buttons
+        /// and the minimap still take clicks while it is paused and behind the end screen,
+        /// and orders went in through them.</summary>
+        static bool InPlay => GameBootstrap.Instance != null && GameBootstrap.Instance.State == MatchState.Playing;
 
         /// <summary>Supplied by the HUD: is this screen point over an interactive panel?</summary>
         public Func<Vector2, bool> PointerOverUI;
@@ -164,8 +169,8 @@ namespace StarForge.View
             if (kb.iKey.wasPressedThisFrame) InspectorToggled?.Invoke();
             if (kb.spaceKey.wasPressedThisFrame && Selection.Count > 0) rig.CenterOn(Centroid(Selection));
             if (kb.f2Key.wasPressedThisFrame) SelectAllArmy();
-            if (kb.periodKey.wasPressedThisFrame) Time.timeScale = Mathf.Min(3f, Time.timeScale + 0.5f);
-            if (kb.commaKey.wasPressedThisFrame) Time.timeScale = Mathf.Max(0.5f, Time.timeScale - 0.5f);
+            if (kb.periodKey.wasPressedThisFrame) bs.SetSpeed(bs.Speed + 0.5f);
+            if (kb.commaKey.wasPressedThisFrame) bs.SetSpeed(bs.Speed - 0.5f);
 
             for (int i = 0; i < 10; i++)
             {
@@ -306,8 +311,10 @@ namespace StarForge.View
                 scratch.Add(u);
                 if (u.def.IsMobile) anyMobile = true;
             }
-            // A box over an army and its base selects the army.
+            // A box over an army and its base selects the army; the Mech, which takes no
+            // orders, only if it is all the box holds.
             if (anyMobile) scratch.RemoveAll(u => !u.def.IsMobile);
+            if (scratch.Exists(u => !u.def.Autonomous)) scratch.RemoveAll(u => u.def.Autonomous);
             if (!shift) Selection.Clear();
             else Selection.RemoveAll(s => s.team != team);
             foreach (var u in scratch) if (!Selection.Contains(u)) Selection.Add(u);
@@ -339,6 +346,11 @@ namespace StarForge.View
         {
             var own = new List<Unit>(OwnSelection());
             if (own.Count == 0) return;
+            if (own.TrueForAll(u => u.def.Autonomous))
+            {
+                world.Raise(new GameEvent { kind = GameEventKind.Refused, team = team, text = "The Mech follows its own judgement -- buy it upgrades at the Mech Bay" });
+                return;
+            }
             bool onlyStructures = own.TrueForAll(u => u.def.building);
             if (onlyStructures)
             {
@@ -410,7 +422,8 @@ namespace StarForge.View
             foreach (var u in own)
             {
                 if (u.Type == UnitType.Worker) anyWorker = true;
-                if (u.def.IsMobile) anyMobile = true;
+                // The Mech takes no orders: it adds no orders to the card.
+                if (u.def.IsMobile && !u.def.Autonomous) anyMobile = true;
                 if (u.def.building)
                 {
                     if (!u.Complete) anyIncomplete = true;
@@ -433,13 +446,34 @@ namespace StarForge.View
                     bool reqOk = d.requires == UnitType.None || world.HasComplete(team, d.requires);
                     string req = reqOk ? "" : $"\nRequires a {Defs.Get(d.requires).displayName}.";
                     string supply = d.supplyGive > 0 ? $" · +{d.supplyGive} supply" : "";
+                    bool once = t == UnitType.MechBay && F.bayPlaced;
+                    if (once) req += F.bayLost ? "\nYour Mech Bay was destroyed; it can never be raised again." : "\nYou have raised your Mech Bay: there is only ever one.";
                     into.Add(new CardAction
                     {
                         kind = CardKind.Build, type = t, hotkey = d.hotkey, title = "Build " + d.displayName,
-                        body = d.blurb + req, cost = d.cost, time = d.buildTime, icon = d.icon, enabled = reqOk && F.ore >= d.cost,
+                        body = d.blurb + req, cost = d.cost, time = d.buildTime, icon = d.icon, enabled = reqOk && F.ore >= d.cost && !once,
                         glyph = supply
                     });
                 }
+            // The bay's card only for the bay (with its Mech): with Diggers as well, their
+            // six builds and the bay's five upgrades and cancel ran past the card's twelve
+            // slots, and the last ones were hidden but still answered their hotkeys.
+            if (structureType == UnitType.MechBay && !mixedStructures && !anyIncomplete && !anyMobile)
+            {
+                BayCard(into, F);
+                return;
+            }
+            if (!anyMobile && structureType == UnitType.None && own.TrueForAll(u => u.def.Autonomous))
+            {
+                into.Add(new CardAction
+                {
+                    kind = CardKind.Info, title = "Autonomous", glyph = "◆", enabled = false,
+                    body = "The Mech takes no orders. It fights for you by its own judgement: it defends the base, joins your " +
+                           "attacks, hunts what it can beat and falls back to the Mech Bay to be repaired. Buy it upgrades " +
+                           "at the bay, and watch its messages -- it sees the whole field."
+                });
+                return;
+            }
             if (structureType != UnitType.None && !mixedStructures && !anyIncomplete)
             {
                 for (int i = 0; i < (int)UnitType.Count; i++)
@@ -462,9 +496,48 @@ namespace StarForge.View
                 into.Add(new CardAction { kind = CardKind.CancelConstruction, hotkey = 'X', title = "Cancel construction", body = "Refunds 75% of the cost.", glyph = "✕", enabled = true });
         }
 
+        /// <summary>The Mech Bay's card: the Mech's upgrades, one level at a time.</summary>
+        void BayCard(List<CardAction> into, Faction F)
+        {
+            var design = F.design;
+            for (int i = 0; i < (int)MechUpgrade.Count; i++)
+            {
+                var up = (MechUpgrade)i;
+                var info = MechParts.Upgrade(up);
+                int lvl = F.upgrades[i];
+                int cost = world.UpgradeCost(team, up);
+                string body = info.blurb;
+                if (up == MechUpgrade.Hardpoint && design != null && !F.designChosen && lvl < 2)
+                    body += "\nNext: a weapon the pilot's order picks with the rest of the Mech's parts, at the drop.";
+                else if (up == MechUpgrade.Hardpoint && design != null && lvl < design.reserve.Count)
+                    body += $"\nNext: a {MechParts.Weapon(design.reserve[lvl]).name} -- {MechParts.Weapon(design.reserve[lvl]).blurb}";
+                string state = F.mechLost ? "\nThe Mech is lost." : cost < 0 ? "\nComplete." : F.researching >= 0 ? "\nThe bay is busy with another upgrade." : "";
+                into.Add(new CardAction
+                {
+                    kind = CardKind.MechUpgrade, upgrade = up, hotkey = info.hotkey,
+                    title = cost < 0 ? $"{info.name} (complete)" : $"{info.name} {MechParts.Roman(lvl + 1)}",
+                    body = body + state + $"\nLevel {lvl} of {info.levels}.",
+                    cost = Mathf.Max(0, cost), time = cost < 0 ? 0f : info.time[lvl],
+                    glyph = UpgradeGlyph(up) + (lvl > 0 ? new string('·', lvl) : ""),
+                    enabled = cost >= 0 && !F.mechLost && F.researching < 0 && F.ore >= cost
+                });
+            }
+            if (F.researching >= 0)
+                into.Add(new CardAction { kind = CardKind.CancelUpgrade, hotkey = 'X', title = "Cancel upgrade", body = "Refunds the upgrade in progress.", glyph = "✕", enabled = true });
+        }
+
+        static string UpgradeGlyph(MechUpgrade up) => up switch
+        {
+            MechUpgrade.Servos => "»",
+            MechUpgrade.Armour => "⛨",
+            MechUpgrade.Weapons => "✹",
+            MechUpgrade.Hardpoint => "+",
+            _ => "◎"
+        };
+
         public void Execute(CardAction c)
         {
-            if (!CanCommand) return;
+            if (!CanCommand || !InPlay) return;
             var own = new List<Unit>(OwnSelection());
             switch (c.kind)
             {
@@ -497,6 +570,12 @@ namespace StarForge.View
                     foreach (var u in own) if (!u.Complete) world.CmdCancelConstruction(u);
                     break;
                 case CardKind.CancelPlacement: PlacingType = UnitType.None; break;
+                case CardKind.MechUpgrade:
+                    foreach (var u in own) if (u.Type == UnitType.MechBay && u.Complete) { world.CmdMechUpgrade(u, c.upgrade); break; }
+                    break;
+                case CardKind.CancelUpgrade:
+                    foreach (var u in own) if (u.Type == UnitType.MechBay) { world.CmdCancelMechUpgrade(u); break; }
+                    break;
             }
         }
 
@@ -510,7 +589,7 @@ namespace StarForge.View
 
         public void MinimapCommand(Vector2 world2D)
         {
-            if (!CanCommand) return;
+            if (!CanCommand || !InPlay) return;
             var own = new List<Unit>(OwnSelection());
             if (own.Count == 0) return;
             if (own.TrueForAll(u => u.def.building)) world.CmdRally(own, world2D);

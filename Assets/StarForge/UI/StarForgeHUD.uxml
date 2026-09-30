@@ -23,6 +23,19 @@
 
       <ui:VisualElement name="alerts" class="alerts" picking-mode="Ignore" />
 
+      <ui:VisualElement name="comms" class="comms" picking-mode="Ignore">
+        <ui:VisualElement name="mechStrip" class="mech-strip">
+          <ui:VisualElement class="mech-strip-head" picking-mode="Ignore">
+            <ui:Label name="mechStripTitle" class="mech-strip-title" text="" picking-mode="Ignore" />
+            <ui:Label name="mechStripState" class="mech-strip-state" text="" picking-mode="Ignore" />
+          </ui:VisualElement>
+          <sf:BarElement name="mechHull" class="mech-strip-bar" picking-mode="Ignore" />
+          <sf:BarElement name="mechShield" class="mech-strip-bar mech-strip-bar--shield" segmented="false" picking-mode="Ignore" />
+          <ui:Label name="mechStripText" class="mech-strip-text" text="" picking-mode="Ignore" />
+        </ui:VisualElement>
+        <ui:VisualElement name="commsFeed" class="comms-feed" picking-mode="Ignore" />
+      </ui:VisualElement>
+
       <ui:VisualElement name="inspector" class="panel inspector">
         <ui:Label class="section-title" text="AI INSPECTOR" />
         <ui:Label name="inspStrategy" class="insp-strategy" text="" />

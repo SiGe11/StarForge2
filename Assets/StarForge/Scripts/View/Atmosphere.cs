@@ -34,8 +34,9 @@ namespace StarForge.View
 
         [Header("Cloud shadows")]
         public Light sun;
-        [Tooltip("Metres per second the cloud shadows drift at the wind's full strength.")]
-        public float cloudDrift = 14f;
+        [Tooltip("Metres per second the cloud shadows drift on the windiest day. They go with the day's " +
+                 "wind, not the gusts: clouds are far up, where the wind is steady.")]
+        public float cloudDrift = 3.2f;
 
         static readonly int ColorId = Shader.PropertyToID("_SF_AtmoColor");
         static readonly int ParamsId = Shader.PropertyToID("_SF_AtmoParams");
@@ -76,11 +77,15 @@ namespace StarForge.View
             var w = StarForge.World.Wind.Direction(Time.time);
             float speed = StarForge.World.Wind.Speed(Time.time);
             // The gust rolls across the map faster the harder it blows, so a lull
-            // and a gust are told apart by more than the amount of sway.
-            gustPhase += dt * (0.5f + 1.4f * speed);
+            // and a gust are told apart by more than the amount of sway. (A quarter
+            // slower than it was: at 0.5 + 1.4 x speed a windy day thrashed.)
+            gustPhase += dt * (0.45f + 0.95f * speed);
             Shader.SetGlobalVector(WindId, new Vector4(w.x, w.y, speed, gustPhase));
-            // The clouds go with it.
-            cloudOffset += w * (cloudDrift * speed * dt);
+            // The clouds go with it, but at the day's wind rather than the gusts at the
+            // ground: they drifted at up to 14 m/s, surging and stalling with every gust,
+            // and from this camera the shadows raced across the map. The fastest now is
+            // under a quarter of that, and steady.
+            cloudOffset += w * (cloudDrift * (0.35f + 0.65f * StarForge.World.Wind.Weather) * dt);
             if (sunData != null) sunData.lightCookieOffset = cookieOrigin + cloudOffset;
         }
 
