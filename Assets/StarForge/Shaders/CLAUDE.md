@@ -1,0 +1,15 @@
+# Shaders and rendering constraints — area notes
+
+Draw-side effects (smoke, pressure, wrecks): `../Scripts/View/CLAUDE.md`. URP/asset generation quirks: `../Editor/CLAUDE.md`.
+
+- All StarForge materials use hand-written shaders here (`SF_Unit`, `SF_Terrain`, `SF_Grass`, `SF_Water`, `SF_FogOfWar`, …), not URP Lit (the animals use URP Lit: skinned, few, cheap).
+- **Alpha test only on tree foliage** (`clip`; leaf cards — bark and inner canopy never clip). It disables early depth testing on Apple's tile-based GPUs and costs most of the ~1 ms the card crowns added. Blades, debris, holograms are opaque geometry. **Do not add alpha test anywhere else.**
+- **No shader writes motion vectors**, so STP/TAA are not used (moving units would smear). Any URP effect whose noise is re-rolled each frame for TAA to average out boils on screen: SSAO uses interleaved-gradient noise (its default blue noise made the grass vibrate).
+- **Fog-of-war pass** (URP `FullScreenPassRendererFeature` `FogOfWar` running `SF_FogOfWar`, created by `RenderSetup`) also does height fog, haze, sun scattering. Globals set by `FogOfWarRenderer` and `Atmosphere`; ground mask by `GroundMask`. Extend that pass rather than adding full-screen passes. The opaque texture is on for the water's refraction (`SF_Water` samples it); nothing else may rely on it without accounting for the copy's cost.
+- **After adding shaders or keywords, play a match and re-run Build step 5**, or the player hitches while Metal compiles the variant. Unity's recorded list only covers what rendered since the last script reload, so step 5 merges into the saved collection; check the new shader's GUID is in it.
+- **Sub-pixel detail flickers** at RTS camera distance (per-blade grass flutter did): check visual changes with a still camera using the burst capture (root `CLAUDE.md`), not only in motion.
+- **MSAA (High, Balanced = 2x)** shades a pixel from its centre even when only a sample touches the triangle; on thin geometry seen edge-on interpolants extrapolate far outside range (grass blew single pixels into HDR sparks that bloom made flashing lights). Grass interpolants are `centroid` and clamped: do the same for any new thin, instanced geometry.
+- **Coplanar faces z-fight** from the RTS camera (`sf_model.ring_flat` collars were wound inside out and flush with the drum below). Check new models for same-facing coplanar faces across materials.
+- Scanned rocks use `SF_Rock` (own UVs and maps), not `SF_Unit`; its shared passes are not instancing-aware, so its materials keep GPU instancing off (SRP-batched).
+- `SF_Smoke`: do not rescale the atlas coverage to 1; see `../Scripts/View/CLAUDE.md` (Smoke). `SF_Flipbook` = channel-packed premultiplied flipbooks (R sun-lit smoke, G fire sqrt, B sky-lit smoke, A coverage).
+- SF_Tree/SF_Grass wind and blast pressure live in `SF_Wind.hlsl` (contract in `../Scripts/View/CLAUDE.md`, wind in `../Scripts/World/CLAUDE.md`). Foliage is two-sided (`_Cull` 0); leaf cards and canopy clusters carry exporter-made custom normals pointing out of the crown, so a crown lights as one mass (`Tools/blender/CLAUDE.md`).

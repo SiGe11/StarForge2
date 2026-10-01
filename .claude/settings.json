@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./**/*.blend)",
+      "Read(./**/*.blend1)",
+      "Read(./**/__pycache__/**/*)",
+      "Read(./StarForge2.dmg)",
+      "Read(./StarForge2/**/*)",
+      "Read(./**/*_BackUpThisFolder_ButDontShipItWithYourGame/**/*)",
+      "Read(./Assets/StarForge/Map/**/*.asset)",
+      "Read(./Assets/StarForge/Scenes/**/*.unity)"
+    ]
+  },
+  "bashOutputMaxChars": 40000
+}

@@ -142,3 +142,6 @@ Temporary Items
 *.blend[0-9]*
 # Raw third-party downloads (Tools/fetch_assets.py fetches them again)
 /Art/Source/
+
+# Claude Code personal settings
+.claude/settings.local.json
