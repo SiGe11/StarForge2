@@ -149,6 +149,8 @@ namespace StarForge.Game
 
         void OnTick(float dt)
         {
+            // A trial that silences the opponent silences morale too (GameWorld.Morale).
+            world.moraleOn = !Commander.Suspended;
             AI?.Update(dt);
             PlayerProxy?.Update(dt);
             brainWatch.Restart();

@@ -173,6 +173,29 @@ namespace StarForge.World
             Instance = this;
             live = new Live[plants.Length];
             BuildGrid();
+            woken = true;
+        }
+
+        [NonSerialized] bool woken;
+
+        /// <summary>MapGenerator has handed over new plants. In a running match (the trials
+        /// that try many seeds in one play session) their state, the grid and the grass start
+        /// afresh, as Awake does for the map a scene starts with: left as they were, `live`
+        /// kept the old map's length and everything indexing it by plant ran past its end.
+        /// Before Awake (a scene starting, the editor's map builder) there is nothing to redo.</summary>
+        public void PlantsReplaced()
+        {
+            if (!woken) return;
+            live = new Live[plants.Length];
+            BuildGrid();
+            burning.Clear();
+            burningGrass.Clear();
+            fires = 0;
+            burned = 0;
+            nextBlaze = 0;
+            grassReady = false;
+            if (grassState != null) Array.Clear(grassState, 0, grassState.Length);
+            GrassVersion++;
         }
 
         [NonSerialized] bool grassReady;

@@ -12,7 +12,7 @@ namespace StarForge.AI
         GameWorld w;
         int team;
         readonly List<Remembered> mem = new List<Remembered>(128);
-        float eMechAntiLight = 0.5f;
+        float eMechAntiLight = 0.5f, eMechHpFrac = 1f;
         bool eMechDesignKnown;
         readonly List<Vector2> guesses = new List<Vector2>(3);
         float aggrT = -1e9f;     // last time we saw them pressuring our base
@@ -95,6 +95,7 @@ namespace StarForge.AI
                 if (e == null || e.dying) continue;
                 if (e.team == team)
                 {
+                    if (e.deserted) continue;   // gone from the army (GameWorld.Morale)
                     if (!e.Complete) { s.pending++; s.pendingType[(int)e.Type]++; continue; }
                     switch (e.Type)
                     {
@@ -128,6 +129,7 @@ namespace StarForge.AI
                     }
                     eMechAntiLight = lightDps / Mathf.Max(1f, lightDps + heavyDps);
                     eMechDesignKnown = true;
+                    eMechHpFrac = e.hp / Mathf.Max(1f, e.MaxHp);
                 }
 
                 // Each sighting takes the nearest entry of its kind that no other sighting has
@@ -186,6 +188,7 @@ namespace StarForge.AI
                         s.eMech = true; s.eMechPos = r.pos;
                         s.eMechSeenAgo = w.time - r.lastSeen;
                         s.eMechAntiLight = eMechAntiLight; s.eMechDesignKnown = eMechDesignKnown;
+                        s.eMechHpFrac = eMechHpFrac;
                         break;
                     case UnitType.MechBay: s.eMechBay = true; s.eMechBayPos = r.pos; break;
                 }

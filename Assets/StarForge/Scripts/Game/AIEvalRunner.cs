@@ -42,6 +42,9 @@ namespace StarForge.Game
         static float maxSeconds;
         static KindStats[] stats;
         static float wallStart;
+        // Morale over the run: matches where anyone deserted, soldiers who ran (AI side,
+        // opponent), crises each side went through, deserters a Mech put down.
+        static int moraleGames, desertedAI, desertedOpp, crisesAI, crisesOpp, executed;
 
         GameWorld world;
         GameBootstrap boot;
@@ -75,6 +78,7 @@ namespace StarForge.Game
                 stats = new KindStats[(int)ScriptedOpponent.Kind.Count];
                 for (int i = 0; i < stats.Length; i++) stats[i] = new KindStats();
                 wallStart = Time.realtimeSinceStartup;
+                moraleGames = desertedAI = desertedOpp = crisesAI = crisesOpp = executed = 0;
                 Debug.Log($"[AIEval] {gamesPerKind} games per opponent, {maxSeconds:0}s cap");
             }
             if (!active) { enabled = false; return; }
@@ -184,13 +188,34 @@ namespace StarForge.Game
                       $"style {ai.Dbg.personality}; {ai.Dbg.waves} attack waves, last {ai.Dbg.wave}; " +
                       $"Mechs: AI {MechLine(1)}, opponent {MechLine(0)}; advice heeded {ai.Dbg.adviceHeeded}, ignored {ai.Dbg.adviceIgnored}, upgrades bought {ai.Dbg.upgradesBought}, waves while their Mech was away {ai.Dbg.mechWindows}, gathered on its Mech {ai.Dbg.stagedWithMech}; " +
                       $"AI Mech's time: {IntentShares()}; " +
-                      $"left at the end: AI {Left(1)}, opponent {Left(0)}; AI retreats {ai.Retreats}, plans {PlanShares()}");
+                      $"left at the end: AI {Left(1)}, opponent {Left(0)}; AI retreats {ai.Retreats}, waves at their Mech hurt {ai.Dbg.hurtWindows}, plans {PlanShares()}; " +
+                      $"morale: {MoraleLine()}");
+            var m0 = world.morale[0];
+            var m1 = world.morale[1];
+            if (m0.deserted + m1.deserted > 0) moraleGames++;
+            desertedAI += m1.deserted; desertedOpp += m0.deserted;
+            crisesAI += m1.crises; crisesOpp += m0.crises;
+            executed += m0.executed + m1.executed;
 
             game++;
             if (game >= firstGame + gamesPerKind) { game = firstGame; kind++; }
             if (kind >= (int)ScriptedOpponent.Kind.Count || (onlyKind >= 0 && kind != onlyKind)) { Report(); return; }
             Time.timeScale = 1f;
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+
+        /// <summary>Desertions this match (GameWorld.Morale): crises, soldiers who ran, and
+        /// how many of them their own Mech went after and put down.</summary>
+        string MoraleLine()
+        {
+            string Side(int t)
+            {
+                var M = world.morale[t];
+                var b = boot != null ? boot.MechBrains[t] : null;
+                return $"crises {M.crises}, deserted {M.deserted}" +
+                       (b != null && b.LastVerdict.Length > 0 ? $", Mech {(b.Punishments > 0 ? "punished" : "spared")} them, {M.executed} put down" : "");
+            }
+            return $"AI {Side(1)}; opponent {Side(0)}";
         }
 
         string MechLine(int team)
@@ -207,14 +232,26 @@ namespace StarForge.Game
         /// could not finish, from a stand-off.</summary>
         string Left(int team)
         {
-            int structures = 0, diggers = 0;
+            int structures = 0, diggers = 0, remembered = 0;
+            var kinds = new List<string>();
+            var ai = boot.AI;
             foreach (var u in world.units)
             {
                 if (u == null || u.dying || u.team != team) continue;
-                if (u.def.building) structures++;
+                if (u.def.building)
+                {
+                    structures++;
+                    if (kinds.Count < 6) kinds.Add(u.def.displayName);
+                    // The opponent's: does the AI still have it in mind? (a match that ran to the
+                    // cap against a side with two structures left)
+                    if (team == 0 && ai != null)
+                        foreach (var r in ai.Perception.Enemies)
+                            if (r.type == u.Type && (r.pos - u.pos).sqrMagnitude < 4f) { remembered++; break; }
+                }
                 else if (u.Type == StarForge.Sim.UnitType.Worker) diggers++;
             }
-            return $"{structures} structures, {diggers} Diggers, {world.factions[team].oreMined} ore mined";
+            string what = team == 0 && structures > 0 && structures <= 6 ? $" ({string.Join(", ", kinds)}; the AI remembers {remembered})" : "";
+            return $"{structures} structures{what}, {diggers} Diggers, {world.factions[team].oreMined} ore mined";
         }
 
         /// <summary>This match's plans, by share of the time from 30 s on.</summary>
@@ -282,6 +319,8 @@ namespace StarForge.Game
                 sb.AppendLine($"            actions {s.actions / s.games} per game, {s.denied / s.games} refused by the APM cap " +
                               $"({100.0 * s.denied / System.Math.Max(1L, s.actions + s.denied):0}% of intents)");
             }
+            sb.AppendLine($"morale: desertion in {moraleGames} of {totalGames} matches; soldiers deserted AI {desertedAI}, opponent {desertedOpp}; " +
+                          $"crises AI {crisesAI}, opponent {crisesOpp}; put down by their own Mech {executed}");
             sb.AppendLine($"overall: {totalWins}/{totalGames} wins ({100f * totalWins / Mathf.Max(1, totalGames):0}%)  " +
                           $"wall time {Time.realtimeSinceStartup - wallStart:0}s");
             string text = sb.ToString();

@@ -1,0 +1,14 @@
+# The repository is public: every push must keep the licence register in step with the
+# files committed (CLAUDE.md "Licences are not optional"). The offline check needs paths
+# only, so LFS content is not fetched. Run it locally: python3 Tools/check_licences.py --offline
+name: licences
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 Tools/check_licences.py --offline

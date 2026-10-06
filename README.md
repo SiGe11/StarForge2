@@ -110,6 +110,34 @@ whatever came up to its walls.)
 bring it in. (They used to mine on and drop each load for the next, stripping the ore
 fields for nothing.)
 
+**Morale** *(new)*: a side that is losing badly may see a few of its soldiers break and
+run. It is rare: nothing breaks in the first five minutes, and a side breaks at most once a
+match. It takes all of these at once: the side's army and Mech worth under 55% of the
+enemy's, a minute in which it lost at least twice what it dealt, and a fight going badly
+right now -- three or more of its soldiers under fire together, outgunned more than 1.6 to
+one round them, two or more of them dead there in the last 20 seconds. Even then each such
+crisis gets a single roll of the dice (15-35%, worse the more lopsided the war). Those who
+run are about one in seven of the soldiers in that fight (one to four): Troopers before
+Skimmers before Mauler crews, the wounded first, rank-1 veterans seldom, rank-2 and rank-3
+veterans and Diggers never. They make for the corner of the walkable ground behind their own
+base -- 40-70 m from its middle and clear of its buildings, near it but not in it -- and stay
+there: they take no orders, no longer count against supply, fire only when an enemy attacks
+their camp, and never go more than 14 m from it. You are told: a warning ("2 Troopers are
+deserting -- running for the south-west corner") with the alert sound, pale pulses on the
+minimap where they broke and where they ran, a dashed pale ring round the camp, and a pale
+health bar over each deserter (its status reads *Deserted · takes no orders*). They drop out
+of group selections and control groups; click one to look at it. An enemy desertion is
+announced only if you can see the fight.
+
+**The Mech and deserters**: a few seconds after soldiers of its side desert, the Mech gives
+its verdict -- by its pilot's temper (a cold pilot more often), pride, and how the war is
+going for it (the worse, the harsher) -- once it is whole enough (60% hull), out of a fight
+and the base is not under attack. If it goes, it says so on the comms, walks to the camp,
+speaks to them when it arrives, and its guns -- only its guns, never anyone loyal -- treat
+them as enemies until they are dead; then it tells its side it is done. It gives up if the
+base is attacked, the enemy Mech comes within 60 m, it has to go for repairs, or after two
+and a half minutes. The deserters do not fire on it. If it lets them be, it may say that too.
+
 **The match** is lost by the side with no structure and no Digger left; if both go in
 the same moment it is a draw.
 
@@ -138,12 +166,12 @@ opponent AI is held to a human's hands). Yours is a guardian, cautious and meani
 it defends the base when it is attacked, walks with your army when your army attacks, hunts
 what it can beat cleanly, meets the enemy Mech when the odds favour it (and draws it onto
 your guns when they do not), keeps out of reach of anything it outranges, and walks back to
-its bay to be repaired when it is hurt. **The opponent's Mech is a different mind**: a
-hunter that stays in a fight longer, takes closer odds, meets your Mech more readily and
-goes further out after your Diggers, expansions and Mech Bay, from a post nearer the middle
--- some matches a raider after your economy, some a brawler after your army -- though it
-still turns for home when something is at its base. It says nothing you can hear: what it
-sees, it passes to its own side's commander, a call and a place.
+its bay to be repaired when it is hurt -- more defending than attacking, and attacking when
+the moment calls for it. **The opponent's Mech is a mind of its own with the same
+judgement**: just as careful, but each match with a temper of its own -- steadier, warier or
+a little bolder in when it goes in and when it turns for repairs -- so the two never play
+as each other's copy. It says nothing you can hear: what it sees, it passes to its own
+side's commander, a call and a place.
 
 Yours **talks to you**. A comms panel (top left) carries its **suggestions**, tagged as
 such -- attack ("their army is out in the field -- strike their Foundry now"), defend ("3
@@ -189,16 +217,16 @@ launchers for a crowd.
 
 **The Mech Bay** guards itself with a gun tower, mends itself (quickly once left
 alone), repairs the Mech standing in its gantry -- whole again from a bad beating in
-about half a minute, but only a trickle while it is being shot at -- and sells the Mech's
+about a minute, and only a trickle while it is being shot at -- and sells the Mech's
 upgrades, bought by you (or the opponent AI), never by the Mech. An upgrade still in the
 works when the Mech or the bay falls is refunded:
 
 | Upgrade | Levels (ore) | Effect |
 |---|---|---|
 | Servo Actuators `V` | 2 (150, 250) | +15% speed and turning a level |
-| Ablative Armour `B` | 3 (175, 275, 375) | +10% hull and 4% less damage taken a level (plates appear on the Mech) |
-| Weapon Overcharge `N` | 3 (175, 275, 375) | +10% damage a level |
-| Extra Hardpoint `M` | 2 (300, 500) | Mounts another weapon on an empty or auxiliary mount (the tooltip says which) |
+| Ablative Armour `B` | 3 (175, 275, 375) | +5% hull and 2% less damage taken a level (plates appear on the Mech) |
+| Weapon Overcharge `N` | 3 (175, 275, 375) | +5% damage a level |
+| Extra Hardpoint `M` | 1 (350) | Mounts one more weapon on an empty or auxiliary mount (the tooltip says which) |
 | Targeting Uplink `K` | 1 (200) | +12% range, +10 m sight (a dish appears on its back) |
 
 **Where you raise it** is up to you -- anywhere a Digger can build, the enemy's base included --
@@ -215,13 +243,34 @@ Digger walked into the enemy base at a minute and a half was shot as it began wo
 fell within four seconds; 45 m outside, the Digger lasted 15-18 s and the bay was never finished
 (without the opponent's answer to a site it took 19-39 s, and one bay in three was finished and
 cost them 4 Diggers and 13 soldiers). A bay put down whole 12 m inside their base at 30 s --
-sooner than a Digger could raise one -- fell 109-116 s later, before its Mech came, in five of
-the seven runs made while this was worked on; in the other two, on earlier versions, the gun shot
-their economy away first and the Mech that came down there finished them. On a lake shore 66 m from their base the Mech lived through all five runs (it had died in
+sooner than a Digger could raise one -- fell 109-124 s later in six of the eight runs made while
+this was worked on, all but the last before its Mech came down (that one landed four seconds
+before the bay fell); in the other two, on earlier versions, the gun shot their economy away
+first and the Mech that came down there finished them. On a lake shore 66 m from their base the Mech lived through all five runs (it had died in
 three of five while it sat in the gantry being shot from 45 m). In a corner, a wood and far out
 on a flank the bay stood and the Mech lived. No run raised an exception.
 
-**Balance.** A Mech is meant to be worth roughly 20-25 Maulers or 30-40 Troopers in a
+**Your army counts against a Mech.** Three rules make sure what an army does to one sticks:
+- **Battle damage tells.** Below 60% of its hull a Mech's guns reload slower, up to 45%
+  longer at 15% (it fires about a third slower). Select it and its card says so -- yours or
+  theirs ("Battle-damaged: firing 22% slower"). A Mech at a fifth of its hull used to fight as
+  hard as a fresh one, so nothing an army did counted until the last shot.
+- **The bay mends slowly.** A Mech back at 38% needs about a minute in the gantry to be whole
+  (22 hull a second, 6 while it is being shot at; it was 50 and 15, and what an army had cost
+  it was gone in twenty seconds).
+- **Upgrades are steps, not leaps.** Ablative Armour and Weapon Overcharge give 5% a level and
+  the Extra Hardpoint mounts one more gun, not two. With every upgrade bought -- which the
+  opponent does by mid-match -- a Mech used to take 2.2-2.7 times the army a bare one did.
+
+Measured with the duel below on six designs, each fight on a freshly loaded map (fought one
+after another on one site, the burnt grass, craters and felled trees of the earlier fights
+skewed the later ones), against the old rules in the same session: a fully upgraded Mech now
+takes **28 Maulers or 56 Troopers** on average to break (21-36 / 39-70 by design), where it took
+**39 and 82** (23-48 / 54-109); a bare one 15.5 Maulers (was 17.5), and 30-36 Troopers either
+way (a crowd of rifles is the noisiest measure there is: a design's number moves by a fifth
+from one run to the next).
+
+**Balance.** A bare Mech is meant to be worth roughly 20-25 Maulers or 30-40 Troopers in a
 straight fight, and that is measured, not guessed: `MechTrials`' duel (Editor/MechTrials.cs)
 stands a Mech with no upgrades on a flat, open corridor of the default map and sends N
 Maulers or N Troopers at it, fought to the end, bisecting for the smallest N that kills it.
@@ -324,8 +373,8 @@ as the Mauler's cannon (158-192 Hz, 41-58%), the deepest sounds in the game.
 - **It has a Mech too.** It raises a Mech Bay early, buys its Mech upgrades from
   spare ore -- guns and hardpoints when it means to attack, armour when it means to
   hold -- and goes for your Mech Bay while your Mech has not yet landed. Its Mech is
-  not under its command any more than yours is under yours, and it is not the same kind of
-  Mech (a hunter, where yours is a guardian): it listens to the calls its Mech sends it,
+  not under its command any more than yours is under yours (it fights as carefully as
+  yours, with a temper of its own): it listens to the calls its Mech sends it,
   silently, a kind and a place, and sometimes acts on them -- meeting a raid its Mech saw coming,
   striking when its Mech says the moment has come -- and sometimes does not. Around
   your Mech it keeps its army together and puts everything it has on it, and it does
@@ -407,25 +456,26 @@ since a Mech holding its base makes matches longer and 600 s left most of them u
 
 | Opponent | Result | Mechs | Read correctly | First correct read | Read as | APM avg / peak |
 |---|---|---|---|---|---|---|
-| Rusher | **2 won** (avg 666 s), 3 time cap | theirs fell in 4 | 13% | 169 s | turtling 36%, harassing 34%, rushing 13% | 39 / 240 |
-| Macro | **3 won** (avg 611 s), 2 time cap | theirs fell in 3 | 9% | 30 s | turtling 48%, expanding 39% | 34 / 240 |
-| Turtle | **3 won** (avg 684 s), 2 time cap | theirs fell in 3 | 57% | 78 s | turtling 56%, teching 36% | 32 / 240 |
-| Harasser | **4 won** (avg 519 s), 1 time cap | theirs fell in 5 | 44% | 77 s | harassing 39%, turtling 31%, teching 18%, macro 11% | 32 / 192 |
+| Rusher | **4 won** (avg 576 s), 1 time cap | theirs fell in 2 | 25% | 125 s | harassing 34%, turtling 29%, rushing 23%, macro 12% | 37 / 240 |
+| Macro | **2 won** (avg 583 s), 3 time cap | theirs fell in 1 | 12% | 30 s | expanding 48%, turtling 39%, macro 12% | 36 / 240 |
+| Turtle | **4 won** (avg 687 s), 1 time cap | theirs fell in 5 | 72% | 85 s | turtling 70%, teching 17%, macro 12% | 33 / 240 |
+| Harasser | **4 won** (avg 553 s), 1 time cap | theirs fell in 3 | 42% | 78 s | harassing 41%, turtling 24%, macro 16%, teching 14% | 35 / 240 |
 
-**12 of 20 won, none lost** (before the Mechs, 12 of 20 at a 600 s cap); the AI's own Mech
-survived every match. Of the eight matches that ran to the cap, five ended with the
-opponent's Mech still standing at its base and the other three with its base still holding
-after its Mech fell: a Mech defending its home, with the bay's tower beside it and the gantry
-mending it between waves, is the hardest thing on the map to crack, and the scripted
-opponents turtle behind theirs. Of its Mech's calls to attack, defend or pull back the AI
-acted on 41 and ignored 20; it struck while the enemy Mech was away from home up to six times
-a match, and gathered its waves on its own Mech in most. Both sides' Mechs were fitted out at
-the drop against what the other fielded.
+**14 of 20 won, none lost** (before the Mechs, 12 of 20 at a 600 s cap); the AI's own Mech
+survived every match, and no match raised an exception. Of the six that ran to the cap, five
+ended with the opponent's Mech still standing at its bay, 133-152 kills to its name, and the
+sixth with two of the opponent's structures left and no Mech: a Mech defending its home, with
+the bay's tower beside it and the gantry mending it between waves, is the hardest thing on the
+map to crack, and the scripted opponents turtle behind theirs. Of its Mech's calls to attack,
+defend or pull back the AI acted on 27 and ignored 22; it struck while the enemy Mech was away
+from home 25 times (up to four a match), and gathered its waves on its own Mech 103 times. Both
+sides' Mechs were fitted out at the drop against what the other fielded.
 
 Runs vary: the same twenty seeds gave 13, 15, 12, 15 and 11 wins in the round that added
-the Mechs and 15, 10 and 12 in the round that added the loadouts picked at the drop, the
-Flame Tower and the anti-Mech tactics below (no losses in any), because a match's frame timing
-is not the same twice. So a single change is judged over a whole run, not a match, and a
+the Mechs, 15, 10 and 12 in the round that added the loadouts picked at the drop, the
+Flame Tower and the anti-Mech tactics below, and 14 (the table above) once its enemy memory
+counted a clump of units as the units in it and it expanded when its ore ran low (no losses
+in any), because a match's frame timing is not the same twice. So a single change is judged over a whole run, not a match, and a
 difference of two or three wins is noise. The first cut of the "strike while their Mech is
 away" window called its wave off whenever their Mech went out of sight for a while, and the
 army walked to their base and back every nine seconds (54-104 such waves in a match); a wave

@@ -10,7 +10,7 @@ Reasons, baselines and the adaptive-resolution rules: `Assets/StarForge/Scripts/
 ## Before any run
 1. `pmset -g batt` — record it with the number (a charging battery costs ~3 fps; Low Power Mode on battery).
 2. Screen not locked: `ioreg -n Root -d1 -a | plutil -extract IOConsoleUsers json -o - -` and look for `CGSSessionScreenIsLocked` (a locked screen caps the player at 20 fps; only the user can unlock).
-3. Editor idle and **not in play mode**; no other session using it (`ListAgents`, `Tools/editor.sh state`).
+3. Editor idle and **not in play mode**; no other session using it (`ListAgents`, `Tools/editor.sh state`; the full slot protocol is step 3 of the `verify-change` skill).
 4. Long runs: `caffeinate -d -i -t 7200` in the background (display sleep stalls the Editor; the player needs the display too).
 5. Rebuild first if code changed: `Tools/editor.sh menu "StarForge/Build macOS Player (Apple silicon)"` (cached ~20 s).
 
@@ -21,7 +21,7 @@ Builds/StarForge.app/Contents/MacOS/StarForge -sfbench 420 -sfplay -sfbenchout /
 - Always `-sfplay` (vsync + 60 cap = what a player sees). Without it the run is uncapped and bimodal (~9/60 ms).
 - Compare averages against a build measured the same way, in **alternating pairs** (the Neo is fanless and drifts ~1 ms as it heats). `-sfcap60` matches builds from before the uncapping fix.
 - Read the report's `simulation ...`, `frames over 40 ms ...` and `frame timing:` lines before blaming rendering; the `frame timing:` GPU time is not usable on Metal.
-- Presets and probes: `-sfquality high|balanced|battery`, `-sfshadows N`, `-sfdensity X`, `-sfseed N`, `-sfdebug`, `-sfshot <png> -sfshotat <s>`.
+- Presets and probes: `-sfquality high|balanced|battery` (runs a preset without saving it), `-sfshadows N`, `-sfdensity X`, `-sfseed N`, `-sfdebug`, `-sfshot <png> -sfshotat <s>`.
 
 ## Flicker / shimmer (built player, camera still; never trust editor captures)
 ```bash

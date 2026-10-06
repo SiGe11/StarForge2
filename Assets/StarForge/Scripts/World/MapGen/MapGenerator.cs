@@ -1481,6 +1481,7 @@ namespace StarForge.World
 
             veg.plants = plants.ToArray();
             veg.volumes = volumes.ToArray();
+            veg.PlantsReplaced();
             result.plants = plants.Count;
             result.blockingPlants = volumes.Count;
             if (!go.activeSelf) go.SetActive(true);

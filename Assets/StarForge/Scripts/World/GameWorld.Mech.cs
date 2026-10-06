@@ -332,7 +332,7 @@ namespace StarForge.World
                         if (!Map.InBounds(q2) || q.y < Map.HeightAt(q2) - 0.2f) { end = q; break; }
                     }
                     Vector2 a2 = new Vector2(muzzle.x, muzzle.z), b2 = new Vector2(end.x, end.z);
-                    EnemiesNear(shooter, reach + 2f, gunScratch);
+                    FoesNear(shooter, reach + 2f, gunScratch);
                     // Nearest first along the line: each body it passes through takes a third
                     // off it, and after the fourth it is spent.
                     var hitList = railScratch;
@@ -366,7 +366,7 @@ namespace StarForge.World
                     float reach = core.Range(g);
                     float cosHalf = Mathf.Cos(part.coneDeg * Mathf.Deg2Rad);
                     Vector2 f2 = new Vector2(fwd.x, fwd.z);
-                    EnemiesNear(shooter, reach + 3f, gunScratch);
+                    FoesNear(shooter, reach + 3f, gunScratch);
                     // A copy: a burning body that dies here must not change the list being walked.
                     flameScratch.Clear();
                     flameScratch.AddRange(gunScratch);
@@ -405,6 +405,8 @@ namespace StarForge.World
             p.vsLight = part.vsLight;
             p.vsHeavy = part.vsHeavy;
             p.vsStructure = part.vsStructure;
+            // Fired at its own side's deserters (GameWorld.Morale): the burst may catch them.
+            p.purge = target != null && target.deserted && target.team == shooter.team;
             p.age = 0f;
             p.flight = 0f;
             projectiles.Add(p);

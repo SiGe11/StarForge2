@@ -20,6 +20,8 @@
 //   support    walk with its side's army when that army goes on the attack;
 //   hunt       pick off an enemy force or structure it can beat cleanly, away from towers;
 //   guard      otherwise hold the approach between its base and the enemy's.
+// And when soldiers of its side desert (GameWorld.Morale), it decides -- by its pilot's
+// temper and its mood -- whether to go to their camp and put them down (Punish).
 // In a fight it keeps its distance from anything it outranges, and closes on what it does not.
 using System.Collections.Generic;
 using System.Text;
@@ -77,12 +79,25 @@ namespace StarForge.AI
         float dockedSince = -1f, dockedHp, bayShunUntil = -1f;
         int bayShuns;
         int killsSeen, enemyMechsBefore = -1;
+        // Its side's deserters: when it gives its verdict (a few seconds after they run, once
+        // it is free to), and if it goes, until when it keeps at it. Its own stream, so the
+        // verdict does not shift the brain's other draws.
+        Rng punishRng;
+        float verdictAt = -1f, verdictUntil = -1f, punishUntil = -1f;
+        bool punishing, punishArrived, forcePunish;
+        /// <summary>Is it out to punish its side's deserters?</summary>
+        public bool Punishing => punishing;
+        /// <summary>How many times it went (for the trials and the evaluation line).</summary>
+        public int Punishments { get; private set; }
+        /// <summary>Its last verdict on deserters and why (trials, debug view).</summary>
+        public string LastVerdict { get; private set; } = "";
 
         public void Init(GameWorld world, int t, uint seed)
         {
             w = world;
             team = t;
             rng = new Rng(seed ^ 0x3EC4u ^ (uint)(t * 7919));
+            punishRng = new Rng(seed ^ 0x9D1E5u ^ (uint)(t * 31337));
             nextAdvice = 60f;
             speech = new MechSpeech(world, t, seed);
             w.Event += OnEvent;
@@ -117,6 +132,8 @@ namespace StarForge.AI
             var m = Mech;
             thinkT = thinkEvery = m != null && m.mech.Landed && InFight(m) ? CombatThink : ThinkPeriod;
             if (m != lastMech) { lastMech = m; repairing = false; greeted = false; }
+            // Gone to be mended, or gone: the deserters will keep.
+            if (punishing && (m == null || repairing)) StopPunishing(m, null);
             Advise(m);
             if (m == null) return;
             var core = m.mech;
@@ -203,6 +220,9 @@ namespace StarForge.AI
                 MoveTo(m, Guard(null), 6f);
                 return;
             }
+
+            // ---- its side's deserters (after the repairs: a hurt Mech mends first)
+            if (Punish(m, core, hpFrac)) return;
 
             // ---- the enemy Mech
             var foeMech = w.MechOf(1 - team);
@@ -499,7 +519,7 @@ namespace StarForge.AI
                     eAll++;
                     if (e.def.Heavy) eHeavy++;
                 }
-                else if (e != m && (e.def.Armed || e.def.building))
+                else if (e != m && (e.def.Armed || e.def.building) && !e.deserted)   // deserters will not help
                 {
                     if (e.def.building && !e.def.Armed) continue;
                     fh += Toughness(e) * (e.def.building ? 0.6f : 1f);
@@ -570,7 +590,7 @@ namespace StarForge.AI
             value = 0f;
             foreach (var u in w.units)
             {
-                if (u == null || u.dying || u.team != side || !u.def.IsArmy) continue;
+                if (u == null || u.dying || u.team != side || !u.def.IsArmy || u.deserted) continue;
                 float v = Defs.ArmyValue(u.Type);
                 sum += u.pos * v;
                 value += v;
@@ -591,7 +611,7 @@ namespace StarForge.AI
             float v = 0f;
             foreach (var u in w.units)
             {
-                if (u == null || u.dying || u.team != team || !u.def.IsArmy) continue;
+                if (u == null || u.dying || u.team != team || !u.def.IsArmy || u.deserted) continue;
                 if ((u.pos - centre).magnitude > 30f) continue;
                 float k = Defs.ArmyValue(u.Type);
                 sum += u.pos * k;
@@ -618,7 +638,8 @@ namespace StarForge.AI
             weighedRatio.Clear();
             foreach (var e in w.units)
             {
-                if (e == null || e.dying || e.team == team || e.team > 1 || e.Untargetable) continue;
+                // Their deserters harm no one: not worth the walk.
+                if (e == null || e.dying || e.team == team || e.team > 1 || e.Untargetable || e.deserted) continue;
                 float value;
                 if (e.Type == UnitType.MechBay) value = F.mechDropped && w.factions[1 - team].mechDropped ? 250f : 900f;
                 else if (e.Type == UnitType.Foundry) value = 350f;
@@ -656,7 +677,7 @@ namespace StarForge.AI
         {
             float v = 0f;
             foreach (var e in w.UnitsNear(at, radius))
-                if (e.team != team && e.team < 2 && !e.def.building) v += e.Type == UnitType.Worker ? 40f : Defs.ArmyValue(e.Type);
+                if (e.team != team && e.team < 2 && !e.def.building && !e.deserted) v += e.Type == UnitType.Worker ? 40f : Defs.ArmyValue(e.Type);
             return v;
         }
 
@@ -874,7 +895,7 @@ namespace StarForge.AI
             Vector2 sum = Vector2.zero;
             foreach (var e in w.units)
             {
-                if (e == null || e.dying || e.team == team || e.team > 1 || !e.def.IsArmy) continue;
+                if (e == null || e.dying || e.team == team || e.team > 1 || !e.def.IsArmy || e.deserted) continue;
                 float dHome = DistToBase(e.pos, out _);
                 if (dHome > 75f || dHome < 12f) continue;       // at the door already is the base's business
                 if ((e.pos - Home).magnitude > (e.pos - Foe).magnitude) continue;
@@ -936,6 +957,12 @@ namespace StarForge.AI
 
         void OnEvent(GameEvent e)
         {
+            // Soldiers of its side ran: it gives its verdict in a few seconds (Punish).
+            if (e.kind == GameEventKind.Desertion && e.team == team && !punishing && verdictAt < 0f)
+            {
+                verdictAt = w.time + punishRng.Range(4f, 9f);
+                verdictUntil = w.time + 75f;
+            }
             if (e.kind == GameEventKind.Death && e.team == 1 - team && e.unit != null && e.unit.Type == UnitType.MechBay && !w.factions[team].mechLost)
             {
                 if (Mech != null)
@@ -951,6 +978,158 @@ namespace StarForge.AI
                 w.MechAdvise(team, MechAdviceKind.Status, new Vector2(e.pos.x, e.pos.z),
                     $"{F.design.pilot} inbound. Clear the pad beside the Mech Bay -- landing in {GameWorld.MechInboundLead:0} seconds.");
         }
+
+        // ------------------------------------------------------------ deserters
+        // Soldiers of its side who broke and ran (GameWorld.Morale) sit in a camp in the
+        // corner behind its base. A few seconds after they run -- once it is whole enough
+        // and nothing is on it -- it decides whether to go and put them down: a cold pilot
+        // more often than a warm one, a proud one more often, and any of them more often
+        // when the war is going badly (its mood). If it goes, it says so, walks there, and
+        // its guns treat them as enemies until they are dead (GameWorld.Purging); it gives
+        // up if it is needed at home, their Mech comes near, it goes for repairs, or after
+        // two and a half minutes. Either way its side hears what it decided.
+
+        /// <summary>For the trials: give the verdict now, and make it "go".</summary>
+        public void PunishNow()
+        {
+            forcePunish = true;
+            verdictAt = w.time;
+            verdictUntil = w.time + 75f;
+        }
+
+        /// <summary>The verdict when it is due, and the walk to the camp: true if that is what
+        /// it is doing this think.</summary>
+        bool Punish(Unit m, MechCore core, float hpFrac)
+        {
+            var M = w.MoraleOf(team);
+            if (verdictAt >= 0f && w.time >= verdictAt)
+            {
+                if (M.deserters.Count == 0 || w.time > verdictUntil) verdictAt = -1f;   // gone, or too late to matter
+                else if (!forcePunish && (hpFrac < 0.6f || InFight(m) || (HomeThreat(out _, out float tv) && tv >= 120f)))
+                    verdictAt = w.time + 5f;                                            // busy: later
+                else { verdictAt = -1f; Verdict(m, M); }
+            }
+            if (!punishing) return false;
+
+            if (w.time > punishUntil) { StopPunishing(m, Line(Aborted)); return false; }
+            if (HomeThreat(out _, out float threat) && threat >= 120f) { StopPunishing(m, Line(Aborted)); return false; }
+            var foe = w.MechOf(1 - team);
+            if (foe != null && foe.mech.Landed && m.Dist(foe) < 60f) { StopPunishing(m, Line(FoeNear)); return false; }
+
+            Unit prey = null;
+            float best = float.MaxValue;
+            foreach (var d in M.deserters)
+            {
+                if (!Unit.Live(d)) continue;
+                float dd = (d.pos - m.pos).sqrMagnitude;
+                if (dd < best) { best = dd; prey = d; }
+            }
+            if (prey == null) { StopPunishing(m, Line(speech.Temper < 0f ? DoneCold : DoneWarm)); return false; }
+
+            w.SetPurge(team, true);
+            SetIntent(core, MechIntent.Hunting, "Punishing deserters " + Where(M.camp));
+            Focus(m, prey);
+            float dist = m.Dist(prey) - prey.def.radius;
+            if (!punishArrived && dist < core.FightRange)
+            {
+                punishArrived = true;
+                Say(MechAdviceKind.Status, prey.pos, Line(speech.Temper < 0f ? ArriveCold : ArriveWarm), m);
+            }
+            // Close enough for every gun, not on top of them.
+            float stand = Mathf.Clamp(core.ShortRange - 2f, 6f, Mathf.Max(6f, core.FightRange - 3f));
+            if (dist > stand) MoveTo(m, prey.pos + Norm(m.pos - prey.pos) * stand, 2f);
+            else if (m.order == Order.Move && m.Moving && Spend(1)) w.CmdMechHalt(m);
+            return true;
+        }
+
+        void Verdict(Unit m, MoraleState M)
+        {
+            float mood = speech.Mood(m), temper = speech.Temper, pride = speech.Pride;
+            float will = 0.12f + 0.4f * Mathf.Max(0f, -temper) - 0.1f * Mathf.Max(0f, temper)
+                       + 0.15f * pride + 0.35f * Saturate(-mood * 2f);
+            will = Mathf.Clamp(will, 0.03f, 0.9f);
+            bool go = punishRng.F01() < will || forcePunish;
+            LastVerdict = $"will {will:0.00} (temper {temper:+0.00;-0.00}, pride {pride:0.00}, mood {mood:+0.00;-0.00}){(forcePunish ? " forced" : "")}: {(go ? "punish" : "let them go")}";
+            forcePunish = false;
+            if (go)
+            {
+                punishing = true;
+                punishArrived = false;
+                punishUntil = w.time + 150f;
+                Punishments++;
+                string text = Line(temper < 0f ? GoCold : GoWarm).Replace("{where}", Where(M.camp)).Replace("{n}", M.deserters.Count.ToString());
+                Say(MechAdviceKind.Status, M.camp, text, m);
+            }
+            else if (punishRng.F01() < 0.6f)
+                Speak(m, Line(temper < 0f ? SpareCold : SpareWarm));
+        }
+
+        void StopPunishing(Unit m, string line)
+        {
+            punishing = false;
+            punishArrived = false;
+            w.SetPurge(team, false);
+            if (line != null && m != null) Say(MechAdviceKind.Status, m.pos, line, m);
+        }
+
+        string Line(string[] lines)
+        {
+            string s = lines[punishRng.IRange(0, lines.Length)];
+            var d = F.design;
+            return d != null ? s.Replace("{callsign}", d.callsign) : s;
+        }
+
+        static readonly string[] GoCold =
+        {
+            "{n} of ours threw down their oath and ran -- they are hiding {where}. I will see to them. Nobody walks away from this war.",
+            "Deserters, {where}. I am going to remind them what an oath costs.",
+            "They ran from the enemy. They will not run from me. Turning back for the deserters {where}.",
+        };
+        static readonly string[] GoWarm =
+        {
+            "Some of ours have broken and fled {where}. I take no joy in this -- but if I let it stand, more will follow. Going.",
+            "Deserters {where}. It falls to me to deal with them. I wish it did not.",
+        };
+        static readonly string[] ArriveCold =
+        {
+            "You ran from them. You cannot run from me.",
+            "{callsign} to the deserters: there is no corner far enough.",
+            "Stand where you are. This is what the oath was for.",
+        };
+        static readonly string[] ArriveWarm =
+        {
+            "Lay down your arms and face it. I am sorry it came to this.",
+            "I am here. Do not make it worse by running.",
+        };
+        static readonly string[] DoneCold =
+        {
+            "It is done. Nobody else runs.",
+            "The deserters are dealt with. Remember it, all of you.",
+        };
+        static readonly string[] DoneWarm =
+        {
+            "It is done. I hope never to do that again. Hold your lines.",
+            "Finished. Let the rest of you stand where you stood.",
+        };
+        static readonly string[] Aborted =
+        {
+            "The deserters will keep. I am needed elsewhere.",
+            "No time for deserters now -- I am turning back.",
+        };
+        static readonly string[] FoeNear =
+        {
+            "Their Mech is close. The deserters can wait.",
+        };
+        static readonly string[] SpareCold =
+        {
+            "Deserters, cowering in the corner. They are not worth a shell. Not today.",
+            "Some of ours have run. Let them sit in the dirt -- the enemy is the one I came for.",
+        };
+        static readonly string[] SpareWarm =
+        {
+            "Some of ours have run for the corner. Let them go -- fear is not treason, and I am needed here.",
+            "Deserters. I will not turn my guns on our own. Hold the line, the rest of you.",
+        };
 
         // ------------------------------------------------------------ words
         string Where(Vector2 p)

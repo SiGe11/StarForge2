@@ -7,9 +7,79 @@
       "Read(./StarForge2.dmg)",
       "Read(./StarForge2/**/*)",
       "Read(./**/*_BackUpThisFolder_ButDontShipItWithYourGame/**/*)",
-      "Read(./Assets/StarForge/Map/**/*.asset)",
-      "Read(./Assets/StarForge/Scenes/**/*.unity)"
+      "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "Bash(git checkout -- .)",
+      "Bash(git checkout .)",
+      "Bash(git restore .)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)"
+    ],
+    "ask": [
+      "Bash(git reset *)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)",
+      "Bash(git restore *)",
+      "Bash(git stash *)",
+      "Bash(git add -A *)",
+      "Bash(git add --all *)",
+      "Bash(git add . *)",
+      "Bash(git add -u *)",
+      "Bash(git commit -a*)",
+      "Bash(git commit --all *)",
+      "Bash(git commit --amend *)",
+      "Bash(git rebase *)",
+      "Bash(git merge *)",
+      "Bash(git push *)"
     ]
   },
-  "bashOutputMaxChars": 40000
+  "bashOutputMaxChars": 40000,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Bash|mcp__unity.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/area_notes.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Bash|mcp__unity.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/area_notes.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/area_notes.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/area_notes.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
 }

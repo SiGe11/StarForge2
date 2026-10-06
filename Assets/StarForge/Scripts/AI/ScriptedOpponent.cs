@@ -47,7 +47,7 @@ namespace StarForge.AI
         {
             var v = new List<Unit>();
             foreach (var e in w.units)
-                if (e != null && !e.dying && e.team == team && e.Type == t && e.Complete) v.Add(e);
+                if (e != null && !e.dying && e.team == team && e.Type == t && e.Complete && !e.deserted) v.Add(e);
             return v;
         }
 

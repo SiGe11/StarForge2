@@ -52,6 +52,11 @@ namespace StarForge.AI
             // Their Mech eats a small army whole: while it is about, wait for a big one --
             // half again as big even with its own Mech walking alongside, and more without.
             if (snap.eMech) p.pushThreshold *= (snap.mechAlive ? 1.5f : 1.9f) * (1f + 0.2f * mechRepulses);
+            // ...and against their Mech at home, by its tower and its gantry, an army that can
+            // break it (the old rule above stays as the floor). That rule topped out near 1,400,
+            // a third of what breaking a Mech takes, and it fed the Mech wave after wave: in
+            // every match that ran to the cap their Mech stood at its bay on 130-150 kills.
+            if (snap.eMech && MechAtHome(snap)) p.pushThreshold = Mathf.Max(p.pushThreshold, MechNeed(snap));
             // Build against the Mech it has seen: one made to kill infantry (flame, rotary
             // cannon, missiles) is met with armour; one made to kill armour (lasers, the
             // railgun, the mortar) with a swarm of rifles -- the cheapest answer to a Mech
@@ -73,6 +78,20 @@ namespace StarForge.AI
             }
             return p;
         }
+
+        /// <summary>The army it takes to break their Mech (with its own Mech's help if that is fit):
+        /// by the trials, 35 Troopers (1,750) bring down one built to kill armour and 21 Maulers
+        /// (3,150) one built to burn infantry -- what it builds leans that way once it has seen the
+        /// guns (Plan) -- scaled by the health it was last seen with (a health bar is there for
+        /// anyone to read), and roughly halved when its own Mech, fit, goes in too.</summary>
+        static float MechNeed(Snapshot s)
+        {
+            float worth = Mathf.Lerp(1750f, 3150f, s.eMechDesignKnown ? s.eMechAntiLight : 0.5f);
+            return worth * Mathf.Lerp(0.3f, 1f, s.eMechHpFrac) * (s.mechAlive && s.mechHpFrac > 0.6f ? 0.55f : 1f);
+        }
+
+        /// <summary>Their Mech last seen at its base (where its tower and gantry stand by it).</summary>
+        static bool MechAtHome(Snapshot s) => s.enemyBaseKnown && (s.eMechPos - s.enemyBase).magnitude < 55f;
 
         static MacroPlan PlanFor(Strategy s)
         {
@@ -129,6 +148,8 @@ namespace StarForge.AI
         int mechRepulses;
         /// <summary>This wave goes while their Mech is away from home; it gathers on its own Mech.</summary>
         bool mechAwayWave, stageWithMech;
+        /// <summary>This wave goes at their Mech seen badly hurt, before its bay mends it.</summary>
+        bool hurtWave;
         float windowNotBefore;
         WaveTarget waveTarget;
         readonly List<Unit> prong = new List<Unit>();
@@ -247,7 +268,8 @@ namespace StarForge.AI
             var v = new List<Unit>();
             foreach (var e in w.units)
             {
-                if (e == null || e.dying || e.team != team || e.Type != t || !e.Complete) continue;
+                // Deserters (GameWorld.Morale) take no orders: not part of any squad.
+                if (e == null || e.dying || e.team != team || e.Type != t || !e.Complete || e.deserted) continue;
                 if (idleOnly && e.order != Order.Idle) continue;
                 v.Add(e);
             }
@@ -420,8 +442,24 @@ namespace StarForge.AI
                     Build(b, UnitType.Foundry, spot)) issued++;
             }
 
+            // Its next ore line, decided before anything is spent (step 3 raises it): when the plan
+            // wants one, or when the ore by its Foundries runs low, whatever the plan. A base's eight
+            // seams (12,000 ore) are mined out in seven to nine minutes; after that its Diggers
+            // hauled from the nearest ore anywhere, and only the expanding plans had ever taken a
+            // second line.
+            int foundryCost = Defs.Get(UnitType.Foundry).cost;
+            int foundriesUp = s.foundries + s.pendingType[(int)UnitType.Foundry];
+            bool dryingUp = w.time > 120f && foundriesUp > 0 && OreByFoundries() < 4500;
+            Vector2 site = default;
+            bool expand = (plan.wantExpand || dryingUp) && foundriesUp < (dryingUp ? 4 : 2) && s.pending < 2 &&
+                          (F.ore >= foundryCost || dryingUp) && ExpansionSite(home, out site);
+            // Running dry, the ore goes to that Foundry first -- not while it is under attack.
+            // Spent as it came in (nine Bunkhouses, four Garrisons), it had 17-151 ore when its
+            // second line ran out, and its Diggers walked to far ore and died to the last one.
+            bool saving = expand && dryingUp && F.ore < foundryCost && s.sinceAggression > 20f;
+
             // 1. Supply, gated on bunkhouses specifically.
-            if (issued < MaxPerPass && s.supplyCap - s.supplyUsed < 6 && s.supplyCap < GameWorld.MaxSupply &&
+            if (issued < MaxPerPass && !saving && s.supplyCap - s.supplyUsed < 6 && s.supplyCap < GameWorld.MaxSupply &&
                 F.ore >= Defs.Get(UnitType.Bunkhouse).cost && s.pendingType[(int)UnitType.Bunkhouse] < 2)
             {
                 var b = Builder();
@@ -457,7 +495,7 @@ namespace StarForge.AI
 
             // 1b. The Mech Bay: cheap, needs nothing, and calls down a Mech worth an army.
             //     Tucked in behind the Foundry, away from where the enemy comes from.
-            if (issued < MaxPerPass && !F.bayPlaced && w.time >= Personality.mechBayAt &&
+            if (issued < MaxPerPass && !saving && !F.bayPlaced && w.time >= Personality.mechBayAt &&
                 F.ore >= Defs.Get(UnitType.MechBay).cost && s.pending < 2)
             {
                 Vector2 face = s.enemyBaseKnown ? s.enemyBase : Perception.BaseGuesses[0];
@@ -468,19 +506,19 @@ namespace StarForge.AI
             }
 
             // 1c. Upgrades for the Mech, from ore it can spare.
-            if (issued < MaxPerPass && BuyMechUpgrade(F)) issued++;
+            if (issued < MaxPerPass && !saving && BuyMechUpgrade(F)) issued++;
 
             // 2. Production structures, at most two going up at once.
             int extraProd = F.ore > 550 ? 2 : (F.ore > 320 ? 1 : 0);
             int wantRax = Mathf.Min(5, plan.garrisons + extraProd);
             int wantFac = Mathf.Min(3, plan.workshops + (plan.workshops > 0 ? extraProd : 0));
-            if (issued < MaxPerPass && s.garrisons + s.pendingType[(int)UnitType.Garrison] < wantRax &&
+            if (issued < MaxPerPass && !saving && s.garrisons + s.pendingType[(int)UnitType.Garrison] < wantRax &&
                 F.ore >= Defs.Get(UnitType.Garrison).cost && s.pending < 2)
             {
                 var b = Builder();
                 if (b != null && PlaceNear(UnitType.Garrison, home, 12f, 28f, out var spot) && Build(b, UnitType.Garrison, spot)) issued++;
             }
-            if (issued < MaxPerPass && s.garrisons >= 1 && s.workshops + s.pendingType[(int)UnitType.Workshop] < wantFac &&
+            if (issued < MaxPerPass && !saving && s.garrisons >= 1 && s.workshops + s.pendingType[(int)UnitType.Workshop] < wantFac &&
                 F.ore >= Defs.Get(UnitType.Workshop).cost && s.pending < 2)
             {
                 var b = Builder();
@@ -490,7 +528,7 @@ namespace StarForge.AI
             // 2b. Sentinels on the approach: the turtle's answer, and insurance
             //     whenever the model smells early aggression.
             int wantSent = plan.sentinels + (Opponent.ThreatOfEarlyAggression > 0.55f ? 1 : 0);
-            if (issued < MaxPerPass && s.garrisons >= 1 && s.sentinels + s.pendingType[(int)UnitType.Sentinel] < wantSent &&
+            if (issued < MaxPerPass && !saving && s.garrisons >= 1 && s.sentinels + s.pendingType[(int)UnitType.Sentinel] < wantSent &&
                 F.ore >= Defs.Get(UnitType.Sentinel).cost && s.pending < 2)
             {
                 Vector2 face = s.enemyBaseKnown ? s.enemyBase : Perception.BaseGuesses[0];
@@ -499,31 +537,10 @@ namespace StarForge.AI
                 if (b != null && PlaceNear(UnitType.Sentinel, around, 0f, 10f, out var spot) && Build(b, UnitType.Sentinel, spot)) issued++;
             }
 
-            // 3. Expansion, only onto ground we have explored and that is quiet -- when the plan
-            //    wants one, or when the ore by its Foundries runs low, whatever the plan. A base's
-            //    eight seams (12,000 ore) are mined out in eight or nine minutes; after that its
-            //    Diggers hauled from the nearest ore anywhere, and only the expanding plans had
-            //    ever taken a second line.
-            int foundriesUp = s.foundries + s.pendingType[(int)UnitType.Foundry];
-            bool dryingUp = w.time > 120f && foundriesUp > 0 && OreByFoundries() < 2500;
-            if (issued < MaxPerPass && (plan.wantExpand || dryingUp) && F.ore >= Defs.Get(UnitType.Foundry).cost &&
-                foundriesUp < (dryingUp ? 3 : 2) && s.pending < 2)
+            // 3. Expansion, at the site chosen above.
+            if (issued < MaxPerPass && expand && F.ore >= foundryCost)
             {
-                Vector2 best = default;
-                float bestScore = -1e30f;
-                foreach (var e in w.units)
-                {
-                    if (e == null || e.dying || e.Type != UnitType.Ore || e.oreLeft <= 0) continue;
-                    if (!w.Explored(team, e.pos)) continue;
-                    float dHome = (e.pos - home).magnitude;
-                    if (dHome < 26f || dHome > 110f) continue;
-                    if (UnderGun(e.pos, 16f)) continue;   // the Foundry goes up to 16 m from the ore
-                    // Not a line it already has, nor one it has seen them hold.
-                    if (NearOwnFoundry(e.pos, 22f) || NearTheirStructure(e.pos, 25f)) continue;
-                    float score = -dHome * 0.02f - Influence.Sample(2, e.pos) * 3f + FieldOre(e.pos) * 0.0001f;
-                    if (score > bestScore) { bestScore = score; best = e.pos; }
-                }
-                if (bestScore > -1e29f && PlaceNear(UnitType.Foundry, best, 8f, 16f, out var spot))
+                if (PlaceNear(UnitType.Foundry, site, 8f, 16f, out var spot))
                 {
                     var b = Builder();
                     if (b != null && Build(b, UnitType.Foundry, spot)) issued++;
@@ -545,7 +562,7 @@ namespace StarForge.AI
             // 5. Army from every idle production structure. Floating ore is the
             //    single most common way for an RTS bot to lose a game it should win.
             bool rich = F.ore > 400;
-            for (int i = 0; i < w.units.Count && issued < MaxPerPass; i++)
+            for (int i = 0; i < w.units.Count && issued < MaxPerPass && !saving; i++)
             {
                 var e = w.units[i];
                 if (e == null || e.dying || e.team != team || !e.Complete || e.queue.Count >= 2) continue;
@@ -648,6 +665,28 @@ namespace StarForge.AI
             foreach (var f in foundriesNow)
                 if ((f.pos - p).sqrMagnitude < r * r) return true;
             return false;
+        }
+
+        /// <summary>Where its next Foundry goes: an ore field it has explored, 26-110 m from home,
+        /// with ore left, clear of their guns, not a line it has already nor one it has seen them
+        /// hold -- near, quiet and full first.</summary>
+        bool ExpansionSite(Vector2 home, out Vector2 best)
+        {
+            best = default;
+            float bestScore = -1e30f;
+            foreach (var e in w.units)
+            {
+                if (e == null || e.dying || e.Type != UnitType.Ore || e.oreLeft <= 0) continue;
+                if (!w.Explored(team, e.pos)) continue;
+                float dHome = (e.pos - home).magnitude;
+                if (dHome < 26f || dHome > 110f) continue;
+                if (UnderGun(e.pos, 16f)) continue;   // the Foundry goes up to 16 m from the ore
+                // Not a line it already has, nor one it has seen them hold.
+                if (NearOwnFoundry(e.pos, 22f) || NearTheirStructure(e.pos, 25f)) continue;
+                float score = -dHome * 0.02f - Influence.Sample(2, e.pos) * 3f + FieldOre(e.pos) * 0.0001f;
+                if (score > bestScore) { bestScore = score; best = e.pos; }
+            }
+            return bestScore > -1e29f;
         }
 
         /// <summary>Ore left on the seams within 25 m of its Foundries.</summary>
@@ -821,7 +860,7 @@ namespace StarForge.AI
         void RunScouts()
         {
             var s = Perception.Snap;
-            scouts.RemoveAll(u => !Unit.Live(u));
+            scouts.RemoveAll(u => !Unit.Live(u) || u.deserted);
 
             // Keep one scout alive whenever our picture has gone stale. A stale model
             // is worse than none: the strategy layer acts confidently on it.
@@ -902,10 +941,10 @@ namespace StarForge.AI
             var plan = Plan(Selector.Current);
             var st = Selector.Current;
 
-            main.RemoveAll(u => !Unit.Live(u));
-            harass.RemoveAll(u => !Unit.Live(u));
-            scouts.RemoveAll(u => !Unit.Live(u));
-            prong.RemoveAll(u => !Unit.Live(u));
+            main.RemoveAll(u => !Unit.Live(u) || u.deserted);
+            harass.RemoveAll(u => !Unit.Live(u) || u.deserted);
+            scouts.RemoveAll(u => !Unit.Live(u) || u.deserted);
+            prong.RemoveAll(u => !Unit.Live(u) || u.deserted);
 
             // Assign fresh army units to a squad. Skimmers are the natural raiders.
             int harassWant = st == Strategy.Harass ? 4 : 0;
@@ -960,9 +999,17 @@ namespace StarForge.AI
                 if (d < (threatAt - home).magnitude || threatAt == home) threatAt = r.pos;
             }
             // ...but it is taken on with an army that can: a handful of Troopers sent at a Mech
-            // Bay's gun tower only fed it, the bay stood, and its Mech came down among them.
+            // Bay's gun tower only fed it, the bay stood, and its Mech came down among them. With
+            // their Mech standing guard over it, that means an army that can break the Mech too
+            // (round a bay 44-66 m out it fed 21-22 units to the Mech, and lost them all).
+            // Not inside its own base, though: there the Mech is in among its Foundry and Diggers,
+            // and waiting for that army only gave it the base (a bay 12 m in stood, and the match
+            // was lost with the army idle beside it).
+            float structNeed = Mathf.Max(450f, plan.pushThreshold * 0.5f);
+            if (s.eMech && s.eMechSeenAgo < 10f && (s.eMechPos - structAt).magnitude < 40f && (structAt - home).magnitude > 25f)
+                structNeed = Mathf.Max(structNeed, MechNeed(s));
             if (structThreat > 0f && threatHome <= Mathf.Max(45f, s.armyValue * 0.14f) &&
-                s.armyValue >= Mathf.Max(450f, plan.pushThreshold * 0.5f))
+                s.armyValue >= structNeed)
             {
                 threatHome = structThreat;
                 threatAt = structAt;
@@ -1109,6 +1156,17 @@ namespace StarForge.AI
                 bool mechHome = s.eMech && s.eMechSeenAgo < 3f && s.enemyBaseKnown && (s.eMechPos - s.enemyBase).magnitude < 55f;
                 wantAttack = !mechHome;
             }
+            // Their Mech seen badly hurt: go now, with the army the plan would push with were there
+            // no Mech, before its bay mends it (at 50 a second once left alone it is whole again
+            // inside a minute). The wave presses on until their Mech is seen mended.
+            bool hurt = s.eMech && s.eMechSeenAgo < 10f && s.eMechHpFrac < 0.4f &&
+                        s.armyValue >= PlanFor(st).pushThreshold * Personality.timing && w.time >= windowNotBefore;
+            if (hurt && !waveOn && st != Strategy.Feint)
+            {
+                wantAttack = true;
+                hurtWave = true;
+            }
+            if (waveOn && hurtWave) wantAttack = !(s.eMech && s.eMechSeenAgo < 3f && s.eMechHpFrac > 0.65f);
             // Their Mech about and its own in the gantry being mended: the next wave waits
             // for it (unless it called the attack itself, or theirs is away) -- without it, a
             // wave is fed to theirs.
@@ -1172,6 +1230,8 @@ namespace StarForge.AI
             if (!Remembers(UnitType.Garrison) && !Remembers(UnitType.Workshop)) rProd = 0f;
             if (OutlyingFoundry(s, out _) == false) rExp = 0f;
             if (mechAwayWave) { rBase *= 1.6f; rBay *= 1.5f; rExp *= 0.3f; rWork *= 0.3f; }
+            // Their Mech hurt: the bay that would mend it, where it will be.
+            if (hurtWave) { rBay *= 4f; rExp *= 0.3f; rWork *= 0.3f; }
             float roll = rng.F01() * (rBase + rProd + rExp + rWork + rBay);
             waveTarget = roll < rBase ? WaveTarget.Base : roll < rBase + rProd ? WaveTarget.Production
                        : roll < rBase + rProd + rExp ? WaveTarget.Expansion
@@ -1234,8 +1294,9 @@ namespace StarForge.AI
                 }
             }
             Dbg.wave = $"{waveTarget} via {approach}{(staging ? " (staging)" : "")}{(prongOn ? $", prong of {prong.Count}" : "")}" +
-                       $"{(mechAwayWave ? ", their Mech away" : "")}{(stageWithMech ? ", on its Mech" : "")}";
+                       $"{(mechAwayWave ? ", their Mech away" : "")}{(hurtWave ? ", their Mech hurt" : "")}{(stageWithMech ? ", on its Mech" : "")}";
             if (mechAwayWave) Dbg.mechWindows++;
+            if (hurtWave) Dbg.hurtWindows++;
             if (stageWithMech) Dbg.stagedWithMech++;
         }
 
@@ -1301,8 +1362,8 @@ namespace StarForge.AI
 
         void EndWave(bool calledOff)
         {
-            if (mechAwayWave && waveOn) windowNotBefore = w.time + 20f;
-            mechAwayWave = false;
+            if ((mechAwayWave || hurtWave) && waveOn) windowNotBefore = w.time + 20f;
+            mechAwayWave = hurtWave = false;
             if (!waveOn) return;
             // A wave beaten back (not merely called off by a change of plan) marks
             // its approach as one to avoid next time -- and, with their Mech about, makes

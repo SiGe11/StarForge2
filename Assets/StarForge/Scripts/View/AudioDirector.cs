@@ -337,6 +337,9 @@ namespace StarForge.View
                 case GameEventKind.UnderAttack when e.team == me:
                     if (Time.unscaledTime - underAttackT > 10f) { underAttackT = Time.unscaledTime; PlayUI(bank.uiAlert != null ? bank.uiAlert : warn, 0.6f, 1f); }
                     break;
+                case GameEventKind.Desertion when e.team == me:
+                    PlayUI(bank.uiAlert != null ? bank.uiAlert : warn, 0.6f, 1f);
+                    break;
                 case GameEventKind.StructureComplete when e.team == me:
                     PlayUI(bank.uiDone != null ? bank.uiDone : good, 0.5f, 1f);
                     break;

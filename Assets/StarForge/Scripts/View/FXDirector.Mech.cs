@@ -50,6 +50,130 @@ namespace StarForge.View
             MechView.Footfall -= OnFootfall;
         }
 
+        // ------------------------------------------------------------ spent cases
+        ParticleSystem casings;
+        bool casingsTried;
+
+        /// <summary>Brass thrown out of a Mech's cannons: little lit tubes spun end over end,
+        /// bouncing and rolling on the ground (particle world collision) until they shrink
+        /// away. Made on first use from the debris material with a brass colour, so no new
+        /// shader variant.</summary>
+        ParticleSystem Casings()
+        {
+            if (casingsTried) return casings;
+            casingsTried = true;
+            if (debrisMaterial == null) return null;
+            var go = new GameObject("Casings");
+            go.transform.SetParent(transform, false);
+            var ps = go.AddComponent<ParticleSystem>();
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = ps.main;
+            main.playOnAwake = false;
+            main.loop = true;
+            main.maxParticles = 400;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.startSpeed = 0f;
+            main.startLifetime = 2.5f;
+            main.startSize = 1f;
+            main.startRotation3D = true;
+            main.gravityModifier = 1.3f;
+            var em = ps.emission;
+            em.rateOverTime = 0f;
+            var shape = ps.shape;
+            shape.enabled = false;
+            var rot = ps.rotationOverLifetime;
+            rot.enabled = true;
+            rot.separateAxes = true;
+            rot.x = new ParticleSystem.MinMaxCurve(-22f, 22f);
+            rot.y = new ParticleSystem.MinMaxCurve(-6f, 6f);
+            rot.z = new ParticleSystem.MinMaxCurve(-22f, 22f);
+            var sol = ps.sizeOverLifetime;
+            sol.enabled = true;
+            sol.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(0.85f, 1f), new Keyframe(1f, 0f)));
+            var col = ps.collision;
+            col.enabled = true;
+            col.type = ParticleSystemCollisionType.World;
+            col.mode = ParticleSystemCollisionMode.Collision3D;
+            col.quality = ParticleSystemCollisionQuality.Low;
+            col.dampen = new ParticleSystem.MinMaxCurve(0.25f, 0.45f);
+            col.bounce = new ParticleSystem.MinMaxCurve(0.3f, 0.5f);
+            col.lifetimeLoss = 0f;
+            col.radiusScale = 0.4f;
+            col.enableDynamicColliders = false;
+
+            var r = go.GetComponent<ParticleSystemRenderer>();
+            r.renderMode = ParticleSystemRenderMode.Mesh;
+            r.mesh = BuildCasingMesh();
+            r.alignment = ParticleSystemRenderSpace.World;
+            var brass = new Material(debrisMaterial) { name = "FX_Casing" };
+            brass.SetColor("_BaseColor", new Color(0.95f, 0.72f, 0.34f));
+            r.sharedMaterial = brass;
+            r.enableGPUInstancing = true;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.receiveShadows = true;
+            ps.Play();
+            return casings = ps;
+        }
+
+        /// <summary>A case: an eight-sided tube a metre long along z and 0.36 across (the
+        /// particle's size scales it), necked at the front.</summary>
+        static Mesh BuildCasingMesh()
+        {
+            const int Sides = 8;
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+            float[] zs = { -0.5f, 0.28f, 0.38f, 0.5f };
+            float[] rs = { 0.18f, 0.18f, 0.12f, 0.12f };
+            for (int ring = 0; ring < zs.Length; ring++)
+                for (int s = 0; s < Sides; s++)
+                {
+                    float a = s * Mathf.PI * 2f / Sides;
+                    verts.Add(new Vector3(Mathf.Cos(a) * rs[ring], Mathf.Sin(a) * rs[ring], zs[ring]));
+                }
+            for (int ring = 0; ring < zs.Length - 1; ring++)
+                for (int s = 0; s < Sides; s++)
+                {
+                    int a = ring * Sides + s, b = ring * Sides + (s + 1) % Sides;
+                    tris.AddRange(new[] { a, b, a + Sides, b, b + Sides, a + Sides });
+                }
+            int back = verts.Count; verts.Add(new Vector3(0f, 0f, -0.5f));
+            int front = verts.Count; verts.Add(new Vector3(0f, 0f, 0.5f));
+            int last = (zs.Length - 1) * Sides;
+            for (int s = 0; s < Sides; s++)
+            {
+                tris.AddRange(new[] { back, (s + 1) % Sides, s });
+                tris.AddRange(new[] { front, last + s, last + (s + 1) % Sides });
+            }
+            var mesh = new Mesh { name = "SF_Casing" };
+            mesh.SetVertices(verts);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>One spent case out of the breech <paramref name="breech"/> metres behind the
+        /// muzzle, to the gun's right and up, tumbling. Only near the camera: from further
+        /// out a case is under a pixel.</summary>
+        void EjectCase(Vector3 muzzle, Vector3 fwd, float breech, float size)
+        {
+            if (rig != null && rig.distance > 85f) return;
+            var ps = Casings();
+            if (ps == null) return;
+            Vector3 right = Vector3.Cross(Vector3.up, fwd);
+            right = right.sqrMagnitude < 1e-4f ? Vector3.right : right.normalized;
+            ps.Emit(new ParticleSystem.EmitParams
+            {
+                position = muzzle - fwd * breech + Vector3.up * 0.15f,
+                velocity = right * Random.Range(2.5f, 4.5f) + Vector3.up * Random.Range(1.5f, 3.2f) - fwd * Random.Range(0f, 1.2f),
+                startSize = size * Random.Range(0.92f, 1.08f),
+                startLifetime = Random.Range(2.2f, 3f),
+                startColor = Color.Lerp(new Color(1f, 0.92f, 0.8f), new Color(0.8f, 0.7f, 0.6f), Random.value),
+                rotation3D = new Vector3(Random.Range(0f, 360f), Random.Range(0f, 360f), Random.Range(0f, 360f)),
+                applyShapeToPosition = false
+            }, 1);
+        }
+
         // ------------------------------------------------------------ guns
         /// <summary>A Mech's projectile gun fired (autocannon, missile rack, mortar).</summary>
         void MechFire(GameEvent e)
@@ -68,6 +192,7 @@ namespace StarForge.View
                         Emit(sparks, e.pos, fwd * Random.Range(10f, 18f) + Random.insideUnitSphere * 3f, 0.12f, Random.Range(0.1f, 0.2f), new Color(1f, 0.75f, 0.4f));
                     Flash(e.pos, new Color(1f, 0.65f, 0.3f), 5f, 10f, 0.1f);
                     PressureWave(e.pos, 0.18f, 14f, fwd, 0.7f);
+                    EjectCase(e.pos, fwd, 1.6f, 0.28f);
                     break;
                 case 5:   // missile: a burst of flame and smoke out of the rack
                     AddFlare(e.pos, Vector3.up, 2.2f, 1.2f, new Color(3.5f, 2.0f, 0.8f), 0.08f);
@@ -117,6 +242,7 @@ namespace StarForge.View
                     if (Random.value < 0.25f) Emit(glow, from, dir, 1.3f, 0.05f, new Color(1f, 0.75f, 0.4f));
                     if (Random.value < 0.15f)
                         Emit(trail, from + dir * 0.3f, dir * 2f + Vector3.up * 0.6f, 0.6f, 0.8f, new Color(0.8f, 0.78f, 0.74f, 0.18f), Random.Range(0f, 360f));
+                    if (Random.value < 0.5f) EjectCase(from, dir, 1.2f, 0.18f);
                     break;
                 case MechWeapon.Laser:
                 {

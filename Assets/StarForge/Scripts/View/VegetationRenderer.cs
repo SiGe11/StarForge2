@@ -84,6 +84,13 @@ namespace StarForge.View
             if (world == null) world = GameWorld.Instance;
             if (player == null) player = FindAnyObjectByType<PlayerController>();
             if (vegetation == null || vegetation.plants.Length == 0) { enabled = false; return; }
+            Init();
+        }
+
+        /// <summary>Per-plant arrays and per-kind batches for the plants the map has now;
+        /// again whenever it is generated afresh in place (the grove and camp trials).</summary>
+        void Init()
+        {
             int n = vegetation.plants.Length;
             seenPose = new Matrix4x4[n];
             seenParams = new Vector4[n];
@@ -144,14 +151,10 @@ namespace StarForge.View
         void LateUpdate()
         {
             var cam = Camera.main;
-            if (cam == null || vegetation.live.Length != seenPose.Length) return;
-            // A map built again in place (the grove trials) brings new plants.
-            if (!ReferenceEquals(posePlants, vegetation.plants) || !ReferenceEquals(poseKinds, vegetation.kinds))
-            {
-                System.Array.Clear(poseKnown, 0, poseKnown.Length);
-                posePlants = vegetation.plants;
-                poseKinds = vegetation.kinds;
-            }
+            // Plants whose state Vegetation has not taken over yet (PlantsReplaced) are not drawn.
+            if (cam == null || vegetation.live.Length != vegetation.plants.Length) return;
+            // A map built again in place (the grove and camp trials) brings new plants.
+            if (!ReferenceEquals(posePlants, vegetation.plants) || !ReferenceEquals(poseKinds, vegetation.kinds)) Init();
 
             int team = player != null ? player.team : 0;
             bool all = world == null || !world.running || MatchSettings.spectate;

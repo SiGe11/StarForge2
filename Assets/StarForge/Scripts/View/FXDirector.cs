@@ -43,6 +43,8 @@ namespace StarForge.View
 
         public static readonly Color PlayerColor = new Color(0.22f, 0.68f, 1f);
         public static readonly Color EnemyColor = new Color(1f, 0.28f, 0.16f);
+        /// <summary>Deserters' health bars and their camp's ring: an old flag of truce.</summary>
+        public static readonly Color DeserterColor = new Color(0.93f, 0.86f, 0.58f);
 
         sealed class Batch
         {
@@ -117,7 +119,7 @@ namespace StarForge.View
         // Where the ground is in a cell of fx_explosion.png (from the ground's pixel up,
         // as a share of the cell: Tools/blender/flipbooks/fx_explosion.json), and how much
         // of a cell a flame of fx_flame.png fills compared with the old sheet's tongue.
-        const float BlastGround = 0.12f;
+        const float BlastGround = 0.13f;
         static float flameW = 1f, flameH = 1f;
         bool flipbooks;
         readonly Batch rings = new Batch(), scorches = new Batch(), tracks = new Batch(), bars = new Batch(), streaks = new Batch(), ripples = new Batch();
@@ -188,7 +190,10 @@ namespace StarForge.View
             fire = MakeSystem("Fire", fireMaterial, 1400, true, 0f, 0.65f, 1.3f, false, 0f);
             flames = MakeFlames();
             flipbooks = IsFlipbook(fireMaterial) && IsFlipbook(flameMaterial);
+            flameW = flameH = 1f;   // statics outlive a play session (no domain reload)
             if (flipbooks) MakeFlipbooks();
+            // Team banners over the Foundries, blowing in the match's wind (cloth).
+            if (GetComponent<Banners>() == null) gameObject.AddComponent<Banners>();
             smoke = MakeSystem("Smoke", smokeMaterial, 900, false, 0f, 0.45f, 1.6f, false, -0.02f);
             SmokeStreams(smoke);
             sparks = MakeSystem("Sparks", glowMaterial, 1600, false, 4f / 16f, 1f, 0.25f, true, 2.2f);
@@ -375,12 +380,19 @@ namespace StarForge.View
             FlipbookStreams(blast);
             var bc = blast.colorOverLifetime;
             bc.color = new ParticleSystem.MinMaxGradient(Fade(0.01f, 0.72f));
+            // Premultiplied, so order matters (additive fire never cared): the fireball and
+            // the flames draw over the smoke billows round them, not under.
+            blast.GetComponent<ParticleSystemRenderer>().sortingFudge = -10f;
+            fire.GetComponent<ParticleSystemRenderer>().sortingFudge = -5f;
+            flames.GetComponent<ParticleSystemRenderer>().sortingFudge = -5f;
 
             FlipbookStreams(fire);
             var ft = fire.textureSheetAnimation;
             ft.frameOverTime = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.16f, 1f, 0.62f));
+            // The sheet's fireball fills a third of its cell (the cell holds the whole smoke
+            // column), where the photographed puffs filled most of theirs: drawn 2.4x.
             var fs = fire.sizeOverLifetime;
-            fs.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 0.8f, 1f, 1.15f));
+            fs.size = new ParticleSystem.MinMaxCurve(2.4f, AnimationCurve.EaseInOut(0f, 0.8f, 1f, 1.15f));
             var fc = fire.colorOverLifetime;
             fc.color = new ParticleSystem.MinMaxGradient(Fade(0.04f, 0.6f));
 
@@ -826,6 +838,9 @@ namespace StarForge.View
             var wind = new Vector3(w2.x, 0f, w2.y);
             if (veg != null)
             {
+                // A trial that regenerates the map in place hands Vegetation new plants:
+                // the indices held here belonged to the old ones.
+                if (!ReferenceEquals(veg.live, firesOf)) { wasBurning.Clear(); smoulder.Clear(); firesOf = veg.live; }
                 // Fires that went out since last frame start to smoulder.
                 foreach (int i in wasBurning)
                     if (!veg.live[i].burning && !smoulder.ContainsKey(i)) smoulder[i] = Time.time;
@@ -1046,6 +1061,7 @@ namespace StarForge.View
 
         int grassFxCursor;
         readonly HashSet<int> wasBurning = new HashSet<int>();
+        object firesOf;   // the Vegetation.live array wasBurning and smoulder index into
         readonly Dictionary<int, float> smoulder = new Dictionary<int, float>();
         readonly List<int> smoulderDone = new List<int>();
         readonly List<(float d, int i)> fireOrder = new List<(float, int)>(64);
@@ -1708,8 +1724,12 @@ namespace StarForge.View
 
         /// <summary>Something heavy came down hard (ContactRelay: a wreck, a building's
         /// chunk): dust thrown up round it and a few clods, a splash in the water.</summary>
+        /// <summary>Hard landings reported so far (FxLook checks the relays are wired).</summary>
+        public static int landings;
+
         public void Landed(Vector3 at, float speed, float size)
         {
+            landings++;
             if (world == null || !world.running || !Seen(at)) return;
             if (rig != null && new Vector2(at.x - rig.Focus.x, at.z - rig.Focus.y).sqrMagnitude > 160f * 160f) return;
             float k = Mathf.Clamp01((speed - 2f) / 8f);
@@ -2357,6 +2377,16 @@ namespace StarForge.View
                 }
                 rings.Add(Matrix4x4.TRS(m.pos, Quaternion.identity, new Vector3(size, 4f, size)), c, new Vector4(3f, t, 0f, 0f));
             }
+            // Deserters' camps: a dashed pale ring round each while anyone sits in it (the
+            // enemy's only on ground the player has explored).
+            for (int t = 0; t < 2; t++)
+            {
+                var M = world.morale[t];
+                if (!M.campSet || M.deserters.Count == 0) continue;
+                if (t != me && !MatchSettings.spectate && !world.Explored(me, M.camp)) continue;
+                rings.Add(Matrix4x4.TRS(world.Map.Ground(M.camp), Quaternion.identity, new Vector3(15f, 6f, 15f)),
+                          DeserterColor * 1.3f, new Vector4(4f, 0f, 0f, 0f));
+            }
             DrawMechOverlays(now);
             rings.Draw(cube, ringMaterial);
 
@@ -2371,7 +2401,8 @@ namespace StarForge.View
                     bool selected = player != null && player.Selection.Contains(u);
                     bool hovered = player != null && player.Hovered == u;
                     float frac = u.hp / u.MaxHp;
-                    if (!selected && !hovered && frac > 0.995f && u.Complete) continue;
+                    // A deserter's bar is always up, in its own colour: the player should see who ran.
+                    if (!selected && !hovered && frac > 0.995f && u.Complete && !u.deserted) continue;
                     Vector3 top = u.Ground + Vector3.up * (u.def.visualHeight + 0.7f);
                     float dist = Vector3.Distance(camPos, top);
                     float k = Mathf.Lerp(0.8f, 1.9f, Mathf.InverseLerp(30f, 150f, dist));
@@ -2379,6 +2410,7 @@ namespace StarForge.View
                     float hgt = 0.26f * k;
                     Color c = frac > 0.6f ? new Color(0.35f, 0.95f, 0.55f) : frac > 0.3f ? new Color(1f, 0.75f, 0.25f) : new Color(1f, 0.3f, 0.25f);
                     if (u.team == 1) c = Color.Lerp(c, EnemyColor, 0.25f);
+                    if (u.deserted) c = frac > 0.3f ? DeserterColor : Color.Lerp(DeserterColor, new Color(1f, 0.3f, 0.25f), 0.6f);
                     float segments = Mathf.Clamp(u.MaxHp / 50f, 1f, 30f);
                     float secondary = u.Complete ? 0f : u.buildProgress;
                     bars.Add(Matrix4x4.TRS(top, Quaternion.identity, new Vector3(w, hgt, 1f)), c, new Vector4(0f, frac, segments, secondary));

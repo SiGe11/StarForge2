@@ -48,13 +48,14 @@ namespace StarForge.World
         /// <summary>How close to its Mech Bay it stands to be repaired, beyond both radii.</summary>
         public const float RepairReach = 6f;
         /// <summary>Hull a second in the gantry once it is left alone: a Mech back at 38%
-        /// is whole in about half a minute. At 75 it was back in under twenty seconds, and
-        /// a Mech holding its own base outlasted every wave sent at it.</summary>
-        public const float BayRepairRate = 50f;
+        /// needs about a minute to be whole. At 50 it was back in twenty seconds, and what
+        /// an army had cost it was gone before the next wave was built -- a player's
+        /// attack on a Mech counted for nothing unless it finished the job.</summary>
+        public const float BayRepairRate = 22f;
         /// <summary>The gantry's rate while the Mech is being shot at: its crews work in
-        /// the lulls. At the full rate under fire a Mech fighting beside its bay was all
-        /// but unkillable, and matches between two of them never ended.</summary>
-        public const float BayRepairUnderFire = 15f, RepairQuiet = 4f;
+        /// the lulls. At 15 under fire a Mech fighting beside its bay was all but
+        /// unkillable, and matches between two of them never ended.</summary>
+        public const float BayRepairUnderFire = 6f, RepairQuiet = 4f;
 
         [System.NonSerialized] public MechDesign design;
         [System.NonSerialized] public readonly List<MechGun> guns = new List<MechGun>(7);
@@ -83,23 +84,39 @@ namespace StarForge.World
         public float ShieldMax => HasShield ? MechParts.ShieldCapacity : 0f;
 
         // ------------------------------------------------------------ stats
+        /// <summary>For MechDuel's A/B only: the upgrade steps and the undamaged rate of fire
+        /// a Mech had before the round that gave a player's army weight against one.</summary>
+        public static bool LegacyBalance;
+        static float HullPerLevel => LegacyBalance ? 0.10f : MechParts.ArmourHullPerLevel;
+        static float PlatePerLevel => LegacyBalance ? 0.04f : MechParts.ArmourPerLevel;
+        static float GunsPerLevel => LegacyBalance ? 0.10f : MechParts.WeaponsPerLevel;
+
         public float MaxHp
         {
             get
             {
                 if (design == null) return unit != null ? unit.def.hp : 3000f;
                 return design.Frame.hp * design.Loco.hpMul * (1f + design.spare * MechParts.SparePointHp)
-                       * (1f + 0.10f * Level(MechUpgrade.Armour));
+                       * (1f + HullPerLevel * Level(MechUpgrade.Armour));
             }
         }
 
         /// <summary>Share of each blow the hull shrugs off.</summary>
         public float Armour => design == null ? 0.1f
-            : Mathf.Clamp(design.Frame.armour + design.Loco.armour + 0.04f * Level(MechUpgrade.Armour), 0f, 0.5f);
+            : Mathf.Clamp(design.Frame.armour + design.Loco.armour + PlatePerLevel * Level(MechUpgrade.Armour), 0f, 0.5f);
 
         public float Speed => design == null ? 4.5f : design.Loco.speed * (1f + 0.15f * Level(MechUpgrade.Servos));
         public float TurnRate => design == null ? 2f : design.Loco.turnRate * (1f + 0.15f * Level(MechUpgrade.Servos));
-        public float DamageMul => 1f + 0.10f * Level(MechUpgrade.Weapons);
+        public float DamageMul => 1f + GunsPerLevel * Level(MechUpgrade.Weapons);
+
+        /// <summary>How far battle damage has worn its guns down: 0 above 60% hull, 1 at 15%
+        /// and below, where every gun reloads <see cref="BatteredSlow"/> longer. A Mech at a
+        /// fifth of its hull used to fight as hard as a fresh one, so nothing an army did to
+        /// it counted until the last shot.</summary>
+        public float Battered => unit == null || LegacyBalance ? 0f : Mathf.Clamp01((0.6f - unit.hp / Mathf.Max(1f, MaxHp)) / 0.45f);
+        public const float BatteredSlow = 0.45f;
+        /// <summary>The share of its full rate of fire it still has.</summary>
+        public float FireRate => 1f / (1f + BatteredSlow * Battered);
         public float RangeMul => (design == null ? 1f : design.Loco.rangeMul)
                                  * (Level(MechUpgrade.Targeting) > 0 ? 1.12f : 1f)
                                  * (design != null && design.utility == MechUtility.Sensors ? 1.1f : 1f);
@@ -140,7 +157,7 @@ namespace StarForge.World
         {
             float s = 0f;
             foreach (var g in guns) s += g.part.Dps(heavy);
-            return s * DamageMul;
+            return s * DamageMul * FireRate;   // what it can do now, battle damage and all
         }
 
         /// <summary>Hit points a blow must get through: hull plus shield, grossed up for armour.</summary>
@@ -289,7 +306,7 @@ namespace StarForge.World
                     continue;
                 }
                 if (g.cooldown > 0f || !Valid(g, g.target) || !Aimed(g, g.target)) continue;
-                g.cooldown = g.part.cooldown;
+                g.cooldown = g.part.cooldown * (1f + BatteredSlow * Battered);
                 g.burstLeft = g.part.burst - 1;
                 g.burstT = g.part.burstGap;
                 Shoot(g, now);
@@ -300,7 +317,7 @@ namespace StarForge.World
         /// else the target of its heaviest arm gun.</summary>
         Unit PrimaryTarget()
         {
-            if (Unit.Live(focus) && focus.team != unit.team)
+            if (Unit.Live(focus) && world.Hostile(unit, focus))
                 foreach (var g in guns)
                     if (g.kind == MountKind.Arm && InRange(g, focus)) return focus;
             Unit best = null;
@@ -323,7 +340,7 @@ namespace StarForge.World
         }
 
         bool Valid(MechGun g, Unit t) =>
-            Unit.Live(t) && t.team != unit.team && t.team < 2 && !t.Untargetable && InRange(g, t);
+            Unit.Live(t) && world.Hostile(unit, t) && !t.Untargetable && InRange(g, t);
 
         bool Aimed(MechGun g, Unit t)
         {
@@ -340,7 +357,8 @@ namespace StarForge.World
         Unit PickTarget(MechGun g)
         {
             float range = Range(g);
-            world.EnemiesNear(unit, range + 3f, near);
+            // The enemy -- and its own side's deserters, while it is out to punish them.
+            world.FoesNear(unit, range + 3f, near);
             var p = g.part;
             Unit best = null;
             float bestScore = float.MaxValue;

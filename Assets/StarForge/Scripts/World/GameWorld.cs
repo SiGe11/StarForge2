@@ -65,7 +65,10 @@ namespace StarForge.World
         UpgradeComplete,
         /// <summary>A Mech's heavy footfall (only raised for effects that care about the
         /// ground: the view raises its own for every step).</summary>
-        MechStomp
+        MechStomp,
+        /// <summary>Soldiers of a side broke and ran (GameWorld.Morale): <c>team</c>, <c>index</c>
+        /// how many, <c>text</c> who ("3 Troopers are"), <c>pos</c> the fight, <c>end</c> the camp.</summary>
+        Desertion
     }
 
     /// <summary>What a Mech's AI tells its side (MechBrain).</summary>
@@ -102,6 +105,9 @@ namespace StarForge.World
         public float bonusVsWorkers = 1f;
         /// <summary>A Mech's rounds hit light and heavy targets, and structures, differently.</summary>
         public float vsLight = 1f, vsHeavy = 1f, vsStructure = 1f;
+        /// <summary>A Mech's round fired at its own side's deserters (GameWorld.Morale): its
+        /// burst catches them too, never anyone loyal.</summary>
+        public bool purge;
 
         public float ClassMul(Unit e) => e.def.building ? vsStructure : e.def.Heavy ? vsHeavy : vsLight;
         /// <summary>A missile's curve (kind 5): from where, over what, to what it last aimed at.</summary>
@@ -300,6 +306,7 @@ namespace StarForge.World
                 factions[t].designChosen = false;
                 factions[t].armouryNote = "";
             }
+            BeginMorale(seed);
             RebuildGrid();
             UpdateVisibility();
         }
@@ -339,7 +346,11 @@ namespace StarForge.World
             u.hp -= dmg;
             u.damageFlash = 1f;
             u.lastDamagedT = time;
-            if (u.team < 2)
+            // No alarm for deserters (no longer the side's to defend), nor for a side's
+            // Mech putting its own deserters down.
+            bool ownSide = source != null && source.team == u.team;
+            if (u.deserted) DeserterHit(u, source);
+            if (u.team < 2 && !u.deserted && !ownSide)
             {
                 bool near = false;
                 foreach (var p in pings)
@@ -351,7 +362,7 @@ namespace StarForge.World
                 }
             }
             // Idle defenders retaliate against whatever just hit them.
-            if (u.order == Order.Idle && !u.def.building && u.def.Armed && !u.def.Autonomous)
+            if (u.order == Order.Idle && !u.def.building && u.def.Armed && !u.def.Autonomous && !u.deserted)
             {
                 var t = NearestEnemy(u, u.def.sight);
                 if (t != null) { u.order = Order.Attack; u.target = t; }
@@ -437,11 +448,19 @@ namespace StarForge.World
             // Not from the match's random stream: a draw here would shift everything a
             // seeded match draws after it.
             else { u.killDir = new Vector2(Mathf.Cos(u.id * 2.4f), Mathf.Sin(u.id * 2.4f)); u.killForce = 0.5f; }
+            // A deserter its own side's Mech put down is no kill of the enemy's.
+            bool byOwnSide = source != null && source.team == u.team;
             if (u.team < 2)
             {
                 if (d.building && u.Complete) factions[u.team].supplyCap -= d.supplyGive;
                 factions[u.team].lost++;
-                factions[1 - u.team].killed++;
+                if (!byOwnSide) factions[1 - u.team].killed++;
+                NoteLoss(u, byOwnSide);
+                if (u.deserted)
+                {
+                    morale[u.team].deserters.Remove(u);
+                    if (byOwnSide) morale[u.team].executed++;
+                }
             }
             if (u.team < 2) MechBookkeeping(u);
             u.BeginDeath();
@@ -560,6 +579,7 @@ namespace StarForge.World
             if (Plants != null) Plants.Tick(this, dt);
             StructureFires(dt);
             TickMechBays(dt);
+            TickMorale();
 
             visTimer -= dt;
             if (visTimer <= 0f) { UpdateVisibility(); visTimer = 0.12f; }
@@ -568,7 +588,8 @@ namespace StarForge.World
             factions[0].supplyUsed = factions[1].supplyUsed = 0;
             foreach (var u in units)
             {
-                if (u.dying || u.team > 1) continue;
+                // A deserter has left the army: it no longer counts against its side's supply.
+                if (u.dying || u.team > 1 || u.deserted) continue;
                 factions[u.team].supplyUsed += u.def.supplyCost;
                 foreach (var q in u.queue) factions[u.team].supplyUsed += Defs.Get(q).supplyCost;
             }
@@ -991,6 +1012,7 @@ namespace StarForge.World
             // The pool is shared with the Mech's guns: a round reused from one must not
             // keep its multipliers (a rifle round came out at half damage on infantry).
             p.vsLight = p.vsHeavy = p.vsStructure = 1f;
+            p.purge = false;
             p.flight = 0f;
             p.age = 0f;
             if (kind == 1)
@@ -1135,7 +1157,8 @@ namespace StarForge.World
                     for (int i = units.Count - 1; i >= 0; i--)
                     {
                         var e = units[i];
-                        if (e == null || e.dying || e.team == p.team || e.team == 2) continue;
+                        if (e == null || e.dying || e.team == 2) continue;
+                        if (e.team == p.team && !(p.purge && e.deserted)) continue;
                         float d = (e.pos - c).magnitude;
                         if (d > p.splash + e.def.radius || e.Untargetable) continue;
                         float falloff = 1f - Saturate((d - e.def.radius) / p.splash) * 0.6f;
@@ -1189,12 +1212,12 @@ namespace StarForge.World
         {
             // Spread the destination over a ring so a group does not stack on one point.
             int n = 0;
-            foreach (var u in sel) if (Unit.Live(u) && u.def.IsMobile && !u.def.Autonomous) n++;
+            foreach (var u in sel) if (Unit.Live(u) && u.def.IsMobile && !u.def.Autonomous && !u.deserted) n++;
             int i = 0;
             float spread = Mathf.Sqrt(Mathf.Max(1, n)) * 1.25f;
             foreach (var u in sel)
             {
-                if (!Unit.Live(u) || !u.def.IsMobile || u.def.Autonomous) continue;
+                if (!Unit.Live(u) || !u.def.IsMobile || u.def.Autonomous || u.deserted) continue;
                 Vector2 goal = dest;
                 if (n > 1)
                 {
@@ -1223,7 +1246,7 @@ namespace StarForge.World
             if (!Unit.Live(target)) return;
             foreach (var u in sel)
             {
-                if (!Unit.Live(u) || u.def.building || !u.def.Armed || u.def.Autonomous) continue;
+                if (!Unit.Live(u) || u.def.building || !u.def.Armed || u.def.Autonomous || u.deserted) continue;
                 u.order = Order.Attack;
                 u.target = target;
                 u.harvestNode = null;
@@ -1248,7 +1271,7 @@ namespace StarForge.World
         {
             foreach (var u in sel)
             {
-                if (!Unit.Live(u) || u.def.Autonomous) continue;
+                if (!Unit.Live(u) || u.def.Autonomous || u.deserted) continue;
                 u.order = Order.Idle;
                 u.target = null;
                 u.harvestNode = null;
@@ -1261,7 +1284,7 @@ namespace StarForge.World
         {
             foreach (var u in sel)
             {
-                if (!Unit.Live(u) || u.def.building || u.def.Autonomous) continue;
+                if (!Unit.Live(u) || u.def.building || u.def.Autonomous || u.deserted) continue;
                 u.order = Order.Hold;
                 u.Halt();
             }
@@ -1361,7 +1384,7 @@ namespace StarForge.World
                 if (hovered.team < 2)
                 {
                     foreach (var u in sel)
-                        if (Unit.Live(u) && u.team != hovered.team && !u.def.Autonomous) { CmdAttack(sel, hovered); return; }
+                        if (Unit.Live(u) && u.team != hovered.team && !u.def.Autonomous && !u.deserted) { CmdAttack(sel, hovered); return; }
                     // Right-clicking an own structure under construction sends Diggers to help.
                     if (!hovered.Complete && hovered.def.building)
                     {

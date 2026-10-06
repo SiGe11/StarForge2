@@ -167,6 +167,8 @@ namespace StarForge.AI
         /// it was last seen.</summary>
         public float eMechAntiLight = 0.5f, eMechSeenAgo = 1e9f;
         public bool eMechDesignKnown;
+        /// <summary>Their Mech's health when last seen (its health bar shows, like anyone's).</summary>
+        public float eMechHpFrac = 1f;
 
         public void Clear()
         {
@@ -187,7 +189,7 @@ namespace StarForge.AI
             mechBay = mechAlive = false;
             mechHpFrac = 0f;
             eMech = eMechBay = false;
-            eMechAntiLight = 0.5f; eMechSeenAgo = 1e9f; eMechDesignKnown = false;
+            eMechAntiLight = 0.5f; eMechSeenAgo = 1e9f; eMechDesignKnown = false; eMechHpFrac = 1f;
             eMechPos = eMechBayPos = Vector2.zero;
         }
     }
@@ -247,6 +249,8 @@ namespace StarForge.AI
         public int adviceHeeded, adviceIgnored, upgradesBought;
         /// <summary>Waves sent while their Mech was away, and waves gathered on its own Mech.</summary>
         public int mechWindows, stagedWithMech;
+        /// <summary>Waves sent at their Mech seen badly hurt, before its bay could mend it.</summary>
+        public int hurtWindows;
         /// <summary>Enemy guns over its ore: what it last saw, and Diggers moved to safe ore
         /// or stood clear.</summary>
         public string guns = "";

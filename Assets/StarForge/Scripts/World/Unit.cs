@@ -65,6 +65,9 @@ namespace StarForge.World
         [System.NonSerialized] public UnitView view;
         /// <summary>The Mech's parts and guns (Mech only).</summary>
         [System.NonSerialized] public MechCore mech;
+        /// <summary>Broke and ran (GameWorld.Morale): it takes no orders, fights only when its
+        /// camp is set upon, and <see cref="fleeing"/> while still on its way there.</summary>
+        [System.NonSerialized] public bool deserted, fleeing;
 
         GameWorld world;
         NavMeshObstacle obstacle;
@@ -223,6 +226,7 @@ namespace StarForge.World
             }
             if (def.neutral) return;
             if (mech != null) { TickMech(dt); return; }
+            if (deserted) { TickDeserter(dt); return; }
 
             // Veterans patch themselves up once out of the fight.
             if (rank > 0 && world.time - lastDamagedT > 6f && hp < MaxHp)
@@ -376,9 +380,15 @@ namespace StarForge.World
                 else if (Dist(target) - target.def.radius > def.sight) target = world.NearestEnemy(this, def.sight);
             }
             if (target == null) return;
+            if (!AimAndFire(dt)) return;
+            if (order == Order.Attack || order == Order.AttackMove) Halt();
+        }
 
+        /// <summary>Turn onto the target and fire when it bears: false if it is out of reach.</summary>
+        bool AimAndFire(float dt)
+        {
             float d = Dist(target) - target.def.radius;
-            if (d > def.range) return;
+            if (d > def.range) return false;
             float want = Mathf.Atan2(target.pos.x - pos.x, target.pos.y - pos.y);
             if (HasTurret)
             {
@@ -391,7 +401,56 @@ namespace StarForge.World
                 yaw = ApproachAngle(yaw, want, def.turnRate * dt);
                 if (Mathf.Abs(WrapAngle(want - yaw)) < 0.35f && cooldown <= 0f) Fire();
             }
-            if (order == Order.Attack || order == Order.AttackMove) Halt();
+            return true;
+        }
+
+        /// <summary>A deserter: it runs for its side's camp, then sits there. It shoots only
+        /// while the camp is set upon (an enemy hit one of them in the last few seconds),
+        /// only at enemies near the camp, and never goes further than CampLeash from it to
+        /// do so. It never fires on its own side's Mech, even when that comes for it.</summary>
+        void TickDeserter(float dt)
+        {
+            var M = world.MoraleOf(team);
+            Vector2 camp = M.camp;
+            if (fleeing)
+            {
+                target = null;
+                // Re-asks for its way after a NavMesh rebuild takes it: it does not stop short.
+                if (Dist(orderPos) < 3f || (!Moving && Dist(camp) < 10f)) { fleeing = false; order = Order.Hold; Halt(); }
+                else if (!Moving && (repathTimer -= dt) <= 0f) { MoveTo(orderPos); repathTimer = 0.8f; }
+                UpdateFacing(dt);
+                return;
+            }
+            order = Order.Hold;
+            bool alarmed = world.time - M.alarmT < GameWorld.CampAlarm && def.Armed;
+            float reach = GameWorld.CampLeash + def.range;
+            if (!alarmed || !Live(target) || target.team == team || (target.pos - camp).sqrMagnitude > reach * reach)
+            {
+                target = null;
+                if (alarmed)
+                {
+                    var t = world.NearestEnemy(this, def.sight);
+                    if (t != null && (t.pos - camp).sqrMagnitude <= reach * reach) target = t;
+                }
+            }
+            if (target != null)
+            {
+                if (AimAndFire(dt)) { if (Moving) Halt(); }
+                else if ((repathTimer -= dt) <= 0f)
+                {
+                    // Up to the edge of its leash, no further.
+                    Vector2 to = target.pos - camp;
+                    Vector2 go = to.sqrMagnitude > GameWorld.CampLeash * GameWorld.CampLeash ? camp + to.normalized * GameWorld.CampLeash : target.pos;
+                    MoveTo(go);
+                    repathTimer = 0.6f;
+                }
+            }
+            else if (Dist(orderPos) > 2.5f && !Moving && (repathTimer -= dt) <= 0f)
+            {
+                MoveTo(orderPos);
+                repathTimer = 1.5f;
+            }
+            UpdateFacing(dt);
         }
 
         void Fire()

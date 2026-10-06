@@ -49,6 +49,10 @@ namespace StarForge.UI
         BarElement mechHull, mechShield;
         /// <summary>The last places the Mech pointed at, drawn on the minimap for a while.</summary>
         readonly List<(Vector2 pos, float t, MechAdviceKind kind)> advicePings = new List<(Vector2, float, MechAdviceKind)>();
+        // Where soldiers of the player's broke (the fight) and where they ran (the camp).
+        readonly List<(Vector2 pos, float t)> desertPings = new List<(Vector2, float)>();
+        /// <summary>Deserters on the minimap: the colour of an old flag of truce (white is the selection).</summary>
+        static readonly Color DeserterColor = new Color(0.93f, 0.86f, 0.58f);
 
         void LateUpdate()
         {
@@ -443,7 +447,7 @@ namespace StarForge.UI
             var s = sel[0];
             if (!Unit.Live(s)) return;
             var d = s.def;
-            string owner = s.team == 1 ? "  · ENEMY" : "";
+            string owner = (s.team == 1 ? "  · ENEMY" : "") + (s.deserted ? "  · DESERTER" : "");
             string rank = s.rank > 0 ? "  " + new string('★', s.rank) : "";
             unitName.text = d.displayName + rank + owner;
             float hpFrac = d.neutral ? 1f : s.hp / s.MaxHp;
@@ -511,6 +515,9 @@ namespace StarForge.UI
             {
                 var core = u.mech;
                 string loadout = core.design != null ? core.design.Loadout(core.Level(MechUpgrade.Hardpoint)) : "";
+                // What an army has done to it shows (its hull bar is in sight anyway): a
+                // battered Mech fires slower, theirs as well as yours.
+                if (core.Battered > 0.01f) loadout = $"Battle-damaged: firing {100f * (1f - core.FireRate):0}% slower\n" + loadout;
                 if (u.team != player.team && !MatchSettings.spectate) return loadout;
                 return (string.IsNullOrEmpty(core.intentText) ? "" : core.intentText + "\n") + loadout;
             }
@@ -533,6 +540,7 @@ namespace StarForge.UI
                 return "Idle";
             }
             if (u.def.neutral) return "";
+            if (u.deserted) return u.fleeing ? "Deserting · running for the corner" : "Deserted · takes no orders";
             switch (u.order)
             {
                 case Order.Harvest: return u.working ? "Mining" : "Heading to ore";
@@ -655,6 +663,17 @@ namespace StarForge.UI
                 case GameEventKind.UpgradeComplete when e.team == me:
                     Alert(e.text, "alert--good");
                     break;
+                case GameEventKind.Desertion:
+                    if (e.team == me)
+                    {
+                        // Long on screen: it does not happen often, and it costs the player units.
+                        Alert($"{e.text} deserting -- running for the {Corner(e.end)} corner", "alert--warn", 8f);
+                        desertPings.Add((new Vector2(e.pos.x, e.pos.z), Time.unscaledTime));
+                        desertPings.Add((new Vector2(e.end.x, e.end.z), Time.unscaledTime));
+                    }
+                    else if (MatchSettings.spectate || world.Visible(me, new Vector2(e.pos.x, e.pos.z)))
+                        Alert("Enemy soldiers are deserting", "alert--good", 5f);
+                    break;
                 case GameEventKind.MechAdvice when e.team == me:
                     Comms(e);
                     break;
@@ -757,17 +776,25 @@ namespace StarForge.UI
             player.SelectOnly(target);
         }
 
-        void Alert(string text, string cls)
+        /// <summary>Which corner of the map a point is in, as the minimap shows it (north up).</summary>
+        string Corner(Vector3 p)
+        {
+            float h = world.MapSize * 0.5f;
+            return (p.z >= h ? "north" : "south") + "-" + (p.x >= h ? "east" : "west");
+        }
+
+        void Alert(string text, string cls, float seconds = 2.6f)
         {
             if (string.IsNullOrEmpty(text)) return;
+            long hold = (long)(seconds * 1000f);
             // The same message repeating (a supply block, say) is one situation, not
             // four: refresh the line that is already up instead of stacking copies.
             for (int i = alerts.childCount - 1; i >= 0; i--)
                 if (alerts[i] is Label existing && existing.text == text)
                 {
                     existing.RemoveFromClassList("alert--fading");
-                    existing.schedule.Execute(() => existing.AddToClassList("alert--fading")).StartingIn(2600);
-                    existing.schedule.Execute(() => existing.RemoveFromHierarchy()).StartingIn(3100);
+                    existing.schedule.Execute(() => existing.AddToClassList("alert--fading")).StartingIn(hold);
+                    existing.schedule.Execute(() => existing.RemoveFromHierarchy()).StartingIn(hold + 500);
                     return;
                 }
             if (alerts.childCount >= 4) alerts.RemoveAt(0);
@@ -775,8 +802,8 @@ namespace StarForge.UI
             l.AddToClassList("alert");
             l.AddToClassList(cls);
             alerts.Add(l);
-            l.schedule.Execute(() => l.AddToClassList("alert--fading")).StartingIn(2600);
-            l.schedule.Execute(() => l.RemoveFromHierarchy()).StartingIn(3100);
+            l.schedule.Execute(() => l.AddToClassList("alert--fading")).StartingIn(hold);
+            l.schedule.Execute(() => l.RemoveFromHierarchy()).StartingIn(hold + 500);
         }
 
         // ------------------------------------------------------------ minimap
@@ -886,6 +913,7 @@ namespace StarForge.UI
                 var c = ToUI(u.pos);
                 float r = u.def.building ? 3.6f : (u.def.neutral ? 1.3f : 1.8f);
                 var col = u.team == 0 ? blue : u.team == 1 ? red : ore;
+                if (u.deserted) col = DeserterColor;
                 if (player.Selection.Contains(u)) col = Color.white;
                 if (u.mech != null)
                 {
@@ -914,6 +942,21 @@ namespace StarForge.UI
                 float k = (age % 1.6f) / 1.6f;
                 Color pc = kind == MechAdviceKind.Attack || kind == MechAdviceKind.Warning ? new Color(1f, 0.4f, 0.3f) : new Color(1f, 0.72f, 0.28f);
                 p.strokeColor = new Color(pc.r, pc.g, pc.b, (1f - k) * (1f - age / 30f));
+                p.lineWidth = 2f;
+                p.BeginPath();
+                p.Arc(c, 4f + k * 12f, Angle.Degrees(0f), Angle.Degrees(360f));
+                p.Stroke();
+            }
+
+            // Where the player's soldiers broke and where they ran: a pale pulse for half a minute.
+            for (int i = desertPings.Count - 1; i >= 0; i--)
+            {
+                var (at, born) = desertPings[i];
+                float age = Time.unscaledTime - born;
+                if (age > 30f) { desertPings.RemoveAt(i); continue; }
+                var c = ToUI(at);
+                float k = (age % 1.6f) / 1.6f;
+                p.strokeColor = new Color(DeserterColor.r, DeserterColor.g, DeserterColor.b, (1f - k) * (1f - age / 30f));
                 p.lineWidth = 2f;
                 p.BeginPath();
                 p.Arc(c, 4f + k * 12f, Angle.Degrees(0f), Angle.Degrees(360f));

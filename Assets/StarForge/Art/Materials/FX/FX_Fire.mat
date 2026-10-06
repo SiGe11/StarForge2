@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: FX_Fire
-  m_Shader: {fileID: 4800000, guid: 3ceaac157f00e491c96d3be0400eca19, type: 3}
+  m_Shader: {fileID: 4800000, guid: 06f9909359c744aa3826b314570a72fb, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -24,19 +24,27 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: 3e8b1fef37ea345e28d07d922fca7727, type: 3}
+        m_Texture: {fileID: 2800000, guid: 8fcc5c64362304673bfb3ec1569200b7, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _AlphaMode: 0
+    - _Coverage: 1
     - _DstBlend: 1
+    - _FireGain: 5
     - _Floor: 0.03
     - _Gain: 1.5
     - _SheetTiles: 1
+    - _SkyGain: 1.2
     - _SoftFade: 1.2
     - _SrcBlend: 1
+    - _SunGain: 1.6
     m_Colors:
+    - _FireCool: {r: 0.85, g: 0.15999997, b: 0.03, a: 1}
+    - _FireHot: {r: 1, g: 0.86, b: 0.58, a: 1}
+    - _FireMid: {r: 1, g: 0.45999992, b: 0.09999997, a: 1}
     - _SheetRect: {r: 0, g: 0, b: 1, a: 1}
+    - _SmokeColor: {r: 0.37999994, g: 0.35999998, b: 0.33999997, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

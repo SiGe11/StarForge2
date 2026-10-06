@@ -406,6 +406,26 @@ namespace StarForge.EditorTools
         /// <summary>Two levels of every upgrade, on the first six designs only.</summary>
         public static string RunUpgradedQuick() { Upgrades = 2; Seeds = new uint[] { 11, 22, 33, 44, 55, 66 }; return Run(); }
         public static string RunBase() { Upgrades = 0; return Run(); }
+        /// <summary>The bare Mech, and one with every upgrade line at its top (what the
+        /// opponent has by mid-match), on the first six designs only.</summary>
+        public static string RunBaseQuick() { Upgrades = 0; Seeds = new uint[] { 11, 22, 33, 44, 55, 66 }; return Run(); }
+        public static string RunFullQuick() { Upgrades = 3; Seeds = new uint[] { 11, 22, 33, 44, 55, 66 }; return Run(); }
+        /// <summary>The same, with every fight on a freshly loaded map (fought one after another on
+        /// one site, the burnt grass, craters and felled trees of the earlier fights skewed the
+        /// later ones: 85 Troopers that killed an upgraded Mech in 15 s alone "lost" to it in a
+        /// series), and with the balance before this round (<see cref="StarForge.World.MechCore.LegacyBalance"/>,
+        /// two extra hardpoints) or after it.</summary>
+        public static bool Fresh;
+        public static string RunFullFreshOld() { Fresh = true; StarForge.World.MechCore.LegacyBalance = true; return RunFullQuick(); }
+        public static string RunFullFreshNew() { Fresh = true; StarForge.World.MechCore.LegacyBalance = false; return RunFullQuick(); }
+        public static string RunBaseFreshOld() { Fresh = true; StarForge.World.MechCore.LegacyBalance = true; return RunBaseQuick(); }
+        public static string RunBaseFreshNew() { Fresh = true; StarForge.World.MechCore.LegacyBalance = false; return RunBaseQuick(); }
+        /// <summary>One fight per design, logged every ten seconds: how many of the enemy are
+        /// alive, have the Mech in reach and are firing on it, and the Mech's hull -- to tell a
+        /// crowd that cannot get at the Mech from one that cannot hurt it.</summary>
+        public static int ProbeN;
+        public static StarForge.Sim.UnitType ProbeType = StarForge.Sim.UnitType.Trooper;
+        public static string ProbeTroopers85() { ProbeN = 85; ProbeType = StarForge.Sim.UnitType.Trooper; Upgrades = 3; Seeds = new uint[] { 11, 22 }; return Run(); }
 
         public static string Report()
         {
@@ -418,6 +438,7 @@ namespace StarForge.EditorTools
 
         System.Collections.IEnumerator Start()
         {
+            DontDestroyOnLoad(gameObject);
             // Always the same ground: the default map (seed 1000), and the same site on it.
             if (StarForge.Game.MatchSettings.mapSeed != 1000u)
             {
@@ -467,6 +488,23 @@ namespace StarForge.EditorTools
             log.AppendLine($"site {site} relief {-bestScore:0.0} m, upgrades {Upgrades}");
             UnityEngine.Time.timeScale = 6f;
 
+            if (ProbeN > 0)
+            {
+                foreach (var seed in Seeds)
+                {
+                    var design = StarForge.World.MechParts.Generate(seed);
+                    log.AppendLine($"{design}");
+                    bool mechWon = false; float left = 0f, secs = 0f; int killed = 0;
+                    yield return Fight(design, ProbeType, ProbeN, (w, l, s, k) => { mechWon = w; left = l; secs = s; killed = k; });
+                    log.AppendLine($"   {ProbeN} {ProbeType}: {(mechWon ? $"Mech won at {left * 100f:0}%" : "Mech destroyed")} after {secs:0} s, {killed} of them killed");
+                }
+                ProbeN = 0;
+                UnityEngine.Time.timeScale = 1f;
+                StarForge.AI.Commander.Suspended = false;
+                done = true;
+                yield break;
+            }
+
             foreach (var seed in Seeds)
             {
                 var design = StarForge.World.MechParts.Generate(seed);
@@ -489,11 +527,29 @@ namespace StarForge.EditorTools
             }
             UnityEngine.Time.timeScale = 1f;
             StarForge.AI.Commander.Suspended = false;
+            StarForge.World.MechCore.LegacyBalance = false;
+            Fresh = false;
             done = true;
         }
 
         System.Collections.IEnumerator Fight(StarForge.World.MechDesign design, StarForge.Sim.UnitType type, int n, System.Action<bool, float, float, int> result)
         {
+            if (Fresh)
+            {
+                // A clean field: the same map, reloaded.
+                UnityEngine.Time.timeScale = 1f;
+                UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+                yield return new UnityEngine.WaitForSecondsRealtime(2.5f);
+                var boot = StarForge.Game.GameBootstrap.Instance;
+                if (StarForge.World.GameWorld.Instance == null || !StarForge.World.GameWorld.Instance.running)
+                {
+                    boot.StartMatch();
+                    yield return new UnityEngine.WaitForSecondsRealtime(1f);
+                }
+                world = StarForge.World.GameWorld.Instance;
+                StarForge.AI.Commander.Suspended = true;
+                UnityEngine.Time.timeScale = 6f;
+            }
             // Clear the field of anything left from the last fight.
             // Out of the world's list first: GameWorld.Update runs before this resumes, and a
             // destroyed unit still in the list threw from CachePosition.
@@ -503,6 +559,7 @@ namespace StarForge.EditorTools
             yield return null;
             var ups = new int[(int)StarForge.World.MechUpgrade.Count];
             for (int i = 0; i < ups.Length; i++) ups[i] = UnityEngine.Mathf.Min(Upgrades, StarForge.World.MechParts.Upgrade((StarForge.World.MechUpgrade)i).levels);
+            if (StarForge.World.MechCore.LegacyBalance) ups[(int)StarForge.World.MechUpgrade.Hardpoint] = UnityEngine.Mathf.Min(Upgrades, 2);
             ups[(int)StarForge.World.MechUpgrade.Hardpoint] = UnityEngine.Mathf.Min(ups[(int)StarForge.World.MechUpgrade.Hardpoint], design.reserve.Count);
             var m = world.TrialMech(0, design, world.NearestWalkable(site), 0f, false);
             m.mech.Init(design, ups, false);
@@ -518,12 +575,26 @@ namespace StarForge.EditorTools
             }
             yield return null;
             world.CmdMove(enemies, site, true);
-            float t0 = world.time;
+            float t0 = world.time, nextProbe = t0 + 10f;
             int alive = n;
             while (world.time - t0 < 150f)
             {
                 alive = 0;
                 foreach (var e in enemies) if (StarForge.World.Unit.Live(e)) alive++;
+                if (ProbeN > 0 && world.time >= nextProbe && StarForge.World.Unit.Live(m))
+                {
+                    nextProbe += 10f;
+                    int inReach = 0, onIt = 0, moving = 0, idle = 0;
+                    foreach (var e in enemies)
+                    {
+                        if (!StarForge.World.Unit.Live(e)) continue;
+                        if (e.Dist(m) - m.def.radius <= e.def.range) inReach++;
+                        if (e.target == m) onIt++;
+                        if (e.Moving) moving++;
+                        if (e.order == StarForge.Sim.Order.Idle) idle++;
+                    }
+                    log.AppendLine($"      t+{world.time - t0:0}s: alive {alive}, in reach {inReach}, targeting it {onIt}, moving {moving}, idle {idle}; Mech {100f * m.hp / m.MaxHp:0}% (radius {m.def.radius:0.0}, agent {(m.agent != null ? m.agent.radius : 0f):0.0})");
+                }
                 if (!StarForge.World.Unit.Live(m) || alive == 0) break;
                 // Stragglers that lost the order walk on.
                 if (UnityEngine.Time.frameCount % 60 == 0)

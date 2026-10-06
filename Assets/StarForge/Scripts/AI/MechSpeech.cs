@@ -755,6 +755,21 @@ namespace StarForge.AI
 
         public void Dispose() => w.Event -= OnEvent;
 
+        /// <summary>The pilot's temper (-1 cold .. 1 warm) and pride (0..1), drawn from the seed.</summary>
+        public float Temper => temper;
+        public float Pride => pride;
+
+        /// <summary>How the pilot feels right now, above 0 good and below bad: the reading
+        /// <see cref="Read"/> takes, without its random nudge, so asking it does not shift
+        /// what the Mech says next.</summary>
+        public float Mood(Unit m)
+        {
+            DecayTo(w.time);
+            float hull = m.hp / Mathf.Max(1f, m.MaxHp);
+            float exchange = (lostThem - lostUs) / (lostThem + lostUs + 200f);
+            return 0.8f * exchange + 0.6f * (hull - 0.55f) + 0.5f * standing + 0.25f * temper;
+        }
+
         /// <summary>Read the battle (about once a second) and note any moment worth a line.</summary>
         public void Observe(Unit m, MechIntent intent)
         {
@@ -1011,7 +1026,7 @@ namespace StarForge.AI
                     else tb += v;
                 }
                 else if (u.Type == UnitType.Worker) { if (mine) ob += 50f; else tb += 50f; }
-                else if (u.def.IsArmy)
+                else if (u.def.IsArmy && !u.deserted)   // deserters have left the war
                 {
                     float v = Defs.ArmyValue(u.Type);
                     if (mine) om += v;
@@ -1029,7 +1044,7 @@ namespace StarForge.AI
             foreach (var u in w.units)
             {
                 if (u == null || u.dying || u.team == team || u.team > 1 || u.Untargetable) continue;
-                if (!u.def.IsArmy && u.mech == null) continue;
+                if ((!u.def.IsArmy && u.mech == null) || u.deserted) continue;
                 Vector2 p = u.pos;
                 if ((p - focus).sqrMagnitude < 50f * 50f)
                 {
@@ -1088,6 +1103,9 @@ namespace StarForge.AI
         void OnEvent(GameEvent e)
         {
             if (e.kind != GameEventKind.Death || e.team > 1) return;
+            // A deserter's death is no loss in the war, nor a fight: it had left it (and one
+            // its own Mech put down would read as a fight lost at home).
+            if (e.unit != null && e.unit.deserted) return;
             var def = e.unit != null ? e.unit.def : Defs.Get(e.type);
             if (def == null) return;
             float v = Worth(e.type, def);

@@ -4,12 +4,12 @@ Unity **6000.6.1f1** (URP 17.6) rebuild of the C++/Metal StarForge RTS (`~/repos
 
 ## Where things live (area notes load on demand)
 
-This file holds only cross-cutting rules. **Lessons for an area are in that folder's `CLAUDE.md`: read it before changing the area** (it loads by itself when you read a file there; Bash/MCP work does not trigger it, so open it yourself).
+This file holds only cross-cutting rules. **Lessons for an area are in that folder's `CLAUDE.md`: read it before changing the area.** A project hook (`.claude/hooks/area_notes.py`) adds them to the context the first time a Read/Edit/Write/Grep/Bash/Unity-MCP call touches the area, headed `[StarForge area notes: ...]`; Claude Code's own on-demand loading did not reach desktop sessions. **If no such block has appeared in this conversation by your first edit (or first trial run) in an area, Read that area file yourself first**; the hook needs the project's hooks approved once.
 
 | Area | File |
 |---|---|
 | Commander, Perception, MechBrain, speech, bay edge cases | `Assets/StarForge/Scripts/AI/CLAUDE.md` |
-| Rules, nav areas, vegetation, fire, felling, wind | `Assets/StarForge/Scripts/World/CLAUDE.md` |
+| Rules, nav areas, vegetation, fire, felling, wind, morale | `Assets/StarForge/Scripts/World/CLAUDE.md` |
 | Map generation, grove check, base connectivity | `Assets/StarForge/Scripts/World/MapGen/CLAUDE.md` |
 | Mech rules, parts, armoury, tracks, balance | `Assets/StarForge/Scripts/World/Mech/CLAUDE.md` |
 | FX, smoke, audio playback, wrecks, fauna, pressure | `Assets/StarForge/Scripts/View/CLAUDE.md` |
@@ -57,7 +57,7 @@ Testing cheat: `Ctrl`/`Cmd`+`Shift`+`M` (+5000 ore, marks `GameWorld.cheated`). 
 - **Never edit a script while the Editor is in play mode.** Unity recompiles and reloads the domain mid-play: `[NonSerialized]` arrays are gone, running trials lose state. Stop, edit, compile, play. After writing a script wait for `compiling=False` before `play`, or play starts on the old assembly.
 - **Statics survive play sessions** (domain reload off): `Commander.Suspended`/`IgnoreSites` left on by a trial skew the next evaluation. Clear what you set.
 - **The Editor stops ticking when the display sleeps** (an evaluation left running with the screen off stalls and resumes when poked): run `caffeinate -d -i -t 7200` in the background for long runs. It also crawls when not the frontmost app (App Nap; a player run takes the foreground): `open -a /Applications/Unity/Hub/Editor/6000.6.1f1/Unity.app` brings it forward (check `InternalEditorUtility.isApplicationActive`). MCP calls wake it briefly; the file inbox does not.
-- **Parallel sessions share one Editor** (see memory): before play mode or writing `.cs`, check `Tools/editor.sh state` and `ListAgents`; announce Editor windows.
+- **Parallel sessions share one Editor and one working tree:** before play mode or writing `.cs`, check `Tools/editor.sh state` and `ListAgents`; announce Editor windows to busy peers and do not stop their play mode; other sessions' uncommitted files are theirs.
 - **AI invariants:** enemy state only through `GameWorld.Visible`/`VisibleCell`; every order through the public `GameWorld.Cmd*` the mouse uses, paid from `ActionBudget`. **MechBrain is exempt by design** (omniscient, ~1,200 APM); the Commander is not. AI internals visible to players are forbidden: gate on `MatchSettings.debugAI`. Details: `Scripts/AI/CLAUDE.md`.
 - **`UnitView` is presentation only and never writes to the `Unit`**; gameplay effects leave the world only as `GameWorld.Event`s. Never read "no path" as arrival (a NavMesh rebuild takes paths away). Details: `Scripts/World/CLAUDE.md`.
 - **The map is rebuilt at every scene start** (`MapRuntime`, order -1000): read the map in `Awake`/`Start` of order > -1000, never cache across scene loads; map-generation changes go in `MapGenerator`, not `MapBuilder`.
@@ -69,12 +69,18 @@ Testing cheat: `Ctrl`/`Cmd`+`Shift`+`M` (+5000 ore, marks `GameWorld.cheated`). 
 
 - **Grep first, then read a range.** Files of 1k+ lines: `AgentInbox.cs`, `FXDirector.cs`, `Commander.cs`, `MapGenerator.cs`, `MechTrials.cs`, `GameWorld.cs`, `MechSpeech.cs` (mostly line data), `Vegetation.cs`, `HUDController.cs`. Find the symbol with Grep (`--include=*.cs`, `.meta` files add noise), then Read with `offset`/`limit`. Never read a whole one to find one method.
 - **Logs:** `tail`/`grep` `Logs/Editor.log`, never read it whole. Long bench/eval/trial output goes to a file; read the summary lines. Bash output beyond 40k chars is saved to a file by setting; read that file in slices.
-- Generated assets (`Map/*.asset`, `Scenes/*.unity`) and binaries (`.blend`, `__pycache__`) are read-denied on purpose: change the generator and re-run the Build step instead.
-- Give each change a verification target before editing (a named trial, the burst numbers, `MapChecks.Report`, an evaluation line) and run it; do not report "should work".
+- `.blend`/`.blend1`, `__pycache__` and the old build folders are read-denied (binary noise; use Blender headless or the `mcp__Blender__*` tools). Generated assets (`Map/*.asset`, `Scenes/*.unity`, 0.8-2.9 MB of YAML) stay readable for verification: Grep them or read a range, never the whole file; change the generator, never the output.
+- Give each change a verification target before editing (a named trial, the burst numbers, `MapChecks.Report`, an evaluation line) and run it; do not report "should work". Levels, the check for each area and the Editor-slot protocol: the `verify-change` skill.
+
+## Agents, skills and git
+
+- **The session implements; subagents only read.** `scout` (read-only investigator) answers questions spanning areas or 1k+ line files and lists every touch point a new unit, weapon, part or event needs; `reviewer` (read-only, adversarial) reviews a level-3+ change before you report it done: pass it the changed files, the intent and the checks run with their numbers. Do not delegate edits, Editor or player runs: one Editor and one assembly mean a second writer recompiles under someone's play mode. Built-in `Explore`/`Plan` skip this file; prefer `scout`. Agent Teams stay off (experimental; named subagents would become teammates writing this tree).
+- **Skills:** `verify-change` (verify in the Editor, write a trial), `measure-performance` (fps, bench, burst, gallery, evaluation), `checkpoint` (every commit the user asks for: this session's files only).
+- **Git in a shared tree:** commit only explicit paths (`/checkpoint`), each new asset with its `.meta`. Never `add -A`/`.`, `commit -a`, `stash`, `reset`, `checkout`/`restore` of files you did not change, `clean`, branch switches, or push unasked; `.claude/settings.json` denies or asks for these. No git worktrees: a worktree is a second Unity project with its own Library import that the open Editor cannot drive.
 
 ## Compact instructions
 
-When compacting, keep: the task and what is done/left; files changed and whether committed; Editor state (play mode, compiling, which peer session holds it); every measured number with its preset, build and `pmset -g batt`; licence facts for assets touched and whether `check_licences.py` has run; which area `CLAUDE.md` files were already read. Drop file dumps and passing-test output.
+When compacting, keep: the task and what is done/left; files changed and whether committed; Editor state (play mode, compiling, which peer session holds it); every measured number with its preset, build and `pmset -g batt`; licence facts for assets touched and whether `check_licences.py` has run; the reviewer's open findings. **Area notes do not survive compaction**: after one, the hook re-injects them on the next touch of an area (a fresh `[StarForge area notes` block); if none appears, re-read the area file for any area you are still working in before editing. Drop file dumps and passing-test output.
 
 ## Architecture map
 

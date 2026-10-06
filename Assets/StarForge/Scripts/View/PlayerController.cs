@@ -99,6 +99,8 @@ namespace StarForge.View
 
             int before = Selection.Count;
             Selection.RemoveAll(u => !Unit.Live(u) || (u.team != team && !u.visibleToPlayer && !u.def.building));
+            // A soldier who deserts leaves a group selection (one alone stays, to be looked at).
+            if (Selection.Count > 1) Selection.RemoveAll(u => u.deserted);
             if (Selection.Count != before) SelectionChanged?.Invoke();
 
             Vector2 mp = mouse.position.ReadValue();
@@ -179,16 +181,16 @@ namespace StarForge.View
                 if (ctrl && CanCommand)
                 {
                     groups[i].Clear();
-                    foreach (var u in Selection) if (u.team == team) groups[i].Add(u);
+                    foreach (var u in Selection) if (Mine(u)) groups[i].Add(u);
                 }
                 else if (shift)
                 {
-                    foreach (var u in groups[i]) if (Unit.Live(u) && !Selection.Contains(u)) Selection.Add(u);
+                    foreach (var u in groups[i]) if (Unit.Live(u) && Mine(u) && !Selection.Contains(u)) Selection.Add(u);
                     SelectionChanged?.Invoke();
                 }
                 else
                 {
-                    groups[i].RemoveAll(u => !Unit.Live(u));
+                    groups[i].RemoveAll(u => !Unit.Live(u) || !Mine(u));
                     if (groups[i].Count == 0) continue;
                     Selection.Clear();
                     Selection.AddRange(groups[i]);
@@ -283,7 +285,7 @@ namespace StarForge.View
                 // Everything of that type on screen.
                 if (!shift) Selection.Clear();
                 foreach (var o in world.units)
-                    if (Unit.Live(o) && o.team == team && o.Type == u.Type && OnScreen(o) && !Selection.Contains(o)) Selection.Add(o);
+                    if (Unit.Live(o) && Mine(o) && o.Type == u.Type && OnScreen(o) && !Selection.Contains(o)) Selection.Add(o);
             }
             else if (shift && u.team == team)
             {
@@ -305,7 +307,7 @@ namespace StarForge.View
             bool anyMobile = false;
             foreach (var u in world.units)
             {
-                if (!Unit.Live(u) || u.team != team) continue;
+                if (!Unit.Live(u) || !Mine(u)) continue;
                 Vector3 sp = cam.WorldToScreenPoint(u.Ground + Vector3.up * (u.def.visualHeight * 0.4f));
                 if (sp.z <= 0f || !r.Contains(new Vector2(sp.x, sp.y))) continue;
                 scratch.Add(u);
@@ -331,16 +333,19 @@ namespace StarForge.View
         {
             Selection.Clear();
             foreach (var u in world.units)
-                if (Unit.Live(u) && u.team == team && u.def.IsArmy) Selection.Add(u);
+                if (Unit.Live(u) && Mine(u) && u.def.IsArmy) Selection.Add(u);
             SelectionChanged?.Invoke();
         }
 
         List<Unit> OwnSelection()
         {
             scratch.Clear();
-            foreach (var u in Selection) if (Unit.Live(u) && u.team == team) scratch.Add(u);
+            foreach (var u in Selection) if (Unit.Live(u) && Mine(u)) scratch.Add(u);
             return scratch;
         }
+
+        /// <summary>The player's to command: their side's, and not a deserter (GameWorld.Morale).</summary>
+        bool Mine(Unit u) => u.team == team && !u.deserted;
 
         void RightClick(Vector2 gp)
         {
