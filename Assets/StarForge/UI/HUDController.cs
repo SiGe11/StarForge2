@@ -1191,19 +1191,26 @@ namespace StarForge.UI
             "or building a big economy, and picks a plan against that: an early Trooper rush, raids on your Diggers, a timing " +
             "push, a Sentinel wall while it techs to Maulers, a second ore line, a counter-attack while your army is away, " +
             "or a feint. When its picture of you changes, so does its plan.\n\n" +
-            "It fights like a player. It focuses fire on the weakest target that can shoot back, pulls its army home when a " +
-            "fight turns against it, sends raiders at your workers rather than your army, and comes back to defend when you hit its base. " +
+            "It fights like a player. It focuses fire on the weakest target that can shoot back and lets one that runs go rather " +
+            "than chase it across the map, pulls its army home when a fight turns against it and gathers it again before going back in, " +
+            "sends raiders at your workers rather than your army -- the most exposed ones, resting a while when driven off -- and " +
+            "comes back to defend when you hit its base. When the ore by its Foundries runs low it saves for a new one at another " +
+            "field, it raises a new Foundry if it loses its own, and once it has lost track of everything of yours it searches the " +
+            "ore fields and base sites it has looked at least lately. " +
             "A Mauler whose shells keep landing on a ridge in front of you, or where you were a moment ago, is moved to where it can hit.\n\n" +
             "It does not play the same match twice. Each match it opens differently and leans its own way -- more Troopers or more " +
             "Maulers, an early push or a late one. Its attacks go for different things (your base, your production, an outlying " +
             "Foundry, your Diggers), come in straight or round a flank, gather before they go in, and sometimes split to hit two " +
-            "places at once. A plan that is not paying off is dropped, and a way in that you beat is not tried again soon.\n\n" +
+            "places at once. About half the time it keeps a pair of Skimmers raiding your Diggers whatever else it is doing. " +
+            "A plan that is not paying off is dropped, and a way in that you beat is not tried again soon.\n\n" +
             "It has a Mech too. It raises a Mech Bay early, buys its Mech upgrades from spare ore -- guns and hardpoints when it " +
             "means to attack, armour when it means to hold -- and goes for your Mech Bay while your Mech has not yet landed. " +
             "Its Mech is not under its command any more than yours is under yours: it listens to what its Mech tells it and " +
             "sometimes acts on it -- meeting a raid its Mech saw coming, striking when its Mech says the moment has come -- and " +
             "sometimes does not. Around your Mech it keeps its army together and puts everything it has on it, and it does not " +
-            "feed it: each attack your Mech throws back makes it wait for a bigger army before the next. It builds against your " +
+            "feed it: it waits for an army that can break your Mech (less once it has seen your Mech hurt, less again with its own " +
+            "Mech going in), each attack your Mech throws back makes it wait longer, and it does not forget your Mech just because it " +
+            "has not seen it lately. When it sees your Mech badly hurt it strikes at once, before your bay can mend it. It builds against your " +
             "Mech once it has seen its guns -- tanks against one made to burn infantry, a swarm of rifles against one made to kill " +
             "armour -- strikes your base when your Mech is out in the field far from home, going for your Mech Bay then, and " +
             "gathers its attacks on its own Mech so they go in together. A Mech Bay or a tower raised beside its base it treats as " +

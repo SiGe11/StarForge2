@@ -251,6 +251,12 @@ namespace StarForge.AI
         public int mechWindows, stagedWithMech;
         /// <summary>Waves sent at their Mech seen badly hurt, before its bay could mend it.</summary>
         public int hurtWindows;
+        /// <summary>Raids its Skimmers went in on (a sortie: sent in from rest), and how many of
+        /// them it kept at their Diggers beside another plan.</summary>
+        public int raidSorties, sideRaidSorties;
+        /// <summary>Waves sent at a Mech it knew was about, by what sent them: the plan's threshold,
+        /// its own Mech's call, their Mech away, their Mech hurt, nothing left to wait for.</summary>
+        public readonly int[] mechWavesBy = new int[5];
         /// <summary>Enemy guns over its ore: what it last saw, and Diggers moved to safe ore
         /// or stood clear.</summary>
         public string guns = "";

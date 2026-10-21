@@ -686,12 +686,25 @@ namespace StarForge.AI
         /// <summary>Somewhere worth going: an enemy force, expansion, worker line or Mech
         /// Bay that it (with anything of its side there) beats with a margin, not under
         /// a stack of towers, and not across the whole map when it is hurt.</summary>
+        /// <summary>Editor A/B only: hunt up to their Mech's reach as before (AIReview.HuntCase1Old).
+        /// The evaluation runner resets it.</summary>
+        public static bool LegacyHunt;
+
         bool FindPrey(Unit m, MechCore core, float caution, out Vector2 at, out string what, out Unit key)
         {
             at = default; what = ""; key = null;
             float bestScore = 0f;
             weighed.Clear();
             weighedRatio.Clear();
+            // Not into their Mech's reach (it stands off at its own range from what it hunts),
+            // unless it would take that Mech on as things stand: hunts that walked up to it turned
+            // back at its reach and set out again 12 s later -- 22-38% of the Mech's time hunting
+            // and 19-44% withdrawing in the matches that ran to the cap against the macro player,
+            // away from the army its side had sent in counting on it.
+            var foeMech = w.MechOf(1 - team);
+            float avoid = 0f;
+            if (!LegacyHunt && foeMech != null && foeMech.mech.Landed && Ratio(foeMech.pos, 30f, m, out _, out _) <= caution * Doctrine.duel)
+                avoid = foeMech.mech.FightRange + core.FightRange + 6f;
             foreach (var e in w.units)
             {
                 // Their deserters harm no one: not worth the walk.
@@ -705,6 +718,7 @@ namespace StarForge.AI
                 if (value < 40f) continue;
                 float dist = m.Dist(e);
                 if (dist > Doctrine.huntReach) continue;
+                if (avoid > 0f && (foeMech.pos - e.pos).sqrMagnitude < avoid * avoid) continue;
                 // Weigh the fight once per cluster: what sits near a place already weighed shares its odds.
                 float r = -1f;
                 for (int k = 0; k < weighed.Count; k++)

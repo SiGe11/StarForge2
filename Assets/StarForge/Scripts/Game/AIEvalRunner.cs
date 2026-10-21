@@ -104,6 +104,8 @@ namespace StarForge.Game
             World.MechCore.LegacyBalance = false;   // a duel's A/B switch, never a match's
             Commander.IgnoreSites = false;
             Commander.RepositionOff = false;   // the blocked-shot trial's A/B switch
+            Perception.LegacyMechMemory = false;
+            MechBrain.LegacyHunt = false;
             World.GameWorld.LegacyBreakPick = false;   // the morale trials' A/B switch
             MatchSettings.skipMenu = true;
             MatchSettings.spectate = false;
@@ -180,9 +182,21 @@ namespace StarForge.Game
                 }
             }
             peakApm = Mathf.Max(peakApm, ai.Dbg.apmPeak);
+            // Their Mech alive and landed while the AI believes there is none (it forgets what it
+            // has not seen): how long, and how many waves it started then.
+            var theirMech = world.MechOf(0);
+            bool alive = theirMech != null && theirMech.mech != null && theirMech.mech.Landed;
+            bool forgotten = alive && !ai.Perception.Snap.eMech;
+            if (alive) mechAliveT += dt;
+            if (forgotten) mechForgottenT += dt;
+            if (ai.Dbg.waves > lastWaves && alive) { wavesAtMech++; if (forgotten) wavesForgotten++; }
+            lastWaves = ai.Dbg.waves;
 
             if (world.winner >= 0 || world.time >= maxSeconds) Finish();
         }
+
+        float mechAliveT, mechForgottenT;
+        int lastWaves, wavesAtMech, wavesForgotten;
 
         void Finish()
         {
@@ -209,7 +223,10 @@ namespace StarForge.Game
                       $"style {ai.Dbg.personality}; {ai.Dbg.waves} attack waves, last {ai.Dbg.wave}; " +
                       $"Mechs: AI {MechLine(1)}, opponent {MechLine(0)}; advice heeded {ai.Dbg.adviceHeeded}, ignored {ai.Dbg.adviceIgnored}, upgrades bought {ai.Dbg.upgradesBought}, waves while their Mech was away {ai.Dbg.mechWindows}, gathered on its Mech {ai.Dbg.stagedWithMech}; " +
                       $"AI Mech's time: {IntentShares()}; " +
-                      $"left at the end: AI {Left(1)}, opponent {Left(0)}; AI retreats {ai.Retreats}, waves at their Mech hurt {ai.Dbg.hurtWindows}, plans {PlanShares()}; " +
+                      $"left at the end: AI {Left(1)}, opponent {Left(0)}; AI retreats {ai.Retreats}, waves at their Mech hurt {ai.Dbg.hurtWindows}, raids {ai.Dbg.raidSorties} ({ai.Dbg.sideRaidSorties} beside another plan), plans {PlanShares()}; " +
+                      $"waves at a Mech it knew of: threshold {ai.Dbg.mechWavesBy[0]}, its Mech's call {ai.Dbg.mechWavesBy[1]}, theirs away {ai.Dbg.mechWavesBy[2]}, theirs hurt {ai.Dbg.mechWavesBy[3]}, broke {ai.Dbg.mechWavesBy[4]}; " +
+                      $"their Mech alive {mechAliveT:0}s, believed gone {(mechAliveT > 0f ? 100f * mechForgottenT / mechAliveT : 0f):0}% of it, waves started meanwhile {wavesAtMech} ({wavesForgotten} believing it gone); " +
+                      $"APM {ai.BudgetBySite()}; " +
                       $"morale: {MoraleLine()}");
             var m0 = world.morale[0];
             var m1 = world.morale[1];

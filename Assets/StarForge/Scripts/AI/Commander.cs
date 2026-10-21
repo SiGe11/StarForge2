@@ -43,6 +43,8 @@ namespace StarForge.AI
             var pe = Personality;
             p.trooperBias = Mathf.Clamp01(p.trooperBias + pe.trooperShift);
             if (p.skimmers > 0 || st == Strategy.Eco) p.skimmers += pe.extraSkimmers;
+            // A raiding personality keeps a pair of Skimmers for its side raids (RunTactics).
+            if (pe.raidTaste > 0.5f && w.time > 150f) p.skimmers = Mathf.Max(p.skimmers, 2);
             if (p.workshops > 0) p.workshops = Mathf.Max(1, p.workshops + pe.workshopShift);
             p.pushThreshold *= pe.timing;
             // The Mechs weigh on when to go: its own walks with an attack (MechBrain
@@ -52,11 +54,13 @@ namespace StarForge.AI
             // Their Mech eats a small army whole: while it is about, wait for a big one --
             // half again as big even with its own Mech walking alongside, and more without.
             if (snap.eMech) p.pushThreshold *= (snap.mechAlive ? 1.5f : 1.9f) * (1f + 0.2f * mechRepulses);
-            // ...and against their Mech at home, by its tower and its gantry, an army that can
-            // break it (the old rule above stays as the floor). That rule topped out near 1,400,
-            // a third of what breaking a Mech takes, and it fed the Mech wave after wave: in
-            // every match that ran to the cap their Mech stood at its bay on 130-150 kills.
-            if (snap.eMech && MechAtHome(snap)) p.pushThreshold = Mathf.Max(p.pushThreshold, MechNeed(snap));
+            // ...and with their Mech about and not out in the field (MechAway opens its own window),
+            // an army that can break it (the old rule above stays as the floor). That rule topped
+            // out near 1,400, a third of what breaking a Mech takes, and it fed the Mech wave after
+            // wave: in every match that ran to the cap their Mech stood at its bay on 130-150 kills.
+            // (Asked only of a Mech last seen within 55 m of its base, a Mech on guard 55-70 m out
+            // -- neither "at home" nor "away" -- got the old rule alone.)
+            if (snap.eMech && !MechAway(snap)) p.pushThreshold = Mathf.Max(p.pushThreshold, MechNeed(snap));
             // Build against the Mech it has seen: one made to kill infantry (flame, rotary
             // cannon, missiles) is met with armour; one made to kill armour (lasers, the
             // railgun, the mortar) with a swarm of rifles -- the cheapest answer to a Mech
@@ -84,14 +88,11 @@ namespace StarForge.AI
         /// (3,150) one built to burn infantry -- what it builds leans that way once it has seen the
         /// guns (Plan) -- scaled by the health it was last seen with (a health bar is there for
         /// anyone to read), and roughly halved when its own Mech, fit, goes in too.</summary>
-        static float MechNeed(Snapshot s)
+        float MechNeed(Snapshot s)
         {
             float worth = Mathf.Lerp(1750f, 3150f, s.eMechDesignKnown ? s.eMechAntiLight : 0.5f);
             return worth * Mathf.Lerp(0.3f, 1f, s.eMechHpFrac) * (s.mechAlive && s.mechHpFrac > 0.6f ? 0.55f : 1f);
         }
-
-        /// <summary>Their Mech last seen at its base (where its tower and gantry stand by it).</summary>
-        static bool MechAtHome(Snapshot s) => s.enemyBaseKnown && (s.eMechPos - s.enemyBase).magnitude < 55f;
 
         static MacroPlan PlanFor(Strategy s)
         {
@@ -132,8 +133,12 @@ namespace StarForge.AI
         Unit focusTarget;
 
         readonly List<Unit> main = new List<Unit>(), harass = new List<Unit>(), scouts = new List<Unit>();
+        /// <summary>The raiders, for trials (AIReview.RaidTrial): read-only.</summary>
+        public IReadOnlyList<Unit> Raiders => harass;
         readonly List<Unit> single = new List<Unit>(1);
-        Vector2 rally, harassTarget;
+        // Where each squad was last sent (a prong had shared the raiders' and, with a side raid out,
+        // both were re-ordered every pass).
+        Vector2 rally, harassTarget, prongTarget;
         bool committed;
         // The current attack wave.
         bool waveOn, staging, prongOn;
@@ -164,6 +169,9 @@ namespace StarForge.AI
         /// <summary>Editor A/B only: switch the move-up off to measure what it is worth.</summary>
         public static bool RepositionOff;
         float commitT, lastSelHash, retreatUntil;
+        // The raiders: on a sortie, or resting after being driven off.
+        bool raiding;
+        float raidRestUntil = -1f;
         // After a retreat no new wave goes before regroupUntil, unless the army has grown to
         // regroupArmy.
         float regroupUntil = -1f, regroupArmy;
@@ -289,14 +297,16 @@ namespace StarForge.AI
 
         /// <summary>A human pays for the selection and then for the order: re-ordering the same
         /// group costs one action, switching groups costs two.</summary>
-        bool Issue(IReadOnlyList<Unit> sel, int kind, Vector2 pos, Unit target)
+        bool Issue(IReadOnlyList<Unit> sel, int kind, Vector2 pos, Unit target,
+                   [System.Runtime.CompilerServices.CallerMemberName] string site = "",
+                   [System.Runtime.CompilerServices.CallerLineNumber] int line = 0)
         {
             if (sel.Count == 0) return false;
             float h = 0f;
             foreach (var u in sel) if (u != null) h += u.id & 0xFFFF;
             h += sel.Count * 7919f;
             int cost = Mathf.Abs(h - lastSelHash) > 0.5f ? 2 : 1;
-            if (!Budget.Spend(cost)) return false;
+            if (!Pay(cost, site, line)) return false;
             Budget.Note(w.time);
             lastSelHash = h;
             switch (kind)
@@ -341,7 +351,7 @@ namespace StarForge.AI
         bool Train(Unit building, UnitType what)
         {
             if (what != UnitType.None && what < UnitType.Count && w.factions[team].ore - Defs.Get(what).cost < DiggerReserve(what)) return false;
-            if (!Budget.Spend(2)) return false;            // select structure + hotkey
+            if (!Pay(2, "Train")) return false;            // select structure + hotkey
             Budget.Note(w.time);
             lastSelHash = -1f;
             return w.CmdTrain(building, what);
@@ -350,10 +360,42 @@ namespace StarForge.AI
         bool Build(Unit worker, UnitType what, Vector2 where)
         {
             if (what != UnitType.None && what < UnitType.Count && w.factions[team].ore - Defs.Get(what).cost < DiggerReserve(what)) return false;
-            if (!Budget.Spend(3)) return false;            // select Digger + hotkey + click
+            if (!Pay(3, "Build")) return false;            // select Digger + hotkey + click
             Budget.Note(w.time);
             lastSelHash = -1f;
             return w.CmdBuild(Single(worker), what, where);
+        }
+
+        // What its actions went on and what the cap refused, by the step that asked: a step asking
+        // every pass for what it cannot have shows here (the evaluation line prints it).
+        // Keyed by the order's source line (or a fixed negative key for Train, Build, Tend, Upgrade),
+        // named once: a string built per order cost an allocation on every click of every match.
+        readonly Dictionary<int, int> spentBy = new Dictionary<int, int>(), refusedBy = new Dictionary<int, int>();
+        readonly Dictionary<int, string> siteNames = new Dictionary<int, string>();
+
+        bool Pay(int n, string site, int line = 0)
+        {
+            bool paid = Budget.Spend(n);
+            int key = line > 0 ? line : site == "Train" ? -1 : site == "Build" ? -2 : site == "Tend" ? -3 : -4;
+            if (!siteNames.ContainsKey(key)) siteNames[key] = line > 0 ? site + ":" + line : site;
+            var into = paid ? spentBy : refusedBy;
+            into.TryGetValue(key, out int had);
+            into[key] = had + n;
+            return paid;
+        }
+
+        /// <summary>Actions refused and spent by the step that asked, largest first (evaluation only).</summary>
+        public string BudgetBySite()
+        {
+            string Top(Dictionary<int, int> d)
+            {
+                var l = new List<KeyValuePair<int, int>>(d);
+                l.Sort((a, b) => b.Value.CompareTo(a.Value));
+                var parts = new List<string>();
+                for (int i = 0; i < l.Count && i < 5; i++) parts.Add($"{siteNames[l[i].Key]} {l[i].Value}");
+                return parts.Count > 0 ? string.Join(", ", parts) : "none";
+            }
+            return $"refused {Top(refusedBy)}; spent {Top(spentBy)}";
         }
 
         bool Reserved(Unit u) => scouts.Contains(u) || harass.Contains(u) || main.Contains(u) || prong.Contains(u);
@@ -533,7 +575,7 @@ namespace StarForge.AI
                         float d = h.Dist(e);
                         if (d < bestD) { bestD = d; best = h; }
                     }
-                    if (best == null || !Budget.Spend(2)) break;
+                    if (best == null || !Pay(2, "Tend")) break;
                     Budget.Note(w.time);
                     lastSelHash = -1f;
                     w.CmdSmart(Single(best), e.pos, e);
@@ -627,7 +669,10 @@ namespace StarForge.AI
             // 5. Army from every idle production structure. Floating ore is the
             //    single most common way for an RTS bot to lose a game it should win.
             bool rich = F.ore > 400;
-            for (int i = 0; i < w.units.Count && issued < MaxPerPass && !saving; i++)
+            // Only while it has the hands for it (here and in 5b, 5c): a loop that went on past
+            // an empty budget had every later order refused, pass after pass -- over a thousand
+            // refused in a match, which said nothing about what it actually left undone.
+            for (int i = 0; i < w.units.Count && issued < MaxPerPass && !saving && Budget.Can(2); i++)
             {
                 var e = w.units[i];
                 if (e == null || e.dying || e.team != team || !e.Complete || e.queue.Count >= 2) continue;
@@ -682,7 +727,7 @@ namespace StarForge.AI
                 int moved = 0, cleared = 0, unclearable = 0;
                 foreach (var h in gunWorkers)
                 {
-                    if (moved + cleared >= 3 || issued >= MaxPerPass) break;
+                    if (moved + cleared >= 3 || issued >= MaxPerPass || !Budget.Can(2)) break;
                     if (Reserved(h) || h.order == Order.Build) continue;
                     // Cleared lately and walking out of every gun's reach: left to get there (re-ordered
                     // each pass while still in it, a Mech walking through the line ate the army's orders).
@@ -753,7 +798,7 @@ namespace StarForge.AI
                 {
                     var h = kv.Key; var n = kv.Value;
                     if (!Unit.Live(h) || !Unit.Live(n) || n.oreLeft <= 0 || h.order == Order.Build || Reserved(h)) { pruneBuf.Add(h); continue; }
-                    if (back >= 3) continue;
+                    if (back >= 3 || !Budget.Can(2)) continue;
                     if (!FinishedFoundryNear(n.pos, 25f)) continue;   // kept: back once one stands again
                     if (staticGuns > 0 && !SafeOre(n)) { pruneBuf.Add(h); continue; }
                     if (h.harvestNode == n) { pruneBuf.Add(h); continue; }   // back there already
@@ -1028,7 +1073,7 @@ namespace StarForge.AI
                     if (F.upgrades[(int)up] > pass) continue;
                     int cost = w.UpgradeCost(team, up);
                     if (cost < 0 || cost > spare) continue;
-                    if (!Budget.Spend(2)) return false;           // select the bay + hotkey
+                    if (!Pay(2, "Upgrade")) return false;           // select the bay + hotkey
                     Budget.Note(w.time);
                     lastSelHash = -1f;
                     if (!w.CmdMechUpgrade(bay, up)) return false;
@@ -1191,15 +1236,30 @@ namespace StarForge.AI
             scouts.RemoveAll(u => !Unit.Live(u) || u.deserted);
             prong.RemoveAll(u => !Unit.Live(u) || u.deserted);
 
-            // Assign fresh army units to a squad. Skimmers are the natural raiders.
-            int harassWant = st == Strategy.Harass ? 4 : 0;
+            // Assign fresh army units to a squad. Skimmers are the natural raiders. A personality
+            // with a taste for raids (about half of them) keeps a pair of Skimmers at their Diggers
+            // whatever the plan: against the scripted players the plan was never Harass, so the
+            // Skimmers only ever scouted or walked with the army, and every match went the same way.
+            bool sideRaid = st != Strategy.Harass && Personality.raidTaste > 0.5f && w.time > 180f && s.skimmers >= 2;
+            int harassWant = st == Strategy.Harass ? 4 : sideRaid ? 2 : 0;
             foreach (var t in new[] { UnitType.Skimmer, UnitType.Trooper, UnitType.Mauler })
                 foreach (var h in OwnOf(t))
                 {
                     if (Reserved(h)) continue;
-                    if (t != UnitType.Mauler && harass.Count < harassWant) harass.Add(h);
+                    if (t != UnitType.Mauler && harass.Count < harassWant && (!sideRaid || t == UnitType.Skimmer)) harass.Add(h);
                     else main.Add(h);
                 }
+            if (sideRaid)
+            {
+                // A side raid is two Skimmers: whatever else the Harass plan had sent goes back to
+                // the army when the plan turns...
+                for (int i = harass.Count - 1; i >= 0; i--)
+                    if (harass[i].Type != UnitType.Skimmer) { main.Add(harass[i]); harass.RemoveAt(i); }
+                while (harass.Count > harassWant) { main.Add(harass[harass.Count - 1]); harass.RemoveAt(harass.Count - 1); }
+                // ...and Skimmers already with the army are taken back out for it.
+                for (int i = main.Count - 1; i >= 0 && harass.Count < harassWant; i--)
+                    if (main[i].Type == UnitType.Skimmer) { harass.Add(main[i]); main.RemoveAt(i); }
+            }
             if (harassWant == 0 && harass.Count > 0)
             {
                 main.AddRange(harass);   // fold raiders back in when the plan changes
@@ -1328,6 +1388,11 @@ namespace StarForge.AI
             // Harass squad: go for workers, never trade with the army.
             if (harass.Count > 0)
             {
+                Vector2 hc = Vector2.zero;
+                foreach (var h in harass) hc += h.pos;
+                hc /= harass.Count;
+                // The Digger it can get at: near the raiders and away from what guards them. (It
+                // went for the one nearest the middle of their base -- the best guarded of all.)
                 Vector2 target = s.enemyBase;
                 Unit victim = null;
                 float bestD = 1e30f;
@@ -1335,24 +1400,42 @@ namespace StarForge.AI
                 {
                     if (e == null || e.dying || e.team == team || e.team == 2 || e.Type != UnitType.Worker) continue;
                     if (!w.Visible(team, e.pos)) continue;           // must actually see it
-                    float d = (e.pos - s.enemyBase).magnitude;
+                    float d = (e.pos - hc).magnitude + 25f * Influence.Sample(1, e.pos);
                     if (d < bestD) { bestD = d; victim = e; target = e.pos; }
                 }
-                Vector2 hc = Vector2.zero;
-                foreach (var h in harass) hc += h.pos;
-                hc /= harass.Count;
                 float theirs = Influence.Sample(1, hc), mine = Influence.Sample(0, hc);
-                if (theirs > mine * 2f + 0.8f)
+                // ...or once one of them is being shot to pieces: going by the field alone, a raid
+                // never once pulled back in a trial and lost 7 Skimmers for 7 Diggers on one side,
+                // 3 for none on the other.
+                bool bleeding = false;
+                foreach (var h in harass)
+                    if (h.hp < 0.5f * h.MaxHp && w.time - h.lastDamagedT < 2f) { bleeding = true; break; }
+                if (theirs > mine * 2f + 0.8f || bleeding)
                 {
                     var safe = w.NearestReachable(home, Influence.SafestNear(home, 40f));
                     if (WorthReissuing(safe, harassTarget, 14f) && Issue(harass, 0, safe, null)) harassTarget = safe;
+                    // Driven off, it rests before the next sortie: straight back in, it ran into
+                    // the same guns as soon as it was clear of them.
+                    if (raiding) raidRestUntil = w.time + 25f;
+                    raiding = false;
                 }
-                else if (victim != null)
+                else if (w.time >= raidRestUntil)
                 {
-                    if (WorthReissuing(target, harassTarget, 9f) && Issue(harass, 2, target, victim)) harassTarget = target;
+                    bool sent = false;
+                    if (victim != null)
+                    {
+                        if (WorthReissuing(target, harassTarget, 9f) && Issue(harass, 2, target, victim)) { harassTarget = target; sent = true; }
+                    }
+                    else if (WorthReissuing(target, harassTarget, 14f) && Issue(harass, 1, target, null)) { harassTarget = target; sent = true; }
+                    if (sent && !raiding)
+                    {
+                        raiding = true;
+                        Dbg.raidSorties++;
+                        if (sideRaid) Dbg.sideRaidSorties++;
+                    }
                 }
-                else if (WorthReissuing(target, harassTarget, 14f) && Issue(harass, 1, target, null)) harassTarget = target;
             }
+            else raiding = false;
 
             if (main.Count == 0)
             {
@@ -1393,7 +1476,8 @@ namespace StarForge.AI
             // match apart; with the Diggers' reserve a side that can still restart never reads so).
             // Only the threshold is waived: the Mech, regroup and pull-out gates below still hold
             // (set after them, a beaten army walked back into the fight every 8 s).
-            if (EconomyDead(s)) wantAttack = true;
+            bool byPlan = wantAttack, broke = EconomyDead(s);
+            if (broke) wantAttack = true;
             // Its Mech called the moment: go now, at what it named, with less than the
             // plan would wait for (the Mech walks with it).
             bool advised = w.time < adviceAttackUntil && s.armyValue >= plan.pushThreshold * 0.45f;
@@ -1448,7 +1532,13 @@ namespace StarForge.AI
                     if ((idle || prongBack || WorthReissuing(attackAt, rally, 12f)) && Issue(main, 1, attackAt, null)) rally = attackAt;
                     return;
                 }
-                if (!waveOn) StartWave(s, st, plan, mainCentre);
+                if (!waveOn)
+                {
+                    // What sent a wave at a Mech it knows of (the evaluation line): its threshold,
+                    // its own Mech's call, their Mech away, their Mech hurt, or nothing to wait for.
+                    if (s.eMech) Dbg.mechWavesBy[hurtWave ? 3 : mechAwayWave ? 2 : byPlan ? 0 : advised ? 1 : broke ? 4 : 0]++;
+                    StartWave(s, st, plan, mainCentre);
+                }
                 if (advised && !adviceWave)
                 {
                     // Aim the wave at what the Mech named, and skip the staging: the moment is now.
@@ -1613,8 +1703,8 @@ namespace StarForge.AI
             {
                 bool idle = false;
                 foreach (var h in prong) if (h.order == Order.Idle) { idle = true; break; }
-                if (idle || WorthReissuing(prongAt, harassTarget, 12f))
-                    if (Issue(prong, 1, prongAt, null)) harassTarget = prongAt;
+                if (idle || WorthReissuing(prongAt, prongTarget, 12f))
+                    if (Issue(prong, 1, prongAt, null)) prongTarget = prongAt;
             }
         }
 
@@ -1635,7 +1725,9 @@ namespace StarForge.AI
             if (!calledOff && w.time - waveStart > 8f)
             {
                 lastFailedApproach = approach;
-                if (Perception.Snap.eMech) mechRepulses = Mathf.Min(mechRepulses + 1, 4);
+                // ...a wave their Mech beat, that is: seen in the last half minute (believed about all
+                // match now, it would count waves the towers beat with the Mech far off).
+                if (Perception.Snap.eMech && Perception.Snap.eMechSeenAgo < 30f) mechRepulses = Mathf.Min(mechRepulses + 1, 4);
             }
             waveOn = staging = false;
             adviceWave = false;
@@ -1714,7 +1806,12 @@ namespace StarForge.AI
         bool StillStanding(Vector2 at)
         {
             foreach (var r in Perception.Enemies)
+            {
+                // Their Mech counts only in sight: remembered now until it is seen to fall, it held
+                // a wave on a target it had emptied, where the Mech had stood a while ago.
+                if (r.type == UnitType.Mech && !r.stillVisible) continue;
                 if ((r.pos - at).sqrMagnitude < 12f * 12f) return true;
+            }
             return !w.Visible(team, at);   // not seen emptied yet: keep going
         }
 

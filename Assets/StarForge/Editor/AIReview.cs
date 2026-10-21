@@ -36,6 +36,190 @@ namespace StarForge.EditorTools
             var p = Object.FindAnyObjectByType<PerceptionProbe>();
             return p == null ? "no probe running" : p.Report();
         }
+
+        /// <summary>Side raids in an AI-vs-AI match at 8x (seed 1000), both sides given a taste for
+        /// raids: what each raid went for against what the old rule (the Digger nearest their base's
+        /// middle) would have, how long it rested after being driven off, what the squad was made
+        /// of, and the Diggers that died near it against the raiders lost. Call RaidReport.</summary>
+        public static string RaidTrial()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            Commander.Suspended = false;
+            var old = Object.FindAnyObjectByType<RaidProbe>();
+            if (old != null) Object.Destroy(old.gameObject);
+            new GameObject("RaidProbe").AddComponent<RaidProbe>();
+            return "raid trial running; call RaidReport";
+        }
+
+        public static string RaidReport()
+        {
+            var p = Object.FindAnyObjectByType<RaidProbe>();
+            return p == null ? "no raid trial running" : p.Report();
+        }
+
+        /// <summary>BayEdgeCases case 1 alone (our bay 44 m from their base, our Mech guarding it),
+        /// with the hunt rule as it is (New) or as it was (Old: hunting up to their Mech's reach);
+        /// read BayEdgeCases.Report, then ResetHunt.</summary>
+        public static string HuntCase1New() { MechBrain.LegacyHunt = false; BayEdgeCases.Only = 1; return BayEdgeCases.Run(); }
+        public static string HuntCase1Old() { MechBrain.LegacyHunt = true; BayEdgeCases.Only = 1; return BayEdgeCases.Run(); }
+        public static string ResetHunt() { MechBrain.LegacyHunt = false; BayEdgeCases.Only = -1; return "hunt rule as it is; all cases"; }
+
+        /// <summary>The Full evaluation's five games against one opponent only (0 Rusher, 1 Macro,
+        /// 2 Turtle, 3 Harasser): the Macro player, who buys its Mech upgrades and turtles behind
+        /// it, is where most matches run to the cap.</summary>
+        public static int EvalKind = 1;
+        public static string EvalOne()
+        {
+            if (EditorApplication.isPlaying) return "playing: stop first";
+            PlayerPrefs.SetInt(AIEvalRunner.PrefOnly, EvalKind);
+            PlayerPrefs.SetInt(AIEvalRunner.PrefFirst, 0);
+            AIEvalMenu.Run(5, 900f);
+            return $"evaluating 5 games against {(ScriptedOpponent.Kind)EvalKind}, 900 s cap";
+        }
+    }
+
+    public sealed class RaidProbe : MonoBehaviour
+    {
+        GameWorld world;
+        readonly int[] picks = new int[2], picksSameAsOld = new int[2], sorties = new int[2], badSquad = new int[2], squadTicks = new int[2];
+        readonly double[] infNew = new double[2], infOld = new double[2], distNew = new double[2], distOld = new double[2];
+        readonly float[] retreatAt = { -1f, -1f }, minRest = { 1e9f, 1e9f };
+        readonly int[] rests = new int[2], diggersNear = new int[2], raidersLost = new int[2], maxSquad = new int[2];
+        readonly Unit[] lastTarget = new Unit[2];
+        readonly bool[] wasOut = new bool[2];
+        readonly int[] lastSorties = new int[2];
+        readonly HashSet<Unit> everRaider = new HashSet<Unit>();
+
+        IEnumerator Start()
+        {
+            var boot = GameBootstrap.Instance;
+            if (boot == null) yield break;
+            if (GameWorld.Instance == null || !GameWorld.Instance.running)
+            {
+                MatchSettings.spectate = true;
+                MatchSettings.aiMemory = false;
+                MatchSettings.fixedSeed = true;
+                MatchSettings.seed = 1000;
+                boot.StartMatch();
+                MatchSettings.fixedSeed = false;
+                yield return null;
+            }
+            world = GameWorld.Instance;
+            boot.AI.Personality.raidTaste = 0.9f;
+            if (boot.PlayerProxy != null) boot.PlayerProxy.Personality.raidTaste = 0.9f;
+            foreach (var cam in FindObjectsByType<Camera>()) cam.cullingMask = 0;
+            Application.targetFrameRate = -1;
+            Time.timeScale = 8f;
+            world.Ticked += OnTick;
+            world.Event += OnEvent;
+        }
+
+        void OnDestroy()
+        {
+            if (world != null) { world.Ticked -= OnTick; world.Event -= OnEvent; }
+        }
+
+        void OnEvent(GameEvent e)
+        {
+            if (e.kind != GameEventKind.Death || e.unit == null) return;
+            var boot = GameBootstrap.Instance;
+            foreach (var c in new[] { boot.PlayerProxy, boot.AI })
+            {
+                if (c == null) continue;
+                int t = c.Team;
+                // A raider lost while in the squad (one back with the army is the army's).
+                bool inSquad = false;
+                foreach (var r in c.Raiders) if (r == e.unit) { inSquad = true; break; }
+                if (inSquad && e.unit.team == t) raidersLost[t]++;
+                // A Digger of theirs dying within 20 m of a raider of ours on a sortie.
+                if (e.type == UnitType.Worker && e.team == 1 - t && wasOut[t])
+                    foreach (var r in c.Raiders)
+                        if (Unit.Live(r) && (r.pos - new Vector2(e.pos.x, e.pos.z)).magnitude < 20f) { diggersNear[t]++; break; }
+            }
+        }
+
+        void OnTick(float dt)
+        {
+            var boot = GameBootstrap.Instance;
+            if (boot == null || world.winner >= 0) return;
+            foreach (var c in new[] { boot.PlayerProxy, boot.AI }) if (c != null) Sample(c);
+        }
+
+        void Sample(Commander c)
+        {
+            int t = c.Team;
+            var raiders = c.Raiders;
+            if (raiders.Count == 0) { wasOut[t] = false; return; }
+            foreach (var r in raiders) everRaider.Add(r);
+            squadTicks[t]++;
+            maxSquad[t] = Mathf.Max(maxSquad[t], raiders.Count);
+            bool harassPlan = c.Dbg.strategy == Strategy.Harass;
+            if (!harassPlan)
+            {
+                bool bad = raiders.Count > 2;
+                foreach (var r in raiders) if (r.Type != UnitType.Skimmer) bad = true;
+                if (bad) badSquad[t]++;
+            }
+            // Out on a sortie (attacking), or pulled back (a plain move).
+            bool attacking = false, retreating = false;
+            Unit target = null;
+            Vector2 hc = Vector2.zero;
+            foreach (var r in raiders)
+            {
+                hc += r.pos;
+                if (r.order == Order.Attack || r.order == Order.AttackMove) { attacking = true; if (r.order == Order.Attack && Unit.Live(r.target)) target = r.target; }
+                else if (r.order == Order.Move) retreating = true;
+            }
+            hc /= raiders.Count;
+            if (retreating && !attacking && wasOut[t]) retreatAt[t] = world.time;
+            // A sortie is one the Commander sent (its own count), not a Skimmer joining with its
+            // wave's attack-move still on.
+            if (c.Dbg.raidSorties > lastSorties[t])
+            {
+                sorties[t] += c.Dbg.raidSorties - lastSorties[t];
+                lastSorties[t] = c.Dbg.raidSorties;
+                if (retreatAt[t] > 0f) { float gap = world.time - retreatAt[t]; minRest[t] = Mathf.Min(minRest[t], gap); rests[t]++; retreatAt[t] = -1f; }
+            }
+            wasOut[t] = attacking;
+            // A new Digger picked: against the one the old rule took (nearest their base's middle).
+            if (target != null && target.Type == UnitType.Worker && target != lastTarget[t])
+            {
+                lastTarget[t] = target;
+                Unit oldPick = null;
+                float best = 1e30f;
+                Vector2 eb = c.Perception.Snap.enemyBase;
+                foreach (var e in world.units)
+                {
+                    if (e == null || e.dying || e.team != 1 - t || e.Type != UnitType.Worker || !world.Visible(t, e.pos)) continue;
+                    float d = (e.pos - eb).magnitude;
+                    if (d < best) { best = d; oldPick = e; }
+                }
+                if (oldPick == null) return;
+                picks[t]++;
+                if (oldPick == target) picksSameAsOld[t]++;
+                infNew[t] += c.Influence.Sample(1, target.pos); infOld[t] += c.Influence.Sample(1, oldPick.pos);
+                distNew[t] += (target.pos - hc).magnitude; distOld[t] += (oldPick.pos - hc).magnitude;
+            }
+        }
+
+        public string Report()
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"match time {(world != null ? world.time : 0f):0}s{(world != null && world.winner >= 0 ? $", won by team {world.winner}" : "")}");
+            var boot = GameBootstrap.Instance;
+            foreach (var c in new[] { boot != null ? boot.PlayerProxy : null, boot != null ? boot.AI : null })
+            {
+                if (c == null) continue;
+                int t = c.Team;
+                sb.AppendLine($"team {t}: sorties {sorties[t]} (Dbg {c.Dbg.raidSorties}, {c.Dbg.sideRaidSorties} beside another plan); squad at most {maxSquad[t]}, " +
+                              $"ticks with more than two or a non-Skimmer outside the Harass plan {badSquad[t]} of {squadTicks[t]}; " +
+                              $"rest after being driven off: {(rests[t] > 0 ? $"{rests[t]} times, shortest {minRest[t]:0.0}s" : "never driven off")}; " +
+                              $"Digger picks {picks[t]} ({picksSameAsOld[t]} the same as the old rule's), enemy influence at the pick {(picks[t] > 0 ? infNew[t] / picks[t] : 0):0.00} against the old rule's {(picks[t] > 0 ? infOld[t] / picks[t] : 0):0.00}, " +
+                              $"distance from the raiders {(picks[t] > 0 ? distNew[t] / picks[t] : 0):0} m against {(picks[t] > 0 ? distOld[t] / picks[t] : 0):0} m; " +
+                              $"their Diggers died near the raiders {diggersNear[t]}, raiders lost {raidersLost[t]}");
+            }
+            return sb.ToString();
+        }
     }
 
     public sealed class PerceptionProbe : MonoBehaviour

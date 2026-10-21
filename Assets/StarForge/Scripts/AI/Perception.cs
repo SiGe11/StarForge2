@@ -92,7 +92,13 @@ namespace StarForge.AI
 
             foreach (var e in w.units)
             {
-                if (e == null || e.dying) continue;
+                if (e == null) continue;
+                if (e.dying)
+                {
+                    // Their Mech going down in sight: now it is gone (Forget lets go of it).
+                    if (e.team == 1 - team && e.Type == UnitType.Mech && w.Visible(team, e.pos)) mechSeenFalling = true;
+                    continue;
+                }
                 if (e.team == team)
                 {
                     if (e.deserted) continue;   // gone from the army (GameWorld.Morale)
@@ -149,6 +155,11 @@ namespace StarForge.AI
                     if (r.type != e.Type) continue;
                     float d = (r.pos - e.pos).magnitude;
                     float reach = walks ? Mathf.Min(60f, tol + 6f * (now - r.lastSeen)) : tol;
+                    // Their Mech is one of a kind: whatever it is seen, it is the one remembered.
+                    // (Matched only within how far it could have walked, a Mech seen across the map
+                    // got a second entry, which -- kept now until it is seen to fall -- could stand in
+                    // for it in the snapshot while the real one was in plain sight.)
+                    if (e.Type == UnitType.Mech && !LegacyMechMemory) reach = float.MaxValue;
                     if (d > reach || claimed.Contains(r)) continue;
                     float key = d <= tol ? d : 1000f + d;   // one close by before one that walked
                     if (key < hitKey) { hitKey = key; hit = r; }
@@ -188,6 +199,8 @@ namespace StarForge.AI
                     case UnitType.Bunkhouse: s.eBunkhouses++; break;
                     case UnitType.Sentinel: s.eSentinels++; break;
                     case UnitType.Mech:
+                        // The freshest sighting, should there be more than one entry.
+                        if (s.eMech && w.time - r.lastSeen >= s.eMechSeenAgo) break;
                         s.eMech = true; s.eMechPos = r.pos;
                         s.eMechSeenAgo = w.time - r.lastSeen;
                         s.eMechAntiLight = eMechAntiLight; s.eMechDesignKnown = eMechDesignKnown;
@@ -239,10 +252,24 @@ namespace StarForge.AI
             mem.RemoveAll(r =>
             {
                 if (r.stillVisible) return false;
+                // Their Mech is one of a kind and does not fall unseen: once seen, it is about until
+                // it is seen to fall -- or has not been seen at all for five minutes. Not seeing it
+                // where it stood says only that it walked off. Forgotten like a rifleman, 50 s after
+                // the last look, the AI's push threshold dropped to the no-Mech one between waves and
+                // the next wave walked into a base the Mech still held (14-24 waves a match into a
+                // Mech on 101-159 kills, in each match against the Macro player that ran to the cap).
+                if (r.type == UnitType.Mech && !LegacyMechMemory) return mechSeenFalling || now - r.lastSeen > 300f;
                 if (w.Visible(team, r.pos)) return true;
                 if (Defs.Get(r.type).building) return false;  // buildings do not move
                 return now - r.lastSeen > 50f;
             });
+            mechSeenFalling = false;
         }
+
+        /// <summary>Editor A/B only: forget their Mech like any unit (50 s unseen, or its spot seen
+        /// empty), as before. The evaluation runner resets it.</summary>
+        public static bool LegacyMechMemory;
+        // Their Mech seen going down this pass (its wreck in sight).
+        bool mechSeenFalling;
     }
 }
