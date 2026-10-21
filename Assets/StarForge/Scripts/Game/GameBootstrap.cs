@@ -142,6 +142,7 @@ namespace StarForge.Game
                 MechBrains[t] = new MechBrain();
                 MechBrains[t].Init(world, t, seed);
             }
+            MechBrains[1].Listener = AI;   // it says nothing aloud: its calls go to its Commander
             world.Ticked += OnTick;
             SetState(MatchState.Playing);
             MatchStarted?.Invoke();

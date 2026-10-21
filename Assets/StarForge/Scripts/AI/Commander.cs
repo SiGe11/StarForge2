@@ -143,6 +143,9 @@ namespace StarForge.AI
         /// <summary>For the A/B in <c>BayEdgeCases</c>: leave enemy structures going up in its base
         /// to the rule for finished ones.</summary>
         public static bool IgnoreSites;
+        /// <summary>For the A/B in <c>BayEdgeCases</c> case 8: hold the army back from their Mech
+        /// beside a structure inside its own base too (the rule before the exemption).</summary>
+        public static bool MechGateInBase;
 
         /// <summary>Waves beaten back while their Mech was about (raises the push threshold).</summary>
         int mechRepulses;
@@ -201,6 +204,7 @@ namespace StarForge.AI
             ConfigureDifficulty(difficulty);
 
             main.Clear(); harass.Clear(); scouts.Clear(); prong.Clear();
+            barredSites.Clear(); fieldsTried.Clear(); explorer = null; missSince = -1f; clearedAt.Clear(); stuckUntil.Clear(); movedForMech.Clear(); mechGunAt = -1e9f; minedOut = false; minedOutCheckAt = 0f;
             rally = Perception.Home;
             committed = false;
             waveOn = staging = prongOn = false;
@@ -306,8 +310,37 @@ namespace StarForge.AI
             return true;
         }
 
+        /// <summary>Ore kept back from everything but Diggers, so a side whose Diggers are wiped out
+        /// can always train another: one Digger's price once the opening is done, two while it is
+        /// down to its last Diggers (a side starts with five). Spent to the last ore on soldiers
+        /// while a Mech killed its Diggers in a burst, a side was left 3-27 ore and never mined
+        /// again (a long match ended with both sides so, standing for good). Checked at every
+        /// purchase: a pass spends at several buildings, so a check once a pass let it through.</summary>
+        int DiggerReserve(UnitType what)
+        {
+            var s = Perception.Snap;
+            if (what == UnitType.Worker || s == null || s.foundries == 0) return 0;
+            if (MapMinedOut()) return 0;   // a Digger brings nothing in any more: nothing to keep ore for
+            // With no room for a Digger the Bunkhouse that makes room is not held back (refused
+            // for the reserve, it left the side unable to train either). Nothing else is: at the
+            // cap dead Diggers free their own supply, and the reserve must still be there then.
+            var F = w.factions[team];
+            var digger = Defs.Get(UnitType.Worker);
+            if (what == UnitType.Bunkhouse && F.supplyUsed + digger.supplyCost > Mathf.Min(F.supplyCap, GameWorld.MaxSupply)) return 0;
+            if (s.workers + s.queuedType[(int)UnitType.Worker] < 3) return 2 * digger.cost;
+            return w.time > 180f ? digger.cost : 0;
+        }
+
+        /// <summary>What it must hold before buying: the price and the reserve. Every step gates
+        /// on it, so a step the reserve would refuse does not place and pick a builder first, and
+        /// the expansion's saving and its build agree (gated on the price alone, the saving ended
+        /// at 400 and the build waited for 450: between, the ore went on soldiers every pass and
+        /// the second ore line never went up).</summary>
+        int Need(UnitType what) => Defs.Get(what).cost + DiggerReserve(what);
+
         bool Train(Unit building, UnitType what)
         {
+            if (what != UnitType.None && what < UnitType.Count && w.factions[team].ore - Defs.Get(what).cost < DiggerReserve(what)) return false;
             if (!Budget.Spend(2)) return false;            // select structure + hotkey
             Budget.Note(w.time);
             lastSelHash = -1f;
@@ -316,6 +349,7 @@ namespace StarForge.AI
 
         bool Build(Unit worker, UnitType what, Vector2 where)
         {
+            if (what != UnitType.None && what < UnitType.Count && w.factions[team].ore - Defs.Get(what).cost < DiggerReserve(what)) return false;
             if (!Budget.Spend(3)) return false;            // select Digger + hotkey + click
             Budget.Note(w.time);
             lastSelHash = -1f;
@@ -406,7 +440,7 @@ namespace StarForge.AI
 
             var freeWorkers = new List<Unit>();
             foreach (var h in OwnOf(UnitType.Worker))
-                if (!Reserved(h) && h.order != Order.Build) freeWorkers.Add(h);
+                if (!Reserved(h) && h.order != Order.Build && !(h == explorer && h.order == Order.Move)) freeWorkers.Add(h);
             foundriesNow.Clear();
             foreach (var f in w.units)
                 if (f != null && !f.dying && f.team == team && f.Type == UnitType.Foundry) foundriesNow.Add(f);
@@ -419,6 +453,14 @@ namespace StarForge.AI
                 if (w.time - r.lastSeen > 60f || !Perception.Reactable(r, reactionDelay)) continue;
                 guns.Add(new Vector3(r.pos.x, r.pos.y, Defs.Get(r.type).range + 5f));
             }
+            staticGuns = guns.Count;
+            // Their Mech seen by its ore in the last few seconds is a gun too, at the 40 m the other
+            // rules read it at (its guns are not known): with it walking in from 70 m, seen all the
+            // way, 16-17 Diggers mined on until it shot them. It does not stay, so it is never mined
+            // on under at a loss as a tower over the main Foundry is (coreCovered).
+            foreach (var r in Perception.Enemies)
+                if (r.type == UnitType.Mech && w.time - r.lastSeen < 4f && Perception.Reactable(r, reactionDelay))
+                { guns.Add(new Vector3(r.pos.x, r.pos.y, MechReach)); mechGunAt = w.time; }
             if (guns.Count > 0)
             {
                 gunFoundries = OwnOf(UnitType.Foundry);
@@ -447,12 +489,19 @@ namespace StarForge.AI
             // seams (12,000 ore) are mined out in seven to nine minutes; after that its Diggers
             // hauled from the nearest ore anywhere, and only the expanding plans had ever taken a
             // second line.
-            int foundryCost = Defs.Get(UnitType.Foundry).cost;
+            int foundryCost = Need(UnitType.Foundry);
             int foundriesUp = s.foundries + s.pendingType[(int)UnitType.Foundry];
             bool dryingUp = w.time > 120f && foundriesUp > 0 && OreByFoundries() < 4500;
             Vector2 site = default;
             bool expand = (plan.wantExpand || dryingUp) && foundriesUp < (dryingUp ? 4 : 2) && s.pending < 2 &&
                           (F.ore >= foundryCost || dryingUp) && ExpansionSite(home, out site);
+            // Running dry with no field it has seen to go to: a Digger walks to the nearest one it
+            // has not (the fields are on the map for anyone to read; whether one is free is not).
+            // Each field once, so one lost there is not followed by another; it then mines on as any
+            // idle Digger (step 6). Without it, a side that never looked 26-110 m out ran dry with
+            // nowhere to go (1 in 6 runs with the home seams cut at 240 s).
+            if (dryingUp && !expand && foundriesUp < 4 && s.pending < 2 && !(Unit.Live(explorer) && explorer.order == Order.Move))
+                SendExplorer(home, freeWorkers);
             // Running dry, the ore goes to that Foundry first -- not while it is under attack.
             // Spent as it came in (nine Bunkhouses, four Garrisons), it had 17-151 ore when its
             // second line ran out, and its Diggers walked to far ore and died to the last one.
@@ -460,7 +509,7 @@ namespace StarForge.AI
 
             // 1. Supply, gated on bunkhouses specifically.
             if (issued < MaxPerPass && !saving && s.supplyCap - s.supplyUsed < 6 && s.supplyCap < GameWorld.MaxSupply &&
-                F.ore >= Defs.Get(UnitType.Bunkhouse).cost && s.pendingType[(int)UnitType.Bunkhouse] < 2)
+                F.ore >= Need(UnitType.Bunkhouse) && s.pendingType[(int)UnitType.Bunkhouse] < 2)
             {
                 var b = Builder();
                 if (b != null && PlaceNear(UnitType.Bunkhouse, home, 10f, 26f, out var spot) && Build(b, UnitType.Bunkhouse, spot)) issued++;
@@ -496,7 +545,7 @@ namespace StarForge.AI
             // 1b. The Mech Bay: cheap, needs nothing, and calls down a Mech worth an army.
             //     Tucked in behind the Foundry, away from where the enemy comes from.
             if (issued < MaxPerPass && !saving && !F.bayPlaced && w.time >= Personality.mechBayAt &&
-                F.ore >= Defs.Get(UnitType.MechBay).cost && s.pending < 2)
+                F.ore >= Need(UnitType.MechBay) && s.pending < 2)
             {
                 Vector2 face = s.enemyBaseKnown ? s.enemyBase : Perception.BaseGuesses[0];
                 Vector2 around = home - Norm(face - home) * 12f;
@@ -513,13 +562,13 @@ namespace StarForge.AI
             int wantRax = Mathf.Min(5, plan.garrisons + extraProd);
             int wantFac = Mathf.Min(3, plan.workshops + (plan.workshops > 0 ? extraProd : 0));
             if (issued < MaxPerPass && !saving && s.garrisons + s.pendingType[(int)UnitType.Garrison] < wantRax &&
-                F.ore >= Defs.Get(UnitType.Garrison).cost && s.pending < 2)
+                F.ore >= Need(UnitType.Garrison) && s.pending < 2)
             {
                 var b = Builder();
                 if (b != null && PlaceNear(UnitType.Garrison, home, 12f, 28f, out var spot) && Build(b, UnitType.Garrison, spot)) issued++;
             }
             if (issued < MaxPerPass && !saving && s.garrisons >= 1 && s.workshops + s.pendingType[(int)UnitType.Workshop] < wantFac &&
-                F.ore >= Defs.Get(UnitType.Workshop).cost && s.pending < 2)
+                F.ore >= Need(UnitType.Workshop) && s.pending < 2)
             {
                 var b = Builder();
                 if (b != null && PlaceNear(UnitType.Workshop, home, 13f, 29f, out var spot) && Build(b, UnitType.Workshop, spot)) issued++;
@@ -529,7 +578,7 @@ namespace StarForge.AI
             //     whenever the model smells early aggression.
             int wantSent = plan.sentinels + (Opponent.ThreatOfEarlyAggression > 0.55f ? 1 : 0);
             if (issued < MaxPerPass && !saving && s.garrisons >= 1 && s.sentinels + s.pendingType[(int)UnitType.Sentinel] < wantSent &&
-                F.ore >= Defs.Get(UnitType.Sentinel).cost && s.pending < 2)
+                F.ore >= Need(UnitType.Sentinel) && s.pending < 2)
             {
                 Vector2 face = s.enemyBaseKnown ? s.enemyBase : Perception.BaseGuesses[0];
                 Vector2 around = home + Norm(face - home) * 17f;
@@ -544,16 +593,32 @@ namespace StarForge.AI
                 {
                     var b = Builder();
                     if (b != null && Build(b, UnitType.Foundry, spot)) issued++;
+                    missSince = -1f;
+                }
+                else
+                {
+                    // No room round it (a slope, the lake, its own seams): after 10 s of tries at that
+                    // field (about 36 passes of 26 random spots) it is passed over for 90 s, or the
+                    // best-scoring site kept it waiting for good (103 s with 2,000+ ore in hand, once
+                    // never in four minutes). By time, not count: four misses would bar a tight but valid
+                    // site (1-3 spots of 120) 7-42% of the time; 10 s of them, well under 1%.
+                    if (missSince < 0f || (site - missSite).sqrMagnitude > 12f * 12f || w.time - lastMiss > 5f) { missSite = site; missSince = w.time; }
+                    lastMiss = w.time;
+                    if (w.time - missSince >= 10f) { barredSites.Add(new Vector3(site.x, site.y, w.time + 90f)); missSince = -1f; }
                 }
             }
 
             // 4. Workers -- never allowed to block army production below.
             if (issued < MaxPerPass && s.workers + s.queuedType[(int)UnitType.Worker] < plan.workers &&
-                F.ore >= Defs.Get(UnitType.Worker).cost)
+                F.ore >= Defs.Get(UnitType.Worker).cost && !MapMinedOut())
             {
                 foreach (var e in w.units)
                 {
                     if (e == null || e.dying || e.team != team || e.Type != UnitType.Foundry || !e.Complete || e.queue.Count > 0) continue;
+                    // Not at a Foundry their Mech stands by: a new Digger walks out into its guns
+                    // (with a Mech 7 m from its main Foundry for two minutes it trained 3-10 there,
+                    // and one side kept training into a Mech parked in its base until it was broke).
+                    if (s.eMech && s.eMechSeenAgo < 10f && (s.eMechPos - e.pos).magnitude < 40f) continue;
                     if (Train(e, UnitType.Worker)) issued++;
                     break;
                 }
@@ -569,17 +634,17 @@ namespace StarForge.AI
                 if (e.Type == UnitType.Garrison)
                 {
                     int skimHave = s.skimmers + s.queuedType[(int)UnitType.Skimmer];
-                    if (skimHave < plan.skimmers && F.ore >= Defs.Get(UnitType.Skimmer).cost)
+                    if (skimHave < plan.skimmers && F.ore >= Need(UnitType.Skimmer))
                     {
                         if (Train(e, UnitType.Skimmer)) { issued++; s.queuedType[(int)UnitType.Skimmer]++; }
                     }
-                    else if (F.ore >= Defs.Get(UnitType.Trooper).cost &&
+                    else if (F.ore >= Need(UnitType.Trooper) &&
                              (rich || s.workshops == 0 || rng.F01() < plan.trooperBias))
                     {
                         if (Train(e, UnitType.Trooper)) issued++;
                     }
                 }
-                else if (e.Type == UnitType.Workshop && F.ore >= Defs.Get(UnitType.Mauler).cost)
+                else if (e.Type == UnitType.Workshop && F.ore >= Need(UnitType.Mauler))
                 {
                     if (Train(e, UnitType.Mauler)) issued++;
                 }
@@ -593,6 +658,15 @@ namespace StarForge.AI
             //     they mine on at a loss (stood clear, they brought in nothing, the army never
             //     grew to take the gun on, and the base fell to the Mech that came down there).
             bool coreCovered = false, anySafe = false;
+            if (clearedAt.Count + stuckUntil.Count > 48)
+            {
+                pruneBuf.Clear();
+                foreach (var kv in clearedAt) if (!Unit.Live(kv.Key) || w.time - kv.Value > 8f) pruneBuf.Add(kv.Key);
+                foreach (var u in pruneBuf) clearedAt.Remove(u);
+                pruneBuf.Clear();
+                foreach (var kv in stuckUntil) if (!Unit.Live(kv.Key) || w.time > kv.Value) pruneBuf.Add(kv.Key);
+                foreach (var u in pruneBuf) stuckUntil.Remove(u);
+            }
             if (guns.Count > 0)
             {
                 Unit core = null;
@@ -602,35 +676,91 @@ namespace StarForge.AI
                     float d = (f.pos - home).sqrMagnitude;
                     if (d < coreD) { coreD = d; core = f; }
                 }
-                coreCovered = core != null && UnderGun(core.pos);
+                coreCovered = core != null && UnderGun(core.pos, 0f, staticGuns);
                 var safe = SafeOreNear(home);
                 anySafe = safe != null;
-                int moved = 0, cleared = 0;
+                int moved = 0, cleared = 0, unclearable = 0;
                 foreach (var h in gunWorkers)
                 {
                     if (moved + cleared >= 3 || issued >= MaxPerPass) break;
                     if (Reserved(h) || h.order == Order.Build) continue;
+                    // Cleared lately and walking out of every gun's reach: left to get there (re-ordered
+                    // each pass while still in it, a Mech walking through the line ate the army's orders).
+                    // Anything else on the move (a scout walked home, the explorer) is still pulled off.
+                    if (h.order == Order.Move && clearedAt.TryGetValue(h, out float clearedWhen) && w.time - clearedWhen < 8f && !UnderGun(h.orderPos)) continue;
                     // A Digger mining safe ore is left alone, even walking past the gun (moved
                     // again each pass, one was re-ordered 93 times in a match); one mining ore
                     // under it, or standing under it idle, is moved.
-                    bool onDuty = (h.order == Order.Harvest || h.order == Order.Return) && Unit.Live(h.harvestNode);
+                    // One holding its load where it stopped, with no Foundry to bring it to, is not at
+                    // its ore: it is judged by where it stands (judged by its ore, one stopped under
+                    // the gun that had taken the Foundry stood there until it died).
+                    bool onDuty = (h.order == Order.Harvest || (h.order == Order.Return && (h.waitAtOre || w.NearestDropoff(h) != null)))
+                                  && Unit.Live(h.harvestNode);
                     if (onDuty ? SafeOre(h.harvestNode) : !UnderGun(h.pos)) continue;
                     if (safe != null)
                     {
-                        if (safe != h.harvestNode && Issue(Single(h), 4, safe.pos, safe)) moved++;
+                        Unit from = onDuty ? h.harvestNode : null;
+                        bool forMech = UnderMech(onDuty ? h.harvestNode.pos : h.pos);
+                        if ((safe != h.harvestNode || !onDuty) && Issue(Single(h), 4, safe.pos, safe))
+                        {
+                            moved++;
+                            if (forMech && from != null && from != safe && !movedForMech.ContainsKey(h)) movedForMech[h] = from;
+                        }
                         continue;
                     }
-                    if (coreCovered) break;
+                    // Mined on at a loss under a tower over the main Foundry -- but not under their Mech.
+                    if (coreCovered && !UnderMech(onDuty ? h.harvestNode.pos : h.pos)) continue;
+                    if (stuckUntil.TryGetValue(h, out float stuck) && w.time < stuck) continue;
+                    // Cleared to a point out of every gun's reach: straight away from the nearest, else
+                    // 60 or 120 degrees round, else home, else left be (straight away from a Mech between
+                    // the Foundry and its ore ran into the map's corner, still in reach, and was cleared
+                    // again every pass).
                     Vector2 g = NearestGun(h.pos, out float reach);
                     Vector2 d = h.pos - g;
-                    Vector2 away = g + (d.sqrMagnitude > 0.01f ? d.normalized : (home - g).normalized) * (reach + 6f);
-                    if (Issue(Single(h), 0, w.NearestReachable(home, away), null)) cleared++;
+                    Vector2 dir = d.sqrMagnitude > 0.01f ? d.normalized : (home - g).normalized;
+                    Vector2 to = default;
+                    bool clear = false;
+                    for (int k = 0; k < 5 && !clear; k++)
+                    {
+                        float ang = (k == 0 ? 0f : ((k & 1) == 1 ? 1f : -1f) * ((k + 1) / 2) * 60f) * Mathf.Deg2Rad;
+                        var v = new Vector2(dir.x * Mathf.Cos(ang) - dir.y * Mathf.Sin(ang), dir.x * Mathf.Sin(ang) + dir.y * Mathf.Cos(ang));
+                        to = w.NearestReachable(home, g + v * (reach + 6f));
+                        clear = !UnderGun(to);
+                    }
+                    if (!clear) { to = w.NearestReachable(home, home); clear = !UnderGun(to); }
+                    if (clear && Issue(Single(h), 0, to, null)) { cleared++; clearedAt[h] = w.time; }
+                    // Nowhere out of reach from here: left be 2 s before it is tried again (searched each
+                    // pass, a knot of them cost a handful of NavMesh queries apiece every 0.28 s).
+                    else if (!clear) { stuckUntil[h] = w.time + 2f; if (++unclearable >= 3) break; }
                 }
                 if (moved + cleared > 0) issued++;
                 Dbg.diggersMoved += moved;
                 Dbg.diggersCleared += cleared;
                 Dbg.guns = $"{guns.Count} gun(s) by its ore; safe ore {(safe != null ? $"{(safe.pos - home).magnitude:0} m out" : "none")}" +
                            $"{(coreCovered ? ", main Foundry covered" : "")}";
+            }
+
+            // 5c. Diggers their Mech moved off their seams go back once it has not been seen at all
+            //     for 10 s (anywhere: it may still be about), to the seam if it is still there, has a
+            //     finished Foundry beside it to bring the ore to and is out of any tower's reach (sent
+            //     to another line's ore, they mined there for good and the home seams waited; sent
+            //     back to seams whose Foundry the Mech had taken, they would haul to the far line).
+            if (movedForMech.Count > 0 && w.time - mechGunAt > 10f && issued < MaxPerPass)
+            {
+                int back = 0;
+                pruneBuf.Clear();
+                foreach (var kv in movedForMech)
+                {
+                    var h = kv.Key; var n = kv.Value;
+                    if (!Unit.Live(h) || !Unit.Live(n) || n.oreLeft <= 0 || h.order == Order.Build || Reserved(h)) { pruneBuf.Add(h); continue; }
+                    if (back >= 3) continue;
+                    if (!FinishedFoundryNear(n.pos, 25f)) continue;   // kept: back once one stands again
+                    if (staticGuns > 0 && !SafeOre(n)) { pruneBuf.Add(h); continue; }
+                    if (h.harvestNode == n) { pruneBuf.Add(h); continue; }   // back there already
+                    if (Issue(Single(h), 4, n.pos, n)) { back++; pruneBuf.Add(h); }
+                }
+                foreach (var u in pruneBuf) movedForMech.Remove(u);
+                if (back > 0) { issued++; Dbg.diggersMoved += back; }
             }
 
             // 6. Idle workers back to ore (scouts and squad members excluded): by home, or by
@@ -649,7 +779,7 @@ namespace StarForge.AI
                 {
                     if (n == null || n.dying || n.Type != UnitType.Ore || n.oreLeft <= 0) continue;
                     if ((n.pos - home).magnitude > 50f && !NearOwnFoundry(n.pos, 25f)) continue;
-                    if (guns.Count > 0 && !SafeOre(n) && (anySafe || !coreCovered)) continue;
+                    if (guns.Count > 0 && ((!SafeOre(n) && (anySafe || !coreCovered)) || UnderMech(n.pos))) continue;
                     float d = (n.pos - at).sqrMagnitude;
                     if (d < pickD) { pickD = d; pick = n; }
                 }
@@ -680,6 +810,7 @@ namespace StarForge.AI
                 if (!w.Explored(team, e.pos)) continue;
                 float dHome = (e.pos - home).magnitude;
                 if (dHome < 26f || dHome > 110f) continue;
+                if (Barred(e.pos)) continue;
                 if (UnderGun(e.pos, 16f)) continue;   // the Foundry goes up to 16 m from the ore
                 // Not a line it already has, nor one it has seen them hold.
                 if (NearOwnFoundry(e.pos, 22f) || NearTheirStructure(e.pos, 25f)) continue;
@@ -687,6 +818,63 @@ namespace StarForge.AI
                 if (score > bestScore) { bestScore = score; best = e.pos; }
             }
             return bestScore > -1e29f;
+        }
+
+        bool FinishedFoundryNear(Vector2 p, float r)
+        {
+            foreach (var f in foundriesNow)
+                if (Unit.Live(f) && f.Complete && (f.pos - p).sqrMagnitude < r * r) return true;
+            return false;
+        }
+
+        bool EconomyDead(Snapshot s) =>
+            (s.workers + s.queuedType[(int)UnitType.Worker] == 0 &&
+             (w.factions[team].ore < Defs.Get(UnitType.Worker).cost || s.foundries == 0))
+            // The map mined out (a seam that runs dry is gone from the map for everyone) and less
+            // in hand than a rifleman: nothing it does can grow its army again either (two sides
+            // with Diggers idle and armies under their thresholds stood the last 20 minutes apart).
+            // (Against what a rifleman costs to buy, reserve and all, so the two cannot part again:
+            // tested on the bare price, the Diggers' reserve held it at 50-99 and it never fired.)
+            || (MapMinedOut() && w.factions[team].ore < Need(UnitType.Trooper));
+
+        bool MapMinedOut()
+        {
+            if (w.time < minedOutCheckAt) return minedOut;
+            minedOutCheckAt = w.time + 5f;
+            minedOut = true;
+            foreach (var n in w.units)
+                if (n != null && !n.dying && n.Type == UnitType.Ore && n.oreLeft > 0) { minedOut = false; break; }
+            return minedOut;
+        }
+
+        bool Barred(Vector2 p)
+        {
+            for (int i = barredSites.Count - 1; i >= 0; i--)
+            {
+                var b = barredSites[i];
+                if (w.time >= b.z) { barredSites.RemoveAt(i); continue; }
+                if ((p - new Vector2(b.x, b.y)).sqrMagnitude < 12f * 12f) return true;
+            }
+            return false;
+        }
+
+        void SendExplorer(Vector2 home, List<Unit> free)
+        {
+            Unit field = null;
+            float best = float.MaxValue;
+            foreach (var n in w.units)
+            {
+                if (n == null || n.dying || n.Type != UnitType.Ore || w.Explored(team, n.pos)) continue;
+                float d = (n.pos - home).magnitude;
+                if (d < 26f || d > 110f || UnderGun(n.pos, 16f)) continue;
+                bool tried = false;
+                foreach (var f in fieldsTried) if ((f - n.pos).sqrMagnitude < 12f * 12f) { tried = true; break; }
+                if (!tried && d < best) { best = d; field = n; }
+            }
+            if (field == null) return;
+            if (free.Count == 0) return;
+            var h = free[rng.IRange(0, free.Count)];
+            if (Issue(Single(h), 0, w.NearestReachable(home, field.pos), null)) { explorer = h; fieldsTried.Add(field.pos); }
         }
 
         /// <summary>Ore left on the seams within 25 m of its Foundries.</summary>
@@ -718,12 +906,45 @@ namespace StarForge.AI
         // Enemy guns near its ore, as (x, y, reach), refreshed each macro pass, and its
         // Foundries and Diggers at the time (only gathered while there are any).
         readonly List<Vector3> guns = new List<Vector3>(4);
+        /// <summary>How many of <see cref="guns"/> are towers and bays (the rest: their Mech).</summary>
+        int staticGuns;
+        const float MechReach = 40f;
+        /// <summary>Expansion sites a Foundry would not go up round, barred until z (see step 3).</summary>
+        readonly List<Vector3> barredSites = new List<Vector3>();
+        float missSince = -1f, lastMiss;
+        Vector2 missSite;
+        /// <summary>When step 5b last cleared each Digger out of a gun's reach.</summary>
+        readonly Dictionary<Unit, float> clearedAt = new Dictionary<Unit, float>();
+        readonly List<Unit> pruneBuf = new List<Unit>();
+        /// <summary>Diggers 5b moved off a seam their Mech covered, and that seam (5c sends them back).</summary>
+        readonly Dictionary<Unit, Unit> movedForMech = new Dictionary<Unit, Unit>();
+        float mechGunAt = -1e9f;
+        bool minedOut; float minedOutCheckAt;
+        /// <summary>Diggers 5b found nowhere out of reach for, and until when it leaves them be.</summary>
+        readonly Dictionary<Unit, float> stuckUntil = new Dictionary<Unit, float>();
+        /// <summary>The Digger sent to look at an unseen field for a site, and the fields tried.</summary>
+        Unit explorer;
+        readonly List<Vector2> fieldsTried = new List<Vector2>();
         List<Unit> gunFoundries, gunWorkers;
 
-        bool UnderGun(Vector2 p, float margin = 0f)
+        /// <summary>In reach of their Mech (the guns past <see cref="staticGuns"/>).</summary>
+        bool UnderMech(Vector2 p)
         {
-            foreach (var g in guns)
+            for (int i = staticGuns; i < guns.Count; i++)
+            {
+                var g = guns[i];
+                if ((p - new Vector2(g.x, g.y)).sqrMagnitude < g.z * g.z) return true;
+            }
+            return false;
+        }
+
+        bool UnderGun(Vector2 p, float margin = 0f, int count = int.MaxValue)
+        {
+            for (int i = 0; i < guns.Count && i < count; i++)
+            {
+                var g = guns[i];
                 if ((p - new Vector2(g.x, g.y)).sqrMagnitude < (g.z + margin) * (g.z + margin)) return true;
+            }
             return false;
         }
 
@@ -825,12 +1046,20 @@ namespace StarForge.AI
         void OnWorldEvent(GameEvent e)
         {
             if (e.kind != GameEventKind.MechAdvice || e.team != team || w.winner >= 0) return;
+            HearMech(e.advice, new Vector2(e.pos.x, e.pos.z));
+        }
+
+        /// <summary>A call from its Mech: from the comms event (a Commander on the player's
+        /// side, spectating), or straight from the opponent's MechBrain, which says nothing
+        /// aloud. The same kind and place either way.</summary>
+        public void HearMech(MechAdviceKind kind, Vector2 at)
+        {
+            if (w == null || w.winner >= 0) return;
             var s = Perception.Snap;
             var plan = Plan(Selector.Current);
-            Vector2 at = new Vector2(e.pos.x, e.pos.z);
             float trust = Personality.adviceTrust;
             bool heed;
-            switch (e.advice)
+            switch (kind)
             {
                 case MechAdviceKind.Attack:
                 {
@@ -853,7 +1082,7 @@ namespace StarForge.AI
                     return;   // news and morale: nothing to decide
             }
             if (heed) Dbg.adviceHeeded++; else Dbg.adviceIgnored++;
-            Dbg.mechAdvice = $"{e.advice} at {at.x:0},{at.y:0}: {(heed ? "heeded" : "ignored")}";
+            Dbg.mechAdvice = $"{kind} at {at.x:0},{at.y:0}: {(heed ? "heeded" : "ignored")}";
         }
 
         // ------------------------------------------------------------ scouting
@@ -861,6 +1090,22 @@ namespace StarForge.AI
         {
             var s = Perception.Snap;
             scouts.RemoveAll(u => !Unit.Live(u) || u.deserted);
+
+            // A Digger scouts only to find their base. Once it is known, keeping the picture
+            // fresh is the army's job: a Digger sent to look again each time it went stale (about
+            // 37 s after the last look) walked into their towers, 70 of one side's 101 Diggers in
+            // a 40-minute match, and a side behind never got past six. One still out comes home
+            // once it has seen their Foundry (the first building it sees is often a Bunkhouse or
+            // a tower out from it: stopped there, it left the base believed 10-26 m off), walked
+            // back rather than stopped (it could stand under a bay's gun); step 6 takes it on.
+            if (s.eFoundries > 0)
+                for (int i = scouts.Count - 1; i >= 0; i--)
+                {
+                    var h = scouts[i];
+                    if (h.Type != UnitType.Worker) continue;
+                    if (!Issue(Single(h), 0, Perception.Home, null)) return;   // no orders to spare: next pass
+                    scouts.RemoveAt(i);
+                }
 
             // Keep one scout alive whenever our picture has gone stale. A stale model
             // is worse than none: the strategy layer acts confidently on it.
@@ -877,7 +1122,7 @@ namespace StarForge.AI
                     else
                     {
                         var ws = OwnOf(UnitType.Worker);
-                        if (ws.Count >= 6) pick = ws[ws.Count - 1];
+                        if (ws.Count >= 6 && !s.enemyBaseKnown) pick = ws[ws.Count - 1];
                     }
                 }
                 if (pick != null)
@@ -1006,7 +1251,12 @@ namespace StarForge.AI
             // and waiting for that army only gave it the base (a bay 12 m in stood, and the match
             // was lost with the army idle beside it).
             float structNeed = Mathf.Max(450f, plan.pushThreshold * 0.5f);
-            if (s.eMech && s.eMechSeenAgo < 10f && (s.eMechPos - structAt).magnitude < 40f && (structAt - home).magnitude > 25f)
+            bool mechByIt = s.eMech && s.eMechSeenAgo < 10f && (s.eMechPos - structAt).magnitude < 40f;
+            // The readings the in-base rule decides (BayEdgeCases case 9's A/B counts them).
+            if (structThreat > 0f && mechByIt && (structAt - home).magnitude <= 25f && threatHome <= Mathf.Max(45f, s.armyValue * 0.14f) &&
+                s.armyValue >= structNeed && s.armyValue < MechNeed(s))
+                Dbg.inBaseMechSplit++;
+            if (mechByIt && (MechGateInBase || (structAt - home).magnitude > 25f))
                 structNeed = Mathf.Max(structNeed, MechNeed(s));
             if (structThreat > 0f && threatHome <= Mathf.Max(45f, s.armyValue * 0.14f) &&
                 s.armyValue >= structNeed)
@@ -1036,11 +1286,14 @@ namespace StarForge.AI
             float divertAt = Mathf.Max(45f, s.armyValue * 0.14f);
             if (threatHome > divertAt && main.Count > 0)
             {
-                if (WorthReissuing(threatAt, rally, 12f) && Issue(main, 1, threatAt, null)) rally = threatAt;
-                committed = false;
                 // Called home, not beaten back: booked as a repulse, it marked the way in as
                 // failed and (their Mech about) raised the next push's threshold by a fifth.
+                // Ended first, so the prong it folds back into the army is called home with it
+                // (ordered before, the prong walked on to its own point).
+                bool prongBack = prong.Count > 0;
                 EndWave(true);
+                if ((prongBack || WorthReissuing(threatAt, rally, 12f)) && Issue(main, 1, threatAt, null)) rally = threatAt;
+                committed = false;
                 return;
             }
 
@@ -1134,6 +1387,13 @@ namespace StarForge.AI
                     wantAttack = s.armyValue >= plan.pushThreshold;
                     break;
             }
+            // It can never grow -- no Digger and none coming, and no ore for one or no Foundry to
+            // train it at -- so waiting for the push threshold is waiting for ever: it goes with
+            // what it has (two such sides, armies standing under their thresholds, stood a whole
+            // match apart; with the Diggers' reserve a side that can still restart never reads so).
+            // Only the threshold is waived: the Mech, regroup and pull-out gates below still hold
+            // (set after them, a beaten army walked back into the fight every 8 s).
+            if (EconomyDead(s)) wantAttack = true;
             // Its Mech called the moment: go now, at what it named, with less than the
             // plan would wait for (the Mech walks with it).
             bool advised = w.time < adviceAttackUntil && s.armyValue >= plan.pushThreshold * 0.45f;
@@ -1179,10 +1439,13 @@ namespace StarForge.AI
                 if (!committed) { committed = true; commitT = w.time; }
                 if (st == Strategy.Feint)
                 {
-                    // The feint does its own positioning (above).
+                    // The feint does its own positioning (above); a wave still on is called off
+                    // first, its prong back with the rest (left on, the prong was never ordered again).
+                    bool prongBack = prong.Count > 0;
+                    if (waveOn) EndWave(true);
                     bool idle = false;
                     foreach (var h in main) if (h.order == Order.Idle) { idle = true; break; }
-                    if ((idle || WorthReissuing(attackAt, rally, 12f)) && Issue(main, 1, attackAt, null)) rally = attackAt;
+                    if ((idle || prongBack || WorthReissuing(attackAt, rally, 12f)) && Issue(main, 1, attackAt, null)) rally = attackAt;
                     return;
                 }
                 if (!waveOn) StartWave(s, st, plan, mainCentre);

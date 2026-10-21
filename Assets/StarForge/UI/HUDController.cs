@@ -40,6 +40,13 @@ namespace StarForge.UI
         Toggle memoryToggle;
         Image portrait;
         BarElement hpBar;
+        // The queue row as last built: rebuilt only when what it shows changes, its bars moved
+        // in place between (rebuilt every frame, a Foundry with five queued made ~5.8 KB of
+        // garbage a frame and new elements to lay out).
+        Unit queueFor;
+        int queueResearch = -2;
+        readonly List<UnitType> queueShown = new List<UnitType>(5);
+        BarElement queueBar, researchBar;
         BarChartElement beliefChart, strategyChart, profileChart, endStyleChart;
         MinimapElement minimap;
         OverlayElement screenOverlay;
@@ -467,43 +474,55 @@ namespace StarForge.UI
                 unitStats.text = $"HP {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}" + (d.supplyGive > 0 ? $"  ·  +{d.supplyGive} supply" : "");
             unitStatus.text = StatusText(s);
 
-            queue.Clear();
-            if (s.Type == UnitType.MechBay && s.team < 2 && world.factions[s.team].researching >= 0 && s.team == player.team)
+            var F = s.team < 2 ? world.factions[s.team] : null;
+            bool research = s.Type == UnitType.MechBay && F != null && F.researching >= 0 && s.team == player.team;
+            bool producing = s.team == player.team && s.queue.Count > 0;
+            int researchNow = research ? F.researching : -1;
+            bool same = s == queueFor && researchNow == queueResearch && queueShown.Count == (producing ? s.queue.Count : 0);
+            for (int i = 0; same && i < queueShown.Count; i++) same = queueShown[i] == s.queue[i];
+            if (!same)
             {
-                var F = world.factions[s.team];
-                // One row beside the queue slots: the bar and what it is building.
-                var row = new VisualElement { pickingMode = PickingMode.Ignore };
-                row.style.flexDirection = FlexDirection.Row;
-                row.style.alignItems = Align.Center;
-                var prog = new BarElement { Segmented = false, pickingMode = PickingMode.Ignore };
-                prog.style.width = 160;
-                prog.style.height = 8;
-                prog.style.marginRight = 8;
-                prog.Value = 1f - Mathf.Clamp01(F.researchLeft / Mathf.Max(0.01f, F.researchTotal));
-                prog.FillColor = new Color(1f, 0.71f, 0.28f);
-                var slot = new Label(MechParts.Upgrade((MechUpgrade)F.researching).name.ToUpperInvariant()) { pickingMode = PickingMode.Ignore };
-                slot.AddToClassList("comms-hint");
-                row.Add(prog);
-                row.Add(slot);
-                queue.Add(row);
-            }
-            if (s.team == player.team && s.queue.Count > 0)
-                for (int i = 0; i < s.queue.Count; i++)
+                queueFor = s;
+                queueResearch = researchNow;
+                queueShown.Clear();
+                if (producing) queueShown.AddRange(s.queue);
+                queueBar = researchBar = null;
+                queue.Clear();
+                if (research)
                 {
-                    var qd = Defs.Get(s.queue[i]);
-                    var slot = new Image { image = qd.icon };
-                    slot.AddToClassList("queue-slot");
-                    if (i == 0)
-                    {
-                        slot.AddToClassList("queue-slot--active");
-                        var prog = new BarElement();
-                        prog.AddToClassList("queue-progress");
-                        prog.Value = 1f - Mathf.Clamp01(s.queueTimer / Mathf.Max(0.01f, qd.buildTime));
-                        prog.FillColor = new Color(0.31f, 0.82f, 1f);
-                        slot.Add(prog);
-                    }
-                    queue.Add(slot);
+                    // One row beside the queue slots: the bar and what it is building.
+                    var row = new VisualElement { pickingMode = PickingMode.Ignore };
+                    row.style.flexDirection = FlexDirection.Row;
+                    row.style.alignItems = Align.Center;
+                    researchBar = new BarElement { Segmented = false, pickingMode = PickingMode.Ignore };
+                    researchBar.style.width = 160;
+                    researchBar.style.height = 8;
+                    researchBar.style.marginRight = 8;
+                    researchBar.FillColor = new Color(1f, 0.71f, 0.28f);
+                    var slot = new Label(MechParts.Upgrade((MechUpgrade)F.researching).name.ToUpperInvariant()) { pickingMode = PickingMode.Ignore };
+                    slot.AddToClassList("comms-hint");
+                    row.Add(researchBar);
+                    row.Add(slot);
+                    queue.Add(row);
                 }
+                if (producing)
+                    for (int i = 0; i < s.queue.Count; i++)
+                    {
+                        var slot = new Image { image = Defs.Get(s.queue[i]).icon };
+                        slot.AddToClassList("queue-slot");
+                        if (i == 0)
+                        {
+                            slot.AddToClassList("queue-slot--active");
+                            queueBar = new BarElement();
+                            queueBar.AddToClassList("queue-progress");
+                            queueBar.FillColor = new Color(0.31f, 0.82f, 1f);
+                            slot.Add(queueBar);
+                        }
+                        queue.Add(slot);
+                    }
+            }
+            if (researchBar != null) researchBar.Value = 1f - Mathf.Clamp01(F.researchLeft / Mathf.Max(0.01f, F.researchTotal));
+            if (queueBar != null) queueBar.Value = 1f - Mathf.Clamp01(s.queueTimer / Mathf.Max(0.01f, Defs.Get(s.queue[0]).buildTime));
         }
 
         static Color HealthColor(float f) =>
@@ -690,6 +709,15 @@ namespace StarForge.UI
         /// <summary>A line from the Mech: who, what, and (a click) where.</summary>
         void Comms(GameEvent e)
         {
+            // Suggestions (attack, defend, pull back) carry a tag and the hint, warnings and
+            // reports a tag; flavour (Morale) comes quieter -- quoted, muted, untagged, sooner
+            // gone -- and never pushes a call off the feed. A repeat only refreshes its ping.
+            bool flair = e.advice == MechAdviceKind.Morale;
+            if (e.repeat)
+            {
+                AdvicePing(new Vector2(e.pos.x, e.pos.z), e.advice, refresh: true);
+                return;
+            }
             var F = world.factions[e.team];
             string who = F.design != null ? $"{F.design.callsign} · {F.design.pilot}".ToUpperInvariant() : "MECH";
             string kind = e.advice switch
@@ -697,15 +725,32 @@ namespace StarForge.UI
                 MechAdviceKind.Attack => "attack", MechAdviceKind.Defend => "defend", MechAdviceKind.Regroup => "regroup",
                 MechAdviceKind.Warning => "warning", MechAdviceKind.Morale => "morale", _ => "status"
             };
+            string tag = e.advice switch
+            {
+                MechAdviceKind.Attack => "SUGGESTION · ATTACK", MechAdviceKind.Defend => "SUGGESTION · DEFEND",
+                MechAdviceKind.Regroup => "SUGGESTION · PULL BACK", MechAdviceKind.Warning => "WARNING",
+                MechAdviceKind.Status => "REPORT", _ => null
+            };
             var line = new VisualElement();
             line.AddToClassList("comms-line");
             line.AddToClassList("comms-line--" + kind);
+            if (flair) line.AddToClassList("comms-line--flair");
             line.AddToClassList("comms-line--new");
+            var head = new VisualElement { pickingMode = PickingMode.Ignore };
+            head.AddToClassList("comms-head");
             var l1 = new Label(who) { pickingMode = PickingMode.Ignore };
             l1.AddToClassList("comms-who");
+            head.Add(l1);
+            if (tag != null)
+            {
+                var t = new Label(tag) { pickingMode = PickingMode.Ignore };
+                t.AddToClassList("comms-tag");
+                t.AddToClassList("comms-tag--" + kind);
+                head.Add(t);
+            }
             var l2 = new Label(e.text) { pickingMode = PickingMode.Ignore };
             l2.AddToClassList("comms-text");
-            line.Add(l1);
+            line.Add(head);
             line.Add(l2);
             bool placed = e.advice == MechAdviceKind.Attack || e.advice == MechAdviceKind.Defend ||
                           e.advice == MechAdviceKind.Regroup || e.advice == MechAdviceKind.Warning;
@@ -715,16 +760,38 @@ namespace StarForge.UI
                 var hint = new Label("Click to look · you decide whether to act") { pickingMode = PickingMode.Ignore };
                 hint.AddToClassList("comms-hint");
                 line.Add(hint);
-                advicePings.Add((at, Time.unscaledTime, e.advice));
-                if (advicePings.Count > 4) advicePings.RemoveAt(0);
+                AdvicePing(at, e.advice);
             }
             line.RegisterCallback<ClickEvent>(_ => rig.CenterOn(at));
-            while (commsFeed.childCount >= 3) commsFeed.RemoveAt(0);
+            // Make room: flavour goes first, and flavour never pushes a call off.
+            while (commsFeed.childCount >= 3)
+            {
+                VisualElement drop = null;
+                foreach (var c in commsFeed.Children())
+                    if (c.ClassListContains("comms-line--flair")) { drop = c; break; }
+                if (drop == null && flair) return;
+                (drop ?? commsFeed[0]).RemoveFromHierarchy();
+            }
             commsFeed.Add(line);
             line.schedule.Execute(() => line.RemoveFromClassList("comms-line--new")).StartingIn(30);
-            float life = e.advice == MechAdviceKind.Morale || e.advice == MechAdviceKind.Status ? 11000 : 16000;
+            float life = flair ? 9000 : e.advice == MechAdviceKind.Status ? 11000 : 16000;
             line.schedule.Execute(() => line.AddToClassList("comms-line--fading")).StartingIn((long)life);
             line.schedule.Execute(() => line.RemoveFromHierarchy()).StartingIn((long)life + 450);
+        }
+
+        void AdvicePing(Vector2 at, MechAdviceKind kind, bool refresh = false)
+        {
+            if (kind != MechAdviceKind.Attack && kind != MechAdviceKind.Defend &&
+                kind != MechAdviceKind.Regroup && kind != MechAdviceKind.Warning) return;
+            if (refresh)
+                for (int i = advicePings.Count - 1; i >= 0; i--)
+                    if (advicePings[i].kind == kind && (advicePings[i].pos - at).sqrMagnitude < 50f * 50f)
+                    {
+                        advicePings[i] = (at, Time.unscaledTime, kind);
+                        return;
+                    }
+            advicePings.Add((at, Time.unscaledTime, kind));
+            if (advicePings.Count > 4) advicePings.RemoveAt(0);
         }
 
         void UpdateMechStrip()
@@ -1118,7 +1185,8 @@ namespace StarForge.UI
             "and has a limited number of actions a minute: about 90 on Recruit, 180 on Veteran and 330 on Commander, " +
             "with reactions from nearly a second down to a fifth of one.\n\n" +
             "It scouts. It keeps a scout out whenever its picture of you is going stale, and a Skimmer is its favourite for " +
-            "the job. Kill the scout or hide your army and it has to guess.\n\n" +
+            "the job; a Digger goes out only to find your base, never to look at it again (or, with its own ore running out, " +
+            "to look at an ore field it has not seen yet). Kill the scout or hide your army and it has to guess.\n\n" +
             "It reads you. From what it has seen it decides whether you are rushing, harassing, turtling, expanding, teching " +
             "or building a big economy, and picks a plan against that: an early Trooper rush, raids on your Diggers, a timing " +
             "push, a Sentinel wall while it techs to Maulers, a second ore line, a counter-attack while your army is away, " +

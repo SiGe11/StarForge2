@@ -6,8 +6,8 @@
 // A shell burst on open ground as it goes from flash to fireball to smoke; riflemen and
 // a tank killed and left to settle, then a shell landing among the wrecks (how far each
 // was thrown); a Bunkhouse destroyed, its chunks flying and landing (how many hard
-// landings the ContactRelays reported); a tree set alight, close; and the Foundry's
-// banner in the wind. Effect events are raised directly where damage does not matter,
+// landings the ContactRelays reported); and a tree set alight, close.
+// Effect events are raised directly where damage does not matter,
 // so the pictures repeat on a seed. Never restarts a running match.
 using System.Collections;
 using System.Collections.Generic;
@@ -40,15 +40,39 @@ namespace StarForge.EditorTools
     public sealed class FxLooker : MonoBehaviour
     {
         public string report = "looking";
+        bool wasSpectate, wasMemory, wasFixed, restored = true;
+        RTSCamera rig;
+
+        /// <summary>Puts back everything the look set: the statics outlive the play
+        /// session, so a look stopped half-way must not leave the opponent silenced.</summary>
+        void Restore()
+        {
+            if (restored) return;
+            restored = true;
+            StarForge.AI.Commander.Suspended = false;
+            StarForge.Game.MatchSettings.spectate = wasSpectate;
+            StarForge.Game.MatchSettings.aiMemory = wasMemory;
+            StarForge.Game.MatchSettings.fixedSeed = wasFixed;
+            Time.timeScale = 1f;
+            if (rig != null) rig.scripted = false;
+        }
+
+        void OnDestroy() => Restore();
 
         IEnumerator Start()
         {
             var boot = StarForge.Game.GameBootstrap.Instance;
             var world = GameWorld.Instance;
             if (boot == null || world == null) { report = "no world"; yield break; }
+            // Match settings are statics that outlive the play session: put them back after.
+            wasSpectate = StarForge.Game.MatchSettings.spectate;
+            wasMemory = StarForge.Game.MatchSettings.aiMemory;
+            wasFixed = StarForge.Game.MatchSettings.fixedSeed;
+            restored = false;
             if (!world.running)
             {
-                StarForge.Game.MatchSettings.spectate = false;
+                // Spectating: no fog, so a tree or a wreck out of the base's sight still shows.
+                StarForge.Game.MatchSettings.spectate = true;
                 StarForge.Game.MatchSettings.aiMemory = false;
                 StarForge.Game.MatchSettings.fixedSeed = true;
                 boot.StartMatch();
@@ -57,10 +81,10 @@ namespace StarForge.EditorTools
             // An idle opponent, so nothing wanders into the pictures (cleared at the end:
             // it is a static and would outlive the play session).
             StarForge.AI.Commander.Suspended = true;
-            var rig = Object.FindAnyObjectByType<RTSCamera>();
+            rig = Object.FindAnyObjectByType<RTSCamera>();
             var map = MapInfo.Instance;
             var veg = world.Plants;
-            if (rig == null || map == null) { report = "no camera/map"; StarForge.AI.Commander.Suspended = false; yield break; }
+            if (rig == null || map == null) { report = "no camera/map"; Restore(); yield break; }
             var sb = new StringBuilder();
             var basePos = map.StartPos(0);
             var toward = (map.StartPos(1) - basePos).normalized;
@@ -93,7 +117,7 @@ namespace StarForge.EditorTools
             Vector2 wat = world.NearestWalkable(at + across * 16f, 8f);
             for (int n = 0; n < kinds.Length; n++)
             {
-                var u = world.Spawn(kinds[n], 1, world.NearestWalkable(wat + across * ((n - 1.5f) * 3.2f), 4f), true, 0f);
+                var u = world.Spawn(kinds[n], 1, world.NearestWalkable(wat + across * ((n - 1.5f) * 2.4f), 4f), true, 0f);
                 u.order = Order.Hold;
                 victims.Add(u);
             }
@@ -102,11 +126,14 @@ namespace StarForge.EditorTools
             foreach (var u in victims) world.Damage(u, 1e6f, u.pos + toward * 2f, null, false);
             yield return new WaitForSeconds(4f);
             var before = new Dictionary<UnitWreck, Vector3>();
+            Vector3 mid = Vector3.zero;
             foreach (var w in UnitWreck.Active)
-                if (w != null && w.HullTransform != null) before[w] = w.HullTransform.position;
+                if (w != null && w.HullTransform != null) { before[w] = w.HullTransform.position; mid += w.HullTransform.position; }
             ScreenCapture.CaptureScreenshot("Temp/fx_wrecks_before.png", 2);
+            yield return null;   // taken at the end of the frame: the shell goes off in the next
             Time.timeScale = 0.5f;
-            Vector3 wp = map.Ground(wat + toward * 1.5f);
+            // Among them, wherever they came to lie (the ground can scatter them down a slope).
+            Vector3 wp = before.Count > 0 ? map.Ground(new Vector2(mid.x, mid.z) / before.Count) : map.Ground(wat + toward * 1.5f);
             world.Raise(new GameEvent { kind = GameEventKind.Impact, team = 0, pos = wp + Vector3.up * 0.4f,
                                         dir = Vector3.forward, scale = 1.35f, projectileKind = 1 });
             t0 = Time.time;
@@ -117,10 +144,11 @@ namespace StarForge.EditorTools
             }
             Time.timeScale = 1f;
             yield return new WaitForSeconds(2f);
-            sb.Append($"wrecks ({before.Count}) thrown by the shell:");
+            // Each wreck: how far from the burst it lay, and how far the shove moved it.
+            sb.Append($"wrecks ({before.Count}) thrown by the shell (burst-distance -> moved, of it dropped):");
             foreach (var kv in before)
                 if (kv.Key != null && kv.Key.HullTransform != null)
-                    sb.Append($" {kv.Key.type} {Vector3.Distance(kv.Value, kv.Key.HullTransform.position):0.0} m;");
+                    sb.Append($" {kv.Key.type} {Vector3.Distance(kv.Value, wp):0.0} -> {Vector3.Distance(kv.Value, kv.Key.HullTransform.position):0.0} m, {kv.Value.y - kv.Key.HullTransform.position.y:0.0} m down;");
 
             // 3. A Bunkhouse destroyed: its chunks thrown, trailing smoke, landing.
             int landings0 = FXDirector.landings;
@@ -160,19 +188,12 @@ namespace StarForge.EditorTools
                     ScreenCapture.CaptureScreenshot("Temp/fx_tree_a.png", 2);
                     yield return new WaitForSecondsRealtime(5f);
                     ScreenCapture.CaptureScreenshot("Temp/fx_tree_b.png", 2);
+                    yield return null;   // before the camera moves on
                     sb.Append($"\nburnt the tree {Mathf.Sqrt(bestD):0} m off");
                 }
             }
 
-            // 5. The Foundry and its banner, close.
-            rig.JumpTo(basePos);
-            rig.ZoomTo(24f);
-            yield return new WaitForSecondsRealtime(3f);
-            ScreenCapture.CaptureScreenshot("Temp/fx_banner.png", 2);
-            var banners = Object.FindAnyObjectByType<Banners>();
-            sb.Append($"\nbanners: {(banners != null ? banners.Count : -1)}");
-
-            StarForge.AI.Commander.Suspended = false;
+            Restore();
             report = sb.ToString();
         }
     }

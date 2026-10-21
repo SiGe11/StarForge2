@@ -2,7 +2,7 @@
 // soldiers break and run.
 //
 // Rare by design. Every couple of seconds each side is read: is it clearly losing the
-// war (its army and Mech worth well under the enemy's, and its last minute's losses
+// war (its army -- Mechs left out -- worth well under the enemy's, and its last minute's losses
 // much heavier than what it dealt), and is a fight going badly for a group of its
 // soldiers right now (outnumbered round them, several of them dead in the last 20 s)?
 // Only then is it in a crisis, and a crisis gets one roll of the dice -- however long
@@ -37,9 +37,23 @@ namespace StarForge.World
         /// <summary>Times it broke, soldiers who ran, deserters its own Mech put down,
         /// crises it went through (each one rolled once).</summary>
         public int episodes, deserted, executed, crises;
+        /// <summary>The last crisis's roll and the odds it had to beat (trials, debug); rolls that
+        /// broke with nobody fit to run (all rank 2+ or under a quarter of their hull), which
+        /// would otherwise read as rolls that held.</summary>
+        public float lastRoll = -1f, lastOdds;
+        public int unfitBreaks;
+        /// <summary>Whether its Mech was on the field when its soldiers last broke (for the
+        /// evaluation line: only then can it judge them).</summary>
+        public bool mechAtBreak;
+        /// <summary>When its Mech fell (-1 while it stands or never came): tells a verdict that
+        /// never came because the Mech died first from one that should have.</summary>
+        public float mechLostAt = -1f;
+        /// <summary>When its last deserter died (-1 while any lives).</summary>
+        public float desertersGoneAt = -1f;
         public float lastEpisode = -999f;
-        /// <summary>When an enemy last hit one of them: the camp fights for a while after.</summary>
+        /// <summary>When and where an enemy last hit one of them: those near it fight for a while after.</summary>
         public float alarmT = -99f;
+        public Vector2 alarmAt;
         /// <summary>Its Mech is on its way to punish them: its guns may shoot them.</summary>
         public bool purge;
         // A crisis lasts until the side has been out of one for CrisisGap seconds.
@@ -47,6 +61,20 @@ namespace StarForge.World
         public float crisisUntil = -1f;
         /// <summary>For the debug view: why it is or is not in a crisis.</summary>
         public string reading = "";
+        /// <summary>Where its camp came out when it was chosen: from the base's middle, and
+        /// clear of the side's nearest structure (for the evaluation line).</summary>
+        public float campFromHome, campClearance;
+        /// <summary>Readings stopped at each of Crisis' gates, and those that passed them all
+        /// (GateNames): tells "no crisis came" from "the rules can never fire".</summary>
+        public readonly int[] gates = new int[6];
+        public static readonly string[] GateNames = { "strength", "exchange", "under fire", "outgunned or under 3 there", "fallen", "crisis" };
+
+        public string GateLine()
+        {
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < gates.Length; i++) sb.Append(i == 0 ? "" : ", ").Append(GateNames[i]).Append(' ').Append(gates[i]);
+            return sb.ToString();
+        }
     }
 
     public sealed partial class GameWorld
@@ -55,14 +83,34 @@ namespace StarForge.World
         const float MoraleFrom = 300f;      // no one breaks in the first five minutes
         const float MoraleCheck = 2f;       // seconds between readings
         const int MaxEpisodes = 1;          // a side breaks at most once a match
-        const float BreakChance = 0.25f;    // the one roll a crisis gets, at its mildest
+        // The one roll a crisis gets, at its mildest (x0.6-1.4 by how lopsided the war is). With
+        // the Mechs left out of the war's strength a Full eval brings 5-17 crises; at 0.4 three
+        // runs broke in 3, 2 and 6 of 20 matches (11 in 60, ~0.32 a crisis), more than the
+        // target of about 1 in 10. (Counted in, the Mechs kept crises to 3-8 and at 0.25 no one
+        // ever broke.)
+        const float BreakChance = 0.25f;
         const float CrisisGap = 30f;        // calm this long ends a crisis
         const float LossWindow = 60f;       // the exchange is read over the last minute
+        // The fight going badly. All at once in one 2 s reading the first numbers (3 under fire
+        // in 5 s within 25 m, outgunned 1.6:1, 2 dead within 35 m in 20 s) met twice in 20
+        // evaluation matches: readings that passed the war and the exchange stopped at "under
+        // fire" (24-31 a match on the losing side) and never reached "fallen".
+        // The war: a side counts as losing below Losing of the enemy's strength, after a minute
+        // in which it lost LostMin+ and BadExchange times what it dealt. At 55% / 400 / 2x the
+        // war gates passed only once the army was already gone (3006 of 4294 losing-side
+        // readings in a Full eval stopped at strength, 895 at the exchange), so the decisive
+        // fight -- the moment men break -- came before the side counted as losing.
+        const float Losing = 0.7f, LostMin = 300f, BadExchange = 1.5f;
+        const int UnderFireMin = 2;         // soldiers hit together ...
+        const float UnderFireWindow = 6f, UnderFireReach = 30f;   // ... in the last 6 s, within 30 m
+        const float Outgunned = 1.4f;       // enemy strength round them, to theirs
+        const float FallenWindow = 30f, FallenReach = 40f;        // 2+ of them dead there lately
         public const float CampInset = 16f; // the corner the camp looks for, this far in from the edges
         public const float CampNear = 40f, CampFar = 85f;   // the camp's distance from the base's middle
         public const float CampClear = 25f; // and how far it keeps from the side's structures
         public const float CampLeash = 14f; // how far from the camp a deserter will fight
         public const float CampAlarm = 8f;  // seconds the camp fights after an enemy hit
+        public const float AlarmReach = 30f; // how near the hit a deserter must be to answer it
 
         public readonly MoraleState[] morale = { new MoraleState(), new MoraleState() };
         /// <summary>Morale runs only in a real match: GameBootstrap switches it on each tick
@@ -104,6 +152,13 @@ namespace StarForge.World
                 if (Unit.Live(d) && (d.pos - u.pos).sqrMagnitude <= r2) into.Add(d);
         }
 
+        /// <summary>For the AI evaluation only: its twenty matches share five seeds (one per game,
+        /// the same against every opponent), so their morale rolls came in five fixed sequences
+        /// -- the first two draws of all five above any break chance at BreakChance 0.25, so
+        /// no match could break before its third crisis. The runner mixes the opponent in at
+        /// the start (before any reading); a played match never calls this.</summary>
+        public void ReseedMorale(uint seed) => moraleRng = new Rng(seed ^ 0x3A4A1u);
+
         void BeginMorale(uint seed)
         {
             moraleRng = new Rng(seed ^ 0x3A4A1u);
@@ -115,13 +170,20 @@ namespace StarForge.World
                 var M = morale[t];
                 M.campSet = false;
                 M.deserters.Clear();
-                M.episodes = M.deserted = M.executed = M.crises = 0;
+                M.episodes = M.deserted = M.executed = M.crises = M.unfitBreaks = 0;
+                M.lastRoll = -1f;
+                M.lastOdds = 0f;
                 M.lastEpisode = -999f;
                 M.alarmT = -99f;
                 M.purge = false;
                 M.inCrisis = false;
                 M.crisisUntil = -1f;
                 M.reading = "";
+                M.campFromHome = M.campClearance = 0f;
+                M.mechAtBreak = false;
+                M.mechLostAt = -1f;
+                M.desertersGoneAt = -1f;
+                System.Array.Clear(M.gates, 0, M.gates.Length);
             }
         }
 
@@ -129,6 +191,7 @@ namespace StarForge.World
         /// no longer the side's, and one its own side put down is not a loss to the enemy.</summary>
         void NoteLoss(Unit u, bool byOwnSide)
         {
+            if (u.mech != null && u.team < 2) morale[u.team].mechLostAt = time;
             if (u.team > 1 || u.deserted || byOwnSide) return;
             var d = u.def;
             float v = u.mech != null ? 1500f : d.building ? Mathf.Max(100f, d.cost) : Defs.ArmyValue(d.type);
@@ -142,23 +205,28 @@ namespace StarForge.World
         {
             if (source != null && source.team == u.team) return;
             morale[u.team].alarmT = time;
+            morale[u.team].alarmAt = u.pos;
         }
 
         // ------------------------------------------------------------ the reading
         void TickMorale()
         {
+            // Gone without a Kill (destroyed outright) is gone too: the evaluation line read
+            // "0 alive at the end" for deserters pruned here.
             for (int t = 0; t < 2; t++)
-                morale[t].deserters.RemoveAll(d => !Unit.Live(d));
-            if (!moraleOn || time < nextMoraleCheck) return;
-            nextMoraleCheck = time + MoraleCheck;
+                if (morale[t].deserters.RemoveAll(d => !Unit.Live(d)) > 0 && morale[t].deserters.Count == 0) morale[t].desertersGoneAt = time;
+            // Pruned whether or not morale is on (with it off, in trials, it grew all session).
             for (int i = losses.Count - 1; i >= 0; i--)
                 if (time - losses[i].t > LossWindow) losses.RemoveAt(i);
+            if (!moraleOn || time < nextMoraleCheck) return;
+            nextMoraleCheck = time + MoraleCheck;
 
             for (int t = 0; t < 2; t++)
             {
                 var M = morale[t];
                 if (M.episodes >= MaxEpisodes) continue;
-                bool crisis = Crisis(t, out Vector2 at, out float severity, out M.reading);
+                bool crisis = Crisis(t, out Vector2 at, out float severity, out M.reading, out int gate);
+                M.gates[gate]++;
                 if (crisis)
                 {
                     M.crisisUntil = time + CrisisGap;
@@ -166,7 +234,9 @@ namespace StarForge.World
                     // A new crisis: its one roll.
                     M.inCrisis = true;
                     M.crises++;
-                    if (moraleRng.F01() < BreakChance * (0.6f + 0.8f * severity)) Desert(t, at, routGroup);
+                    M.lastOdds = BreakChance * (0.6f + 0.8f * severity);
+                    M.lastRoll = moraleRng.F01();
+                    if (M.lastRoll < M.lastOdds && Desert(t, at, routGroup) == 0) M.unfitBreaks++;
                 }
                 else if (M.inCrisis && time > M.crisisUntil) M.inCrisis = false;
             }
@@ -175,21 +245,23 @@ namespace StarForge.World
         /// <summary>Is side <paramref name="t"/> losing the war, and a fight round a group of
         /// its soldiers going badly right now? <paramref name="at"/> is that fight, the
         /// group is left in routGroup; <paramref name="severity"/> 0..1 how badly it is losing.</summary>
-        bool Crisis(int t, out Vector2 at, out float severity, out string why)
+        bool Crisis(int t, out Vector2 at, out float severity, out string why, out int gate)
         {
+            gate = 0;
             at = default;
             severity = 0f;
             routGroup.Clear();
 
-            // The war: its army and Mech against theirs.
+            // The war: its army against theirs, Mechs left out (a side crushed by a lone Mech, its
+            // enemy's army gone, therefore never breaks: a known gap).
             float own = SideStrength(t), foe = SideStrength(1 - t);
-            if (foe < 600f || own > 0.55f * foe) { why = $"strength {own:0} vs {foe:0}"; return false; }
+            if (foe < 600f || own > Losing * foe) { why = $"strength {own:0} vs {foe:0}"; gate = 0; return false; }
 
             // The last minute: lost much more than it dealt.
             float lost = 0f, dealt = 0f;
             foreach (var l in losses)
                 if (l.team == t) lost += l.value; else dealt += l.value;
-            if (lost < 400f || lost < 2f * dealt) { why = $"exchange {lost:0} lost / {dealt:0} dealt"; return false; }
+            if (lost < LostMin || lost < BadExchange * dealt) { why = $"exchange {lost:0} lost / {dealt:0} dealt"; gate = 1; return false; }
 
             // A fight going badly: soldiers of its under fire, where it is outgunned and
             // its own have been dying.
@@ -199,7 +271,7 @@ namespace StarForge.World
             foreach (var u in units)
             {
                 if (u == null || u.dying || u.team != t || u.deserted || !u.def.IsArmy) continue;
-                if (time - u.lastDamagedT <= 5f) moraleScratch.Add(u);
+                if (time - u.lastDamagedT <= UnderFireWindow) moraleScratch.Add(u);
             }
             int hit = 0;
             foreach (var a in moraleScratch)
@@ -207,10 +279,10 @@ namespace StarForge.World
                 Vector2 sum = Vector2.zero;
                 int k = 0;
                 foreach (var b in moraleScratch)
-                    if ((b.pos - a.pos).sqrMagnitude < 25f * 25f) { sum += b.pos; k++; }
+                    if ((b.pos - a.pos).sqrMagnitude < UnderFireReach * UnderFireReach) { sum += b.pos; k++; }
                 if (k > hit) { hit = k; at = sum / k; }
             }
-            if (hit < 3) { why = $"{hit} under fire together"; return false; }
+            if (hit < UnderFireMin) { why = $"{hit} under fire together"; gate = 2; return false; }
             float mine = 0f, theirs = 0f;
             foreach (var u in UnitsNear(at, 32f))
             {
@@ -225,27 +297,29 @@ namespace StarForge.World
                 }
                 else theirs += v;
             }
-            if (routGroup.Count < 3 || theirs < 1.6f * Mathf.Max(1f, mine)) { why = $"fight {mine:0} vs {theirs:0}, {routGroup.Count} there"; return false; }
+            if (routGroup.Count < 3 || theirs < Outgunned * Mathf.Max(1f, mine)) { why = $"fight {mine:0} vs {theirs:0}, {routGroup.Count} there"; gate = 3; return false; }
             int fallen = 0;
             foreach (var l in losses)
-                if (l.team == t && l.army && time - l.t < 20f && (l.pos - at).sqrMagnitude < 35f * 35f) fallen++;
-            if (fallen < 2) { why = $"{fallen} fallen there"; return false; }
+                if (l.team == t && l.army && time - l.t < FallenWindow && (l.pos - at).sqrMagnitude < FallenReach * FallenReach) fallen++;
+            if (fallen < 2) { why = $"{fallen} fallen there"; gate = 4; return false; }
 
             severity = Saturate((foe / Mathf.Max(1f, own) - 1.8f) / 3f);
+            gate = 5;
             why = $"CRISIS strength {own:0} vs {foe:0}, fight {mine:0} vs {theirs:0}, {fallen} fallen";
             return true;
         }
 
-        /// <summary>A side's fighting strength: its army, and its Mech by its hull (never
-        /// under half: a Mech walking home to be mended has not left the war).</summary>
+        /// <summary>A side's army, as its soldiers weigh the war: the Mechs are left out (they
+        /// count where they stand, in the fight's own odds). Counted in, a live Mech kept its
+        /// side over the line until the army was gone, so the sides that broke had always lost
+        /// their Mech, and it never got to judge its deserters.</summary>
         float SideStrength(int t)
         {
             float v = 0f;
             foreach (var u in units)
             {
-                if (u == null || u.dying || u.team != t || u.deserted) continue;
-                if (u.mech != null) { if (u.mech.Landed) v += 1500f * (0.5f + 0.5f * Saturate(u.hp / Mathf.Max(1f, u.MaxHp))); }
-                else if (u.def.IsArmy && u.Complete) v += Defs.ArmyValue(u.Type);
+                if (u == null || u.dying || u.team != t || u.deserted || u.mech != null) continue;
+                if (u.def.IsArmy && u.Complete) v += Defs.ArmyValue(u.Type);
             }
             return v;
         }
@@ -258,7 +332,10 @@ namespace StarForge.World
         {
             moraleScratch.Clear();
             foreach (var u in group)
-                if (Unit.Live(u) && u.team == t && !u.deserted && u.def.IsArmy && u.Complete && u.rank < 2) moraleScratch.Add(u);
+                // Not the dying (under a quarter of its hull): picked first as the wounded, three
+                // of ten natural deserters died 0-2 s after the warning, never having run.
+                if (Unit.Live(u) && u.team == t && !u.deserted && u.def.IsArmy && u.Complete && u.rank < 2 &&
+                    u.hp >= u.MaxHp * 0.25f) moraleScratch.Add(u);
             if (moraleScratch.Count == 0) return 0;
             int n = Mathf.Clamp(Mathf.RoundToInt(group.Count * 0.15f), 1, 4);
             if (count > 0) n = count;
@@ -268,20 +345,23 @@ namespace StarForge.World
             EnsureCamp(t);
             int troopers = 0, maulers = 0, skimmers = 0;
             Unit first = null;
+            breakWeights.Clear();
+            foreach (var u in moraleScratch) breakWeights.Add(BreakWeight(u));
             for (int k = 0; k < n; k++)
             {
-                // By weight: riflemen before crews, the hurt before the whole, the green
-                // before those with a stripe.
+                // By weight (BreakWeight), one roll each.
                 float total = 0f;
-                foreach (var u in moraleScratch) total += BreakWeight(u);
+                foreach (float w in breakWeights) total += w;
                 float pick = moraleRng.F01() * total;
-                Unit chosen = moraleScratch[moraleScratch.Count - 1];
-                foreach (var u in moraleScratch)
+                int ci = moraleScratch.Count - 1;
+                for (int i = 0; i < moraleScratch.Count; i++)
                 {
-                    pick -= BreakWeight(u);
-                    if (pick <= 0f) { chosen = u; break; }
+                    pick -= breakWeights[i];
+                    if (pick <= 0f) { ci = i; break; }
                 }
-                moraleScratch.Remove(chosen);
+                Unit chosen = moraleScratch[ci];
+                moraleScratch.RemoveAt(ci);
+                breakWeights.RemoveAt(ci);
                 MakeDeserter(chosen);
                 if (first == null) first = chosen;
                 if (chosen.Type == UnitType.Trooper) troopers++;
@@ -289,6 +369,7 @@ namespace StarForge.World
                 else skimmers++;
             }
             M.episodes++;
+            M.mechAtBreak = MechOf(t) is Unit mm && mm.mech.Landed;
             M.deserted += n;
             M.lastEpisode = time;
             Raise(new GameEvent
@@ -299,11 +380,33 @@ namespace StarForge.World
             return n;
         }
 
-        static float BreakWeight(Unit u)
+        readonly List<float> breakWeights = new List<float>();
+        readonly List<Unit> breakFoes = new List<Unit>();
+
+        /// <summary>The old pick (no rear, no under-fire weighting), for MoraleTrials.BreakPick's
+        /// A/B; the evaluation runner resets it. Never a match's.</summary>
+        public static bool LegacyBreakPick;
+
+        /// <summary>Who of the knot breaks: riflemen before crews, the hurt before the whole (the
+        /// dying are left out before this), the green before those with a stripe -- and the rear of
+        /// the knot before its front, the one not being shot at this moment before the one who is.
+        /// Picked without the last two, 4 of 5 natural deserters were shot 0-2 s after the warning,
+        /// never having got clear of the fight they broke from.</summary>
+        float BreakWeight(Unit u)
         {
             float k = u.Type == UnitType.Trooper ? 1f : u.Type == UnitType.Skimmer ? 0.7f : 0.35f;
             k *= 1.6f - Saturate(u.hp / Mathf.Max(1f, u.MaxHp));
             if (u.rank == 1) k *= 0.35f;
+            if (LegacyBreakPick) return k;
+            // The rear: an armed enemy within 10 m counts little for it, none within 35 m fully
+            // (their unarmed buildings, Diggers and deserters are no threat: counted, a knot
+            // fighting by their base was all "front" and the pick fell back to the wounded).
+            EnemiesNear(u, 40f, breakFoes);
+            float d = 40f;
+            foreach (var e in breakFoes)
+                if (e.def.Armed && !e.deserted && !e.Untargetable) d = Mathf.Min(d, (e.pos - u.pos).magnitude);
+            k *= 0.25f + 1.5f * Saturate((d - 10f) / 25f);
+            if (time - u.lastDamagedT < 1.5f) k *= 0.4f;
             return k;
         }
 
@@ -323,14 +426,9 @@ namespace StarForge.World
         void MakeDeserter(Unit u)
         {
             var M = morale[u.team];
-            u.deserted = true;
-            u.fleeing = true;
-            u.order = Order.Move;
-            u.target = null;
-            u.harvestNode = null;
-            u.buildTarget = null;
-            u.orderPos = CampSlot(u.team, M.deserters.Count + M.executed);
-            u.MoveTo(u.orderPos);
+            // A slot it can walk to from where it stands (a soldier up a terrace the camp's
+            // ground does not join would walk to the end of a partial path and stand there).
+            u.BeginDesertion(NearestReachable(u, CampSlot(u.team, M.deserters.Count + M.executed)));
             M.deserters.Add(u);
         }
 
@@ -350,36 +448,68 @@ namespace StarForge.World
             Vector2 corner = new Vector2(home.x < s * 0.5f ? CampInset : s - CampInset, home.y < s * 0.5f ? CampInset : s - CampInset);
             Vector2 nearest = NearestReachable(home, corner);
             M.campSet = true;
-            M.camp = nearest;
-            if (CampFits(t, home, nearest)) return;
-            Vector2 toCorner = corner - home;
-            float bearing = Mathf.Atan2(toCorner.y, toCorner.x);
-            float[] radii = { CampNear + 5f, CampNear + 15f, CampNear + 25f, CampNear + 35f };
-            for (int step = 0; step <= 12; step++)
+            Vector2 pick = nearest;
+            if (!CampFits(t, home, nearest))
             {
-                float a = bearing + (step + 1) / 2 * (step % 2 == 1 ? 1f : -1f) * 15f * Mathf.Deg2Rad;
-                foreach (float r in radii)
+                // Rings; failing them all, the candidate furthest from the side's structures
+                // (the raw corner point may be up against a Bunkhouse built out there).
+                float bestClear = InRange(home, nearest) ? Clearance(t, nearest) : -1f;
+                Vector2 toCorner = corner - home;
+                float bearing = Mathf.Atan2(toCorner.y, toCorner.x);
+                float[] radii = { CampNear + 5f, CampNear + 15f, CampNear + 25f, CampNear + 35f };
+                bool found = false;
+                for (int step = 0; step <= 12 && !found; step++)
                 {
-                    if (r > CampFar) continue;
-                    Vector2 p = home + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
-                    if (!map.InBounds(p, 8f)) continue;
-                    Vector2 q = NearestReachable(home, p);
-                    if ((q - p).sqrMagnitude > 4f * 4f || !CampFits(t, home, q)) continue;
-                    M.camp = q;
-                    return;
+                    float a = bearing + (step + 1) / 2 * (step % 2 == 1 ? 1f : -1f) * 15f * Mathf.Deg2Rad;
+                    foreach (float r in radii)
+                    {
+                        if (r > CampFar) continue;
+                        Vector2 p = home + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
+                        if (!map.InBounds(p, 8f)) continue;
+                        Vector2 q = NearestReachable(home, p);
+                        if ((q - p).sqrMagnitude > 4f * 4f || !InRange(home, q)) continue;
+                        if (CampFits(t, home, q)) { pick = q; found = true; break; }
+                        float c = Clearance(t, q);
+                        if (c > bestClear) { bestClear = c; pick = q; }
+                    }
+                }
+                // Nothing on its side of the base dry and in range: on round the far side, the
+                // nearest the corner's bearing first (left at the raw corner point it could be in
+                // the base or the water; ranked by clearance alone it went toward the enemy).
+                // The bearing nearest first, and on it the radius clearest of its structures.
+                for (int step = 13; step <= 23 && !InRange(home, pick); step++)
+                {
+                    float a = bearing + (step + 1) / 2 * (step % 2 == 1 ? 1f : -1f) * 15f * Mathf.Deg2Rad;
+                    float clearest = -1f;
+                    foreach (float r in radii)
+                    {
+                        if (r > CampFar) continue;
+                        Vector2 p = home + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
+                        if (!map.InBounds(p, 8f)) continue;
+                        Vector2 q = NearestReachable(home, p);
+                        if ((q - p).sqrMagnitude > 4f * 4f || !InRange(home, q)) continue;
+                        float c = Clearance(t, q);
+                        if (c > clearest) { clearest = c; pick = q; }
+                    }
                 }
             }
+            M.camp = pick;
+            M.campFromHome = (pick - home).magnitude;
+            M.campClearance = Clearance(t, pick);
         }
 
-        bool CampFits(int t, Vector2 home, Vector2 q) =>
-            (q - home).magnitude >= CampNear && (q - home).magnitude <= CampFar &&
-            map.WaterDepth(q) <= 0.3f && !StructureWithin(t, q, CampClear);
+        bool InRange(Vector2 home, Vector2 q) =>
+            (q - home).magnitude >= CampNear && (q - home).magnitude <= CampFar && map.WaterDepth(q) <= 0.3f;
 
-        bool StructureWithin(int t, Vector2 p, float clear)
+        bool CampFits(int t, Vector2 home, Vector2 q) => InRange(home, q) && Clearance(t, q) >= CampClear;
+
+        /// <summary>How far a point is from the side's nearest structure's footprint (999 with none).</summary>
+        float Clearance(int t, Vector2 p)
         {
+            float c = 999f;
             foreach (var u in units)
-                if (u != null && !u.dying && u.team == t && u.def.building && (u.pos - p).magnitude - u.def.radius < clear) return true;
-            return false;
+                if (u != null && !u.dying && u.team == t && u.def.building) c = Mathf.Min(c, (u.pos - p).magnitude - u.def.radius);
+            return c;
         }
 
         /// <summary>Its place in the camp: a loose huddle round the middle.</summary>

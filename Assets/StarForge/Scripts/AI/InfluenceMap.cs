@@ -62,7 +62,8 @@ namespace StarForge.AI
             count = 0;
             foreach (var e in w.units)
             {
-                if (e == null || e.dying || e.team != team || !e.Complete) continue;
+                // Deserters (GameWorld.Morale) hold no ground for it.
+                if (e == null || e.dying || e.team != team || !e.Complete || e.deserted) continue;
                 var D = e.def;
                 if (D.range <= 0f && D.type != UnitType.Worker) continue;
                 Add(e.pos, Defs.InfluenceStrength(D.type), Mathf.Max(12f, D.range * 1.4f), 1f);

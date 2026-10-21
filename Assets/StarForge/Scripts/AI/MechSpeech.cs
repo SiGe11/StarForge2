@@ -694,7 +694,13 @@ namespace StarForge.AI
         /// <summary>How long nothing must die for a fight to be over.</summary>
         const float FightGap = 15f;
         /// <summary>Never two of its lines closer than this.</summary>
-        const float MinGap = 20f;
+        const float MinGap = 90f;
+        /// <summary>Flavour yields to the calls: never this soon after any comms line.</summary>
+        const float QuietBefore = 30f;
+        /// <summary>At most this many of its lines in any ten minutes.</summary>
+        const int MaxPerTenMinutes = 4;
+        /// <summary>A fight worth a word afterwards: this much lost between both sides.</summary>
+        const float FightWorthSaying = 600f;
         /// <summary>A moment's line is dropped if it has not been said by then.</summary>
         const float PendingLife = 35f;
 
@@ -738,6 +744,11 @@ namespace StarForge.AI
         bool pendingHome, pendingDecisive, pendingCostly, pendingLong;
         float landedAt = -1f, nextAmbient, lastSpeech = -99f, lastTurn = -999f, lastCritical = -999f, lastNearDefeat = -999f;
         bool finalSaid;
+        // When anything was last said on its side's comms (its own lines too; not repeats),
+        // and when its own last few lines were, for the ten-minute cap.
+        float lastLineT = -99f;
+        readonly float[] lately = { -999f, -999f, -999f, -999f };
+        int latelyHead;
 
         Vector2 Home => w.Map.StartPos(team);
         Vector2 Foe => w.Map.StartPos(1 - team);
@@ -779,7 +790,7 @@ namespace StarForge.AI
             {
                 if (!m.mech.Landed) return;
                 landedAt = now;
-                nextAmbient = now + rng.Range(25f, 40f);
+                nextAmbient = now + rng.Range(90f, 130f);   // it has just said hello
             }
             if (fightOpen && now - lastFightDeathT >= FightGap) CloseFight();
             if (pending != Occasion.None && now >= pendingUntil)
@@ -846,16 +857,24 @@ namespace StarForge.AI
         public string Next(Unit m, MechDesign d)
         {
             float now = w.time;
-            if (landedAt < 0f || now - lastSpeech < MinGap) return null;
+            if (landedAt < 0f || now - lastSpeech < MinGap || now - lastLineT < QuietBefore) return null;
+            int inTen = 0;
+            foreach (float t in lately) if (now - t < 600f) inTen++;
+            if (inTen >= MaxPerTenMinutes) return null;
             Occasion o = pending != Occasion.None && now < pendingUntil ? pending
                        : now >= nextAmbient ? Occasion.Ambient : Occasion.None;
             if (o == Occasion.None) return null;
             var r = Read(m, o);
             pending = Occasion.None;
             pendingPrio = 0;
+            string text = Say(r, d);
+            // Nothing fitted: try again shortly, without spending a slot of the ten-minute cap.
+            if (text == null) { nextAmbient = Mathf.Max(nextAmbient, now + 10f); return null; }
             lastSpeech = now;
-            nextAmbient = now + (r.calm ? rng.Range(75f, 115f) : rng.Range(55f, 90f));
-            return Say(r, d);
+            nextAmbient = now + (r.calm ? rng.Range(180f, 270f) : rng.Range(150f, 240f));
+            lately[latelyHead] = now;
+            latelyHead = (latelyHead + 1) % lately.Length;
+            return text;
         }
 
         /// <summary>One last word as the match ends (once).</summary>
@@ -1102,6 +1121,14 @@ namespace StarForge.AI
 
         void OnEvent(GameEvent e)
         {
+            if (e.kind == GameEventKind.MechAdvice)
+            {
+                if (e.team != team) return;
+                if (!e.repeat) lastLineT = w.time;
+                // The brain's calls, for the journal (its flavour is noted as it is said).
+                if (e.advice != MechAdviceKind.Morale) Log($"CALL {e.advice}{(e.repeat ? " repeat" : "")}: {e.text}");
+                return;
+            }
             if (e.kind != GameEventKind.Death || e.team > 1) return;
             // A deserter's death is no loss in the war, nor a fight: it had left it (and one
             // its own Mech put down would read as a fight lost at home).
@@ -1144,6 +1171,7 @@ namespace StarForge.AI
             bool home = fightHomeW >= fightW * 0.5f;
             bool costly = fightUs >= 400f && fightUs >= 0.5f * fightThem;
             Note($"fight over after {w.time - fightStart - FightGap:0} s {(home ? "at home" : "on their side")}: we lost {fightUs:0}, they lost {fightThem:0}");
+            if (fightUs + fightThem < FightWorthSaying) return;
             if (fightThem >= 1.5f * fightUs && fightThem >= 200f)
                 Mark(Occasion.FightWon, 1, home, fightThem >= 600f && fightThem >= 2.5f * fightUs, costly, false);
             else if (fightUs >= 1.5f * fightThem && fightUs >= 200f)
@@ -1164,6 +1192,7 @@ namespace StarForge.AI
 
         void Log(string entry)
         {
+            if (team != 0) return;   // the journal is the player's Mech's: the opponent's never speaks
             if (Journal.Count >= 800) Journal.RemoveAt(0);
             int t = Mathf.FloorToInt(w.time);
             Journal.Add($"{t / 60}:{t % 60:00} T{team} {entry}");
@@ -1176,10 +1205,17 @@ namespace StarForge.AI
             var sb = new StringBuilder();
             var byOcc = new SortedDictionary<string, int>();
             var byBucket = new SortedDictionary<string, int>();
-            int spoken = 0;
+            int spoken = 0, calls = 0, repeats = 0;
+            float first = -1f, last = 0f;
             foreach (var j in Journal)
             {
                 var parts = j.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 4) continue;
+                var mmss = parts[0].Split(':');
+                float t = int.Parse(mmss[0]) * 60 + int.Parse(mmss[1]);
+                if (first < 0f) first = t;
+                last = t;
+                if (parts[2] == "CALL") { if (parts[3].EndsWith(":")) calls++; else repeats++; }
                 if (parts.Length < 5 || parts[2] != "SAY") continue;
                 spoken++;
                 string occ = parts[3], bucket = parts[4];
@@ -1187,6 +1223,9 @@ namespace StarForge.AI
                 byBucket[bucket] = byBucket.TryGetValue(bucket, out int b) ? b + 1 : 1;
             }
             sb.AppendLine($"MechSpeech: {spoken} lines said this match");
+            float minutes = Mathf.Max(1f, last - Mathf.Max(0f, first)) / 60f;
+            sb.AppendLine($"  {calls} calls shown, {repeats} repeats kept off the comms, {spoken} flavour: " +
+                          $"{(calls + spoken) / minutes:0.0} lines a minute, flavour every {(spoken > 0 ? minutes / spoken : 0f):0.0} min, over {minutes:0.0} min");
             foreach (var kv in byOcc) sb.AppendLine($"  {kv.Key}: {kv.Value}");
             foreach (var kv in byBucket) sb.AppendLine($"  {kv.Key}: {kv.Value}");
             foreach (var j in Journal) sb.AppendLine(j);

@@ -43,11 +43,15 @@ namespace StarForge.View
             bodies = GetComponentsInChildren<Rigidbody>();
             renderers = GetComponentsInChildren<Renderer>();
             // Broken masonry and plate: grips the ground, barely bounces.
-            rubble ??= new PhysicsMaterial("Rubble")
-            {
-                staticFriction = 0.8f, dynamicFriction = 0.6f, bounciness = 0.12f,
-                frictionCombine = PhysicsMaterialCombine.Average, bounceCombine = PhysicsMaterialCombine.Minimum
-            };
+            // Unity's null check, not ??=: the static outlives a play session (no domain
+            // reload) while the native material it points at may not.
+            if (rubble == null)
+                rubble = new PhysicsMaterial("Rubble")
+                {
+                    staticFriction = 0.8f, dynamicFriction = 0.6f, bounciness = 0.12f,
+                    frictionCombine = PhysicsMaterialCombine.Average, bounceCombine = PhysicsMaterialCombine.Minimum
+                };
+            settleAt = settleTime;
             foreach (var rb in bodies)
             {
                 var col = rb.GetComponent<Collider>();
@@ -74,6 +78,10 @@ namespace StarForge.View
             foreach (var d in Active)
             {
                 if (d == null || d.frozen || d.bodies == null) continue;
+                // Too near the end to be thrown and land again before it settles: left alone,
+                // rather than frozen in mid-air when its time runs out.
+                if (d.age + 2.5f > d.settleTime + 6f) continue;
+                bool hit = false;
                 foreach (var rb in d.bodies)
                 {
                     if (rb == null || rb.isKinematic) continue;
@@ -81,8 +89,11 @@ namespace StarForge.View
                     float light = Mathf.Clamp(200f / rb.mass, 0.25f, 1f);
                     rb.AddExplosionForce(strength * light, at, radius, 0.7f, ForceMode.VelocityChange);
                     rb.AddTorque(Random.insideUnitSphere * strength * light * 0.6f, ForceMode.VelocityChange);
+                    hit = true;
                 }
-                d.settleAt = Mathf.Max(d.settleAt, d.age + 2.5f);   // thrown again: settles again
+                // Thrown again, it settles again -- never past six seconds beyond its time (the
+                // guard above), or a fight going on beside it would keep it simulating for ever.
+                if (hit) d.settleAt = Mathf.Max(d.settleAt, d.age + 2.5f);
             }
         }
 
@@ -91,7 +102,7 @@ namespace StarForge.View
         void Update()
         {
             age += Time.deltaTime;
-            if (settleAt < 0f) settleAt = settleTime;
+            if (settleAt < 0f) settleAt = settleTime;   // not launched (placed by hand)
             mpb ??= new MaterialPropertyBlock();
             float burn = Mathf.Lerp(0.95f, 0.4f, Mathf.Clamp01(age / settleTime));
             if (renderers != null)

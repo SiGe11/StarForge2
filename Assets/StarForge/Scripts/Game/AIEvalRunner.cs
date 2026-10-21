@@ -35,9 +35,17 @@ namespace StarForge.Game
         }
 
         static bool active;
+        // The player's own match settings, put back when a run ends or is cut short: the run's
+        // fixed seed, memory off and Commander difficulty stayed for every later match in the editor.
+        static bool userSaved, userMemory, userFixedSeed;
+        static AIDifficulty userDifficulty;
+        static uint userSeed;
 
         /// <summary>An evaluation is running or about to start (the map stays the default one).</summary>
         public static bool Pending => active || PlayerPrefs.GetInt(PrefGames, 0) > 0;
+        /// <summary>The AI's level for the next run (Commander unless a trial asks for another:
+        /// players meet Recruit and Veteran, which no run had measured); put back when the run ends.</summary>
+        public static AIDifficulty EvalDifficulty = AIDifficulty.Commander;
         static int kind, game, gamesPerKind, onlyKind = -1, firstGame;
         static float maxSeconds;
         static KindStats[] stats;
@@ -65,6 +73,11 @@ namespace StarForge.Game
             if (!active && PlayerPrefs.GetInt(PrefGames, 0) > 0)
             {
                 active = true;
+                userSaved = true;
+                userMemory = MatchSettings.aiMemory;
+                userFixedSeed = MatchSettings.fixedSeed;
+                userDifficulty = MatchSettings.difficulty;
+                userSeed = MatchSettings.seed;
                 gamesPerKind = PlayerPrefs.GetInt(PrefGames);
                 maxSeconds = PlayerPrefs.GetFloat(PrefSeconds, 600f);
                 onlyKind = PlayerPrefs.GetInt(PrefOnly, -1);
@@ -87,11 +100,15 @@ namespace StarForge.Game
             // survive play sessions: the domain is not reloaded) once made a whole run of
             // losses by an AI that never moved.
             Commander.Suspended = false;
+            Commander.MechGateInBase = false;
+            World.MechCore.LegacyBalance = false;   // a duel's A/B switch, never a match's
             Commander.IgnoreSites = false;
+            Commander.RepositionOff = false;   // the blocked-shot trial's A/B switch
+            World.GameWorld.LegacyBreakPick = false;   // the morale trials' A/B switch
             MatchSettings.skipMenu = true;
             MatchSettings.spectate = false;
             MatchSettings.aiMemory = false;          // every match starts from doctrine
-            MatchSettings.difficulty = AIDifficulty.Commander;
+            MatchSettings.difficulty = EvalDifficulty;
             MatchSettings.seed = 1000u + (uint)(game * 37);
             MatchSettings.fixedSeed = true;
             QualitySettings.vSyncCount = 0;
@@ -111,6 +128,10 @@ namespace StarForge.Game
         void OnMatchStarted()
         {
             opponent = new ScriptedOpponent(world, 0, (ScriptedOpponent.Kind)kind);
+            // Its own morale rolls per opponent: the five seeds alone gave every opponent the same.
+            world.ReseedMorale(MatchSettings.seed ^ ((uint)kind + 1u) * 0x9E3779B1u);
+            // And its Mechs' verdicts on deserters, for the same reason.
+            foreach (var b in boot.MechBrains) b?.ReseedPunish(MatchSettings.seed ^ ((uint)kind + 1u) * 0x85EBCA6Bu);
             world.Ticked += OnTick;
             // The world clamps each step to 0.1 s, so a high time scale buys speed
             // without coarsening the simulation beyond what it already tolerates.
@@ -183,7 +204,7 @@ namespace StarForge.Game
             for (int i = 0; i < labelUse.Length; i++) s.labelUse[i] += labelUse[i];
 
             Debug.Log($"[AIEval] vs {(ScriptedOpponent.Kind)kind} game {game + 1}: " +
-                      $"{(world.winner == 1 ? "AI won" : world.winner == 0 ? "AI lost" : "time cap")} at {world.time:0}s, " +
+                      $"{(world.winner == 1 ? "AI won" : world.winner == 0 ? "AI lost" : world.winner == 2 ? "draw" : "time cap")} at {world.time:0}s, " +
                       $"read correctly {(samples > 0 ? 100f * correct / samples : 0f):0}% of the time; " +
                       $"style {ai.Dbg.personality}; {ai.Dbg.waves} attack waves, last {ai.Dbg.wave}; " +
                       $"Mechs: AI {MechLine(1)}, opponent {MechLine(0)}; advice heeded {ai.Dbg.adviceHeeded}, ignored {ai.Dbg.adviceIgnored}, upgrades bought {ai.Dbg.upgradesBought}, waves while their Mech was away {ai.Dbg.mechWindows}, gathered on its Mech {ai.Dbg.stagedWithMech}; " +
@@ -213,7 +234,12 @@ namespace StarForge.Game
                 var M = world.morale[t];
                 var b = boot != null ? boot.MechBrains[t] : null;
                 return $"crises {M.crises}, deserted {M.deserted}" +
-                       (b != null && b.LastVerdict.Length > 0 ? $", Mech {(b.Punishments > 0 ? "punished" : "spared")} them, {M.executed} put down" : "");
+                       (M.unfitBreaks > 0 ? $", {M.unfitBreaks} roll(s) broke with nobody fit to run" : "") +
+                       (M.deserted > 0 ? $" (at {M.lastEpisode:0}s; camp {M.campFromHome:0} m from base, {M.campClearance:0} m clear of its buildings; its Mech " +
+                                         $"{(!M.mechAtBreak ? "not on the field" : M.mechLostAt >= M.lastEpisode ? $"on the field, fell {M.mechLostAt - M.lastEpisode:0} s later" : "on the field")}; " +
+                                         $"{(M.desertersGoneAt >= M.lastEpisode ? $"all dead {M.desertersGoneAt - M.lastEpisode:0} s after" : $"{M.deserters.Count} alive at the end")})" : "") +
+                       (b != null && b.LastVerdict.Length > 0 ? $", Mech {(b.Punishments > 0 ? "punished" : "spared")} them, {M.executed} put down" : "") +
+                       $"; readings stopped at {M.GateLine()}";
             }
             return $"AI {Side(1)}; opponent {Side(0)}";
         }
@@ -270,7 +296,7 @@ namespace StarForge.Game
         {
             float v = 0f;
             foreach (var u in world.units)
-                if (u != null && !u.dying && u.team == team && u.def.IsArmy) v += StarForge.Sim.Defs.ArmyValue(u.Type);
+                if (u != null && !u.dying && u.team == team && u.def.IsArmy && !u.deserted) v += StarForge.Sim.Defs.ArmyValue(u.Type);
             return v;
         }
 
@@ -289,9 +315,34 @@ namespace StarForge.Game
             return $"{sum:0}s, " + string.Join(", ", parts) + "; doing: " + string.Join(", ", why);
         }
 
+        static void RestoreUserSettings()
+        {
+            EvalDifficulty = AIDifficulty.Commander;   // a run at another level is asked for each time
+            if (!userSaved) return;
+            userSaved = false;
+            MatchSettings.aiMemory = userMemory || !MatchSettings.debugAI;   // players cannot turn it off (a trial may have)
+            MatchSettings.fixedSeed = userFixedSeed;
+            MatchSettings.difficulty = userDifficulty;
+            MatchSettings.seed = userSeed;
+        }
+
+#if UNITY_EDITOR
+        /// <summary>Statics survive play sessions (domain reload off): a run stopped part-way left
+        /// <c>active</c> on, and the next Play -- the user's own -- took the run up again at 8x, its
+        /// own side scripted. A run that is wanted comes in through the prefs and starts afresh.</summary>
+        [UnityEditor.InitializeOnEnterPlayMode]
+        static void ClearOnPlay()
+        {
+            if (!active) return;
+            active = false;
+            RestoreUserSettings();
+        }
+#endif
+
         static void Report()
         {
             active = false;
+            RestoreUserSettings();
             Time.timeScale = 1f;
             var sb = new StringBuilder();
             sb.AppendLine($"Adaptive AI evaluation — {gamesPerKind} games per opponent, {maxSeconds:0}s cap");

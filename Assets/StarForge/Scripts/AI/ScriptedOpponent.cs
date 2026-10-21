@@ -81,7 +81,8 @@ namespace StarForge.AI
                 return false;
             }
 
-            if (F.supplyCap - F.supplyUsed < 5 && F.ore >= 100 && pending == 0) { PlaceAndBuild(UnitType.Bunkhouse); return; }
+            // Not at the supply ceiling (Bunkhouses past it add nothing, and it built them for ever).
+            if (F.supplyCap - F.supplyUsed < 5 && F.supplyCap < GameWorld.MaxSupply && F.ore >= 100 && pending == 0) { PlaceAndBuild(UnitType.Bunkhouse); return; }
             // A structure whose Digger was killed gets another one.
             foreach (var e in w.units)
             {

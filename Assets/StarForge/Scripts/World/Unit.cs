@@ -42,6 +42,12 @@ namespace StarForge.World
         [System.NonSerialized] public Order order;
         [System.NonSerialized] public Vector2 orderPos, rally;
         [System.NonSerialized] public Unit target, buildTarget, harvestNode;
+        /// <summary>The target is the one it was sent after (GameWorld.CmdAttack), not one it
+        /// picked up itself: only that one is chased whatever else comes into reach.</summary>
+        [System.NonSerialized] public bool targetOrdered;
+        /// <summary>A Digger sent to ore with its load already full while no Foundry stands: it
+        /// waits at that ore, not where it is. Dropped once there is a Foundry to bring it to.</summary>
+        [System.NonSerialized] public bool waitAtOre;
         [System.NonSerialized] public int carrying, kills, rank;
         /// <summary>Splash shots in a row, fired from about the same place, that burst on
         /// the ground without catching what they were aimed at -- into a rise between
@@ -72,6 +78,10 @@ namespace StarForge.World
         GameWorld world;
         NavMeshObstacle obstacle;
         int pathRetries;
+        float fleeStall;   // a fleeing deserter's seconds on a path without getting nearer the corner it steers for (held by the crowd)
+        float fleeBest;    // the nearest it has been to the corner it is steering for
+        Vector2 fleeCorner;  // that corner (a new one, or a new route, starts the count afresh)
+        Vector2 fleeCorner2; float fleeBest2;   // the corner before it and its best: flickering back is no fresh start
 
         public UnitType Type => def.type;
         public bool Complete => buildProgress >= 1f;
@@ -365,19 +375,30 @@ namespace StarForge.World
             if (!Live(target) || target.team == team)
             {
                 target = null;
+                targetOrdered = false;
                 if (acquires) target = world.NearestEnemy(this, def.sight);
                 if (order == Order.Attack && target == null) order = Order.Idle;
             }
-            else if (!StickyTargets && acquires && order != Order.Attack && Dist(target) - target.def.radius > def.range)
+            else if (!StickyTargets && acquires && !(order == Order.Attack && targetOrdered) && Dist(target) - target.def.radius > def.range)
             {
-                // A target it picked up itself (not one it was sent after) gives way to an
-                // enemy in reach, and is let go once it is out of sight. Kept until it died,
-                // a Sentinel or a bay's gun that had locked onto a scout at the edge of its
+                // A target it picked up itself (not one it was sent after: once that dies, or
+                // when it struck back at whoever was nearest, what it picks is its own) gives
+                // way to an enemy in reach, and is let go once it is out of sight. Kept until it
+                // died, a Sentinel or a bay's gun that had locked onto a scout at the edge of its
                 // sight stood silent, whatever came up to its walls, until that scout died
-                // somewhere else; and an idle or holding squad the same.
-                var inReach = world.NearestEnemy(this, def.range);
+                // somewhere else; an idle or holding squad the same; and a squad whose attack
+                // target died chased the next thing it saw off across the map. Closing on
+                // something that fights back, it gives way only to another that does: going
+                // for a Sentinel, the Foundry beside it came into reach first, and they stood
+                // shooting the wall while the tower shot them.
+                bool closing = order == Order.Attack || order == Order.AttackMove;
+                // Whatever it is doing, what fights back comes first: by edge alone a tower took
+                // a Garrison's wall over the rifleman shooting it from nearer its middle.
+                var inReach = world.NearestEnemyInReach(this, def.range, true);
+                if (inReach == null && !(closing && GameWorld.FightsBack(target))) inReach = world.NearestEnemyInReach(this, def.range, false);
                 if (inReach != null) target = inReach;
                 else if (Dist(target) - target.def.radius > def.sight) target = world.NearestEnemy(this, def.sight);
+                targetOrdered = false;
             }
             if (target == null) return;
             if (!AimAndFire(dt)) return;
@@ -404,10 +425,31 @@ namespace StarForge.World
             return true;
         }
 
-        /// <summary>A deserter: it runs for its side's camp, then sits there. It shoots only
-        /// while the camp is set upon (an enemy hit one of them in the last few seconds),
-        /// only at enemies near the camp, and never goes further than CampLeash from it to
-        /// do so. It never fires on its own side's Mech, even when that comes for it.</summary>
+        /// <summary>It throws down its oath (GameWorld.Morale): off to <paramref name="slot"/>,
+        /// its place in the camp, with a clean count of path retries (one carried over from a
+        /// move order would have it settle mid-field after a single lost path).</summary>
+        public void BeginDesertion(Vector2 slot)
+        {
+            deserted = true;
+            fleeing = true;
+            order = Order.Move;
+            target = null;
+            harvestNode = null;
+            buildTarget = null;
+            orderPos = slot;
+            pathRetries = 0;
+            repathTimer = 0f;
+            fleeStall = 0f;
+            fleeBest = fleeBest2 = float.MaxValue;
+            fleeCorner = fleeCorner2 = new Vector2(float.MaxValue, float.MaxValue);
+            MoveTo(slot);
+        }
+
+        /// <summary>A deserter: it runs for its side's camp, then sits at its spot there (or
+        /// wherever it had to settle). It shoots only while an enemy has hit one of them near
+        /// that spot in the last few seconds, only at enemies near it, and never goes further
+        /// than CampLeash from it to do so. It never fires on its own side's Mech, even when
+        /// that comes for it.</summary>
         void TickDeserter(float dt)
         {
             var M = world.MoraleOf(team);
@@ -416,40 +458,106 @@ namespace StarForge.World
             {
                 target = null;
                 // Re-asks for its way after a NavMesh rebuild takes it: it does not stop short.
-                if (Dist(orderPos) < 3f || (!Moving && Dist(camp) < 10f)) { fleeing = false; order = Order.Hold; Halt(); }
-                else if (!Moving && (repathTimer -= dt) <= 0f) { MoveTo(orderPos); repathTimer = 0.8f; }
+                // Four asks that get it nowhere (the way there is gone): it settles where it is,
+                // at once if it is in the camp. The end of a partial path counts as nowhere (it
+                // may keep the path and never read as stopped), and so does standing on a path
+                // for 2 s (the others crowding the same end held one short of it, still fleeing).
+                // Waiting for its path is not standing on one, and a jam far from the end (boxed in
+                // by the knot it broke from) is given longer than one at the end: counted alike, a
+                // deserter at the back of a knot could settle where it broke, still in the fight.
+                // A stall carries over while it waits for the path it asked for after one: zeroed
+                // there, the next tick read "walking" and cleared its retries, and one boxed in far
+                // from the end of its path fled for ever.
+                bool onPath = Moving && agent.hasPath && !agent.pathPending;
+                // By progress, not speed: penned in with a Mauler in the only way out it jostled
+                // at 0.2 m/s and more without getting anywhere, its stall stayed at 0 and it fled
+                // for ever (BugTrials.PenJam: still fleeing after 90 s). Progress toward the corner
+                // it steers for, not along its way left: that reads Infinity on half a long flight
+                // (FleeTrace), straight-line distance does not shrink on a leg bending away, and a
+                // longer new route read as no progress; a new corner or route starts afresh.
+                if (onPath)
+                {
+                    Vector2 corner = new Vector2(agent.steeringTarget.x, agent.steeringTarget.z);
+                    float togo = (corner - pos).magnitude;
+                    // A new corner restarts the best, not the count; back to the corner before, its
+                    // own best stands. Jammed, the corner flickered between the gap's two sides (5-27
+                    // changes while it stood still, BugTrials.PenJam), and each fresh best let a sway
+                    // read as progress.
+                    if ((corner - fleeCorner).sqrMagnitude > 1f)
+                    {
+                        if ((corner - fleeCorner2).sqrMagnitude <= 1f)
+                        {
+                            (fleeCorner, fleeCorner2) = (fleeCorner2, fleeCorner);
+                            (fleeBest, fleeBest2) = (fleeBest2, fleeBest);
+                            if (togo < fleeBest - 0.5f) { fleeBest = togo; fleeStall = 0f; } else fleeStall += dt;
+                        }
+                        else
+                        {
+                            fleeCorner2 = fleeCorner; fleeBest2 = fleeBest;
+                            fleeCorner = corner; fleeBest = togo;
+                            fleeStall += dt;
+                        }
+                    }
+                    else if (togo < fleeBest - 0.5f) { fleeBest = togo; fleeStall = 0f; }
+                    else fleeStall += dt;
+                }
+                else if (!(Moving && agent.pathPending)) fleeStall = 0f;
+                float stallLimit = onPath && agent.remainingDistance > 8f ? 6f : 2f;
+                bool deadEnd = fleeStall > stallLimit || agent != null && agent.enabled && agent.isOnNavMesh && !agent.pathPending &&
+                               agent.pathStatus == NavMeshPathStatus.PathPartial && agent.remainingDistance <= agent.stoppingDistance + 0.5f;
+                bool stopped = !Moving || deadEnd;
+                if (Dist(orderPos) < 3f || (stopped && (Dist(camp) < 10f || pathRetries >= 4)))
+                {
+                    fleeing = false;
+                    order = Order.Hold;
+                    pathRetries = 0;
+                    if (Dist(orderPos) >= 3f) orderPos = pos;
+                    Halt();
+                }
+                else if (stopped) { if ((repathTimer -= dt) <= 0f) { MoveTo(orderPos); repathTimer = 0.8f; pathRetries++; } }   // a dead end counts as a retry
+                else if (agent.hasPath && agent.remainingDistance > 2f) pathRetries = 0;   // walking, not at a dead end
                 UpdateFacing(dt);
                 return;
             }
             order = Order.Hold;
-            bool alarmed = world.time - M.alarmT < GameWorld.CampAlarm && def.Armed;
+            // Its own spot (in the camp, or wherever it had to settle) is what it defends, and
+            // only when an enemy hit one of them near it: a deserter stranded far from the camp
+            // fights back too, and one in the camp does not answer a hit somewhere else.
+            Vector2 spot = orderPos;
+            bool alarmed = def.Armed && world.time - M.alarmT < GameWorld.CampAlarm &&
+                           (M.alarmAt - spot).sqrMagnitude < GameWorld.AlarmReach * GameWorld.AlarmReach;
             float reach = GameWorld.CampLeash + def.range;
-            if (!alarmed || !Live(target) || target.team == team || (target.pos - camp).sqrMagnitude > reach * reach)
+            if (!alarmed || !Live(target) || target.team == team || (target.pos - spot).sqrMagnitude > reach * reach)
             {
                 target = null;
                 if (alarmed)
                 {
                     var t = world.NearestEnemy(this, def.sight);
-                    if (t != null && (t.pos - camp).sqrMagnitude <= reach * reach) target = t;
+                    if (t != null && (t.pos - spot).sqrMagnitude <= reach * reach) target = t;
                 }
             }
             if (target != null)
             {
+                pathRetries = 0;   // a chase is not a walk back that failed (counted, raids moved its spot)
                 if (AimAndFire(dt)) { if (Moving) Halt(); }
                 else if ((repathTimer -= dt) <= 0f)
                 {
                     // Up to the edge of its leash, no further.
-                    Vector2 to = target.pos - camp;
-                    Vector2 go = to.sqrMagnitude > GameWorld.CampLeash * GameWorld.CampLeash ? camp + to.normalized * GameWorld.CampLeash : target.pos;
+                    Vector2 to = target.pos - spot;
+                    Vector2 go = to.sqrMagnitude > GameWorld.CampLeash * GameWorld.CampLeash ? spot + to.normalized * GameWorld.CampLeash : target.pos;
                     MoveTo(go);
                     repathTimer = 0.6f;
                 }
             }
             else if (Dist(orderPos) > 2.5f && !Moving && (repathTimer -= dt) <= 0f)
             {
-                MoveTo(orderPos);
+                // Four walks back that end short of it (built over, or a blast put it on ground
+                // that does not join): this is its spot now (it re-asked every 1.5 s all match).
+                if (++pathRetries > 4) { orderPos = pos; pathRetries = 0; }
+                else MoveTo(orderPos);
                 repathTimer = 1.5f;
             }
+            else if (Dist(orderPos) <= 2.5f) pathRetries = 0;
             UpdateFacing(dt);
         }
 
@@ -465,12 +573,13 @@ namespace StarForge.World
             {
                 // Full already (sent back to the ore with a load, or off a build it carried
                 // one to): bring it in first rather than mine over it.
-                if (carrying >= OrePerTrip) { order = Order.Return; return; }
+                if (carrying >= OrePerTrip) { order = Order.Return; waitAtOre = world.NearestDropoff(this) == null; return; }
                 var node = harvestNode;
                 if (!Live(node) || node.oreLeft <= 0)
                 {
                     harvestNode = world.NearestFreeNode(pos, team);
-                    if (harvestNode == null) { order = Order.Idle; return; }
+                    // No ore left to mine: a part load is still brought in (idle, it kept it for good).
+                    if (harvestNode == null) { order = carrying > 0 ? Order.Return : Order.Idle; return; }
                     MoveTo(harvestNode.pos);
                     return;
                 }
@@ -502,10 +611,28 @@ namespace StarForge.World
             else
             {
                 var dp = world.NearestDropoff(this);
-                // Nowhere to bring it: wait with the load until a Foundry stands again. Sent
-                // back to the ore, a Digger mined on and dropped each load for the next,
-                // stripping the fields for nothing once its Foundry had fallen.
-                if (dp == null) { if (Moving) Halt(); return; }
+                // Bringing it in now: if this Foundry falls on the way it stops like any other
+                // (kept, the flag from an order given while one stood -- or from a build it
+                // finished -- sent it back to the ore after all).
+                if (dp != null) waitAtOre = false;
+                // Nowhere to bring it: wait with the load until a Foundry stands again, at the
+                // ore it was sent to with it (stopped on the spot, one sent to safe ore to get
+                // it out from under a gun stood where it was), else where it is (turned back to
+                // their ore, the loads on the road walked into whatever had taken the Foundry).
+                // Sent back to mine, a Digger dropped each load for the next and stripped the
+                // fields for nothing once its Foundry had fallen.
+                if (dp == null)
+                {
+                    var waitAt = waitAtOre ? harvestNode : null;
+                    if (Live(waitAt) && Dist(waitAt) > waitAt.def.radius + def.radius + 0.9f + NavSlack)
+                    {
+                        // On a timer only: several waiting at one seam can hold one another short of
+                        // it, and asking every tick while held cost a path request a frame each.
+                        if ((repathTimer -= dt) <= 0f) { MoveTo(waitAt.pos); repathTimer = 1.8f; }
+                    }
+                    else if (Moving) Halt();
+                    return;
+                }
                 if (Dist(dp) <= dp.def.radius + def.radius + 1.2f + NavSlack)
                 {
                     world.Deposit(team, carrying);
@@ -565,18 +692,29 @@ namespace StarForge.World
             var d = Defs.Get(what);
             Vector2 rallyPt = rallySet ? rally : pos + Norm(world.Map.StartPos(1 - team) - pos) * 8f;
 
-            // Exit on the side facing the rally point, sweeping outward from there.
+            // Exit on the side facing the rally point, sweeping outward from there -- onto the
+            // ground the bases share where there is any: the first walkable spot could be a
+            // pocket the building closes off against a cliff or trees, and every unit trained
+            // there was cut off for the match. Failing that, any free walkable spot, as before.
             float baseAng = Mathf.Atan2((rallyPt - pos).y, (rallyPt - pos).x);
             Vector2 spot = pos;
-            bool ok = false;
-            for (int i = 0; i < 24 && !ok; i++)
-            {
-                int k = (i + 1) / 2 * ((i & 1) == 0 ? 1 : -1);
-                float a = baseAng + k * (TAU / 24f);
-                Vector2 p = pos + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (def.radius + d.radius + 1.4f);
-                if (world.Walkable(p, 0.8f) && world.Pick(p, d.radius * 0.5f) == null) { spot = p; ok = true; }
-            }
+            bool ok = false, movedOff = false;
+            for (int pass = 0; pass < 2 && !ok; pass++)
+                for (int i = 0; i < 24 && !ok; i++)
+                {
+                    int k = (i + 1) / 2 * ((i & 1) == 0 ? 1 : -1);
+                    float a = baseAng + k * (TAU / 24f);
+                    Vector2 p = pos + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (def.radius + d.radius + 1.4f);
+                    if (!world.Walkable(p, 0.8f) || world.Pick(p, d.radius * 0.5f) != null) continue;
+                    // Judged, and put down, where the ground NavMesh has it: a ring point just off the
+                    // mesh between a pocket and the main ground could read as the one and land in the other.
+                    if (pass == 0 && !world.OnMainGround(p, out p)) { movedOff = true; continue; }
+                    if (pass == 1) world.GroundPoint(p, out p);   // on the ground, not a trunk's or boulder's Rubble
+                    spot = p;
+                    ok = true;
+                }
             if (!ok) { queueTimer = 0.5f; return; }
+            if (movedOff) world.ExitsMovedOffPocket++;
 
             queue.RemoveAt(0);
             if (queue.Count > 0) queueTimer = Defs.Get(queue[0]).buildTime;

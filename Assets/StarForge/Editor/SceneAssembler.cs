@@ -455,7 +455,7 @@ namespace StarForge.EditorTools
             // rendered by Tools/blender/render_flipbooks.py), premultiplied so the smoke
             // in them darkens what is behind; the photographed sheets until they exist.
             var flipbook = Shader.Find("StarForge/Flipbook");
-            Material Flipbook(string name, string sheet, float fireGain, float coverage, float soft)
+            Material Flipbook(string name, string sheet, float fireGain, float coverage, float soft, Color smoke)
             {
                 var sheetTex = AssetDatabase.LoadAssetAtPath<Texture2D>(tex + sheet);
                 if (flipbook == null || sheetTex == null) return null;
@@ -464,14 +464,17 @@ namespace StarForge.EditorTools
                 m.SetFloat("_FireGain", fireGain);
                 m.SetFloat("_Coverage", coverage);
                 m.SetFloat("_SoftFade", soft);
+                m.SetColor("_SmokeColor", smoke);
+                m.SetColor("_FireMid", new Color(1f, 0.42f, 0.08f));
+                m.SetColor("_FireHot", new Color(1f, 0.72f, 0.32f));
                 m.renderQueue = 3000;
                 EditorUtility.SetDirty(m);
                 return m;
             }
-            fx.fireMaterial = Flipbook("FX_Fire", "fx_explosion.png", 5f, 1f, 1.2f)
+            fx.fireMaterial = Flipbook("FX_Fire", "fx_explosion.png", 2.4f, 1f, 1.2f, new Color(0.29f, 0.27f, 0.25f))
                               ?? Particle("FX_Fire", "explosion.jpg", false, 0.03f, 1.5f);
             // A campfire's flames are thin: more coverage gives them body against sunlit ground.
-            fx.flameMaterial = Flipbook("FX_Flame", "fx_flame.png", 4f, 3f, 0.6f)
+            fx.flameMaterial = Flipbook("FX_Flame", "fx_flame.png", 3.5f, 3f, 0.6f, new Color(0.29f, 0.27f, 0.25f))
                                ?? Particle("FX_Flame", "flames.png", false, 0.02f, 1.9f);
             var smokeShader = Shader.Find("StarForge/Smoke");
             var puffs = AssetDatabase.LoadAssetAtPath<Texture2D>(tex + "smoke_puffs.png");

@@ -112,6 +112,11 @@ ShaderVariantCollection:
         passType: 0
       - keywords: _FILM_GRAIN _RCAS
         passType: 0
+  - first: {fileID: 4800000, guid: e6e9a19c3678ded42a3bc431ebef7dbd, type: 3}
+    second:
+      variants:
+      - keywords: DOTS_INSTANCING_ON
+        passType: 0
   - first: {fileID: 4800000, guid: 12dc59547ea167a4ab435097dd0f9add, type: 3}
     second:
       variants:
@@ -231,4 +236,9 @@ ShaderVariantCollection:
       - keywords: _CLUSTER_LIGHT_LOOP _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SHADOWS_SOFT
         passType: 13
       - keywords: _CLUSTER_LIGHT_LOOP _MAIN_LIGHT_SHADOWS_CASCADE
+        passType: 13
+  - first: {fileID: 4800000, guid: 06f9909359c744aa3826b314570a72fb, type: 3}
+    second:
+      variants:
+      - keywords: 
         passType: 13

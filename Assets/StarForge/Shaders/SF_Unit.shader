@@ -94,6 +94,7 @@ Shader "StarForge/Unit"
             half _OreGlowMask;
             half _OreGlow;
         CBUFFER_END
+        float _SF_Rain;   // how wet a shower has left everything, 0..1 (FXDirector.Weather)
         ENDHLSL
 
         Pass
@@ -210,6 +211,9 @@ Shader "StarForge/Unit"
                 albedo = lerp(albedo, _WearColor.rgb * (0.7 + detailLum * 0.6), wear);
                 metallic = lerp(metallic, 0.85, wear);
                 smooth = lerp(smooth, 0.55, wear);
+                // Rain: wet plate darkens a little and takes a sheen.
+                albedo *= 1.0 - 0.12 * _SF_Rain;
+                smooth = lerp(smooth, max(smooth, 0.78), _SF_Rain * 0.7);
 
                 // Dust climbing from the ground, dirt in the cavities.
                 half ground = 1.0 - smoothstep(0.0, _GrimeHeight, i.positionOS.y);

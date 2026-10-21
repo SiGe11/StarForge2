@@ -118,7 +118,9 @@ namespace StarForge.World
         /// <summary>The share of its full rate of fire it still has.</summary>
         public float FireRate => 1f / (1f + BatteredSlow * Battered);
         public float RangeMul => (design == null ? 1f : design.Loco.rangeMul)
-                                 * (Level(MechUpgrade.Targeting) > 0 ? 1.12f : 1f)
+                                 // +6%: at 12% an upgraded Mech out-ranged a crowd of rifles (16 m) by so
+                                 // much that it took twice the infantry a bare one did to break.
+                                 * (Level(MechUpgrade.Targeting) > 0 ? (LegacyBalance ? 1.12f : 1.06f) : 1f)
                                  * (design != null && design.utility == MechUtility.Sensors ? 1.1f : 1f);
         public float Sight => 36f + (Level(MechUpgrade.Targeting) > 0 ? 10f : 0f)
                               + (design != null && design.utility == MechUtility.Sensors ? 14f : 0f);
@@ -306,7 +308,10 @@ namespace StarForge.World
                     continue;
                 }
                 if (g.cooldown > 0f || !Valid(g, g.target) || !Aimed(g, g.target)) continue;
-                g.cooldown = g.part.cooldown * (1f + BatteredSlow * Battered);
+                // The time already past the reload carries over (an idle gun banks at most a
+                // tick): reset to the full period, a 0.1 s flamer fired every other 0.1 s tick
+                // at the evaluation's speed, so the slightest battle damage halved it.
+                g.cooldown = Mathf.Max(g.cooldown, -dt) + g.part.cooldown * (1f + BatteredSlow * Battered);
                 g.burstLeft = g.part.burst - 1;
                 g.burstT = g.part.burstGap;
                 Shoot(g, now);

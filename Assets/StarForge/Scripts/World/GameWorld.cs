@@ -92,6 +92,9 @@ namespace StarForge.World
         /// <summary>Where a Beam ended.</summary>
         public Vector3 end;
         public MechAdviceKind advice;
+        /// <summary>MechAdvice: a call its side heard lately about the same place (MechBrain.Say).
+        /// The HUD and the radio leave it out; anything weighing the advice still sees it.</summary>
+        public bool repeat;
     }
 
     public sealed class Projectile
@@ -189,6 +192,8 @@ namespace StarForge.World
         public NavIslands Islands { get; private set; }
 
         readonly int[] gridHead = new int[GRID * GRID];
+        /// <summary>Units the spatial hash holds: those after it were spawned since it was built.</summary>
+        int gridCount;
         int[] gridNext = new int[1024];
         float gridCell = 8f;
 
@@ -331,7 +336,7 @@ namespace StarForge.World
             if (type == UnitType.Foundry) foundries.Add(u);
             if (def.building && complete && team < 2) factions[team].supplyCap += def.supplyGive;
             if (Plants != null) Plants.ClearGrassUnder(u);
-            if ((def.building || type == UnitType.Ore) && Islands != null) Islands.Invalidate();   // it carves the NavMesh
+            if ((def.building || type == UnitType.Ore) && Islands != null) Islands.Invalidate(pos);   // it carves the NavMesh
             return u;
         }
 
@@ -365,7 +370,8 @@ namespace StarForge.World
             if (u.order == Order.Idle && !u.def.building && u.def.Armed && !u.def.Autonomous && !u.deserted)
             {
                 var t = NearestEnemy(u, u.def.sight);
-                if (t != null) { u.order = Order.Attack; u.target = t; }
+                // The nearest, not necessarily the shooter: its own pick, so it may give way.
+                if (t != null) { u.order = Order.Attack; u.target = t; u.targetOrdered = false; }
             }
             if (u.hp <= 0f)
             {
@@ -459,6 +465,7 @@ namespace StarForge.World
                 if (u.deserted)
                 {
                     morale[u.team].deserters.Remove(u);
+                    if (morale[u.team].deserters.Count == 0) morale[u.team].desertersGoneAt = time;
                     if (byOwnSide) morale[u.team].executed++;
                 }
             }
@@ -680,6 +687,7 @@ namespace StarForge.World
                 gridNext[i] = gridHead[c];
                 gridHead[c] = i;
             }
+            gridCount = units.Count;
         }
 
         int CellIndex(Vector2 p)
@@ -699,6 +707,40 @@ namespace StarForge.World
 
         // ------------------------------------------------------------ queries
         public float GroundY(Vector2 p) => map.HeightAt(p);
+
+        /// <summary>The enemy of <paramref name="u"/> nearest by its edge within
+        /// <paramref name="reach"/> -- what it can shoot from where it stands (the range test
+        /// takes off the target's radius, so a Foundry or a bay whose middle is past
+        /// <paramref name="reach"/> may still be in it) -- or null. With
+        /// <paramref name="fightsBackOnly"/>, only what can hurt it (<see cref="FightsBack"/>).</summary>
+        public Unit NearestEnemyInReach(Unit u, float reach, bool fightsBackOnly)
+        {
+            Unit best = null;
+            float bestD = reach + 1e-3f;
+            CellRange(u.pos, reach + LargestRadius, out int x0, out int x1, out int z0, out int z1);
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                    for (int i = gridHead[z * GRID + x]; i >= 0; i = gridNext[i])
+                    {
+                        var o = i < units.Count ? units[i] : null;
+                        if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable) continue;
+                        if (fightsBackOnly && !FightsBack(o)) continue;
+                        float within = reach + o.def.radius;
+                        float d2 = (o.pos - u.pos).sqrMagnitude;
+                        if (d2 > within * within) continue;
+                        float d = Mathf.Sqrt(d2) - o.def.radius;
+                        if (d < bestD) { bestD = d; best = o; }
+                    }
+            return best;
+        }
+
+        /// <summary>The widest footprint (Foundry, Workshop: 5 m), with room to spare.</summary>
+        const float LargestRadius = 6f;
+
+        /// <summary>Hurts what shoots at it: a soldier, a tank, a Skimmer, a finished tower or
+        /// bay, a Mech -- not a Digger (its cutter reaches two metres), a structure without a
+        /// gun, or a tower still going up (it cannot fire until it stands).</summary>
+        public static bool FightsBack(Unit e) => e.def.Armed && e.Complete && e.Type != UnitType.Worker;
 
         public Unit NearestEnemy(Unit u, float radius)
         {
@@ -857,6 +899,30 @@ namespace StarForge.World
 
         public bool Reaches(Unit u, Vector2 p) => Reaches(u.pos, p, DrivesThroughRubble(u));
 
+        /// <summary>Whether a unit put down at <paramref name="p"/> stands on the ground the bases
+        /// share (the largest stretch of the NavMesh): judged where the ground NavMesh within
+        /// 1.5 m puts it (<paramref name="at"/>), on islands brought up to date first if a
+        /// structure has carved since.</summary>
+        public bool OnMainGround(Vector2 p, out Vector2 at)
+        {
+            if (!GroundPoint(p, out at)) return false;
+            return ReachabilityOff || Islands == null || Islands.OnMain(at, NavIslands.Ground);
+        }
+
+        /// <summary>The ground NavMesh (no Rubble) within 1.5 m of <paramref name="p"/>: where a
+        /// unit put down there stands. False, and <paramref name="at"/> = p, when there is none.</summary>
+        public bool GroundPoint(Vector2 p, out Vector2 at)
+        {
+            at = p;
+            if (!NavMesh.SamplePosition(map.Ground(p), out var hit, 1.5f, GroundAreas)) return false;
+            at = new Vector2(hit.position.x, hit.position.z);
+            return true;
+        }
+
+        /// <summary>Productions this match whose first free exit spot was off the ground the
+        /// bases share, so the unit came out elsewhere (Unit.UpdateProduction).</summary>
+        public int ExitsMovedOffPocket { get; set; }
+
         static bool DrivesThroughRubble(Unit u) => u.agent != null && u.agent.areaMask == NavMesh.AllAreas;
 
         public bool Walkable(Vector2 p, float tolerance = 0.5f)
@@ -906,6 +972,15 @@ namespace StarForge.World
                         float need = r + o.def.radius + (o.def.building || o.def.neutral ? 1f : -0.35f);
                         if ((o.pos - where).sqrMagnitude < need * need) return false;
                     }
+            // Raised since the hash was built (this tick) is not in it: two sites the AI ordered
+            // in one pass could go up on top of each other.
+            for (int i = gridCount; i < units.Count; i++)
+            {
+                var o = units[i];
+                if (o == null || o.dying) continue;
+                float need = r + o.def.radius + (o.def.building || o.def.neutral ? 1f : -0.35f);
+                if ((o.pos - where).sqrMagnitude < need * need) return false;
+            }
             return true;
         }
 
@@ -1158,7 +1233,9 @@ namespace StarForge.World
                     {
                         var e = units[i];
                         if (e == null || e.dying || e.team == 2) continue;
-                        if (e.team == p.team && !(p.purge && e.deserted)) continue;
+                        // A round fired at deserters catches them only while the punishment is on (a
+                        // mortar bomb still in the air when it is called off does not).
+                        if (e.team == p.team && !(p.purge && e.deserted && Purging(p.team))) continue;
                         float d = (e.pos - c).magnitude;
                         if (d > p.splash + e.def.radius || e.Untargetable) continue;
                         float falloff = 1f - Saturate((d - e.def.radius) / p.splash) * 0.6f;
@@ -1184,7 +1261,8 @@ namespace StarForge.World
                     else if (p.kind == 6) Blast(hitAt, p.splash * 0.8f, p.splash * 0.6f, 0.45f, 0.35f);
                     else Blast(hitAt, p.splash * 0.7f, p.splash * 0.55f, 0.35f, 0.3f);
                 }
-                else if (targetOk)
+                // A Mech's round at a deserter still in the air when the punishment ends does nothing.
+                else if (targetOk && !(p.purge && !Purging(p.team)))
                 {
                     float dmg = p.dmg * (t.Type == UnitType.Worker ? p.bonusVsWorkers : 1f) * p.ClassMul(t);
                     Damage(t, dmg, c, p.shooter);
@@ -1249,6 +1327,7 @@ namespace StarForge.World
                 if (!Unit.Live(u) || u.def.building || !u.def.Armed || u.def.Autonomous || u.deserted) continue;
                 u.order = Order.Attack;
                 u.target = target;
+                u.targetOrdered = true;
                 u.harvestNode = null;
                 u.MoveTo(target.pos);
             }
@@ -1302,6 +1381,7 @@ namespace StarForge.World
 
         public bool CmdBuild(IReadOnlyList<Unit> sel, UnitType what, Vector2 where)
         {
+            if (what < 0 || what >= UnitType.Count) return false;   // None or Count: no def to read (BugTrials.Fuzz threw here)
             var D = Defs.Get(what);
             Unit worker = null;
             foreach (var u in sel)
@@ -1333,6 +1413,7 @@ namespace StarForge.World
         public bool CmdTrain(Unit building, UnitType what)
         {
             if (!Unit.Live(building) || !building.def.building || !building.Complete) return false;
+            if (what < 0 || what >= UnitType.Count) return false;
             var D = Defs.Get(what);
             int team = building.team;
             if (D.producer != building.Type) return Refuse(team, $"{building.def.displayName} cannot train that");

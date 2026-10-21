@@ -88,6 +88,7 @@ Shader "StarForge/Water"
                 half _CausticStrength;
                 half _Smoothness;
             CBUFFER_END
+            float _SF_Shower;   // how hard it is raining now, 0..1 (FXDirector.Weather)
 
             struct Attributes { float4 positionOS : POSITION; };
 
@@ -235,15 +236,24 @@ Shader "StarForge/Water"
                 half3 nGlint = normalize(half3(slope.x * 0.45, 1.0, slope.y * 0.45));
                 half gloss = lerp(30.0, 150.0, _Smoothness) * lerp(0.35, 1.0, nearFade);
                 half spec = pow(saturate(dot(nGlint, h)), gloss) * 0.5 * shadow * lerp(0.05, 1.0, closeFade * closeFade);
+                // Rain roughens the lake: the glint breaks up and the surface goes duller
+                // and paler (rings are drawn only near the camera, FXDirector.Weather).
+                spec *= 1.0 - 0.75 * _SF_Shower;
                 half3 col = under * (1.0 - fresnel) + refl * fresnel + spec * L.color;
+                col = lerp(col, col * 0.88 + 0.035, 0.4 * _SF_Shower);
 
                 // Foam: crests on depth contours rolling in to the shore, and lace
                 // lapping at the waterline, opening and closing with the swell.
                 half breakup = ValueNoise(wp.xz * 0.11 + warp * 3.0 + float2(time * 0.05, 0.0));
                 float roll = depth * 1.8 - time * 0.16 + (warp.x + warp.y) * 1.2;
-                half crest = pow(saturate(1.0 - frac(roll)), 12.0);
+                // A soft front and a long back. As pow(1 - frac(roll), 12) the crest jumped
+                // from nothing to full where the fraction wrapped, so every crest was a
+                // crisp contour line; and kept at a third zoomed out, the lines aliased
+                // into outlines across the lake (gallery 6_overview). Gone by 140 m.
+                half s = frac(roll);
+                half crest = saturate(2.5 * smoothstep(0.0, 0.12, s) * pow(1.0 - s, 8.0));
                 half waves = crest * smoothstep(0.35, 0.7, breakup) * pow(shallow, 1.5) * _ShoreWaves
-                           * lerp(0.35, 1.0, closeFade);
+                           * closeFade;
                 half lace = ValueNoise(wp.xz * 1.9 + float2(time * 0.13, -time * 0.09)) * 0.6
                           + ValueNoise(wp.xz * 4.3 - float2(time * 0.07, time * 0.11)) * 0.4;
                 half lap = 0.5 + 0.5 * sin(time * 0.8 + breakup * 6.0);

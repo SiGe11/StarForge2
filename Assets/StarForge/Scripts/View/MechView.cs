@@ -87,6 +87,8 @@ namespace StarForge.View
         Color teamLight;
         Quaternion bannerRest;
         float bannerPitch, bannerVel, bannerRoll;
+        MechBannerCloth bannerCloth;
+        int clothResets;
 
         static readonly int FlashId = Shader.PropertyToID("_FlashColor");
         static readonly int DamageId = Shader.PropertyToID("_Damage");
@@ -106,6 +108,10 @@ namespace StarForge.View
 
         void OnEnable() => Active.Add(this);
         void OnDisable() => Active.Remove(this);
+        void OnDestroy() { if (bannerCloth != null) bannerCloth.Destroy(); }
+
+        /// <summary>The cloth standard (null before the Mech is built, after it dies, or on a frame with no banner).</summary>
+        public MechBannerCloth BannerCloth => bannerCloth;
 
         /// <summary>World position of a named point on the frame (a stack, the reactor, the cockpit).</summary>
         public Vector3 FramePoint(string name, Vector3 fallback)
@@ -174,6 +180,8 @@ namespace StarForge.View
             glowLight.intensity = 0f;
             teamLight = unit.team == 0 ? new Color(0.45f, 0.75f, 1f) : new Color(1f, 0.55f, 0.35f);
             glowLight.color = teamLight;
+            // The standard is real cloth where the model's rigid one hangs (that one is the fallback).
+            bannerCloth = MechBannerCloth.Make(banner, unit.team, unit.id);
             renderers = GetComponentsInChildren<Renderer>(true);
             mpb = new MaterialPropertyBlock();
             lastPos = transform.position;
@@ -318,6 +326,8 @@ namespace StarForge.View
             if (unit.dying)
             {
                 handedOff = true;
+                // The wreck keeps the rigid banner: the cloth would go on swinging on a dead hull.
+                if (bannerCloth != null) { bannerCloth.Destroy(); bannerCloth = null; if (banner != null) banner.gameObject.SetActive(true); }
                 if (shown) MechWreck.Create(this, unit, body, legsRoot, torso, velocity);
                 return;
             }
@@ -331,6 +341,7 @@ namespace StarForge.View
             {
                 shown = visible;
                 foreach (var r in renderers) if (r != null) r.enabled = visible;
+                if (visible && bannerCloth != null) bannerCloth.Resume();
             }
 
             if (guns.Count < core.guns.Count) { SyncGuns(); renderers = GetComponentsInChildren<Renderer>(true); if (!shown) foreach (var r in renderers) r.enabled = false; }
@@ -396,6 +407,14 @@ namespace StarForge.View
         void Banner(float dt)
         {
             if (banner == null) return;
+            // Cloth when it can run (it cannot above 3.5x time); this spring is the fallback.
+            if (bannerCloth != null)
+            {
+                bool onShow = bannerCloth.Tick(StarForge.World.Wind.At(Time.time));
+                if (bannerCloth.Resets != clothResets) { clothResets = bannerCloth.Resets; renderers = GetComponentsInChildren<Renderer>(true); }
+                if (banner.gameObject.activeSelf == onShow) banner.gameObject.SetActive(!onShow);
+                if (onShow) return;
+            }
             Vector3 lv = torso.InverseTransformDirection(velocity);
             var wind = StarForge.World.Wind.At(Time.time);
             Vector3 wl = torso.InverseTransformDirection(new Vector3(wind.x, 0f, wind.y));

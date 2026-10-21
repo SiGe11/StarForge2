@@ -390,66 +390,125 @@ namespace StarForge.EditorTools
     {
         public readonly System.Text.StringBuilder log = new System.Text.StringBuilder();
         public bool done;
-        public static uint[] Seeds = { 11, 22, 33, 44, 55, 66, 77, 88, 99, 111, 122, 133 };
+        static readonly uint[] AllSeeds = { 11, 22, 33, 44, 55, 66, 77, 88, 99, 111, 122, 133 };
+        static readonly uint[] FirstSix = { 11, 22, 33, 44, 55, 66 }, LastSix = { 77, 88, 99, 111, 122, 133 };
+        public static uint[] Seeds = AllSeeds;
+        /// <summary>The duel running now: a replaced one's OnDestroy must not undo what the new one set.</summary>
+        static MechDuel current;
+        bool failed;
         public static int Upgrades;   // levels of every upgrade line the Mech has (0 = base)
 
         public static string Run()
         {
             if (!UnityEditor.EditorApplication.isPlaying) return "not playing";
             var old = UnityEngine.Object.FindAnyObjectByType<MechDuel>();
-            if (old != null) UnityEngine.Object.Destroy(old.gameObject);
+            // Stopped now, not at the end of the frame: one more step could reach its end and
+            // reset the switches the new run's Launch has just set.
+            if (old != null) { old.StopAllCoroutines(); UnityEngine.Object.Destroy(old.gameObject); }
             new UnityEngine.GameObject("MechDuel").AddComponent<MechDuel>();
             return "running; call StarForge.EditorTools.MechDuel.Report";
         }
 
-        public static string RunUpgraded() { Upgrades = 2; return Run(); }
+        /// <summary>Every entry point below sets every switch: a duel replaced by another
+        /// does not reset them (the new one is current by then), and one wrapper that left
+        /// <see cref="Fresh"/> or the old balance alone once ran its numbers on the last run's.</summary>
+        static string Launch(int upgrades, uint[] seeds, bool fresh = false, bool legacy = false, int probeN = 0)
+        {
+            if (!UnityEditor.EditorApplication.isPlaying) return "not playing";
+            Upgrades = upgrades; Seeds = seeds; Fresh = fresh; ProbeN = probeN;
+            StarForge.World.MechCore.LegacyBalance = legacy;
+            return Run();
+        }
+
+        public static string RunUpgraded() => Launch(2, AllSeeds);
         /// <summary>Two levels of every upgrade, on the first six designs only.</summary>
-        public static string RunUpgradedQuick() { Upgrades = 2; Seeds = new uint[] { 11, 22, 33, 44, 55, 66 }; return Run(); }
-        public static string RunBase() { Upgrades = 0; return Run(); }
+        public static string RunUpgradedQuick() => Launch(2, FirstSix);
+        public static string RunBase() => Launch(0, AllSeeds);
         /// <summary>The bare Mech, and one with every upgrade line at its top (what the
         /// opponent has by mid-match), on the first six designs only.</summary>
-        public static string RunBaseQuick() { Upgrades = 0; Seeds = new uint[] { 11, 22, 33, 44, 55, 66 }; return Run(); }
-        public static string RunFullQuick() { Upgrades = 3; Seeds = new uint[] { 11, 22, 33, 44, 55, 66 }; return Run(); }
+        public static string RunBaseQuick() => Launch(0, FirstSix);
+        public static string RunFullQuick() => Launch(3, FirstSix);
         /// <summary>The same, with every fight on a freshly loaded map (fought one after another on
         /// one site, the burnt grass, craters and felled trees of the earlier fights skewed the
         /// later ones: 85 Troopers that killed an upgraded Mech in 15 s alone "lost" to it in a
         /// series), and with the balance before this round (<see cref="StarForge.World.MechCore.LegacyBalance"/>,
         /// two extra hardpoints) or after it.</summary>
         public static bool Fresh;
-        public static string RunFullFreshOld() { Fresh = true; StarForge.World.MechCore.LegacyBalance = true; return RunFullQuick(); }
-        public static string RunFullFreshNew() { Fresh = true; StarForge.World.MechCore.LegacyBalance = false; return RunFullQuick(); }
-        public static string RunBaseFreshOld() { Fresh = true; StarForge.World.MechCore.LegacyBalance = true; return RunBaseQuick(); }
-        public static string RunBaseFreshNew() { Fresh = true; StarForge.World.MechCore.LegacyBalance = false; return RunBaseQuick(); }
+        public static string RunFullFreshOld() => Launch(3, FirstSix, fresh: true, legacy: true);
+        public static string RunFullFreshNew() => Launch(3, FirstSix, fresh: true);
+        public static string RunBaseFreshOld() => Launch(0, FirstSix, fresh: true, legacy: true);
+        public static string RunBaseFreshNew() => Launch(0, FirstSix, fresh: true);
+        /// <summary>The other six designs, bare, on the new rules: with RunBaseFreshNew, all twelve.</summary>
+        public static string RunBaseFreshNewLastSix() => Launch(0, LastSix, fresh: true);
         /// <summary>One fight per design, logged every ten seconds: how many of the enemy are
         /// alive, have the Mech in reach and are firing on it, and the Mech's hull -- to tell a
         /// crowd that cannot get at the Mech from one that cannot hurt it.</summary>
         public static int ProbeN;
         public static StarForge.Sim.UnitType ProbeType = StarForge.Sim.UnitType.Trooper;
-        public static string ProbeTroopers85() { ProbeN = 85; ProbeType = StarForge.Sim.UnitType.Trooper; Upgrades = 3; Seeds = new uint[] { 11, 22 }; return Run(); }
+        public static string ProbeTroopers85() { ProbeType = StarForge.Sim.UnitType.Trooper; return Launch(3, new uint[] { 11, 22 }, probeN: 85); }
 
         public static string Report()
         {
             var d = UnityEngine.Object.FindAnyObjectByType<MechDuel>();
-            return d == null ? "none" : (d.done ? "DONE\n" : "running\n") + d.log;
+            return d == null ? "none" : (d.done ? (d.failed ? "FAILED\n" : "DONE\n") : "running\n") + d.log;
         }
 
         StarForge.World.GameWorld world;
         UnityEngine.Vector2 site;
 
+        void Awake() => current = this;
+
+        /// <summary>A duel cut off before its end (play stopped, the scene reloaded under it)
+        /// must not leave the next match silenced, sped up or on the old balance.</summary>
+        void OnDestroy()
+        {
+            if (current != this) return;
+            current = null;
+            if (!done) Finish();
+        }
+
+        void Finish()
+        {
+            UnityEngine.Time.timeScale = 1f;
+            StarForge.AI.Commander.Suspended = false;
+            StarForge.World.MechCore.LegacyBalance = false;
+            Fresh = false;
+            ProbeN = 0;
+            done = true;
+        }
+
         System.Collections.IEnumerator Start()
         {
-            DontDestroyOnLoad(gameObject);
+            // A duel that reloads the map per fight must outlive the reload; one that does not
+            // should die with the scene, not go on spawning into someone else's match.
+            if (Fresh) DontDestroyOnLoad(gameObject);
             // Always the same ground: the default map (seed 1000), and the same site on it.
+            StarForge.World.GameWorld before = null;
             if (StarForge.Game.MatchSettings.mapSeed != 1000u)
             {
                 StarForge.Game.MatchSettings.mapSeed = 1000u;
                 StarForge.Game.MatchSettings.skipMenu = false;
                 DontDestroyOnLoad(gameObject);
+                before = StarForge.World.GameWorld.Instance;
                 UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+                // Until the new scene is up, not the old one still standing (a fixed wait could
+                // take the old world when the Editor was slow).
+                float until = UnityEngine.Time.realtimeSinceStartup + 20f;
+                do yield return null;
+                while ((StarForge.Game.GameBootstrap.Instance == null || StarForge.World.GameWorld.Instance == null ||
+                        ReferenceEquals(StarForge.World.GameWorld.Instance, before)) && UnityEngine.Time.realtimeSinceStartup < until);
                 yield return new UnityEngine.WaitForSecondsRealtime(3f);
+                // Back into the scene unless it must outlive the per-fight reloads: a duel left
+                // on DontDestroyOnLoad outlived someone else's reload, holding the AI silent.
+                if (!Fresh) UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(gameObject, UnityEngine.SceneManagement.SceneManager.GetActiveScene());
             }
             var boot = StarForge.Game.GameBootstrap.Instance;
-            if (StarForge.World.GameWorld.Instance == null || !StarForge.World.GameWorld.Instance.running)
+            if (boot == null || StarForge.World.GameWorld.Instance == null || ((object)before != null && ReferenceEquals(StarForge.World.GameWorld.Instance, before)))
+            {
+                log.AppendLine("the scene never came up; stopping");
+                failed = true; Finish(); yield break;
+            }
+            if (!StarForge.World.GameWorld.Instance.running)
             {
                 StarForge.Game.MatchSettings.aiMemory = false;
                 StarForge.Game.MatchSettings.spectate = true;
@@ -485,7 +544,8 @@ namespace StarForge.EditorTools
                 float score = -(hi - lo);
                 if (score > bestScore) { bestScore = score; site = p; }
             }
-            log.AppendLine($"site {site} relief {-bestScore:0.0} m, upgrades {Upgrades}");
+            log.AppendLine($"site {site} relief {-bestScore:0.0} m, upgrades {Upgrades}, {Seeds.Length} designs{(ProbeN > 0 ? $", probe of {ProbeN}" : "")}, {(Fresh ? "a fresh map per fight" : "one site")}, " +
+                           $"{(StarForge.World.MechCore.LegacyBalance ? "the old balance" : "the new balance")}");
             UnityEngine.Time.timeScale = 6f;
 
             if (ProbeN > 0)
@@ -496,12 +556,10 @@ namespace StarForge.EditorTools
                     log.AppendLine($"{design}");
                     bool mechWon = false; float left = 0f, secs = 0f; int killed = 0;
                     yield return Fight(design, ProbeType, ProbeN, (w, l, s, k) => { mechWon = w; left = l; secs = s; killed = k; });
+                    if (failed) { Finish(); yield break; }
                     log.AppendLine($"   {ProbeN} {ProbeType}: {(mechWon ? $"Mech won at {left * 100f:0}%" : "Mech destroyed")} after {secs:0} s, {killed} of them killed");
                 }
-                ProbeN = 0;
-                UnityEngine.Time.timeScale = 1f;
-                StarForge.AI.Commander.Suspended = false;
-                done = true;
+                Finish();
                 yield break;
             }
 
@@ -519,17 +577,14 @@ namespace StarForge.EditorTools
                         int n = (lo + hi) / 2;
                         bool mechWon = false; float left = 0f, secs = 0f; int killed = 0;
                         yield return Fight(design, type, n, (w, l, s, k) => { mechWon = w; left = l; secs = s; killed = k; });
+                        if (failed) { Finish(); yield break; }
                         trace += $" {n}:{(mechWon ? $"M({left * 100f:0}%)" : $"U({killed})")}";
                         if (mechWon) lo = n; else hi = n;
                     }
                     log.AppendLine($"   vs {type}: break-even ~{(lo + hi) / 2} ({trace.Trim()})");
                 }
             }
-            UnityEngine.Time.timeScale = 1f;
-            StarForge.AI.Commander.Suspended = false;
-            StarForge.World.MechCore.LegacyBalance = false;
-            Fresh = false;
-            done = true;
+            Finish();
         }
 
         System.Collections.IEnumerator Fight(StarForge.World.MechDesign design, StarForge.Sim.UnitType type, int n, System.Action<bool, float, float, int> result)
@@ -538,10 +593,26 @@ namespace StarForge.EditorTools
             {
                 // A clean field: the same map, reloaded.
                 UnityEngine.Time.timeScale = 1f;
+                var oldWorld = world;
                 UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
-                yield return new UnityEngine.WaitForSecondsRealtime(2.5f);
+                yield return null;
+                // Until the new scene is up (a fixed wait failed when the Editor was slow), and
+                // not the old one, still standing if the load has not been applied yet.
+                float until = UnityEngine.Time.realtimeSinceStartup + 20f;
+                while ((StarForge.Game.GameBootstrap.Instance == null || StarForge.World.GameWorld.Instance == null ||
+                        ReferenceEquals(StarForge.World.GameWorld.Instance, oldWorld)) &&
+                       UnityEngine.Time.realtimeSinceStartup < until)
+                    yield return null;
+                yield return new UnityEngine.WaitForSecondsRealtime(0.5f);
                 var boot = StarForge.Game.GameBootstrap.Instance;
-                if (StarForge.World.GameWorld.Instance == null || !StarForge.World.GameWorld.Instance.running)
+                if (boot == null || StarForge.World.GameWorld.Instance == null || ReferenceEquals(StarForge.World.GameWorld.Instance, oldWorld))
+                {
+                    // The whole run stops (Start checks after every fight), not just this fight.
+                    log.AppendLine("   the reloaded scene never came up; stopping");
+                    failed = true;
+                    yield break;
+                }
+                if (!StarForge.World.GameWorld.Instance.running)
                 {
                     boot.StartMatch();
                     yield return new UnityEngine.WaitForSecondsRealtime(1f);
@@ -1226,7 +1297,9 @@ namespace StarForge.EditorTools
     public sealed class BayEdgeCases : UnityEngine.MonoBehaviour
     {
         public static readonly string[] Cases = { "in the enemy base", "just outside the enemy base", "in a map corner", "on a lake shore", "in a wood", "far out on a flank",
-                                                  "in the enemy base, built by a Digger", "just outside the enemy base, built by a Digger" };
+                                                  "in the enemy base, built by a Digger", "just outside the enemy base, built by a Digger",
+                                                  "in the enemy base, its Mech already down",
+                                                  "in the enemy base, its Mech already down, a tower of ours within 25 m of their base's middle" };
         /// <summary>Run only this case (-1: all).</summary>
         public static int Only = -1;
         public string report = "staging";
@@ -1235,17 +1308,38 @@ namespace StarForge.EditorTools
         {
             if (!UnityEditor.EditorApplication.isPlaying) return "not playing";
             var old = UnityEngine.Object.FindAnyObjectByType<BayEdgeCases>();
-            if (old != null) UnityEngine.Object.Destroy(old.gameObject);
+            if (old != null) { old.StopAllCoroutines(); UnityEngine.Object.Destroy(old.gameObject); }
             new UnityEngine.GameObject("BayEdgeCases").AddComponent<BayEdgeCases>();
             return "running; call StarForge.EditorTools.BayEdgeCases.Report";
         }
 
+        /// <summary>Every entry point below sets every switch, so an A/B run never inherits the
+        /// last one's (a replaced run's OnDestroy does not reset them: the new one is current).</summary>
+        static string Launch(int only, bool ignoreSites = false, bool gateInBase = false)
+        {
+            if (!UnityEditor.EditorApplication.isPlaying) return "not playing";
+            Only = only;
+            StarForge.AI.Commander.IgnoreSites = ignoreSites;
+            StarForge.AI.Commander.MechGateInBase = gateInBase;
+            return Run();
+        }
+
+        public static string RunAll() => Launch(-1);
         /// <summary>The Digger-built case alone, with the Commander answering a structure
         /// going up in its base (<c>On</c>) or leaving it to the rule for finished ones.</summary>
-        public static string RunDiggerOn() { Only = 6; StarForge.AI.Commander.IgnoreSites = false; return Run(); }
-        public static string RunDiggerOff() { Only = 6; StarForge.AI.Commander.IgnoreSites = true; return Run(); }
-        public static string RunOutsideOn() { Only = 7; StarForge.AI.Commander.IgnoreSites = false; return Run(); }
-        public static string RunOutsideOff() { Only = 7; StarForge.AI.Commander.IgnoreSites = true; return Run(); }
+        public static string RunDiggerOn() => Launch(6);
+        public static string RunDiggerOff() => Launch(6, ignoreSites: true);
+        public static string RunOutsideOn() => Launch(7);
+        public static string RunOutsideOff() => Launch(7, ignoreSites: true);
+        /// <summary>Case 8 with the Commander's rule for a structure inside its own base (fight
+        /// their Mech there with what it has) or with the gate that holds the army back.</summary>
+        public static string RunInBaseMech() => Launch(8);
+        public static string RunInBaseMechGated() => Launch(8, gateInBase: true);
+        /// <summary>Case 9, the same A/B with a Sentinel of ours within 25 m of their base's
+        /// middle, where the rule applies: by 240 s no bay fits that close (Foundry, ore, six
+        /// Bunkhouses, three Garrisons, their bay and four towers), so case 8's lands 34 m out.</summary>
+        public static string RunNearMech() => Launch(9);
+        public static string RunNearMechGated() => Launch(9, gateInBase: true);
 
         public static string Report()
         {
@@ -1254,10 +1348,26 @@ namespace StarForge.EditorTools
         }
 
         readonly System.Text.StringBuilder log = new System.Text.StringBuilder();
+        static BayEdgeCases current;
+        bool finished, failed;
+
+        void Awake() => current = this;
+
+        /// <summary>A run cut off before its end leaves no A/B switch on for the next match.</summary>
+        void OnDestroy()
+        {
+            if (current != this) return;
+            current = null;
+            if (finished) return;
+            UnityEngine.Time.timeScale = 1f;
+            StarForge.AI.Commander.IgnoreSites = false;
+            StarForge.AI.Commander.MechGateInBase = false;
+        }
 
         System.Collections.IEnumerator Start()
         {
             DontDestroyOnLoad(gameObject);
+            log.AppendLine($"switches: Only {Only}, IgnoreSites {StarForge.AI.Commander.IgnoreSites}, MechGateInBase {StarForge.AI.Commander.MechGateInBase}");
             for (int c = 0; c < Cases.Length; c++)
             {
                 if (Only >= 0 && c != Only) continue;
@@ -1270,24 +1380,43 @@ namespace StarForge.EditorTools
                 StarForge.Game.MatchSettings.aiMemory = false;
                 StarForge.Game.MatchSettings.difficulty = StarForge.AI.AIDifficulty.Commander;
                 UnityEngine.Time.timeScale = 1f;
+                var before = StarForge.World.GameWorld.Instance;
                 UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+                // Until the new scene is up, not the old one still standing (a fixed wait could
+                // take the old world when the Editor was slow); then its usual settling time.
+                float until = UnityEngine.Time.realtimeSinceStartup + 20f;
+                do yield return null;
+                while ((StarForge.Game.GameBootstrap.Instance == null || StarForge.World.GameWorld.Instance == null ||
+                        ReferenceEquals(StarForge.World.GameWorld.Instance, before)) && UnityEngine.Time.realtimeSinceStartup < until);
                 yield return new UnityEngine.WaitForSecondsRealtime(3f);
                 var boot = StarForge.Game.GameBootstrap.Instance;
                 var world = StarForge.World.GameWorld.Instance;
-                if (world == null || !world.running) { boot.StartMatch(); yield return new UnityEngine.WaitForSecondsRealtime(1.5f); world = StarForge.World.GameWorld.Instance; }
+                if (boot == null || world == null || ReferenceEquals(world, before))
+                {
+                    log.AppendLine($"case {c}: the reloaded scene never came up; stopping");
+                    failed = true;
+                    break;
+                }
+                if (!world.running) { boot.StartMatch(); yield return new UnityEngine.WaitForSecondsRealtime(1.5f); world = StarForge.World.GameWorld.Instance; }
                 StarForge.AI.Commander.Suspended = false;
                 UnityEngine.Time.timeScale = 8f;
-                // The Digger-built case comes later, when they have an army to answer it with.
-                while (world.time < (c >= 6 ? 90f : 30f)) yield return null;
+                // The Digger-built cases come later, when they have an army to answer it with;
+                // cases 8 and 9 later still, with an army big enough that holding it back is a choice.
+                // (A world reloaded under the run, or a match decided first, would freeze its clock.)
+                while (world.time < (c == 6 || c == 7 ? 90f : c >= 8 ? 240f : 30f) && world.winner < 0 && ReferenceEquals(StarForge.World.GameWorld.Instance, world))
+                    yield return null;
+                if (!ReferenceEquals(StarForge.World.GameWorld.Instance, world)) { log.AppendLine($"case {c}: the scene was reloaded under the run; stopping"); failed = true; break; }
+                if (world.winner >= 0) { log.AppendLine($"case {c} ({Cases[c]}): the match was decided at {world.time:0} s, before the bay went up"); continue; }
 
                 var spot = SpotFor(world, c);
                 if (spot == null) { log.AppendLine($"case {c} ({Cases[c]}): no buildable spot found"); continue; }
                 var F0 = world.factions[0];
                 // The side's own AI may have raised a bay already: this case replaces it.
                 if (StarForge.World.Unit.Live(F0.bay)) { world.units.Remove(F0.bay); UnityEngine.Object.Destroy(F0.bay.gameObject); }
-                StarForge.World.Unit bay, digger = null;
+                StarForge.World.Unit bay, digger = null, tower = null;
+                float towerFrom = -1f;
                 float walked = 0f;
-                if (c >= 6)
+                if (c == 6 || c == 7)
                 {
                     // As a player would: walk a Digger over, and place the bay once it is there
                     // (a site placed from afar goes up at once and is shot down before it arrives).
@@ -1296,7 +1425,8 @@ namespace StarForge.EditorTools
                         if (u != null && !u.dying && u.team == 0 && u.Type == StarForge.Sim.UnitType.Worker && u.order != StarForge.Sim.Order.Build) { digger = u; break; }
                     float setOff = world.time;
                     // Its own Commander would put an idle Digger back to work: keep it walking.
-                    while (digger != null && StarForge.World.Unit.Live(digger) && (digger.pos - spot.Value).magnitude > 7f && world.time < setOff + 120f)
+                    while (digger != null && StarForge.World.Unit.Live(digger) && (digger.pos - spot.Value).magnitude > 7f && world.time < setOff + 120f &&
+                           world.winner < 0 && ReferenceEquals(StarForge.World.GameWorld.Instance, world))
                     {
                         F0.bayPlaced = true;   // nor may that Commander raise its own meanwhile
                         if (digger.order != StarForge.Sim.Order.Move || (digger.orderPos - spot.Value).magnitude > 1f)
@@ -1308,6 +1438,8 @@ namespace StarForge.EditorTools
                         yield return null;
                     }
                     walked = world.time - setOff;
+                    if (!ReferenceEquals(StarForge.World.GameWorld.Instance, world)) { log.AppendLine($"case {c}: the scene was reloaded under the run; stopping"); failed = true; break; }
+                    if (world.winner >= 0) { log.AppendLine($"case {c} ({Cases[c]}): the match was decided at {world.time:0} s, while the Digger walked in"); continue; }
                     F0.bayPlaced = false;
                     F0.ore += StarForge.Sim.Defs.Get(StarForge.Sim.UnitType.MechBay).cost;
                     if (digger == null || !StarForge.World.Unit.Live(digger) || !world.CmdBuild(new[] { digger }, StarForge.Sim.UnitType.MechBay, spot.Value))
@@ -1319,9 +1451,27 @@ namespace StarForge.EditorTools
                 }
                 else
                 {
+                    if (c >= 8 && (F0.mechInbound || F0.mechDropped || F0.mechLost))
+                    {
+                        // By 240 s their own side's Mech may be coming, down at its home bay, or
+                        // lost with that bay: this case is one landing beside the new bay.
+                        log.AppendLine($"case {c}: team 0's own Mech was {(F0.mechDropped ? "down" : F0.mechInbound ? "inbound" : "lost with its bay")}; cleared so one lands at this bay");
+                        if (StarForge.World.Unit.Live(F0.mech)) { world.units.Remove(F0.mech); UnityEngine.Object.Destroy(F0.mech.gameObject); }
+                        F0.mech = null; F0.mechDropped = false; F0.mechInbound = false; F0.mechLost = false;
+                    }
                     bay = world.Spawn(StarForge.Sim.UnitType.MechBay, 0, spot.Value, true, 0f);
                     F0.bayPlaced = true; F0.bay = bay; F0.bayLost = false;
-                    F0.mechDropAt = world.time + StarForge.World.GameWorld.MechDropDelay;
+                    if (c == 9)
+                    {
+                        // A tower of ours inside 25 m, between their middle and the bay, so their Mech
+                        // stands within 40 m of a structure the Commander counts as in its base.
+                        var home1 = world.Map.StartPos(1);
+                        var at = SpotWithin(world, home1 + (spot.Value - home1).normalized * 16f, home1, 22f, StarForge.Sim.UnitType.Sentinel);
+                        if (at == null) log.AppendLine($"case {c}: no room for the tower within 22 m; the case runs as case 8");
+                        else { tower = world.Spawn(StarForge.Sim.UnitType.Sentinel, 0, at.Value, true, 0f); towerFrom = (at.Value - home1).magnitude; }
+                    }
+                    // Cases 8 and 9: the Mech comes down at once, beside the bay in their base.
+                    F0.mechDropAt = world.time + (c >= 8 ? 3f : StarForge.World.GameWorld.MechDropDelay);
                 }
                 // What of theirs died round it while it stood, and when it was finished.
                 int theirWorkersLost = 0, theirArmyLost = 0;
@@ -1337,7 +1487,7 @@ namespace StarForge.EditorTools
 
                 var enemyBase = world.Map.StartPos(1);
                 float placedAt = world.time, bayDiedAt = -1f, nearestFoe = 1e9f, lastBayHp = bay.hp;
-                float mechLandedAt = -1f, mechDiedAt = -1f, dropDist = -1f, dropDepth = 0f, maxDistFromBay = 0f;
+                float mechLandedAt = -1f, mechDiedAt = -1f, dropDist = -1f, dropDepth = 0f, maxDistFromBay = 0f, towerDiedAt = -1f;
                 bool dropWalkable = true;
                 // A trip is a new docking after ten seconds away from the gantry (repairing,
                 // withdrawing to it or fighting beside it); flicking between those is not one.
@@ -1348,7 +1498,7 @@ namespace StarForge.EditorTools
                 string lastWhy = null; float lastHp = 0f; UnityEngine.Vector2 lastPos = default;
                 int exceptionsBefore = ExceptionCount();
                 float lastT = world.time;
-                while (world.time < placedAt + 420f && world.winner < 0)
+                while (world.time < placedAt + 420f && world.winner < 0 && ReferenceEquals(StarForge.World.GameWorld.Instance, world))
                 {
                     yield return null;
                     float dt = world.time - lastT; lastT = world.time;
@@ -1366,6 +1516,8 @@ namespace StarForge.EditorTools
                         lastBayHp = bay.hp;
                     }
                     else if (bayDiedAt < 0f) bayDiedAt = world.time;
+                    // (object): a destroyed tower reads == null to Unity, and its line would vanish.
+                    if ((object)tower != null && towerDiedAt < 0f && !StarForge.World.Unit.Live(tower)) towerDiedAt = world.time;
                     var m = world.MechOf(0);
                     if (m != null && m.mech.Landed)
                     {
@@ -1406,6 +1558,7 @@ namespace StarForge.EditorTools
                     else if (F0.mechDropped && mechDiedAt < 0f && F0.mechLost) mechDiedAt = world.time;
                 }
                 world.Event -= onEvent;
+                if (!ReferenceEquals(StarForge.World.GameWorld.Instance, world)) { log.AppendLine($"case {c}: the scene was reloaded under the run; stopping"); failed = true; break; }
                 var list = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, float>>(intents);
                 list.Sort((a, b) => b.Value.CompareTo(a.Value));
                 float total = 0f; foreach (var kv in list) total += kv.Value;
@@ -1415,7 +1568,10 @@ namespace StarForge.EditorTools
                 log.AppendLine($"case {c} ({Cases[c]}): bay at ({spot.Value.x:0},{spot.Value.y:0}), {(spot.Value - enemyBase).magnitude:0} m from their base; " +
                                (bayDiedAt >= 0f ? $"bay destroyed {bayDiedAt - placedAt:0} s after it went up" : $"bay standing at the end ({lastBayHp:0} hp)") +
                                $"; their nearest armed unit came to {nearestFoe:0} m of it; they lost {theirWorkersLost} Diggers and {theirArmyLost} fighting units round it while it stood");
-                if (c >= 6)
+                if ((object)tower != null)
+                    log.AppendLine($"   tower {towerFrom:0} m from their base's middle: " +
+                                   (towerDiedAt >= 0f ? $"destroyed {towerDiedAt - placedAt:0} s after it went up" : "standing at the end"));
+                if (c == 6 || c == 7)
                     log.AppendLine($"   built: walked in {walked:0} s; Digger {(diggerArrivedAt >= 0f ? $"at work {diggerArrivedAt - placedAt:0} s after the order" : "never started")}" +
                                    $"{(diggerDiedAt >= 0f ? $", died {diggerDiedAt - placedAt:0} s after it" : "")}; " +
                                    (completeAt >= 0f ? $"finished {completeAt - placedAt:0} s after the order" : "never finished") +
@@ -1428,12 +1584,16 @@ namespace StarForge.EditorTools
                 if (mechDiedAt >= 0f) log.AppendLine($"   before it fell: {string.Join(" | ", trail)}");
                 if (ai1 != null && ai1.Dbg.guns.Length > 0)
                     log.AppendLine($"   their Diggers: {ai1.Dbg.guns}; moved to safe ore {ai1.Dbg.diggersMoved}, stood clear {ai1.Dbg.diggersCleared}");
+                if (c >= 8 && ai1 != null)
+                    log.AppendLine($"   their in-base rule decided {ai1.Dbg.inBaseMechSplit} readings (their Mech by a structure within 25 m, an army past the plain gate but short of MechNeed)");
                 log.AppendLine($"   their AI: {(ai1 != null ? ai1.Dbg.wave : "?")}; winner {world.winner}{(world.winner >= 0 ? $" at {world.time:0} s" : "")}; " +
                                $"armies at the end {ArmyOf(world, 0):0} v {ArmyOf(world, 1):0}, Diggers {WorkersOf(world, 0)} v {WorkersOf(world, 1)}; exceptions {ExceptionCount() - exceptionsBefore}");
             }
             UnityEngine.Time.timeScale = 1f;
             StarForge.AI.Commander.IgnoreSites = false;
-            report = "done\n" + log;
+            StarForge.AI.Commander.MechGateInBase = false;
+            report = (failed ? "FAILED\n" : "done\n") + log;
+            finished = true;
         }
 
         static float ArmyOf(StarForge.World.GameWorld world, int team)
@@ -1488,7 +1648,7 @@ namespace StarForge.EditorTools
             UnityEngine.Vector2 want;
             switch (c)
             {
-                case 0: case 6: want = theirs + (centre - theirs).normalized * 12f; break;
+                case 0: case 6: case 8: case 9: want = theirs + (centre - theirs).normalized * 12f; break;
                 case 1: case 7: want = theirs + (centre - theirs).normalized * 45f; break;
                 case 2:
                 {
@@ -1551,6 +1711,20 @@ namespace StarForge.EditorTools
                     var p = want + new UnityEngine.Vector2(UnityEngine.Mathf.Cos(a * 0.3927f), UnityEngine.Mathf.Sin(a * 0.3927f)) * r;
                     if (map.InBounds(p, 8f) && world.CanPlace(StarForge.Sim.UnitType.MechBay, p)) return p;
                     if (r == 0f) break;
+                }
+            return null;
+        }
+
+        /// <summary>Case 9: the nearest spot to <paramref name="want"/>, within <paramref name="within"/> m
+        /// of their base's middle, where a player could place <paramref name="what"/>
+        /// (<c>CanPlace</c>). By 240 s a Mech Bay fits nowhere inside 25 m; a Sentinel does.</summary>
+        static UnityEngine.Vector2? SpotWithin(StarForge.World.GameWorld world, UnityEngine.Vector2 want, UnityEngine.Vector2 home, float within, StarForge.Sim.UnitType what)
+        {
+            for (float d = 0f; d < 30f; d += 1.5f)
+                for (int a = 0, n = d == 0f ? 1 : 24; a < n; a++)
+                {
+                    var p = want + new UnityEngine.Vector2(UnityEngine.Mathf.Cos(a * 0.2618f), UnityEngine.Mathf.Sin(a * 0.2618f)) * d;
+                    if ((p - home).magnitude <= within && world.CanPlace(what, p)) return p;
                 }
             return null;
         }

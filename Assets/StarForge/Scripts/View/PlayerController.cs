@@ -204,7 +204,9 @@ namespace StarForge.View
             // Testing cheat, documented only in the README: Ctrl (or Cmd) + Shift + M.
             if (ctrl && shift && kb.mKey.wasPressedThisFrame) world.CheatOre(team, 5000);
 
-            if (!CanCommand || ctrl) return;
+            // The card's hotkeys act only on a key pressed this frame: built every frame to look,
+            // the card cost 200-500 B of garbage a frame (BugTrials.CardAlloc).
+            if (!CanCommand || ctrl || !kb.anyKey.wasPressedThisFrame) return;
             var cards = new List<CardAction>(12);
             BuildCard(cards);
             foreach (var c in cards)
@@ -512,9 +514,9 @@ namespace StarForge.View
                 int lvl = F.upgrades[i];
                 int cost = world.UpgradeCost(team, up);
                 string body = info.blurb;
-                if (up == MechUpgrade.Hardpoint && design != null && !F.designChosen && lvl < 2)
+                if (up == MechUpgrade.Hardpoint && design != null && !F.designChosen && lvl < info.levels)
                     body += "\nNext: a weapon the pilot's order picks with the rest of the Mech's parts, at the drop.";
-                else if (up == MechUpgrade.Hardpoint && design != null && lvl < design.reserve.Count)
+                else if (up == MechUpgrade.Hardpoint && design != null && lvl < info.levels && lvl < design.reserve.Count)
                     body += $"\nNext: a {MechParts.Weapon(design.reserve[lvl]).name} -- {MechParts.Weapon(design.reserve[lvl]).blurb}";
                 string state = F.mechLost ? "\nThe Mech is lost." : cost < 0 ? "\nComplete." : F.researching >= 0 ? "\nThe bay is busy with another upgrade." : "";
                 into.Add(new CardAction

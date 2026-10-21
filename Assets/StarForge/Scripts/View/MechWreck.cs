@@ -48,7 +48,9 @@ namespace StarForge.View
         void Build(MechView view, Unit unit, Transform body, Transform legs, Transform torso, Vector3 vel)
         {
             team = unit.team;
-            heavyMat ??= new PhysicsMaterial("Wreck Mech") { staticFriction = 0.9f, dynamicFriction = 0.7f, bounciness = 0.05f, frictionCombine = PhysicsMaterialCombine.Average, bounceCombine = PhysicsMaterialCombine.Minimum };
+            // Unity's null check, not ??= (as UnitWreck and DebrisBurst): the static outlives a play
+            // session while its native material does not, and the second session's wrecks had none.
+            if (heavyMat == null) heavyMat = new PhysicsMaterial("Wreck Mech") { staticFriction = 0.9f, dynamicFriction = 0.7f, bounciness = 0.05f, frictionCombine = PhysicsMaterialCombine.Average, bounceCombine = PhysicsMaterialCombine.Minimum };
             var map = unit.World.Map;
             Vector3 k = new Vector3(unit.killDir.x, 0f, unit.killDir.y);
             if (k.sqrMagnitude < 1e-4f) k = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f) * Vector3.forward;

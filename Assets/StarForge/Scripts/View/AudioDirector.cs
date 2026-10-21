@@ -244,7 +244,9 @@ namespace StarForge.View
                     PlayAt(e.pos, bank.rumble, 0.6f, 0.3f);
                     break;
                 case GameEventKind.MechAdvice when e.team == me:
-                    if (bank.mechRadio != null && bank.mechRadio.Length > 0) PlayUI(bank.mechRadio[Random.Range(0, bank.mechRadio.Length)], 0.5f, 1f);
+                    // A repeat the player has already heard makes no sound; the Mech's flavour a softer one.
+                    if (!e.repeat && bank.mechRadio != null && bank.mechRadio.Length > 0)
+                        PlayUI(bank.mechRadio[Random.Range(0, bank.mechRadio.Length)], e.advice == MechAdviceKind.Morale ? 0.2f : 0.5f, 1f);
                     break;
                 case GameEventKind.UpgradeComplete when e.team == me:
                     PlayUI(bank.uiPromote != null ? bank.uiPromote : promote, 0.5f, 1f);
@@ -619,7 +621,9 @@ namespace StarForge.View
             int me = player != null ? player.team : 0;
             foreach (var u in world.units)
             {
-                if (u == null || u.dying || u.Type != UnitType.Worker || u.order != Order.Harvest || u.carrying > 0) continue;
+                // At its ore and mining (Unit.working, as FXDirector's dust): keyed on an empty
+                // load, a Digger topping up a part load mined in silence.
+                if (u == null || u.dying || u.Type != UnitType.Worker || u.order != Order.Harvest || !u.working) continue;
                 if (u.agent != null && u.agent.enabled && u.agent.velocity.sqrMagnitude > 0.3f) continue;
                 if (u.team != me && !MatchSettings.spectate && !u.visibleToPlayer) continue;
                 if (Random.value > 0.35f) continue;

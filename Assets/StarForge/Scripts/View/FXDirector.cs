@@ -121,6 +121,7 @@ namespace StarForge.View
         // of a cell a flame of fx_flame.png fills compared with the old sheet's tongue.
         const float BlastGround = 0.13f;
         static float flameW = 1f, flameH = 1f;
+        static ParticleSystem upright;   // the fire system while it plays the explosion sheet
         bool flipbooks;
         readonly Batch rings = new Batch(), scorches = new Batch(), tracks = new Batch(), bars = new Batch(), streaks = new Batch(), ripples = new Batch();
         readonly List<Scorch> scorchList = new List<Scorch>();
@@ -191,9 +192,8 @@ namespace StarForge.View
             flames = MakeFlames();
             flipbooks = IsFlipbook(fireMaterial) && IsFlipbook(flameMaterial);
             flameW = flameH = 1f;   // statics outlive a play session (no domain reload)
+            upright = null;
             if (flipbooks) MakeFlipbooks();
-            // Team banners over the Foundries, blowing in the match's wind (cloth).
-            if (GetComponent<Banners>() == null) gameObject.AddComponent<Banners>();
             smoke = MakeSystem("Smoke", smokeMaterial, 900, false, 0f, 0.45f, 1.6f, false, -0.02f);
             SmokeStreams(smoke);
             sparks = MakeSystem("Sparks", glowMaterial, 1600, false, 4f / 16f, 1f, 0.25f, true, 2.2f);
@@ -285,6 +285,7 @@ namespace StarForge.View
             if (world != null) world.Event -= OnEvent;
             if (player != null) player.OrderMarker -= OnMarker;
             UnhookMechs();
+            ClearWeather();
         }
 
         static Gradient Fade(float fadeIn, float holdUntil)
@@ -378,6 +379,11 @@ namespace StarForge.View
         {
             blast = MakeSystem("Blast", fireMaterial, 400, true, 0f, 1f, 1f, false, 0f);
             FlipbookStreams(blast);
+            var bt = blast.textureSheetAnimation;
+            bt.frameOverTime = new ParticleSystem.MinMaxCurve(63f / 64f, AnimationCurve.Linear(0f, 0f, 1f, 1f));
+            blast.GetComponent<ParticleSystemRenderer>().sortMode = ParticleSystemSortMode.Distance;
+            fire.GetComponent<ParticleSystemRenderer>().sortMode = ParticleSystemSortMode.Distance;
+            upright = fire;
             var bc = blast.colorOverLifetime;
             bc.color = new ParticleSystem.MinMaxGradient(Fade(0.01f, 0.72f));
             // Premultiplied, so order matters (additive fire never cared): the fireball and
@@ -409,8 +415,9 @@ namespace StarForge.View
             tsa.numTilesX = 8;
             tsa.numTilesY = 8;
             // Mirrored half the time: one simulation, twice the shapes.
-            tsa.flipU = 0.5f;
-            ps.GetComponent<ParticleSystemRenderer>().SetActiveVertexStreams(new List<ParticleSystemVertexStream>
+            var pr = ps.GetComponent<ParticleSystemRenderer>();
+            pr.flip = new Vector3(0.5f, 0f, 0f);
+            pr.SetActiveVertexStreams(new List<ParticleSystemVertexStream>
             {
                 ParticleSystemVertexStream.Position, ParticleSystemVertexStream.Color,
                 ParticleSystemVertexStream.UV, ParticleSystemVertexStream.UV2, ParticleSystemVertexStream.AnimBlend
@@ -551,6 +558,14 @@ namespace StarForge.View
 
         static void Emit(ParticleSystem ps, Vector3 pos, Vector3 vel, float size, float life, Color color, float rotation = 0f)
         {
+            if (ps == upright)
+            {
+                // Callers spin a fire puff anywhere (the photographed puffs were round); the
+                // sheet's column must stand up, and its fireball sits ~0.19 of the drawn
+                // size (2.4x) below the cell's middle.
+                rotation = Mathf.Repeat(rotation, 12f) - 6f;
+                pos.y += 0.45f * size;
+            }
             var ep = new ParticleSystem.EmitParams
             {
                 position = pos,
@@ -822,10 +837,20 @@ namespace StarForge.View
         {
             var veg = Plants;
             if (veg == null) return;
+            // A crown going up rolls out as a fireball; a bush, low on the ground, flares
+            // in tongues (fireballs there read as little explosions all over a grass fire).
+            bool bush = veg.KindOf(e.index).bush;
             for (int i = 0; i < 3; i++)
-                Emit(fire, CrownPoint(veg, e.index), Vector3.up * 1.5f, Random.Range(1.6f, 2.4f) * veg.plants[e.index].scale,
-                     Random.Range(0.6f, 0.9f), Color.white, Random.Range(0f, 360f));
-            Emit(glow, CrownPoint(veg, e.index), Vector3.zero, 4f, 0.3f, new Color(1f, 0.55f, 0.2f));
+            {
+                float w = Random.Range(1.6f, 2.4f) * veg.plants[e.index].scale;
+                if (bush)
+                    EmitFlame(flames, CrownPoint(veg, e.index) - Vector3.up * w * 0.3f, Vector3.up * 1.5f + Random.insideUnitSphere * 0.4f,
+                              w * 0.8f, w * 1.6f, Random.Range(0.5f, 0.8f), Color.white);
+                else
+                    Emit(fire, CrownPoint(veg, e.index), Vector3.up * 1.5f, w, Random.Range(0.6f, 0.9f), Color.white, Random.Range(0f, 360f));
+            }
+            Emit(glow, CrownPoint(veg, e.index), Vector3.zero, bush ? 2.5f : 5f, 0.3f,
+                 bush ? new Color(0.35f, 0.19f, 0.07f) : new Color(0.5f, 0.28f, 0.1f));
         }
 
         void BurningPlants(float dt)
@@ -875,12 +900,13 @@ namespace StarForge.View
                         EmitFlame(flames, veg.plants[i].pos + Random.insideUnitSphere * 0.4f + Vector3.up * 0.2f,
                                   Vector3.up * 0.6f, w, w * 1.4f, Random.Range(0.6f, 0.9f), new Color(1f, 0.85f, 0.7f));
                     }
-                    // A rolling billow of flame now and then, at the height of the blaze.
-                    if (s.fire > 0.6f && Random.value < dt * 1.5f)
-                        Emit(fire, CrownPoint(veg, i), Vector3.up * Random.Range(1.5f, 2.5f), Random.Range(2.0f, 3.0f) * size,
+                    // A rolling billow of flame now and then, at the height of the blaze
+                    // (a tree's: on a bush it reads as a small explosion).
+                    if (!k.bush && s.fire > 0.6f && Random.value < dt * 0.5f)
+                        Emit(fire, CrownPoint(veg, i), Vector3.up * Random.Range(1.5f, 2.5f), Random.Range(1.3f, 2.0f) * size,
                              Random.Range(0.6f, 0.9f), new Color(1f, 0.8f, 0.6f), Random.Range(0f, 360f));
                     if (Random.value < dt * s.fire * 3f)
-                        Emit(glow, CrownPoint(veg, i), Vector3.up * 0.5f, Random.Range(4.5f, 7f) * size, Random.Range(0.4f, 0.7f), new Color(0.95f, 0.42f, 0.12f));
+                        Emit(glow, CrownPoint(veg, i), Vector3.up * 0.5f, Random.Range(6f, 9f) * size, Random.Range(0.4f, 0.7f), new Color(0.43f, 0.19f, 0.054f));
                     // A column of smoke leaning with the wind: dark and thick while the
                     // leaves burn, thinner and greyer once only wood is left.
                     if (Random.value < dt * s.fire * 6f)
@@ -1573,8 +1599,10 @@ namespace StarForge.View
         {
             if (world == null || !world.running)
             {
-                // A match that ends mid-blast must not leave the field bent over.
+                // A match that ends mid-blast must not leave the field bent over, nor
+                // the ground wet and the sky dimmed by a shower.
                 if (gusts.Count > 0) { gusts.Clear(); UploadGusts(Time.time); }
+                ClearWeather();
                 return;
             }
             float now = Time.time;
@@ -2160,6 +2188,8 @@ namespace StarForge.View
                        new Vector3(w2.x, 0f, w2.y));
                 MechEffects(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,
                             new Vector3(w2.x, 0f, w2.y));
+                WeatherEffects(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,
+                               new Vector3(w2.x, 0f, w2.y));
             }
             foreach (var u in world.units)
             {
@@ -2377,13 +2407,14 @@ namespace StarForge.View
                 }
                 rings.Add(Matrix4x4.TRS(m.pos, Quaternion.identity, new Vector3(size, 4f, size)), c, new Vector4(3f, t, 0f, 0f));
             }
-            // Deserters' camps: a dashed pale ring round each while anyone sits in it (the
-            // enemy's only on ground the player has explored).
+            // Deserters' camps: a dashed pale ring round each while anyone sits in it.
             for (int t = 0; t < 2; t++)
             {
                 var M = world.morale[t];
                 if (!M.campSet || M.deserters.Count == 0) continue;
-                if (t != me && !MatchSettings.spectate && !world.Explored(me, M.camp)) continue;
+                // The enemy's only while the player sees it: drawn on remembered ground, the ring
+                // going out would tell them the deserters died out of sight.
+                if (t != me && !MatchSettings.spectate && !world.Visible(me, M.camp)) continue;
                 rings.Add(Matrix4x4.TRS(world.Map.Ground(M.camp), Quaternion.identity, new Vector3(15f, 6f, 15f)),
                           DeserterColor * 1.3f, new Vector4(4f, 0f, 0f, 0f));
             }

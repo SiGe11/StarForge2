@@ -28,18 +28,18 @@ namespace StarForge.View
 
         // The grid the targets were worked out from, and the targets: the grid
         // bilinearly upsampled to R x R.
-        byte[] visAt, exploredAt;
-        int[] changedCells;
-        float[] seenTarget, knownTarget;
-        bool targetsValid;
-        int targetsTeam, targetsVersion;
-        GameWorld targetsWorld;
+        [System.NonSerialized] byte[] visAt, exploredAt;
+        [System.NonSerialized] int[] changedCells;
+        [System.NonSerialized] float[] seenTarget, knownTarget;
+        [System.NonSerialized] bool targetsValid;
+        [System.NonSerialized] int targetsTeam, targetsVersion;
+        [System.NonSerialized] GameWorld targetsWorld;
 
         // Where a texel samples the grid along either axis: the two cells and the
         // weight between them. And the other way round: the texels, lo..hi, that
         // read a cell, so a changed cell resamples only those.
-        int[] tap0, tap1, texLo, texHi;
-        float[] tapW;
+        [System.NonSerialized] int[] tap0, tap1, texLo, texHi;
+        [System.NonSerialized] float[] tapW;
 
         static readonly int FogTexId = Shader.PropertyToID("_SF_FogTex");
         static readonly int ParamsId = Shader.PropertyToID("_SF_FogParams");

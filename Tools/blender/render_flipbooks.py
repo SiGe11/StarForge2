@@ -38,7 +38,9 @@ SRC = os.path.join(ROOT, "Art", "Source", "jangafx")
 # the cell), and how much of the flame grid is also smoke (a pure flame has none).
 KINDS = {
     "explosion": dict(src="GroundExplosion/ground_explosion/ground_explosion_VDB", first=4, last=112,
-                      grid=8, cell=256, density=4.0, glow="flames", smoke="density", elevation=28.0,
+                      # 384 px cells (a 3072 sheet): a building's blast spans ~18 m, and at
+                      # 256 a close camera magnified the fire's grain 4-5x into blotches.
+                      grid=8, cell=384, samples=32, density=4.0, glow="flames", smoke="density", elevation=28.0,
                       ground=0.12, albedo=0.55, flame_as_smoke=0.0),
     # Tongues of flame: a campfire's licks, 1.5 source frames apart so a particle playing
     # a stretch of the sheet moves at about the fire's own pace.
@@ -167,6 +169,7 @@ def main():
     files = frames_of(k["src"])
     first, last = k["first"], min(k["last"], len(files) - 1)
     grid, cell = k["grid"], k["cell"]
+    samples = k.get("samples", 24)
     n = grid * grid
     if preview:
         picks = list(range(0, len(files), 8))
@@ -178,6 +181,7 @@ def main():
     sc = reset_scene()
     sc.render.resolution_x = cell
     sc.render.resolution_y = cell
+    sc.cycles.samples = samples
     if preview:
         sc.cycles.samples = 16
 

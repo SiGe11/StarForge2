@@ -64,8 +64,27 @@ namespace StarForge.AI
         /// hand-authored doctrine always keeps a say.</summary>
         public static float Trust(AIMemoryData d) => Mathf.Clamp01(d.games * 0.18f) * 0.7f;
 
+        static bool Finite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
+        static bool AllFinite(float[] a) { if (a == null) return false; foreach (var v in a) if (!Finite(v)) return false; return true; }
+        static float Unit01(float v, float fallback) => Finite(v) ? Mathf.Clamp01(v) : fallback;
+
+        // A file holding NaN or Infinity (hand-edited, or written by a match whose learning had
+        // gone wrong) loaded as it was, and a NaN weight stays NaN through every update and save
+        // (Mathf.Clamp passes it): the AI's choice of plan would be broken in every match after.
         static AIMemoryData Sanitize(AIMemoryData d)
         {
+            if (!AllFinite(d.styleHistogram)) d.styleHistogram = null;
+            if (!AllFinite(d.strategySeconds)) d.strategySeconds = null;
+            if (!AllFinite(d.weights)) d.weights = null;
+            var fresh = new AIMemoryData();
+            d.aggression = Unit01(d.aggression, fresh.aggression);
+            d.expansion = Unit01(d.expansion, fresh.expansion);
+            d.defensive = Unit01(d.defensive, fresh.defensive);
+            d.harass = Unit01(d.harass, fresh.harass);
+            d.teching = Unit01(d.teching, fresh.teching);
+            if (d.games < 0) d.games = 0;
+            if (d.aiWins < 0 || d.aiWins > d.games) d.aiWins = Mathf.Clamp(d.aiWins, 0, d.games);
+            d.lastRead ??= "";
             if (d.styleHistogram == null || d.styleHistogram.Length != (int)PlayerStrat.Count)
                 d.styleHistogram = new float[(int)PlayerStrat.Count];
             if (d.strategySeconds == null || d.strategySeconds.Length != (int)Strategy.Count)

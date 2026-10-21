@@ -420,40 +420,13 @@ namespace StarForge.View
                 AddRipple(new Vector3(at.x, world.Map.waterLevel + 0.03f, at.z), 4.5f * weight, 1.6f, 0);
                 Splash(new Vector3(at.x, world.Map.waterLevel, at.z), 1.2f * weight, Vector3.zero);
             }
-            else
-            {
-                for (int i = 0; i < 7; i++)
-                {
-                    float a = (i + Random.value * 0.5f) / 7f * Mathf.PI * 2f;
-                    var d = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                    Emit(trail, at + d * 0.6f + Vector3.up * 0.2f, d * Random.Range(1.5f, 3.2f) * weight + Vector3.up * Random.Range(0.2f, 0.7f),
-                         Random.Range(1.2f, 1.9f) * (0.6f + weight * 0.5f), Random.Range(1.4f, 2.2f), new Color(0.66f, 0.6f, 0.5f, 0.32f * weight + 0.1f), Random.Range(0f, 360f));
-                }
-                if (debris != null && Random.value < 0.6f)
-                    for (int i = 0; i < 4; i++)
-                    {
-                        float g = Random.Range(0.4f, 0.7f);
-                        debris.Emit(new ParticleSystem.EmitParams
-                        {
-                            position = at + Vector3.up * 0.15f, velocity = Random.insideUnitSphere * 2.5f + Vector3.up * Random.Range(2f, 4f),
-                            startSize = Random.Range(0.04f, 0.1f), startLifetime = Random.Range(1f, 1.8f),
-                            startColor = new Color(g, g * 0.95f, g * 0.88f), rotation3D = Random.insideUnitSphere * 180f, applyShapeToPosition = false
-                        }, 1);
-                    }
-                // A footprint, lasting as long as a tank's tracks do.
-                float yaw = u.yaw * Mathf.Rad2Deg;
-                trackMarks[trackHead] = new TrackMark
-                {
-                    // A solid, soft-edged pad: with the tread's cleats (pitch 2.5) a line of
-                    // them read as the rungs of a ladder.
-                    pos = new Vector3(at.x, world.Map.HeightAt(new Vector2(at.x, at.z)), at.z), yaw = yaw, length = 1.7f, width = 1.3f,
-                    born = Time.time, band = 0f, halfBand = 0.85f, pitch = 0f
-                };
-                trackHead = (trackHead + 1) % MaxTracks;
-                trackCount = Mathf.Min(trackCount + 1, MaxTracks);
-            }
+            else GroundStrike(at, weight, u.yaw * Mathf.Rad2Deg);
             PressureWave(at, 0.28f * weight, 12f, Vector3.zero, 0f);
             ShakeFrom(at, 0.05f * weight);
+            // A foot coming down beside a body or a wreck kicks it, and knocks on the
+            // chunks of a building still tumbling (presentation only, like a blast's shove).
+            UnitWreck.Blast(at, 2.8f, 2.2f * weight);
+            DebrisBurst.Blast(at, 2.8f, 2f * weight);
         }
 
         // ------------------------------------------------------------ every frame
@@ -559,8 +532,11 @@ namespace StarForge.View
                 {
                     Vector3 fwd = v.transform.forward, right = v.transform.right;
                     float side = Random.value < 0.5f ? -1f : 1f;
-                    Emit(trail, pos + right * 1.55f * side - fwd * 2.1f + Vector3.up * 0.2f, -fwd * Random.Range(0.5f, 1.8f) + Vector3.up * Random.Range(0.4f, 1.1f),
-                         Random.Range(1.8f, 2.8f), Random.Range(1.8f, 2.8f), new Color(0.72f, 0.66f, 0.56f, 0.3f), Random.Range(0f, 360f));
+                    Vector3 runEnd = pos + right * 1.55f * side - fwd * 2.1f;
+                    var gr = GroundAt(runEnd);
+                    if (Random.value < Mathf.Clamp01(gr.dustAmount))
+                        Emit(trail, runEnd + Vector3.up * 0.2f, -fwd * Random.Range(0.5f, 1.8f) + Vector3.up * Random.Range(0.4f, 1.1f),
+                             Random.Range(1.8f, 2.8f), Random.Range(1.8f, 2.8f), new Color(gr.dust.r, gr.dust.g, gr.dust.b, 0.3f), Random.Range(0f, 360f));
                 }
 
                 // The shield flares where it is hit.

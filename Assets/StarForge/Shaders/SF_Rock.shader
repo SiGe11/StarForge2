@@ -37,6 +37,7 @@ Shader "StarForge/Rock"
             float _DustHeight;
             half _DustAmount;
         CBUFFER_END
+        float _SF_Rain;   // how wet a shower has left everything, 0..1 (FXDirector.Weather)
         ENDHLSL
 
         Pass
@@ -111,6 +112,9 @@ Shader "StarForge/Rock"
                 dust = saturate(dust * (0.7 + 0.5 * saturate(nWS.y)));
                 albedo = lerp(albedo, _DustColor.rgb, dust);
                 half smooth = _Smoothness * (1.0 - dust * 0.6);
+                // Rain: wet stone darkens and glistens.
+                albedo *= 1.0 - 0.25 * _SF_Rain;
+                smooth = lerp(smooth, 0.7, _SF_Rain * 0.75);
 
                 InputData inputData = (InputData)0;
                 inputData.positionWS = i.positionWS;

@@ -48,6 +48,7 @@ Shader "StarForge/Grass"
         // 0 unburnt, ~0.55 alight, 1 burnt out. It does not heal.
         TEXTURE2D(_SF_BurntGrass); SAMPLER(sampler_SF_BurntGrass);
         float4 _SF_BurntGrassParams;
+        float _SF_Rain;   // how wet a shower has left the ground, 0..1 (FXDirector.Weather)
         // The match's wind and the live blast pressure fronts.
         #include "SF_Wind.hlsl"
 
@@ -179,7 +180,7 @@ Shader "StarForge/Grass"
                 float3 wp = i.positionWS;
                 Light L = GetMainLight(TransformWorldToShadowCoord(wp), wp, half4(1, 1, 1, 1));
                 half h = saturate(i.albedoH.a);
-                half3 albedo = clamp(i.albedoH.rgb, 0.0, 1.0);
+                half3 albedo = clamp(i.albedoH.rgb, 0.0, 1.0) * (1.0 - 0.2 * _SF_Rain);   // wet blades go darker
                 half3 v = GetWorldSpaceNormalizeViewDir(wp);
                 half wrap = saturate(L.direction.y * 0.6 + 0.4);
                 half back = pow(saturate(dot(-v, L.direction)), 4.0) * _Translucency * h * (1.0 - i.far);

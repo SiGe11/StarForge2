@@ -93,6 +93,7 @@ Shader "StarForge/Terrain"
             float4 _SF_GroundMaskParams;   // x: 1 / map size, y: enabled (GroundMask.cs)
             TEXTURE2D(_SF_BurntGrass); SAMPLER(sampler_SF_BurntGrass);
             float4 _SF_BurntGrassParams;   // where a grass fire has been; it does not heal
+            float _SF_Rain;                // how wet a shower has left the ground, 0..1 (FXDirector.Weather)
 
             float4 _Control_TexelSize;
             half4 _Tint0, _Tint1, _Tint2, _Tint3;
@@ -272,8 +273,9 @@ Shader "StarForge/Terrain"
                 half macro = SAMPLE_TEXTURE2D(_MacroTex, sampler_MacroTex, wp.xz * _MacroScale).r;
                 albedo *= lerp(1.0, macro * 2.0, _MacroStrength) * lerp(0.86, 1.12, variation);
 
-                // Wet, darker, glossier ground just above the waterline.
-                half wet = 1.0 - smoothstep(_WaterLevel, _WaterLevel + 1.2, wp.y);
+                // Wet, darker, glossier ground just above the waterline, and everywhere
+                // after a shower (not as dark as the shore: it is damp, not soaked).
+                half wet = max(1.0 - smoothstep(_WaterLevel, _WaterLevel + 1.2, wp.y), _SF_Rain * 0.6);
                 albedo *= lerp(1.0, 0.55, wet);
                 smooth = lerp(smooth, 0.72, wet);
 

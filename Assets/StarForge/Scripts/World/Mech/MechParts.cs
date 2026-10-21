@@ -53,7 +53,8 @@ namespace StarForge.World
         public float hp, armour, radius;
         public int hardpoints;
         /// <summary>The frame's mounts in unlock order: the first <see cref="hardpoints"/>
-        /// are armed by the design, the next two by the Extra Hardpoint upgrade.</summary>
+        /// are armed by the design, the next by the Extra Hardpoint upgrade (the design keeps a
+        /// second spare, unused since the upgrade went to one level).</summary>
         public string[] mounts;
         public MountKind[] kinds;
         public float height;
@@ -116,7 +117,8 @@ namespace StarForge.World
         public MechLocomotion locomotion;
         public MechFrame frame;
         public readonly List<MechWeapon> weapons = new List<MechWeapon>(5);
-        /// <summary>Mounted by the Extra Hardpoint upgrade, first then second.</summary>
+        /// <summary>Mounted by the Extra Hardpoint upgrade: the first (it has one level; the
+        /// second is drawn but no longer mounted).</summary>
         public readonly List<MechWeapon> reserve = new List<MechWeapon>(2);
         /// <summary>Which of the frame's mounts each weapon (and each reserve weapon)
         /// sits on. A mount the budget could not arm stays empty, so a weapon's index is
@@ -172,9 +174,9 @@ namespace StarForge.World
 
         /// <summary>What a level of Ablative Armour and Weapon Overcharge adds. At 10% hull,
         /// 4 points of armour and 10% damage a level (and two extra hardpoints), a Mech with
-        /// every upgrade took 2.4 times the army a bare one did to break -- 36 Maulers or 75
-        /// Troopers against 17 and 35 (MechDuel, six designs) -- and a player's army counted
-        /// for little against it.</summary>
+        /// every upgrade (and +12% range) took 2.4 times the tanks and over twice the rifles a
+        /// bare one did to break -- 41 Maulers or 100+ Troopers against 17 and 45 (MechDuel, six
+        /// designs, a fresh map per fight) -- and a player's army counted for little against it.</summary>
         public const float ArmourHullPerLevel = 0.05f, ArmourPerLevel = 0.02f, WeaponsPerLevel = 0.05f;
 
         static readonly LocomotionPart[] locos =
@@ -291,7 +293,7 @@ namespace StarForge.World
             new UpgradeInfo { name = "Extra Hardpoint", levels = 1, cost = new[] { 350 }, time = new[] { 45f }, hotkey = 'M',
                 blurb = "Mounts one more weapon on an empty or auxiliary hardpoint." },
             new UpgradeInfo { name = "Targeting Uplink", levels = 1, cost = new[] { 200 }, time = new[] { 35f }, hotkey = 'K',
-                blurb = "+12% range and +10 m sight for every weapon." },
+                blurb = "+6% range and +10 m sight for every weapon." },
         };
 
         public static UpgradeInfo Upgrade(MechUpgrade u) => upgrades[(int)u];

@@ -117,6 +117,9 @@ namespace StarForge.AI
                 if (e.team != enemy) continue;
                 // Enemy: only if one of our units can currently see that cell.
                 if (!w.Visible(team, e.pos)) continue;
+                // Their deserters are out of the war, as ours are (the player sees their bars in the
+                // deserter colour too): remembered, a camp 40-68 m out read as their army away from home.
+                if (e.deserted) continue;
                 // Their Mech: its guns are on the outside, so seeing it is knowing what it
                 // is built to kill.
                 if (e.Type == UnitType.Mech && e.mech != null && e.mech.design != null)

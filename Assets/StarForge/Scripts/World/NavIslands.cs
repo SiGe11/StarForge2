@@ -37,6 +37,8 @@ namespace StarForge.World
 
         const float Cell = 4f;       // lookup grid
         const float Inset = 0.3f;    // how far inside its triangle a moved point is put
+        const float OffMeshSlack = 1f;   // see IslandAt
+        const float OnMeshNear = 0.6f;   // an agent's radius: a point this near a triangle stands on it
         const int MaxVerts = 32, MaxNeighbours = 64;
 
         Vector2[] corner;                          // three per triangle, on the ground plane
@@ -49,6 +51,10 @@ namespace StarForge.World
         int cols, rows;
 
         bool built, stale;
+        // Where structures and ore fields have carved since the last build: only a carve can
+        // close a pocket off (rebuilds and departures only join islands).
+        readonly List<Vector2> carvedSince = new List<Vector2>();
+        const float CarveReach = 40f;   // a carve this near a point may have closed it off
         int settleFrame;
         float nextBuild;
         readonly Func<bool> rebuilding;
@@ -74,9 +80,12 @@ namespace StarForge.World
 
         /// <summary>The NavMesh changed (or will in a moment): work the islands out
         /// again before the next answer that depends on them.</summary>
-        public void Invalidate()
+        /// <param name="carvedAt">Where a structure or ore field carves its footprint: that alone
+        /// can close a pocket off (rebuilds and departures only join islands).</param>
+        public void Invalidate(Vector2? carvedAt = null)
         {
             stale = true;
+            if (carvedAt.HasValue) carvedSince.Add(carvedAt.Value);
             settleFrame = Time.frameCount + 2;   // carving lands a frame or so later
         }
 
@@ -127,8 +136,30 @@ namespace StarForge.World
         {
             if (!Ensure()) return -1;
             int t = Containing(p, mask);
-            if (t < 0) t = Search(p, mask, -1, out _, out _);
-            return t < 0 ? -1 : island[mask][t];
+            if (t >= 0) return island[mask][t];
+            t = Search(p, mask, -1, out _, out float d2);
+            if (t < 0) return -1;
+            int l = island[mask][t];
+            if (l == main[mask] || d2 < OnMeshNear * OnMeshNear) return l;
+            // Off the NavMesh -- inside a structure's carved footprint, in deep water: the main
+            // ground if that is about as near. Round a footprint the rim is equally near on every
+            // side, and a sliver the building closes off beside it must not decide where its
+            // centre (a side's start position, the AI's home) stands.
+            int m = Search(p, mask, main[mask], out _, out float dm2, Mathf.Sqrt(d2) + OffMeshSlack);
+            return m >= 0 && Mathf.Sqrt(dm2) <= Mathf.Sqrt(d2) + OffMeshSlack ? main[mask] : l;
+        }
+
+        /// <summary>Whether the NavMesh under (or nearest) <paramref name="p"/> is the largest
+        /// stretch of it, the one the bases share; worked out again first if a structure has
+        /// carved within CarveReach of it since (that can close a pocket off; within Refresh's
+        /// limits: not inside 2 s of the last build, nor while a NavMesh rebuild runs).</summary>
+        public bool OnMain(Vector2 p, int mask)
+        {
+            if (!Ensure()) return true;
+            foreach (var c in carvedSince)
+                if ((c - p).sqrMagnitude < CarveReach * CarveReach) { Refresh(); break; }
+            int l = IslandAt(p, mask);
+            return l < 0 || l == main[mask];
         }
 
         public int IslandCount(int mask) { Ensure(); return area[mask] != null ? area[mask].Length : 0; }
@@ -166,6 +197,7 @@ namespace StarForge.World
             // Asked before a change has landed (a structure placed this frame carves
             // its footprint on the next): still stale.
             stale = stale && Time.frameCount < settleFrame;
+            if (Time.frameCount >= settleFrame) carvedSince.Clear();
             nextBuild = Time.time + 2f;
             Builds++;
             var sw = Stopwatch.StartNew();
@@ -348,7 +380,7 @@ namespace StarForge.World
 
         /// <summary>The triangle nearest <paramref name="p"/> on island <paramref name="want"/>
         /// (any island when negative), searching outward ring by ring over the grid.</summary>
-        int Search(Vector2 p, int mask, int want, out Vector2 q, out float bestD2)
+        int Search(Vector2 p, int mask, int want, out Vector2 q, out float bestD2, float maxDist = float.MaxValue)
         {
             q = p;
             bestD2 = float.MaxValue;
@@ -359,7 +391,7 @@ namespace StarForge.World
             {
                 // Every cell in ring r lies at least r - 1 cells from p.
                 float reach = Mathf.Max(0, r - 1) * Cell;
-                if (bestT >= 0 && bestD2 <= reach * reach) break;
+                if ((bestT >= 0 && bestD2 <= reach * reach) || reach > maxDist) break;
                 for (int z = cz - r; z <= cz + r; z++)
                 {
                     if (z < 0 || z >= rows) continue;

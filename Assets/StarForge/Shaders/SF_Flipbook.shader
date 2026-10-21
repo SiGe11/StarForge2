@@ -82,6 +82,7 @@ Shader "StarForge/Flipbook"
                 float4 uv         : TEXCOORD0;
                 float4 screenPos  : TEXCOORD1;
                 float  blend      : TEXCOORD2;
+                half3  sky        : TEXCOORD3;   // the sky's light from above: one value a draw
             };
 
             Varyings Vert(Attributes v)
@@ -92,6 +93,7 @@ Shader "StarForge/Flipbook"
                 o.uv = v.uv;
                 o.blend = v.blend;
                 o.screenPos = ComputeScreenPos(o.positionCS);
+                o.sky = SampleSH(half3(0, 1, 0));
                 return o;
             }
 
@@ -104,7 +106,7 @@ Shader "StarForge/Flipbook"
                 Light L = GetMainLight();
                 // A low sun lights the smoke less from above; the sky term keeps its form.
                 half high = saturate(L.direction.y * 1.4 + 0.2);
-                half3 sky = SampleSH(half3(0, 1, 0));
+                half3 sky = i.sky;
                 half3 smoke = (t.r * _SunGain * L.color * high + t.b * _SkyGain * sky) * _SmokeColor.rgb;
 
                 // The fire: squared back to linear, coloured by how hot it is.
@@ -120,8 +122,12 @@ Shader "StarForge/Flipbook"
                 half f = i.color.a * soft * nearCam;
 
                 half cover = saturate(t.a * _Coverage);
+                // The smoke is premultiplied by the sheet's coverage: scale it by how much
+                // that coverage grew, not by _Coverage, or where coverage saturates (a flame
+                // at 3x) the smoke came out three times as bright as its lit colour.
+                half grow = cover / max(t.a, 1e-3);
                 // Smoke and coverage scale together, so a thinner puff stays premultiplied.
-                half3 rgb = (smoke * _Coverage * i.color.rgb + fire * i.color.rgb) * f;
+                half3 rgb = (smoke * grow * i.color.rgb + fire * i.color.rgb) * f;
                 return half4(rgb, cover * f);
             }
             ENDHLSL

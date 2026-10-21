@@ -374,6 +374,44 @@
     margin-top: 2px;
 }
 
+.comms-head {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* What kind of message it is: a suggestion to act on, a warning, a report. */
+.comms-tag {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 10px;
+    letter-spacing: 1.2px;
+    padding: 1px 5px 1px 5px;
+    margin-left: 8px;
+    border-radius: 3px;
+    color: #0a1119;
+    background-color: var(--accent);
+}
+
+.comms-tag--attack { background-color: var(--danger); }
+.comms-tag--warning { background-color: var(--danger); }
+.comms-tag--defend { background-color: var(--amber); }
+.comms-tag--regroup { background-color: #c99bff; }
+.comms-tag--status { background-color: rgba(79, 209, 255, 0.22); color: var(--accent); }
+
+/* Flavour: the Mech talking, not advising -- quieter, lighter, untagged. */
+.comms-line--flair {
+    background-color: rgba(7, 12, 19, 0.50);
+    border-width: 0;
+    border-left-width: 2px;
+    border-left-color: rgba(255, 216, 115, 0.40);
+    padding: 3px 10px 4px 10px;
+}
+
+.comms-line--flair .comms-who {
+    font-size: 10px;
+    color: var(--muted);
+}
+
 .bottom-bar {
     flex-direction: row;
     align-items: flex-end;

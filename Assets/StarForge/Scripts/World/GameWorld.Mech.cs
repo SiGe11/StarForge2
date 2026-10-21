@@ -451,9 +451,9 @@ namespace StarForge.World
         }
 
         /// <summary>The Mech's AI speaks to its side.</summary>
-        public void MechAdvise(int team, MechAdviceKind kind, Vector2 at, string text, Unit about = null)
+        public void MechAdvise(int team, MechAdviceKind kind, Vector2 at, string text, Unit about = null, bool repeat = false)
         {
-            Raise(new GameEvent { kind = GameEventKind.MechAdvice, team = team, advice = kind, pos = Map.Ground(at), text = text, unit = about, type = UnitType.Mech });
+            Raise(new GameEvent { kind = GameEventKind.MechAdvice, team = team, advice = kind, pos = Map.Ground(at), text = text, unit = about, type = UnitType.Mech, repeat = repeat });
         }
 
         /// <summary>Buy one level of an upgrade at the bay (its side's player or AI).</summary>
@@ -493,7 +493,8 @@ namespace StarForge.World
 
         /// <summary>How many Extra Hardpoints a side can use: its Mech's spare mounts, or,
         /// before the parts are picked, two -- every frame has two, and the armoury only
-        /// fits out a design with as many as have been bought.</summary>
+        /// fits out a design with as many as have been bought (the upgrade itself has one
+        /// level, which caps it first).</summary>
         static int ReserveMounts(Faction F) => F.designChosen && F.design != null ? F.design.reserve.Count : 2;
 
         /// <summary>What an upgrade's next level costs, or -1 if there is none to buy.</summary>

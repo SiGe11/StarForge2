@@ -187,9 +187,15 @@ namespace StarForge.AI
         {
             // Bandit-style gradient step on the strategy that was actually running.
             const float lr = 0.05f;
+            // A NaN reward or feature would stay in the weight for good (Clamp passes NaN), and be saved.
+            if (float.IsNaN(r) || float.IsInfinity(r)) return;
             float g = Clamp(r, -1f, 1f);
             int c = (int)cur;
-            for (int i = 0; i < NFEAT; i++) w[c, i] = Clamp(w[c, i] + lr * g * lastFeat[i], -4f, 4f);
+            for (int i = 0; i < NFEAT; i++)
+            {
+                float v = w[c, i] + lr * g * lastFeat[i];
+                if (!float.IsNaN(v) && !float.IsInfinity(v)) w[c, i] = Clamp(v, -4f, 4f);
+            }
             runPayoff[c] += g;
         }
 

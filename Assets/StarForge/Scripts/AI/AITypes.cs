@@ -255,5 +255,8 @@ namespace StarForge.AI
         /// or stood clear.</summary>
         public string guns = "";
         public int diggersMoved, diggersCleared;
+        /// <summary>Readings with their Mech by a structure within 25 m of home and an army past
+        /// the plain gate but short of MechNeed: where the in-base rule and the gate differ.</summary>
+        public int inBaseMechSplit;
     }
 }

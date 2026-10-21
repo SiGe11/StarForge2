@@ -40,10 +40,10 @@ namespace StarForge.View
         {
             public float groundShift, sink, crush, fallAngle, flatten, fallX, fallY;
         }
-        PoseKey[] poseKey;
-        bool[] poseKnown;
-        Plant[] posePlants;
-        PlantKind[] poseKinds;
+        [System.NonSerialized] PoseKey[] poseKey;
+        [System.NonSerialized] bool[] poseKnown;
+        [System.NonSerialized] Plant[] posePlants;
+        [System.NonSerialized] PlantKind[] poseKinds;
 
         [Tooltip("Beyond this distance from the camera a plant draws its decimated copy.")]
         public float lodDistance = 70f;

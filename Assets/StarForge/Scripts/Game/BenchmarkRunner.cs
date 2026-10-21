@@ -95,7 +95,11 @@ namespace StarForge.Game
             }
             if (!active) { enabled = false; return; }
             AI.Commander.Suspended = false;   // never a trial's leftover
+            AI.Commander.MechGateInBase = false;
+            World.MechCore.LegacyBalance = false;
+            World.GameWorld.LegacyBreakPick = false;   // the morale trials' A/B switch
             AI.Commander.IgnoreSites = false;
+            AI.Commander.RepositionOff = false;   // the blocked-shot trial's A/B switch
             MatchSettings.skipMenu = true;
             MatchSettings.spectate = true;
             MatchSettings.fixedSeed = true;

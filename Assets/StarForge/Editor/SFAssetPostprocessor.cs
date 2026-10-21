@@ -95,14 +95,18 @@ namespace StarForge.EditorTools
             }
             else if (file.StartsWith("fx_"))
             {
-                // Simulated flipbooks (Tools/blender/render_flipbooks.py): 8x8 cells of 256,
-                // four data channels premultiplied by coverage -- sun-lit smoke, fire,
-                // sky-lit smoke, coverage (SF_Flipbook).
+                // Simulated flipbooks (Tools/blender/render_flipbooks.py): 8x8 cells (256, or
+                // 384 for the explosion's 3072 sheet), four data channels premultiplied by
+                // coverage -- sun-lit smoke, fire, sky-lit smoke, coverage (SF_Flipbook).
                 ti.sRGBTexture = false;
                 ti.wrapMode = TextureWrapMode.Clamp;
                 ti.alphaSource = TextureImporterAlphaSource.FromInput;
                 ti.alphaIsTransparency = false;
-                ti.maxTextureSize = 2048;
+                ti.maxTextureSize = 4096;
+                // Scaled up to the next power of two: kept at 3072 the sheet is never
+                // block-compressed (RGBA32, 50 MB with mips, even with BC7 asked for by name);
+                // at 4096 it is BC7, 22 MB.
+                ti.npotScale = TextureImporterNPOTScale.ToLarger;
             }
             else if (file == "explosion" || file == "flames" || file == "particles" || file == "scorch")
             {
@@ -185,7 +189,10 @@ namespace StarForge.EditorTools
             mi.importCameras = false;
             mi.importLights = false;
             mi.importBlendShapes = false;
-            mi.isReadable = false;
+            // The ore stays readable: a runtime NavMesh rebuild now and then took an ore node's
+            // meshes in spite of its ignore modifier, which the Editor reads and a player cannot
+            // ("does not allow read access"), so the two built different tiles (BugTrials.OreSourceRead).
+            mi.isReadable = assetPath.EndsWith("/SF_ORE.fbx");
             mi.meshCompression = ModelImporterMeshCompression.Off;
             mi.optimizeMeshPolygons = true;
             mi.optimizeMeshVertices = true;

@@ -9,6 +9,10 @@
 //     call Namespace.Type.Method        invoke a public static method (no
 //                                       arguments); a string it returns is reported
 //
+// Play mode a command starts (play, an evaluation menu, a call that enters play) is
+// muted until it stops (AgentAudio; call StarForge.EditorTools.AgentAudio.Hear first for
+// a run that should be heard). Play the user starts by hand is left alone.
+//
 // The Editor answers with <id>.out beside it: "ok" or "error", then whatever the
 // command returned and every console message logged while it ran. Commands are
 // taken one per Editor update, in name order.
@@ -39,6 +43,9 @@ namespace StarForge.EditorTools
             Directory.CreateDirectory(Dir);
             lastChange = LatestWrite();
             EditorApplication.update += Poll;
+            // GameWorld.ReachabilityOff is an A/B switch: set for a run, it must not carry into
+            // the next play session (statics survive them with domain reload off).
+            EditorApplication.playModeStateChanged += s => { if (s == PlayModeStateChange.EnteredEditMode) GameWorld.ReachabilityOff = false; };
         }
 
         static void Poll()
@@ -72,13 +79,15 @@ namespace StarForge.EditorTools
             }
             Application.logMessageReceived += Capture;
             string status = "ok", result = "";
+            bool wasPlaying = EditorApplication.isPlayingOrWillChangePlaymode;
+            AgentAudio.BeginCommand();
             try { result = Run(command) ?? ""; }
             catch (Exception e)
             {
                 status = "error";
                 result = (e is TargetInvocationException t && t.InnerException != null ? t.InnerException : e).ToString();
             }
-            finally { Application.logMessageReceived -= Capture; }
+            finally { AgentAudio.EndCommand(wasPlaying); Application.logMessageReceived -= Capture; }
             File.WriteAllText(Path.ChangeExtension(next, ".out"), $"{status}\n{result}\n{log}");
         }
 
@@ -96,6 +105,7 @@ namespace StarForge.EditorTools
                     AssetDatabase.Refresh();
                     return "refreshed";
                 case "play":
+                    AgentAudio.AgentStartsPlay();
                     EditorApplication.EnterPlaymode();
                     return "entering play mode";
                 case "stop":
@@ -1158,6 +1168,25 @@ namespace StarForge.EditorTools
         {
             var r = UnityEngine.Object.FindAnyObjectByType<IslandBatchRunner>();
             return r == null ? "not running" : r.report;
+        }
+
+        /// <summary>A Garrison whose exits facing its rally point lie in a pen of carving walls closed
+        /// against its own footprint (the pocket a building closed on 1370439406, made on purpose).
+        /// It trains a rifleman under the old exit rule (GameWorld.ReachabilityOff) and one under the
+        /// new, and reports where each came out. Good: the old one in the pen with no way to the enemy
+        /// base, the new one outside it with a complete path, and one exit moved off a pocket.</summary>
+        public static string ExitPocket()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            foreach (var old in UnityEngine.Object.FindObjectsByType<ExitPocketTrial>()) UnityEngine.Object.Destroy(old.gameObject);
+            new GameObject("ExitPocketTrial").AddComponent<ExitPocketTrial>();
+            return "staging; call ExitPocketReport in about a minute";
+        }
+
+        public static string ExitPocketReport()
+        {
+            var r = UnityEngine.Object.FindAnyObjectByType<ExitPocketTrial>();
+            return r == null ? "no trial running" : r.report;
         }
 
         /// <summary>The NavMesh's islands on the current map (GameWorld.Islands, rebuilt
@@ -2569,6 +2598,99 @@ namespace StarForge.EditorTools
         }
     }
 
+    public sealed class ExitPocketTrial : BugTrial
+    {
+        System.Collections.IEnumerator Start()
+        {
+            yield return EnsureMatch();
+            if (!Ready) { report = "no match running"; yield break; }
+            var sb = new StringBuilder();
+            var rng = new System.Random(4417);
+            bool savedOff = GameWorld.ReachabilityOff;
+            HoldStatics();
+            var walls = new System.Collections.Generic.List<GameObject>();
+            try
+            {
+                // An open field on the ground the bases share (one on a plateau of its own would
+                // reject every exit spot, and prove nothing about the pen).
+                world.Islands.Build();
+                Vector2 c = default;
+                bool onMain = false;
+                for (int i = 0; i < 20 && !onMain; i++)
+                {
+                    if (!FindField(rng, out c, out _)) break;
+                    onMain = world.Islands.IslandAt(c, NavIslands.Ground) == world.Islands.MainIsland(NavIslands.Ground);
+                }
+                if (!onMain) { report = $"map {MapRuntime.LastSeed}: no open field on the main ground"; yield break; }
+                sb.AppendLine($"map {MapRuntime.LastSeed}, field at {c}:");
+                var d = (map.StartPos(1) - c).normalized;          // a team-0 building's default rally faces the enemy base
+                var side = new Vector2(-d.y, d.x);
+                const float w = 3f, a = 8.5f, thick = 0.6f;
+                foreach (bool oldRule in new[] { true, false })
+                {
+                    GameWorld.ReachabilityOff = oldRule;
+                    // The pen first, then the Garrison: its own carve closes the pen off, as a building did.
+                    void Wall(Vector2 mid, Vector2 along, float len)
+                    {
+                        var go = new GameObject("ExitPenWall");
+                        go.transform.position = map.Ground(mid) + Vector3.up * 1f;
+                        go.transform.rotation = Quaternion.LookRotation(new Vector3(along.x, 0f, along.y));
+                        var ob = go.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+                        ob.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+                        ob.size = new Vector3(thick, 3f, len);
+                        ob.carving = true;
+                        ob.carveOnlyStationary = false;
+                        walls.Add(go);
+                    }
+                    Wall(c + side * w + d * (a * 0.5f), d, a + thick);   // sides, from inside the footprint out
+                    Wall(c - side * w + d * (a * 0.5f), d, a + thick);
+                    Wall(c + d * a, side, 2f * w + thick);               // front
+                    for (int f = 0; f < 3; f++) yield return null;
+                    var g = Put(StarForge.Sim.UnitType.Garrison, 0, c);
+                    yield return Wait(1f);
+                    int moved0 = world.ExitsMovedOffPocket;
+                    world.factions[0].ore += 1000;
+                    StarForge.World.Unit trained = null;
+                    ListenWhileHeld(e =>
+                    {
+                        if (e.kind == GameEventKind.UnitReady && e.unit != null && e.unit.team == 0 &&
+                            e.unit.Type == StarForge.Sim.UnitType.Trooper && (e.unit.pos - c).magnitude < 9f) trained = e.unit;
+                    });
+                    bool queued = world.CmdTrain(g, StarForge.Sim.UnitType.Trooper);
+                    float t0 = world.time;
+                    while (trained == null && world.time - t0 < 60f) yield return null;
+                    ListenWhileHeld(null);
+                    string rule = oldRule ? "old rule" : "new rule";
+                    if (trained == null) { sb.AppendLine($"{rule}: no rifleman came out in 60 s (queued {queued})"); }
+                    else
+                    {
+                        spawned.Add(trained);
+                        Vector2 rel = trained.pos - c;
+                        float fwd = Vector2.Dot(rel, d), lat = Vector2.Dot(rel, side);
+                        bool inPen = Mathf.Abs(lat) < w && fwd > 0f && fwd < a;
+                        var path = new UnityEngine.AI.NavMeshPath();
+                        UnityEngine.AI.NavMesh.SamplePosition(map.Ground(map.StartPos(1)), out var goal, 12f, trained.agent.areaMask);
+                        UnityEngine.AI.NavMesh.CalculatePath(trained.transform.position, goal.position, trained.agent.areaMask, path);
+                        float ang = Mathf.Atan2(lat, fwd) * Mathf.Rad2Deg;
+                        sb.AppendLine($"{rule}: came out {(inPen ? "IN the pen" : "outside the pen")} at {ang:0} deg from the rally side, " +
+                                      $"path to the enemy base {path.status}; exits moved off a pocket +{world.ExitsMovedOffPocket - moved0}");
+                    }
+                    ClearSpawned();
+                    foreach (var go in walls) if (go != null) UnityEngine.Object.Destroy(go);
+                    walls.Clear();
+                    yield return Wait(2f);
+                }
+            }
+            finally
+            {
+                foreach (var go in walls) if (go != null) UnityEngine.Object.Destroy(go);
+                GameWorld.ReachabilityOff = savedOff;
+                ReleaseStatics();
+            }
+            report = sb.ToString();
+        }
+    }
+
     public sealed class StallTrialRunner : MonoBehaviour
     {
         public string report = "starting";
@@ -2598,6 +2720,83 @@ namespace StarForge.EditorTools
         readonly System.Collections.Generic.Dictionary<int, int> standPendFrames = new System.Collections.Generic.Dictionary<int, int>();
         readonly System.Collections.Generic.Dictionary<int, int> standFrames = new System.Collections.Generic.Dictionary<int, int>();
         readonly System.Collections.Generic.Dictionary<int, int> standRequests = new System.Collections.Generic.Dictionary<int, int>();
+        // What came just before a stand began: a target let go, a NavMesh rebuild, a new goal.
+        readonly System.Collections.Generic.Dictionary<int, float> targetDroppedAt = new System.Collections.Generic.Dictionary<int, float>();
+        readonly System.Collections.Generic.Dictionary<int, float> goalSetAt = new System.Collections.Generic.Dictionary<int, float>();
+        readonly System.Collections.Generic.HashSet<int> hadTarget = new System.Collections.Generic.HashSet<int>();
+        static readonly FieldInfo NavRebuildField = typeof(GameWorld).GetField("navRebuild", BindingFlags.NonPublic | BindingFlags.Instance);
+        float rebuildSeenAt = -99f;
+        // RunWave re-orders the whole army every tactics tick (0.42 s) while a wave is on and
+        // any unit of it stands idle, restarting every unit's path request each time.
+        readonly System.Collections.Generic.Dictionary<int, int> standLoopFrames = new System.Collections.Generic.Dictionary<int, int>();
+        readonly bool[] reissueLoop = new bool[2];
+        readonly System.Collections.Generic.HashSet<int>[] inMain = { new System.Collections.Generic.HashSet<int>(), new System.Collections.Generic.HashSet<int>() };
+        readonly int[] loopFrames = new int[2];
+        // When each unit was last seen alive: one that dies while standing ends its stand there
+        // (counted to the end of the window, a rifleman killed after 1 s read as a 124 s stand).
+        readonly System.Collections.Generic.Dictionary<int, float> aliveAt = new System.Collections.Generic.Dictionary<int, float>();
+        // Every unit trained: a complete NavMesh.CalculatePath (its own area mask) from where it
+        // came out to the enemy base? Independent of NavIslands, which the goal audit uses.
+        int trained, trainedCut;
+        readonly StringBuilder trainedCutFirst = new StringBuilder();
+        StarForge.World.GameWorld eventsFrom;
+
+        void OnWorldEvent(StarForge.World.GameEvent e)
+        {
+            if (e.kind != StarForge.World.GameEventKind.UnitReady) return;
+            var u = e.unit;
+            if (u == null || u.agent == null || !u.agent.enabled || u.team > 1) return;
+            var w = StarForge.World.GameWorld.Instance;
+            int mask = u.agent.areaMask;
+            if (!UnityEngine.AI.NavMesh.SamplePosition(w.Map.Ground(w.Map.StartPos(1 - u.team)), out var goal, 12f, mask)) return;
+            var path = new UnityEngine.AI.NavMeshPath();
+            UnityEngine.AI.NavMesh.CalculatePath(u.transform.position, goal.position, mask, path);
+            trained++;
+            if (path.status == UnityEngine.AI.NavMeshPathStatus.PathComplete) return;
+            trainedCut++;
+            if (trainedCut <= 6) trainedCutFirst.Append($"[{u.Type} t{u.team} at {u.pos}: {path.status}] ");
+        }
+
+        // The match settings the trial changes, put back however it ends (statics outlive play
+        // sessions: stopped mid-run, it left the next plain Play spectating on a fixed seed).
+        bool settingsSaved, wasSpectate, wasMemory, wasFixed;
+
+        void RestoreSettings()
+        {
+            if (!settingsSaved) return;
+            settingsSaved = false;
+            StarForge.Game.MatchSettings.spectate = wasSpectate;
+            StarForge.Game.MatchSettings.aiMemory = wasMemory;
+            StarForge.Game.MatchSettings.fixedSeed = wasFixed;
+        }
+
+        void OnDestroy()
+        {
+            if (eventsFrom != null) eventsFrom.Event -= OnWorldEvent;
+            RestoreSettings();
+        }
+
+        /// <summary>Is each side's Commander in RunWave's re-order loop this frame?</summary>
+        void ReadLoops()
+        {
+            var boot = StarForge.Game.GameBootstrap.Instance;
+            var T = typeof(StarForge.AI.Commander);
+            const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
+            for (int t = 0; t < 2; t++)
+            {
+                reissueLoop[t] = false;
+                inMain[t].Clear();
+                var cmd = boot == null ? null : t == 1 ? boot.AI : boot.PlayerProxy;
+                if (cmd == null) continue;
+                var army = T.GetField("main", F)?.GetValue(cmd) as System.Collections.Generic.List<StarForge.World.Unit>;
+                if (army == null) continue;
+                bool waveOn = T.GetField("waveOn", F)?.GetValue(cmd) is bool wv && wv, staging = T.GetField("staging", F)?.GetValue(cmd) is bool sv && sv;
+                bool idle = false;
+                foreach (var h in army) if (h != null) { inMain[t].Add(h.id); if (h.order == StarForge.Sim.Order.Idle) idle = true; }
+                reissueLoop[t] = waveOn && !staging && idle;
+                if (reissueLoop[t]) loopFrames[t]++;
+            }
+        }
 
         static int Count(System.Collections.Generic.Dictionary<int, int> d, int id) => d.TryGetValue(id, out int v) ? v : 0;
 
@@ -2635,6 +2834,7 @@ namespace StarForge.EditorTools
             if (u.order != StarForge.Sim.Order.Move && u.order != StarForge.Sim.Order.AttackMove) return;
             if (seenGoal.TryGetValue(u.id, out var sg) && (sg - u.orderPos).sqrMagnitude <= 0.01f) return;
             seenGoal[u.id] = u.orderPos;
+            goalSetAt[u.id] = Time.time;
             string src = Source(u);
             goalSource[u.id] = src;
             string gk = $"{u.order} from {src}";
@@ -2662,6 +2862,11 @@ namespace StarForge.EditorTools
             var boot = StarForge.Game.GameBootstrap.Instance;
             var world = StarForge.World.GameWorld.Instance;
             if (boot == null || world == null) { report = "no match"; yield break; }
+            // The match settings it changes are put back at the end (statics outlive play sessions).
+            wasSpectate = StarForge.Game.MatchSettings.spectate;
+            wasMemory = StarForge.Game.MatchSettings.aiMemory;
+            wasFixed = StarForge.Game.MatchSettings.fixedSeed;
+            settingsSaved = true;
             if (!world.running)
             {
                 StarForge.Game.MatchSettings.spectate = true;
@@ -2673,6 +2878,8 @@ namespace StarForge.EditorTools
             if (rig != null) rig.scripted = true;
             Time.timeScale = 4f;
             report = "fast-forwarding";
+            eventsFrom = world;
+            world.Event += OnWorldEvent;
             while (world.time < 420f)
             {
                 report = $"fast-forwarding: {world.time:0}s";
@@ -2691,10 +2898,13 @@ namespace StarForge.EditorTools
                 frames++;
                 int pending = 0, units = 0;
                 float now = Time.time;
+                if (NavRebuildField?.GetValue(world) is AsyncOperation navOp && !navOp.isDone) rebuildSeenAt = now;
+                ReadLoops();
                 foreach (var u in world.units)
                 {
                     if (u == null || u.dying || u.agent == null || !u.agent.enabled) continue;
                     units++;
+                    aliveAt[u.id] = now;
                     var a = u.agent;
                     if (!a.isOnNavMesh) offMesh++;
                     bool pend = a.isOnNavMesh && a.pathPending;
@@ -2721,6 +2931,8 @@ namespace StarForge.EditorTools
                     lastOrder[u.id] = u.order;
 
                     AuditGoal(world, u);
+                    if (u.target != null) hadTarget.Add(u.id);
+                    else if (hadTarget.Remove(u.id)) targetDroppedAt[u.id] = now;
 
                     bool wants = (u.order == StarForge.Sim.Order.Move || u.order == StarForge.Sim.Order.AttackMove) &&
                                  u.target == null && u.Dist(u.orderPos) > 4f;
@@ -2729,13 +2941,15 @@ namespace StarForge.EditorTools
                     {
                         standFrames[u.id]++;
                         if (pend) standPendFrames[u.id]++;
+                        if (u.team < 2 && reissueLoop[u.team] && inMain[u.team].Contains(u.id))
+                            standLoopFrames[u.id] = (standLoopFrames.TryGetValue(u.id, out int lf) ? lf : 0) + 1;
                     }
                     if (wants && still)
                     {
                         if (!standSince.ContainsKey(u.id))
                         {
                             standSince[u.id] = now;
-                            standFrames[u.id] = standPendFrames[u.id] = standRequests[u.id] = 0;
+                            standFrames[u.id] = standPendFrames[u.id] = standRequests[u.id] = standLoopFrames[u.id] = 0;
                             float nu = 99f; string nt = "";
                             foreach (var ou in world.units)
                                 if (ou != null && ou != u && !ou.dying) { float dd = (ou.pos - u.pos).magnitude - ou.def.radius; if (dd < nu) { nu = dd; nt = ou.Type + (ou.def.IsMobile ? (ou.agent != null && ou.agent.velocity.sqrMagnitude > 0.04f ? "(moving)" : "(still)") : ""); } }
@@ -2765,7 +2979,10 @@ namespace StarForge.EditorTools
                             }
                             string cut = CutOff(world, u, out string islands);
                             reach += $" | {islands}; at {u.pos} goal {u.orderPos}";
-                            standState[u.id] = $"{u.Type}/{u.order} {cut} from {(goalSource.TryGetValue(u.id, out var gs) ? gs : "?")} pend={pend} hasPath={(a.isOnNavMesh && a.hasPath)} status={(a.isOnNavMesh ? a.pathStatus.ToString() : "offmesh")} stopped={(a.isOnNavMesh && a.isStopped)} rem={(a.isOnNavMesh ? a.remainingDistance : -1f):0.0} dist={u.Dist(u.orderPos):0.0} want={a.desiredVelocity.magnitude:0.0} spd={a.speed:0.0} steer={(a.isOnNavMesh ? Vector3.Distance(a.steeringTarget, u.transform.position) : -1f):0.0} corners={(a.isOnNavMesh ? a.path.corners.Length : 0)} unit {nu:0.0} {nt} boulder {nb:0.0}{reach}";
+                            string why = targetDroppedAt.TryGetValue(u.id, out float td) && now - td < 0.6f ? "just after letting a target go"
+                                       : now - rebuildSeenAt < 0.6f ? "during or just after a NavMesh rebuild"
+                                       : goalSetAt.TryGetValue(u.id, out float gt) && now - gt < 0.3f ? "on a new goal" : "no event";
+                            standState[u.id] = $"{u.Type}/{u.order} {cut} from {(goalSource.TryGetValue(u.id, out var gs) ? gs : "?")} [{why}] pend={pend} hasPath={(a.isOnNavMesh && a.hasPath)} status={(a.isOnNavMesh ? a.pathStatus.ToString() : "offmesh")} stopped={(a.isOnNavMesh && a.isStopped)} rem={(a.isOnNavMesh ? a.remainingDistance : -1f):0.0} repath={u.repathTimer:0.00} dist={u.Dist(u.orderPos):0.0} want={a.desiredVelocity.magnitude:0.0} spd={a.speed:0.0} steer={(a.isOnNavMesh ? Vector3.Distance(a.steeringTarget, u.transform.position) : -1f):0.0} corners={(a.isOnNavMesh ? a.path.corners.Length : 0)} unit {nu:0.0} {nt} boulder {nb:0.0}{reach}";
                         }
                     }
                     else if (standSince.TryGetValue(u.id, out float ss))
@@ -2777,7 +2994,7 @@ namespace StarForge.EditorTools
                             string key = standState[u.id];
                             key = key.Substring(0, key.IndexOf(" rem="));
                             standCauses[key] = standCauses.TryGetValue(key, out int c) ? c + 1 : 1;
-                            if (stands.Count <= 12) sb.Append($"[{d:0.0}s {standState[u.id]} || pending {Count(standPendFrames, u.id)}/{Count(standFrames, u.id)} frames, {Count(standRequests, u.id)} new requests] ");
+                            if (stands.Count <= 12) sb.Append($"[{d:0.0}s {standState[u.id]} || pending {Count(standPendFrames, u.id)}/{Count(standFrames, u.id)} frames, {Count(standRequests, u.id)} new requests, army re-ordered every tick in {Count(standLoopFrames, u.id)} frames] ");
                         }
                         standSince.Remove(u.id);
                     }
@@ -2819,21 +3036,23 @@ namespace StarForge.EditorTools
                 yield return null;
             }
 
-            // Stands still going when the window closed (the longest of all).
-            int stillStanding = 0;
+            // Stands still going when the window closed (the longest of all), and stands ended by
+            // the unit dying (it is no longer seen, so the loop never closed them).
+            int stillStanding = 0, diedStanding = 0;
             foreach (var kv in standSince)
             {
-                float d = Time.time - kv.Value;
+                var su = world.units.Find(x => x != null && x.id == kv.Key);
+                bool alive = su != null && !su.dying && su.agent != null && su.agent.enabled;
+                float d = (alive ? Time.time : aliveAt.TryGetValue(kv.Key, out float la) ? la : kv.Value) - kv.Value;
                 if (d <= 1f || !standState.TryGetValue(kv.Key, out var st)) continue;
                 stands.Add(d);
-                stillStanding++;
-                string key = st.Substring(0, st.IndexOf(" rem=")) + " (still standing at the end)";
+                if (alive) stillStanding++; else diedStanding++;
+                string key = st.Substring(0, st.IndexOf(" rem=")) + (alive ? " (still standing at the end)" : " (died standing)");
                 standCauses[key] = standCauses.TryGetValue(key, out int c) ? c + 1 : 1;
-                var su = world.units.Find(x => x != null && x.id == kv.Key);
-                string endState = su == null || su.agent == null || !su.agent.enabled ? "gone" :
+                string endState = !alive ? $"died standing; pending {Count(standPendFrames, kv.Key)}/{Count(standFrames, kv.Key)} frames, {Count(standRequests, kv.Key)} new requests, army re-ordered every tick in {Count(standLoopFrames, kv.Key)} frames" :
                     $"now at {su.pos} order {su.order} target {(su.target != null ? su.target.Type.ToString() : "none")} pend {su.agent.pathPending} has {su.agent.hasPath} " +
                     $"status {su.agent.pathStatus} stale {su.agent.isPathStale} stopped {su.agent.isStopped} dest {su.agent.destination} repath {su.repathTimer:0.00}; " +
-                    $"pending {Count(standPendFrames, kv.Key)}/{Count(standFrames, kv.Key)} frames, {Count(standRequests, kv.Key)} new requests";
+                    $"pending {Count(standPendFrames, kv.Key)}/{Count(standFrames, kv.Key)} frames, {Count(standRequests, kv.Key)} new requests, army re-ordered every tick in {Count(standLoopFrames, kv.Key)} frames";
                 if (stands.Count <= 16) sb.Append($"[{d:0.0}s+ {st} || {endState}] ");
             }
 
@@ -2844,11 +3063,14 @@ namespace StarForge.EditorTools
             o.Append($"pending/frame mean {(float)pendingSum / Mathf.Max(1, frames):0.0} max {pendingMax}; offMesh agent-frames {offMesh}; move orders dropped far from goal {dropped}\n");
             o.Append($"path waits (any agent, n={waits.Count}): p50 {P(waits, 0.5f):0.00}s p90 {P(waits, 0.9f):0.00}s p99 {P(waits, 0.99f):0.00}s max {P(waits, 1f):0.00}s\n");
             o.Append($"probe orders (n={probeWaits.Count}): p50 {P(probeWaits, 0.5f):0.00}s p90 {P(probeWaits, 0.9f):0.00}s max {P(probeWaits, 1f):0.00}s\n");
-            o.Append($"stood >1s while ordered to move: {stands.Count} times ({stillStanding} still standing at the end), p50 {P(stands, 0.5f):0.0}s p90 {P(stands, 0.9f):0.0}s max {P(stands, 1f):0.0}s\n");
+            o.Append($"RunWave re-order loop (wave on, an idle unit in the army): team 0 {loopFrames[0]} frames, team 1 {loopFrames[1]} of {frames}\n");
+            o.Append($"stood >1s while ordered to move: {stands.Count} times ({stillStanding} still standing at the end, {diedStanding} ended by the unit dying), p50 {P(stands, 0.5f):0.0}s p90 {P(stands, 0.9f):0.0}s max {P(stands, 1f):0.0}s\n");
             foreach (var kv in standCauses) o.Append($"  {kv.Value} x {kv.Key}\n");
             var isl = world.Islands;
             o.Append($"map {MapRuntime.LastSeed}; NavMesh islands (ground): {isl.IslandCount(NavIslands.Ground)}, main {isl.IslandArea(NavIslands.Ground, isl.MainIsland(NavIslands.Ground)):0} m²; ");
-            o.Append($"worked out {isl.Builds} times, last {isl.TriangulateMs:0.0} + {isl.LabelMs:0.0} ms\n");
+            o.Append($"worked out {isl.Builds} times, last {isl.TriangulateMs:0.0} + {isl.LabelMs:0.0} ms; ");
+            o.Append($"start positions on the main ground: {isl.IslandAt(world.Map.StartPos(0), NavIslands.Ground) == isl.MainIsland(NavIslands.Ground)}/{isl.IslandAt(world.Map.StartPos(1), NavIslands.Ground) == isl.MainIsland(NavIslands.Ground)}\n");
+            o.Append($"trained units with a complete path to the enemy base (CalculatePath): {trained - trainedCut}/{trained}{(trainedCut > 0 ? "; not: " + trainedCutFirst : "")}; exits moved off a pocket {world.ExitsMovedOffPocket}\n");
             o.Append($"reachable goals {(GameWorld.ReachabilityOff ? "OFF (nearest NavMesh anywhere, as before)" : "on")}; move/attack-move goals given over the whole match: {goalsSeen}, on ground cut off from the unit: {goalsCutOff}\n  given:");
             foreach (var kv in goalsBy) o.Append($" {kv.Key} {kv.Value};");
             o.Append("\n  cut off:");
@@ -2859,6 +3081,7 @@ namespace StarForge.EditorTools
             o.Append("\nfirst ones: ").Append(sb);
             report = o.ToString();
             Time.timeScale = 1f;
+            RestoreSettings();
         }
     }
 

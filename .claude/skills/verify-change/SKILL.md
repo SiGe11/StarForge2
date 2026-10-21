@@ -38,9 +38,9 @@ No check covers it? Write one (see [new-trial.md](new-trial.md)) rather than rep
 
 ## 3. Take the Editor slot
 The Editor is one shared resource for every session: a `.cs` write recompiles under anyone's play mode and wrecks their trial.
-1. `pgrep -f "Unity.app/Contents/MacOS/Unity"`: no Editor means no play-mode check (`editor.sh` would wait 900 s). Start it only if the user or task needs it: `open -na /Applications/Unity/Hub/Editor/6000.6.1f1/Unity.app --args -projectPath /Users/sige/starforge` (minutes to import).
+1. `pgrep -f "Unity.app/Contents/MacOS/Unity"`: no Editor means no play-mode check (`editor.sh` would wait 900 s). Start it only if the user or task needs it: `open -na /Applications/Unity/Hub/Editor/6000.6.5f1/Unity.app --args -projectPath /Users/sige/starforge` (minutes to import).
 2. `ListAgents`: a busy peer that announced an Editor window or trial has it; message it and wait, do not stop its play mode. Subagents cannot do this step: the main session takes the slot.
-3. `SF_EDITOR_TIMEOUT=30 Tools/editor.sh state` → want `playing=False compiling=False`. Bring the Editor frontmost if it crawls (App Nap): `open -a /Applications/Unity/Hub/Editor/6000.6.1f1/Unity.app`.
+3. `SF_EDITOR_TIMEOUT=30 Tools/editor.sh state` → want `playing=False compiling=False`. Bring the Editor frontmost if it crawls (App Nap): `open -a /Applications/Unity/Hub/Editor/6000.6.5f1/Unity.app`.
 4. Busy peers: one `SendMessage` each — what you run, for how long, "no .cs writes until I say".
 
 ## 4. Compile, play, run
@@ -48,8 +48,8 @@ The Editor is one shared resource for every session: a `.cs` write recompiles un
 2. Did it compile? Errors after the last reload mean no:
    `awk '/Domain Reload Profiling/{r=NR} /error CS/{e=NR;m=$0} END{print (e>r ? "COMPILE ERRORS: " m : "compiled")}' Logs/Editor.log`
    A failure in a file you did not touch is a peer's: tell them, do not fix it.
-3. `Tools/editor.sh play` (MCP `Unity_ManageEditor` Action=Play also works), then `call` the check; for staged trials wait, then `call ...Report`. Runs over a few minutes: run in the background with `caffeinate -d -i -t 7200` alongside, and do not write under `Assets/` until it ends.
-4. Exceptions during the run: `grep -n "Exception" Logs/Editor.log | grep -v SuperProxy | tail -20` (only lines after your play started count; `SuperProxyClient` lines are the AI Assistant package's own network errors).
+3. `Tools/editor.sh play` (MCP `Unity_ManageEditor` Action=Play also works, muted only after `editor.sh call StarForge.EditorTools.AgentAudio.Mute`), then `call` the check; play `editor.sh` starts is muted until it stops (`AgentAudio`; `call StarForge.EditorTools.AgentAudio.Hear` first only when the user is meant to listen); for staged trials wait, then `call ...Report`. Runs over a few minutes: run in the background with `caffeinate -d -i -t 7200` alongside, and do not write under `Assets/` until it ends.
+4. Exceptions during the run: `grep -nE "^([A-Za-z.+]*Exception|Unhandled Exception)(:| )" Logs/Editor.log | grep -v SuperProxy | tail -20` (only lines after your play started count; `SuperProxyClient` lines are the AI Assistant package's own network errors; a bare `grep Exception` also counts `System.Exception&` in the stack traces of ordinary Editor UI log lines).
 
 ## 5. Clean up and release
 `Tools/editor.sh stop`. Reset every static the run set (`Commander.Suspended`, `Commander.IgnoreSites`, `MechCore.LegacyBalance`, trial fields like `MechDuel.Upgrades/Seeds/Fresh`, `BayEdgeCases.Only`; the runners reset some, a one-off command must reset its own). Tell the peers you messaged that the Editor is free.

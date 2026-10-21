@@ -36,7 +36,16 @@ namespace StarForge.AI
     {
         /// <summary>How often it thinks: four times a second at rest, eight in a fight.</summary>
         const float ThinkPeriod = 0.25f, CombatThink = 0.12f;
-        const float RepairAt = 0.38f, RepairedAt = 0.92f;
+        /// <summary>The numbers its judgement weighs by (MechDoctrine): the player's Mech's own,
+        /// or the opponent's tempered copy -- the same cautious strategy, not the same mind.</summary>
+        public MechDoctrine Doctrine { get; private set; }
+        /// <summary>The player's side (team 0): it talks. The opponent's Mech says nothing aloud;
+        /// its calls go straight to its Commander (Say, Listener).</summary>
+        public bool PlayersSide { get; private set; }
+        /// <summary>The opponent's Commander, which hears its Mech's calls directly (GameBootstrap).</summary>
+        public Commander Listener;
+        float RepairAt => Doctrine.repairAt;
+        float RepairedAt => Doctrine.repairedAt;
 
         GameWorld w;
         int team;
@@ -63,7 +72,7 @@ namespace StarForge.AI
         public int Team => team;
         public MechIntent Mode => mode;
         /// <summary>For the debug view and the benchmark: what it last weighed.</summary>
-        public string Debug => $"{mode}: {lastText} (ratio here {LastRatio:0.0})";
+        public string Debug => $"{Doctrine?.name} {mode}: {lastText} (ratio here {LastRatio:0.0})";
         string lastText = "";
         public float LastRatio { get; private set; }
         public int AdviceGiven { get; private set; }
@@ -79,12 +88,16 @@ namespace StarForge.AI
         float dockedSince = -1f, dockedHp, bayShunUntil = -1f;
         int bayShuns;
         int killsSeen, enemyMechsBefore = -1;
-        // Its side's deserters: when it gives its verdict (a few seconds after they run, once
-        // it is free to), and if it goes, until when it keeps at it. Its own stream, so the
-        // verdict does not shift the brain's other draws.
+        // Its side's deserters: when it gives its verdict (a few seconds after they run, whatever
+        // it is doing), and if it means to go, how long it has actually been after them. Its
+        // own stream, so the verdict does not shift the brain's other draws.
         Rng punishRng;
-        float verdictAt = -1f, verdictUntil = -1f, punishUntil = -1f;
-        bool punishing, punishArrived, forcePunish;
+        float verdictAt = -1f, pursuit, lastPursueT = -1f, freeSince = -1f, waitFrom;
+        const float PursuitLimit = 150f;   // seconds (match clock) of going after them before it gives up
+        const float FreeFor = 3f;          // seconds free before it sets off (again)
+        const float GoLimit = 300f;        // seconds owing them a visit, never free to set off, before it lets them be
+        bool punishing, punishArrived, forcePunish, pursuing, turnedBack;
+        int executedAtGo;
         /// <summary>Is it out to punish its side's deserters?</summary>
         public bool Punishing => punishing;
         /// <summary>How many times it went (for the trials and the evaluation line).</summary>
@@ -99,9 +112,18 @@ namespace StarForge.AI
             rng = new Rng(seed ^ 0x3EC4u ^ (uint)(t * 7919));
             punishRng = new Rng(seed ^ 0x9D1E5u ^ (uint)(t * 31337));
             nextAdvice = 60f;
+            PlayersSide = t == 0;
+            Doctrine = PlayersSide ? MechDoctrine.Guardian() : MechDoctrine.Tempered(seed ^ (uint)(t * 7919));
+            // Both keep a MechSpeech: its reading of the battle (mood, temper) weighs the verdict
+            // on deserters. Only the player's speaks.
             speech = new MechSpeech(world, t, seed);
             w.Event += OnEvent;
         }
+
+        /// <summary>Its verdict rolls drawn from another seed: the evaluation's per-opponent reseed
+        /// (AIEvalRunner), like GameWorld.ReseedMorale -- from the match seed alone, the first
+        /// verdict of each of the evaluation's five seeds came out the same against every opponent.</summary>
+        public void ReseedPunish(uint seed) => punishRng = new Rng(seed ^ 0x9D1E5u ^ (uint)(team * 31337));
 
         public void Dispose()
         {
@@ -122,8 +144,12 @@ namespace StarForge.AI
             if (w == null) return;
             if (w.winner >= 0)
             {
-                // One last word as the match ends, if it is still standing to say it.
-                if (Mech is Unit last && last.mech.Landed) Speak(last, speech.Final(last, F.design, w.winner == team));
+                // Decided: no going after its deserters behind the end screen (it returned here
+                // before the purge was cleared, and its guns kept on at them).
+                if (punishing) StopPunishing(null, null);
+                // One last word as the match ends, if it is still standing to say it; a draw (both
+                // sides gone in one tick) is neither won nor lost and gets none.
+                if (PlayersSide && w.winner != 2 && Mech is Unit last && last.mech.Landed) Speak(last, speech.Final(last, F.design, w.winner == team));
                 return;
             }
             Budget.Tick(dt);
@@ -132,12 +158,37 @@ namespace StarForge.AI
             var m = Mech;
             thinkT = thinkEvery = m != null && m.mech.Landed && InFight(m) ? CombatThink : ThinkPeriod;
             if (m != lastMech) { lastMech = m; repairing = false; greeted = false; }
-            // Gone to be mended, or gone: the deserters will keep.
-            if (punishing && (m == null || repairing)) StopPunishing(m, null);
+            // Its deserters. The purge is on only in a think where Punish goes after them: cleared
+            // here first, since the repair and fall-back branches return before Punish. Gone: it
+            // is over. The deserters all dead: it says how that went, wherever it is. Mending, or
+            // hurt past its repair line: not after them now; the decision stands.
+            if (punishing)
+            {
+                w.SetPurge(team, false);
+                if (m == null) StopPunishing(null, null);
+                else if (w.MoraleOf(team).deserters.Count == 0) EndPunishing(m);
+                else
+                {
+                    if (repairing || m.hp < m.MaxHp * RepairAt) TurnBack(m);
+                    // Never free to go for minutes (hurt with no bay to mend at, the base under
+                    // threat): it lets them be, saying so, rather than owing them all match.
+                    if (!pursuing && w.time - waitFrom > GoLimit) StopPunishing(m, Line(NoTime));
+                }
+            }
             Advise(m);
             if (m == null) return;
             var core = m.mech;
             if (!core.Landed) { SetIntent(core, MechIntent.Dropping, "Coming down"); return; }
+            // Its verdict on deserters comes whatever it is doing -- repairs included, which
+            // return before Punish (deciding there, a Mech in the gantry when they ran never did).
+            // Waiting to decide until it was free, a Mech whose side was losing its war never was:
+            // 3 of 3 desertions with a Mech on the field had no verdict at all.
+            if (verdictAt >= 0f && w.time >= verdictAt)
+            {
+                verdictAt = -1f;
+                var morale = w.MoraleOf(team);
+                if (morale.deserters.Count > 0) Verdict(m, morale);
+            }
             Think(m, core);
         }
 
@@ -175,17 +226,22 @@ namespace StarForge.AI
             // How it stands where it is.
             float here = Ratio(m.pos, 34f, m, out float enemyHere, out _);
             LastRatio = here;
-            float caution = Lerp(1.5f, 3.4f, Saturate((1f - hpFrac) / 0.62f)) + (core.HasShield && core.shield < 1f ? 0.25f : 0f);
+            float caution = Doctrine.Caution(hpFrac) + (core.HasShield && core.shield < 1f ? 0.25f : 0f);
 
             // ---- repair
             if (repairing && (hpFrac >= RepairedAt && (!core.HasShield || core.shield > core.ShieldMax * 0.9f) || bay == null)) repairing = false;
-            if (!repairing && bay != null && (hpFrac < RepairAt || (hpFrac < 0.6f && enemyHere > 0f && here < 1f)))
+            // Owing its deserters a visit and too hurt to go (it goes only at 60%+), it tops up
+            // when it is otherwise free to go: mended nowhere else, a Mech at 40-59% would wait
+            // on them all match. (Not on "nothing within 34 m": shelled from 40 m it walked off.)
+            bool mustMend = hpFrac < RepairAt || (hpFrac < 0.6f && enemyHere > 0f && here < 1f);
+            if (!repairing && bay != null && (mustMend || (punishing && hpFrac < 0.6f && FreeForDeserters(m))))
             {
                 repairing = true;
                 if (!warnedLow)
                 {
                     warnedLow = true;
-                    Say(MechAdviceKind.Status, m.pos, Pick(
+                    if (!mustMend) Narrate(m.pos, $"Hull at {hpFrac * 100f:0}%. Patching up at the bay first -- then the deserters.", m);
+                    else Say(MechAdviceKind.Status, m.pos, Pick(
                         $"Hull at {hpFrac * 100f:0}%. Falling back to the bay for repairs -- hold without me.",
                         $"I am hurt, {hpFrac * 100f:0}% armour left. Back to the gantry; I will return.",
                         "Taking too much fire. Withdrawing to the bay to patch up."), m);
@@ -239,7 +295,7 @@ namespace StarForge.AI
                 if (inBase) r = Ratio(foeMech.pos, 30f, m, out _, out _, home: true);
                 // Once in, it stays in while the fight is close.
                 float hold = mode == MechIntent.Duelling ? 0.15f : 0f;
-                if (r > caution * 0.85f - hold || (atUs && r > 0.8f - hold && hpFrac > 0.3f) || (inBase && r > 0.55f && hpFrac > 0.35f))
+                if (r > caution * Doctrine.duel - hold || (atUs && r > 0.8f - hold && hpFrac > 0.3f) || (inBase && r > 0.55f && hpFrac > 0.35f))
                 {
                     SetIntent(core, MechIntent.Duelling, $"Engaging their {foeMech.mech.design.className}");
                     Focus(m, foeMech);
@@ -328,7 +384,7 @@ namespace StarForge.AI
 
             // ---- a hunt, if something out there can be beaten cleanly (looked for about
             //      once a second: it weighs a fight at every enemy cluster on the map)
-            if (hpFrac > 0.72f)
+            if (hpFrac > Doctrine.huntFrom)
             {
                 if (w.time >= preyT)
                 {
@@ -648,7 +704,7 @@ namespace StarForge.AI
                 else value = Defs.ArmyValue(e.Type);
                 if (value < 40f) continue;
                 float dist = m.Dist(e);
-                if (dist > 150f) continue;
+                if (dist > Doctrine.huntReach) continue;
                 // Weigh the fight once per cluster: what sits near a place already weighed shares its odds.
                 float r = -1f;
                 for (int k = 0; k < weighed.Count; k++)
@@ -670,7 +726,7 @@ namespace StarForge.AI
                     what = e.def.building ? $"their {e.def.displayName} {Where(e.pos)}" : $"{Describe(e.pos, 20f)} {Where(e.pos)}";
                 }
             }
-            return bestScore > 150f;
+            return bestScore > Doctrine.huntWorth;
         }
 
         float ClusterValue(Vector2 at, float radius)
@@ -710,7 +766,7 @@ namespace StarForge.AI
         {
             bool bayHomeSide = bay != null && HomeSide(bay);
             Vector2 anchor = bayHomeSide ? Vector2.Lerp(Home, bay.pos, 0.5f) : Home;
-            Vector2 g = anchor + Norm(Foe - Home) * 22f;
+            Vector2 g = anchor + Norm(Foe - Home) * Doctrine.guardOut;
             return w.NearestReachable(Home, g, true);
         }
 
@@ -780,12 +836,41 @@ namespace StarForge.AI
         // warnings -- and in between, to keep their spirits up, a line MechSpeech picks
         // for how the battle stands.
 
-        void Say(MechAdviceKind kind, Vector2 at, string text, Unit about = null)
+        // What its side last heard of each call, and where.
+        const float RepeatWindow = 150f, RepeatReach = 50f;
+        readonly float[] heardT = { -999f, -999f, -999f, -999f, -999f, -999f, -999f, -999f };
+        readonly Vector2[] heardAt = new Vector2[8];
+        float defendHeardValue;
+        bool warnedNoListener;
+
+        /// <summary>Tell its side. The opponent's Mech says nothing aloud: an attack, defend or
+        /// pull-back call goes straight to its Commander (<see cref="Listener"/>) as a kind and
+        /// a place -- all a call ever told it -- and nothing else is sent. The player's Mech
+        /// raises it for the comms; a call about the same place as one within RepeatWindow is
+        /// marked a repeat, which the HUD and the radio leave out (the same "moving on your
+        /// Bunkhouse" came six times in five minutes). <paramref name="news"/> overrides that.
+        /// The pacing and the counts are the same either way. True if it was not a repeat.</summary>
+        bool Say(MechAdviceKind kind, Vector2 at, string text, Unit about = null, bool news = false)
         {
-            w.MechAdvise(team, kind, at, text, about);
+            int k = (int)kind;
             AdviceGiven++;
-            AdviceByKind[(int)kind]++;
+            AdviceByKind[k]++;
             nextAdvice = Mathf.Max(nextAdvice, w.time + 20f);
+            bool call = kind == MechAdviceKind.Attack || kind == MechAdviceKind.Defend || kind == MechAdviceKind.Regroup;
+            if (!PlayersSide)
+            {
+                if (call && Listener != null) Listener.HearMech(kind, at);
+                else if (call && !warnedNoListener)
+                {
+                    warnedNoListener = true;   // it would otherwise go unheard without a sound
+                    UnityEngine.Debug.LogWarning("[MechBrain] the opponent's Mech has no Commander to hear its calls (MechBrain.Listener)");
+                }
+                return true;
+            }
+            bool repeat = call && !news && w.time - heardT[k] < RepeatWindow && (at - heardAt[k]).sqrMagnitude < RepeatReach * RepeatReach;
+            if (!repeat) { heardT[k] = w.time; heardAt[k] = at; }
+            w.MechAdvise(team, kind, at, text, about, repeat);
+            return !repeat;
         }
 
         string Pick(params string[] lines) => lines[rng.IRange(0, lines.Length)];
@@ -795,9 +880,10 @@ namespace StarForge.AI
         void Speak(Unit m, string text)
         {
             if (text == null) return;
-            w.MechAdvise(team, MechAdviceKind.Morale, m.pos, text, m);
             AdviceGiven++;
             AdviceByKind[(int)MechAdviceKind.Morale]++;
+            if (!PlayersSide) return;   // the opponent's Mech says nothing aloud
+            w.MechAdvise(team, MechAdviceKind.Morale, m.pos, text, m);
         }
 
         void Advise(Unit m)
@@ -832,7 +918,7 @@ namespace StarForge.AI
             if (foe == null && sawEnemyMech && w.factions[1 - team].mechLost && enemyMechsBefore != 0)
             {
                 enemyMechsBefore = 0;
-                Say(MechAdviceKind.Morale, m.pos, Pick(
+                Say(MechAdviceKind.Status, m.pos, Pick(
                     "Their Mech is down! The field is ours -- press them while they are broken.",
                     "Their champion has fallen. Now we finish this."), m);
                 return;
@@ -844,7 +930,10 @@ namespace StarForge.AI
                 lastDefendAdvice = now;
                 DistToBase(at, out Unit nearest);
                 string aimedAt = nearest != null ? $"your {nearest.def.displayName}" : "the base";
-                Say(MechAdviceKind.Defend, at, $"{desc} moving on {aimedAt} {Where(at)}. Pull your army back to meet them -- I am on my way.");
+                // Much more of them than it last warned of is news, even about the same place.
+                if (Say(MechAdviceKind.Defend, at, $"{desc} moving on {aimedAt} {Where(at)}. Pull your army back to meet them -- I am on my way.",
+                        news: val >= defendHeardValue * 1.6f))
+                    defendHeardValue = val;
                 return;
             }
 
@@ -873,7 +962,7 @@ namespace StarForge.AI
             }
 
             // Otherwise, a word for how the battle stands (MechSpeech chooses it and when).
-            Speak(m, speech.Next(m, d));
+            if (PlayersSide) Speak(m, speech.Next(m, d));
         }
 
         /// <summary>Its army is going at their Mech and cannot win that fight even with it:
@@ -957,64 +1046,56 @@ namespace StarForge.AI
 
         void OnEvent(GameEvent e)
         {
-            // Soldiers of its side ran: it gives its verdict in a few seconds (Punish).
-            if (e.kind == GameEventKind.Desertion && e.team == team && !punishing && verdictAt < 0f)
-            {
+            // Soldiers of its side ran while it was on the field: it gives its verdict in a few
+            // seconds (Update). One still coming down, or none, does not judge them later.
+            if (e.kind == GameEventKind.Desertion && e.team == team && !punishing && verdictAt < 0f &&
+                Mech is Unit mm && mm.mech.Landed)
                 verdictAt = w.time + punishRng.Range(4f, 9f);
-                verdictUntil = w.time + 75f;
-            }
             if (e.kind == GameEventKind.Death && e.team == 1 - team && e.unit != null && e.unit.Type == UnitType.MechBay && !w.factions[team].mechLost)
             {
                 if (Mech != null)
-                    Say(MechAdviceKind.Morale, e.pos, w.factions[1 - team].mechDropped
+                    // Ground position (x, z): passed as it was, the Vector3 became (x, height) and
+                    // the ping went to the map's near edge.
+                    Say(MechAdviceKind.Status, new Vector2(e.pos.x, e.pos.z), w.factions[1 - team].mechDropped
                         ? "Their Mech Bay is rubble. Their Mech has nowhere left to lick its wounds."
                         : "Their Mech Bay is down before their Mech could land. It will never come.");
             }
             if (e.kind == GameEventKind.Death && e.team == team && e.unit != null && e.unit.Type == UnitType.MechBay)
             {
-                if (Mech != null) Say(MechAdviceKind.Warning, e.pos, "The bay is lost. I cannot be repaired now -- I will fight with more care.");
+                if (Mech != null) Say(MechAdviceKind.Warning, new Vector2(e.pos.x, e.pos.z), "The bay is lost. I cannot be repaired now -- I will fight with more care.");
             }
-            if (e.kind == GameEventKind.MechInbound && e.team == team && F.design != null)
+            if (e.kind == GameEventKind.MechInbound && e.team == team && F.design != null && PlayersSide)
                 w.MechAdvise(team, MechAdviceKind.Status, new Vector2(e.pos.x, e.pos.z),
                     $"{F.design.pilot} inbound. Clear the pad beside the Mech Bay -- landing in {GameWorld.MechInboundLead:0} seconds.");
         }
 
         // ------------------------------------------------------------ deserters
         // Soldiers of its side who broke and ran (GameWorld.Morale) sit in a camp in the
-        // corner behind its base. A few seconds after they run -- once it is whole enough
-        // and nothing is on it -- it decides whether to go and put them down: a cold pilot
-        // more often than a warm one, a proud one more often, and any of them more often
-        // when the war is going badly (its mood). If it goes, it says so, walks there, and
-        // its guns treat them as enemies until they are dead (GameWorld.Purging); it gives
-        // up if it is needed at home, their Mech comes near, it goes for repairs, or after
-        // two and a half minutes. Either way its side hears what it decided.
+        // corner behind its base. A few seconds after they run -- whatever it is doing, if it
+        // was on the field when they ran -- it decides whether to go and put them down: a
+        // cold pilot more often than a warm one, a proud one more often, and any of them more
+        // often when the war is going badly (its mood). A "go" is said at once; it sets off
+        // when it has been free for a few seconds (whole enough, out of a fight, the base
+        // safe, their Mech not near), turns back once (saying so) if called away, and goes
+        // again when free; its guns treat them as enemies only while it is after them
+        // (GameWorld.Purging). It gives up after two and a half minutes of pursuit. When they
+        // are all dead it says whether it saw to them or the enemy did. Sparing them, it says
+        // so most of the time.
 
         /// <summary>For the trials: give the verdict now, and make it "go".</summary>
         public void PunishNow()
         {
             forcePunish = true;
             verdictAt = w.time;
-            verdictUntil = w.time + 75f;
         }
 
-        /// <summary>The verdict when it is due, and the walk to the camp: true if that is what
-        /// it is doing this think.</summary>
+        /// <summary>The walk to the camp, once it has decided to go: true if that is what it is
+        /// doing this think.</summary>
         bool Punish(Unit m, MechCore core, float hpFrac)
         {
             var M = w.MoraleOf(team);
-            if (verdictAt >= 0f && w.time >= verdictAt)
-            {
-                if (M.deserters.Count == 0 || w.time > verdictUntil) verdictAt = -1f;   // gone, or too late to matter
-                else if (!forcePunish && (hpFrac < 0.6f || InFight(m) || (HomeThreat(out _, out float tv) && tv >= 120f)))
-                    verdictAt = w.time + 5f;                                            // busy: later
-                else { verdictAt = -1f; Verdict(m, M); }
-            }
+            // The verdict was given in Update; a "go" stands, and it goes when it can spare the time.
             if (!punishing) return false;
-
-            if (w.time > punishUntil) { StopPunishing(m, Line(Aborted)); return false; }
-            if (HomeThreat(out _, out float threat) && threat >= 120f) { StopPunishing(m, Line(Aborted)); return false; }
-            var foe = w.MechOf(1 - team);
-            if (foe != null && foe.mech.Landed && m.Dist(foe) < 60f) { StopPunishing(m, Line(FoeNear)); return false; }
 
             Unit prey = null;
             float best = float.MaxValue;
@@ -1024,7 +1105,24 @@ namespace StarForge.AI
                 float dd = (d.pos - m.pos).sqrMagnitude;
                 if (dd < best) { best = dd; prey = d; }
             }
-            if (prey == null) { StopPunishing(m, Line(speech.Temper < 0f ? DoneCold : DoneWarm)); return false; }
+            if (prey == null) { EndPunishing(m); return false; }
+
+            // The fight, the base, their Mech and its own hull come first: it goes when it is free
+            // of them, and turns back (saying so) if they call it away once it has set off.
+            if (hpFrac < 0.6f || !FreeForDeserters(m)) { TurnBack(m); return false; }
+            if (!pursuing)
+            {
+                // Free for a few seconds before it sets off (again): sniped every few seconds on
+                // its way, it would otherwise set off and turn back every think.
+                if (freeSince < 0f) freeSince = w.time;
+                if (w.time - freeSince < FreeFor) return false;
+            }
+            pursuing = true;
+            waitFrom = w.time;
+            // Timed on the match clock (thinks are quantised to frames, so counting them ran long).
+            if (lastPursueT >= 0f) pursuit += w.time - lastPursueT;
+            lastPursueT = w.time;
+            if (pursuit > PursuitLimit) { StopPunishing(m, Line(TimedOut)); return false; }
 
             w.SetPurge(team, true);
             SetIntent(core, MechIntent.Hunting, "Punishing deserters " + Where(M.camp));
@@ -1033,13 +1131,38 @@ namespace StarForge.AI
             if (!punishArrived && dist < core.FightRange)
             {
                 punishArrived = true;
-                Say(MechAdviceKind.Status, prey.pos, Line(speech.Temper < 0f ? ArriveCold : ArriveWarm), m);
+                Narrate(prey.pos, Line(speech.Temper < 0f ? ArriveCold : ArriveWarm), m);
             }
-            // Close enough for every gun, not on top of them.
-            float stand = Mathf.Clamp(core.ShortRange - 2f, 6f, Mathf.Max(6f, core.FightRange - 3f));
+            float stand = PunishStand(core);
             if (dist > stand) MoveTo(m, prey.pos + Norm(m.pos - prey.pos) * stand, 2f);
             else if (m.order == Order.Move && m.Moving && Spend(1)) w.CmdMechHalt(m);
             return true;
+        }
+
+        /// <summary>Free to see to its deserters, its hull aside: out of a fight, the base not
+        /// under threat, their Mech not near.</summary>
+        bool FreeForDeserters(Unit m)
+        {
+            var foe = w.MechOf(1 - team);
+            return !InFight(m) && !(HomeThreat(out _, out float threat) && threat >= 120f) &&
+                   !(foe != null && foe.mech.Landed && m.Dist(foe) < 60f);
+        }
+
+        /// <summary>How far from a deserter to stand: where the most of its guns can fire on a
+        /// rifleman (a mortar cannot fire inside its minimum range; a flamer reaches little
+        /// further than its cone), the nearer of equals.</summary>
+        public static float PunishStand(MechCore core)
+        {
+            float best = 6f;
+            int bestGuns = -1;
+            for (float d = 5f; d <= core.FightRange - 1f; d += 1f)
+            {
+                int n = 0;
+                foreach (var g in core.guns)
+                    if (d >= g.part.minRange + 1f && d <= core.Range(g) - 1.5f) n++;
+                if (n > bestGuns) { bestGuns = n; best = d; }
+            }
+            return best;
         }
 
         void Verdict(Unit m, MoraleState M)
@@ -1054,22 +1177,67 @@ namespace StarForge.AI
             if (go)
             {
                 punishing = true;
+                waitFrom = w.time;
                 punishArrived = false;
-                punishUntil = w.time + 150f;
+                pursuing = false;
+                turnedBack = false;
+                pursuit = 0f;
+                lastPursueT = freeSince = -1f;
                 Punishments++;
+                executedAtGo = M.executed;
                 string text = Line(temper < 0f ? GoCold : GoWarm).Replace("{where}", Where(M.camp)).Replace("{n}", M.deserters.Count.ToString());
-                Say(MechAdviceKind.Status, M.camp, text, m);
+                Narrate(M.camp, text, m);
             }
-            else if (punishRng.F01() < 0.6f)
-                Speak(m, Line(temper < 0f ? SpareCold : SpareWarm));
+            else
+            {
+                float say = punishRng.F01();
+                if (say < 0.6f) Speak(m, Line(temper < 0f ? SpareCold : SpareWarm));
+                LastVerdict += say < 0.6f ? $", said so ({say:0.00})" : $", kept it to itself ({say:0.00})";
+            }
+        }
+
+        /// <summary>The deserters are all dead: it says it saw to them only if it did (the enemy
+        /// may have got there first).</summary>
+        void EndPunishing(Unit m)
+        {
+            var M = w.MoraleOf(team);
+            bool ours = M.executed > executedAtGo;
+            StopPunishing(m, Line(!ours ? GoneAlready : speech.Temper < 0f ? DoneCold : DoneWarm));
+        }
+
+        /// <summary>Called away (a fight, the base, their Mech, its hull): not after them now. If it
+        /// had set off it says so -- once a "go": a Mech sniped every few seconds on its way said
+        /// it again and again.</summary>
+        void TurnBack(Unit m)
+        {
+            freeSince = -1f;
+            lastPursueT = -1f;
+            if (!pursuing) return;
+            pursuing = false;
+            if (!turnedBack && m != null) { turnedBack = true; Narrate(m.pos, Line(Aborted), m); }
         }
 
         void StopPunishing(Unit m, string line)
         {
             punishing = false;
             punishArrived = false;
+            pursuing = false;
+            turnedBack = false;
+            pursuit = 0f;
+            lastPursueT = freeSince = -1f;
             w.SetPurge(team, false);
-            if (line != null && m != null) Say(MechAdviceKind.Status, m.pos, line, m);
+            if (line != null && m != null) Narrate(m.pos, line, m);
+        }
+
+        /// <summary>What it says about the deserters: a Status line for its side's comms, which
+        /// (unlike Say) does not hold back its next call -- team 1's Commander still acts on
+        /// those on time -- and which the opponent's Mech keeps to itself.</summary>
+        void Narrate(Vector2 at, string text, Unit about)
+        {
+            if (!PlayersSide) return;   // kept to itself: nothing said, so nothing counted
+            AdviceGiven++;
+            AdviceByKind[(int)MechAdviceKind.Status]++;
+            w.MechAdvise(team, MechAdviceKind.Status, at, text, about);
         }
 
         string Line(string[] lines)
@@ -1114,12 +1282,24 @@ namespace StarForge.AI
         static readonly string[] Aborted =
         {
             "The deserters will keep. I am needed elsewhere.",
-            "No time for deserters now -- I am turning back.",
+            "No time for deserters now -- I am turning back. They are not going anywhere.",
         };
-        static readonly string[] FoeNear =
+        static readonly string[] TimedOut =
         {
-            "Their Mech is close. The deserters can wait.",
+            "Enough. I have spent too long on deserters -- back to the war.",
+            "They are scattered and not worth more of my time. Returning to my post.",
         };
+        static readonly string[] NoTime =
+        {
+            "The deserters can keep their corner. I have had no moment to spare for them, and I will not.",
+            "Let them sit where they ran. The war has kept me from them, and it has better uses for me.",
+        };
+        static readonly string[] GoneAlready =
+        {
+            "The deserters are gone -- the enemy found them before I did.",
+            "Nothing left in the corner. Someone else settled their account.",
+        };
+
         static readonly string[] SpareCold =
         {
             "Deserters, cowering in the corner. They are not worth a shell. Not today.",

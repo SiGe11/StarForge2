@@ -13,6 +13,7 @@ Reasons, baselines and the adaptive-resolution rules: `Assets/StarForge/Scripts/
 3. Editor idle and **not in play mode**; no other session using it (`ListAgents`, `Tools/editor.sh state`; the full slot protocol is step 3 of the `verify-change` skill).
 4. Long runs: `caffeinate -d -i -t 7200` in the background (display sleep stalls the Editor; the player needs the display too).
 5. Rebuild first if code changed: `Tools/editor.sh menu "StarForge/Build macOS Player (Apple silicon)"` (cached ~20 s).
+6. Runs are silent by default: the test flags below start the player muted (listener volume 0; voices and mixer still run, so numbers should compare; no muted/unmuted fps pair yet) and Editor play started through `editor.sh` is muted (root `CLAUDE.md`, "Agent runs are silent"). Add `-sfsound` / call `AgentAudio.Hear` only when the user is meant to listen.
 
 ## Player benchmark (AI vs AI, seed 1000; Mechs land at ~4 min, so 420 s)
 ```bash
@@ -34,7 +35,7 @@ python3 Tools/analyse_burst.py /tmp/high.raw
 `-sfgallery <dir>` (`-sfgalleryquick` to stop early). Same shots every run: base close/mid, ore, shore, grove before/during/after fire, animal, songbird flock, overview, first fire-fight, Mechs (`9_mech_close`, `9b_mech_mid`, `9c_mech_other`, `9d_mech_fight_*`, `9e_mech_bay`). The terminal cannot record the screen; `-sfscreentest` (with `-logFile`) logs the sizes after four fullscreen/window switches.
 
 ## AI evaluation (Editor, play mode)
-`Tools/editor.sh menu "StarForge/Evaluate AI/Quick"` (720 s cap) or `.../Full` (900 s): AI vs four scripted archetypes; report in the console and `persistentDataPath/starforge_ai_eval.txt` (per match: both sides' Mech Bay/Mech, the AI Mech's time by intent). Clear statics first (`Commander.Suspended`/`IgnoreSites`; the runners reset them). Bring the Editor frontmost (App Nap): `open -a /Applications/Unity/Hub/Editor/6000.6.1f1/Unity.app`. `AIEvalMenu.Replay` replays a game for behaviour only, not the result.
+`Tools/editor.sh menu "StarForge/Evaluate AI/Quick"` (720 s cap) or `.../Full` (900 s): AI vs four scripted archetypes; report in the console and `persistentDataPath/starforge_ai_eval.txt` (per match: both sides' Mech Bay/Mech, the AI Mech's time by intent). Clear statics first (`Commander.Suspended`/`IgnoreSites`; the runners reset them). Bring the Editor frontmost (App Nap): `open -a /Applications/Unity/Hub/Editor/6000.6.5f1/Unity.app`. `AIEvalMenu.Replay` replays a game for behaviour only, not the result.
 
 ## Report
 State the number, the preset/flags, the build, `pmset -g batt`, lock check, and which earlier build it was paired with.
