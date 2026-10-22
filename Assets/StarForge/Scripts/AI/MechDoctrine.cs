@@ -28,6 +28,10 @@ namespace StarForge.AI
         public float huntWorth = 150f;
         /// <summary>How far out from its base, toward theirs, it waits.</summary>
         public float guardOut = 22f;
+        /// <summary>Goes in beside its side's army when that army, big enough, is going at their Mech
+        /// (MechBrain's duel test, counting the army out to 50 m). Both Mechs: the user's call
+        /// (2026-10-21) -- the two judge alike, and a Mech attacks when it can do so safely.</summary>
+        public bool commitWithArmy = true;
 
         /// <summary>The player's Mech: the numbers it has always had.</summary>
         public static MechDoctrine Guardian() => new MechDoctrine();

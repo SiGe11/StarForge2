@@ -295,7 +295,15 @@ namespace StarForge.AI
                 if (inBase) r = Ratio(foeMech.pos, 30f, m, out _, out _, home: true);
                 // Once in, it stays in while the fight is close.
                 float hold = mode == MechIntent.Duelling ? 0.15f : 0f;
-                if (r > caution * Doctrine.duel - hold || (atUs && r > 0.8f - hold && hpFrac > 0.3f) || (inBase && r > 0.55f && hpFrac > 0.35f))
+                // Its side's army going at their Mech in force: it goes in beside them (both Mechs,
+                // `commitWithArmy`). Judged only on what had closed to 30 m, it held back while
+                // the wave arrived and the wave met their Mech alone -- against the macro player, whose
+                // Mech held its bay to the cap 4 matches in 5, it spent 36-44% of its time withdrawing.
+                // "In force": the army within 50 m worth 1,500+ and the odds there, all counted, above 1.
+                bool commit = false;
+                if (withArmy && Doctrine.commitWithArmy && !LegacyCommit && hpFrac > 0.45f && ArmyNear(foeMech.pos, 50f) >= 1500f)
+                    commit = Ratio(foeMech.pos, 50f, m, out _, out _) > 1f - hold;
+                if (commit || r > caution * Doctrine.duel - hold || (atUs && r > 0.8f - hold && hpFrac > 0.3f) || (inBase && r > 0.55f && hpFrac > 0.35f))
                 {
                     SetIntent(core, MechIntent.Duelling, $"Engaging their {foeMech.mech.design.className}");
                     Focus(m, foeMech);
@@ -686,6 +694,19 @@ namespace StarForge.AI
         /// <summary>Somewhere worth going: an enemy force, expansion, worker line or Mech
         /// Bay that it (with anything of its side there) beats with a margin, not under
         /// a stack of towers, and not across the whole map when it is hurt.</summary>
+        /// <summary>Editor A/B only: a Mech holds back from a big attack on their Mech as before
+        /// (`commitWithArmy` ignored). The evaluation runner resets it.</summary>
+        public static bool LegacyCommit;
+
+        /// <summary>The army value of its side's (loyal) soldiers within <paramref name="radius"/> of a point.</summary>
+        float ArmyNear(Vector2 at, float radius)
+        {
+            float v = 0f;
+            foreach (var u in w.UnitsNear(at, radius))
+                if (u.team == team && !u.dying && !u.deserted && u.def.IsArmy) v += Defs.ArmyValue(u.Type);
+            return v;
+        }
+
         /// <summary>Editor A/B only: hunt up to their Mech's reach as before (AIReview.HuntCase1Old).
         /// The evaluation runner resets it.</summary>
         public static bool LegacyHunt;

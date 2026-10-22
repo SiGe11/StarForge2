@@ -64,6 +64,7 @@ namespace StarForge.Game
         readonly float[] stratUse = new float[(int)Strategy.Count];
         readonly float[] labelUse = new float[(int)PlayerStrat.Count];
         readonly float[] mechIntent = new float[(int)MechIntent.Holding + 1];
+        readonly float[] theirIntent = new float[(int)MechIntent.Holding + 1];
         readonly Dictionary<string, float> mechReason = new Dictionary<string, float>();
         float nextTrace = 30f;
         bool finished;
@@ -106,6 +107,7 @@ namespace StarForge.Game
             Commander.RepositionOff = false;   // the blocked-shot trial's A/B switch
             Perception.LegacyMechMemory = false;
             MechBrain.LegacyHunt = false;
+            MechBrain.LegacyCommit = false;
             World.GameWorld.LegacyBreakPick = false;   // the morale trials' A/B switch
             MatchSettings.skipMenu = true;
             MatchSettings.spectate = false;
@@ -160,6 +162,10 @@ namespace StarForge.Game
             if (ai.Dbg.apm > 0f) { apmSum += ai.Dbg.apm; apmN++; }
             // How the AI's Mech spends its time once it is down, and (replaying one
             // game) what both Mechs were thinking every half minute.
+            // The other side's Mech (the player's doctrine, playing for the scripted opponent): its
+            // time by intent too, so the evaluation shows whether it attacks when it safely can.
+            var brain0 = boot.MechBrains[0];
+            if (brain0 != null && world.MechOf(0) != null) theirIntent[(int)brain0.Mode] += dt;
             var brain = boot.MechBrains[1];
             var aiMech = world.MechOf(1);
             if (brain != null && aiMech != null)
@@ -223,6 +229,7 @@ namespace StarForge.Game
                       $"style {ai.Dbg.personality}; {ai.Dbg.waves} attack waves, last {ai.Dbg.wave}; " +
                       $"Mechs: AI {MechLine(1)}, opponent {MechLine(0)}; advice heeded {ai.Dbg.adviceHeeded}, ignored {ai.Dbg.adviceIgnored}, upgrades bought {ai.Dbg.upgradesBought}, waves while their Mech was away {ai.Dbg.mechWindows}, gathered on its Mech {ai.Dbg.stagedWithMech}; " +
                       $"AI Mech's time: {IntentShares()}; " +
+                      $"their Mech's time: {Shares(theirIntent)}; " +
                       $"left at the end: AI {Left(1)}, opponent {Left(0)}; AI retreats {ai.Retreats}, waves at their Mech hurt {ai.Dbg.hurtWindows}, raids {ai.Dbg.raidSorties} ({ai.Dbg.sideRaidSorties} beside another plan), plans {PlanShares()}; " +
                       $"waves at a Mech it knew of: threshold {ai.Dbg.mechWavesBy[0]}, its Mech's call {ai.Dbg.mechWavesBy[1]}, theirs away {ai.Dbg.mechWavesBy[2]}, theirs hurt {ai.Dbg.mechWavesBy[3]}, broke {ai.Dbg.mechWavesBy[4]}; " +
                       $"their Mech alive {mechAliveT:0}s, believed gone {(mechAliveT > 0f ? 100f * mechForgottenT / mechAliveT : 0f):0}% of it, waves started meanwhile {wavesAtMech} ({wavesForgotten} believing it gone); " +
@@ -315,6 +322,17 @@ namespace StarForge.Game
             foreach (var u in world.units)
                 if (u != null && !u.dying && u.team == team && u.def.IsArmy && !u.deserted) v += StarForge.Sim.Defs.ArmyValue(u.Type);
             return v;
+        }
+
+        static string Shares(float[] t)
+        {
+            float sum = 0f;
+            foreach (var v in t) sum += v;
+            if (sum <= 0f) return "not on the field";
+            var parts = new List<string>();
+            for (int i = 0; i < t.Length; i++)
+                if (t[i] / sum >= 0.02f) parts.Add($"{((MechIntent)i).ToString().ToLowerInvariant()} {100f * t[i] / sum:0}%");
+            return $"{sum:0}s, " + string.Join(", ", parts);
         }
 
         string IntentShares()
