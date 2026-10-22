@@ -108,6 +108,8 @@ namespace StarForge.Game
             Perception.LegacyMechMemory = false;
             MechBrain.LegacyHunt = false;
             MechBrain.LegacyCommit = false;
+            Commander.LegacyNoMaxOut = false;
+            Commander.LegacySweep = false;
             World.GameWorld.LegacyBreakPick = false;   // the morale trials' A/B switch
             MatchSettings.skipMenu = true;
             MatchSettings.spectate = false;
@@ -195,13 +197,25 @@ namespace StarForge.Game
             bool forgotten = alive && !ai.Perception.Snap.eMech;
             if (alive) mechAliveT += dt;
             if (forgotten) mechForgottenT += dt;
-            if (ai.Dbg.waves > lastWaves && alive) { wavesAtMech++; if (forgotten) wavesForgotten++; }
+            if (ai.Dbg.waves > lastWaves && alive)
+            {
+                wavesAtMech++;
+                if (forgotten) wavesForgotten++;
+                else { armyAtMechWaves += ai.Perception.Snap.armyValue; mechWavesKnown++; }
+            }
+            // How big its army got, and how full its supply: whether it ever had the army a maxed push
+            // would bring.
+            peakArmy = Mathf.Max(peakArmy, ai.Perception.Snap.armyValue);
+            peakSupply = Mathf.Max(peakSupply, world.factions[1].supplyUsed);
+            // From when it waits for a massed army (beaten back twice by their Mech), and how big.
+            if (ai.Dbg.massedArmy > 0f) { if (massingFrom < 0f) massingFrom = world.time; massedNeed = ai.Dbg.massedArmy; }
             lastWaves = ai.Dbg.waves;
 
             if (world.winner >= 0 || world.time >= maxSeconds) Finish();
         }
 
-        float mechAliveT, mechForgottenT;
+        float mechAliveT, mechForgottenT, armyAtMechWaves, peakArmy, massingFrom = -1f, massedNeed;
+        int mechWavesKnown, peakSupply;
         int lastWaves, wavesAtMech, wavesForgotten;
 
         void Finish()
@@ -233,6 +247,8 @@ namespace StarForge.Game
                       $"left at the end: AI {Left(1)}, opponent {Left(0)}; AI retreats {ai.Retreats}, waves at their Mech hurt {ai.Dbg.hurtWindows}, raids {ai.Dbg.raidSorties} ({ai.Dbg.sideRaidSorties} beside another plan), plans {PlanShares()}; " +
                       $"waves at a Mech it knew of: threshold {ai.Dbg.mechWavesBy[0]}, its Mech's call {ai.Dbg.mechWavesBy[1]}, theirs away {ai.Dbg.mechWavesBy[2]}, theirs hurt {ai.Dbg.mechWavesBy[3]}, broke {ai.Dbg.mechWavesBy[4]}; " +
                       $"their Mech alive {mechAliveT:0}s, believed gone {(mechAliveT > 0f ? 100f * mechForgottenT / mechAliveT : 0f):0}% of it, waves started meanwhile {wavesAtMech} ({wavesForgotten} believing it gone); " +
+                      $"AI army peak {peakArmy:0} (supply up to {peakSupply}), at waves started while it knew of their Mech {(mechWavesKnown > 0 ? armyAtMechWaves / mechWavesKnown : 0f):0} on average, at the end {ArmyValue(1):0} against their {ArmyValue(0):0}; " +
+                      $"{(massingFrom >= 0f ? $"massing from {massingFrom:0}s (last needed {massedNeed:0}), massed waves {ai.Dbg.massedWaves} ({ai.Dbg.stalledWaves} on a stalled army){(ai.Dbg.firstMassedAt >= 0f ? $" (first at {ai.Dbg.firstMassedAt:0}s)" : "")}" : "never massing")}, waves called off {ai.Dbg.wavesCalledOff}, sweeps {ai.Dbg.sweeps} (longest {ai.Dbg.sweepMsMax:0.0} ms); " +
                       $"APM {ai.BudgetBySite()}; " +
                       $"morale: {MoraleLine()}");
             var m0 = world.morale[0];

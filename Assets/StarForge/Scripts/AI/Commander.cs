@@ -94,6 +94,24 @@ namespace StarForge.AI
             return worth * Mathf.Lerp(0.3f, 1f, s.eMechHpFrac) * (s.mechAlive && s.mechHpFrac > 0.6f ? 0.55f : 1f);
         }
 
+        /// <summary>The army a maxed-out side fields: 85% of the supply its Diggers leave, at 50 a
+        /// supply (a Trooper 50 for 1, a Mauler 150 for 3).</summary>
+        static float MaxedArmy(Snapshot s) => 50f * 0.85f * Mathf.Max(60f, GameWorld.MaxSupply - s.workers);
+
+        /// <summary>The army it masses before a plan wave once their Mech has beaten two back: two and
+        /// a half times the plan's threshold (what those waves went in at), or maxed out if that is
+        /// less. Maxed out alone (about 7,500 at 22 Diggers) it never had: its army peaked at
+        /// 1,000-4,800 by 900 s, so after two repulses no plan wave went again.</summary>
+        static float MassedArmy(Snapshot s, MacroPlan plan) => Mathf.Min(MaxedArmy(s), 2.5f * plan.pushThreshold);
+
+        /// <summary>Beaten back twice by their Mech, which is about and at home: plan waves wait for
+        /// the massed army.</summary>
+        bool MaxingOut(Snapshot s) => s.eMech && !MechAway(s) && mechRepulses >= 2 && !LegacyNoMaxOut;
+
+        /// <summary>Editor A/B only: go on pushing at the Mech threshold after repulses, as before
+        /// (`MassedArmy` not asked). The evaluation runner resets it.</summary>
+        public static bool LegacyNoMaxOut;
+
         static MacroPlan PlanFor(Strategy s)
         {
             switch (s)
@@ -1230,6 +1248,9 @@ namespace StarForge.AI
             var s = Perception.Snap;
             var plan = Plan(Selector.Current);
             var st = Selector.Current;
+            // (For the mop-up below: set before any return, as a scout often sees their Foundry before
+            // it has an army.)
+            if (s.eFoundries > 0) sawFoundry = true;
 
             main.RemoveAll(u => !Unit.Live(u) || u.deserted);
             harass.RemoveAll(u => !Unit.Live(u) || u.deserted);
@@ -1470,12 +1491,45 @@ namespace StarForge.AI
                     wantAttack = s.armyValue >= plan.pushThreshold;
                     break;
             }
+            // Beaten back twice by their Mech at home: no new plan wave until the army is massed
+            // (`MassedArmy`), as a player stops trickling into a turtle and masses. Against the macro
+            // player its waves went in at 870-1,460 of army, every one lost to the Mech, its bay's
+            // tower and the base, while its supply never passed 100 of 200: each wave bled what it
+            // had built. An army that has stopped growing (no new high by a twentieth for a minute;
+            // cut to under four fifths of its high, it counts again from there, or losses would read
+            // as a stall) is as massed as it gets: without its own fit Mech the massed army is
+            // 4,400-7,600, more than it ever fielded. Only the start waits (a feint out never sets
+            // `waveOn`, only `committed`): a wave out goes on down to the plan's threshold (held to the
+            // massed army every pass, it would be called off at its first losses and set out again
+            // with the next rifleman). A broke side, the mop-up, its Mech's call and theirs away or
+            // hurt still go, and home defence and the Mech's advice read the plan's threshold as
+            // before (raised there, a tower put up by its base waited for half a maxed army).
+            Dbg.pushThreshold = plan.pushThreshold;
+            Dbg.massedArmy = MaxingOut(s) ? MassedArmy(s, plan) : 0f;
+            bool feintOut = committed && st == Strategy.Feint;
+            if (!MaxingOut(s) || waveOn || feintOut) massHigh = 0f;
+            else if (s.armyValue > massHigh * 1.05f || s.armyValue < massHigh * 0.8f) { massHigh = s.armyValue; massHighAt = w.time; }
+            bool stalled = massHigh > 0f && w.time - massHighAt > 60f;
+            if (wantAttack && !waveOn && !feintOut && MaxingOut(s) && s.armyValue < Dbg.massedArmy && !stalled)
+                wantAttack = false;
             // It can never grow -- no Digger and none coming, and no ore for one or no Foundry to
             // train it at -- so waiting for the push threshold is waiting for ever: it goes with
             // what it has (two such sides, armies standing under their thresholds, stood a whole
             // match apart; with the Diggers' reserve a side that can still restart never reads so).
             // Only the threshold is waived: the Mech, regroup and pull-out gates below still hold
             // (set after them, a beaten army walked back into the fight every 8 s).
+            // Every Foundry of theirs it has seen has fallen, their Mech is not about, and nothing it
+            // remembers of theirs (army, towers, a bay's gun) is a match for its army: what they have
+            // left is scattered -- a Digger stopped on the road, a structure put down anywhere -- and
+            // it goes looking with whatever army it has (waiting for its push threshold, it stood at
+            // home to the cap against a side down to one Digger). A mop-up wave goes on to what it
+            // finds while that holds (a Bunkhouse found would end it, and the army stood at home
+            // beside it). Not before it has seen a Foundry of theirs: any first building (a tower
+            // out front, a site) reads as their base.
+            bool weaker = !s.eMech && TheirStrength(s) <= s.armyValue;
+            bool mopUp = !LegacySweep && sawFoundry && s.eFoundries == 0 && weaker;
+            if (waveOn && mopUp) mopUpWave = true;   // a plan wave that took their last Foundry, too
+            if (mopUp || (waveOn && mopUpWave && weaker)) wantAttack = true;
             bool byPlan = wantAttack, broke = EconomyDead(s);
             if (broke) wantAttack = true;
             // Its Mech called the moment: go now, at what it named, with less than the
@@ -1521,7 +1575,8 @@ namespace StarForge.AI
             if (wantAttack)
             {
                 if (!committed) { committed = true; commitT = w.time; }
-                if (st == Strategy.Feint)
+                // (Not a mop-up: there is nothing to feint at, and it would stand at an empty base.)
+                if (st == Strategy.Feint && !mopUp && !mopUpWave)
                 {
                     // The feint does its own positioning (above); a wave still on is called off
                     // first, its prong back with the rest (left on, the prong was never ordered again).
@@ -1537,7 +1592,15 @@ namespace StarForge.AI
                     // What sent a wave at a Mech it knows of (the evaluation line): its threshold,
                     // its own Mech's call, their Mech away, their Mech hurt, or nothing to wait for.
                     if (s.eMech) Dbg.mechWavesBy[hurtWave ? 3 : mechAwayWave ? 2 : byPlan ? 0 : advised ? 1 : broke ? 4 : 0]++;
+                    // A plan wave while maxing out went with the massed army (the evaluation line).
+                    if (byPlan && MaxingOut(s) && !hurtWave && !mechAwayWave)
+                    {
+                        Dbg.massedWaves++;
+                        if (stalled && s.armyValue < Dbg.massedArmy) Dbg.stalledWaves++;
+                        if (Dbg.firstMassedAt < 0f) Dbg.firstMassedAt = w.time;
+                    }
                     StartWave(s, st, plan, mainCentre);
+                    mopUpWave = mopUp;
                 }
                 if (advised && !adviceWave)
                 {
@@ -1630,8 +1693,9 @@ namespace StarForge.AI
 
             // A second prong: a few fast units at something else, when there is army
             // to spare and the style likes it.
+            // (Not a massed wave at a Mech-held base: it masses to go in together.)
             prongOn = false;
-            if (s.armyValue > plan.pushThreshold * 1.6f && rng.F01() < 0.25f + Personality.raidTaste * 0.5f)
+            if (!MaxingOut(s) && s.armyValue > plan.pushThreshold * 1.6f && rng.F01() < 0.25f + Personality.raidTaste * 0.5f)
             {
                 var other = waveTarget == WaveTarget.Workers ? WaveTarget.Expansion : WaveTarget.Workers;
                 if (other == WaveTarget.Expansion && !OutlyingFoundry(s, out _)) other = WaveTarget.Production;
@@ -1718,6 +1782,7 @@ namespace StarForge.AI
             if ((mechAwayWave || hurtWave) && waveOn) windowNotBefore = w.time + 20f;
             mechAwayWave = hurtWave = false;
             if (!waveOn) return;
+            if (calledOff) Dbg.wavesCalledOff++;
             // A wave beaten back (not merely called off by a change of plan) marks
             // its approach as one to avoid next time -- and, with their Mech about, makes
             // the next push wait for a bigger army. Without that it fed their Mech a wave
@@ -1730,7 +1795,7 @@ namespace StarForge.AI
                 if (Perception.Snap.eMech && Perception.Snap.eMechSeenAgo < 30f) mechRepulses = Mathf.Min(mechRepulses + 1, 4);
             }
             waveOn = staging = false;
-            adviceWave = false;
+            adviceWave = mopUpWave = false;
             if (prong.Count > 0) { main.AddRange(prong); prong.Clear(); }
             prongOn = false;
         }
@@ -1820,6 +1885,7 @@ namespace StarForge.AI
         /// fields are on the map for anyone to read, like the base sites.)</summary>
         Vector2 Sweep(Vector2 from)
         {
+            double t0 = Time.realtimeSinceStartupAsDouble;   // its cost, for the trials (decides nothing)
             Vector2 best = Perception.Snap.enemyBase;
             float bestScore = -1e30f;
             void Consider(Vector2 p)
@@ -1832,8 +1898,42 @@ namespace StarForge.AI
             foreach (var g in Perception.BaseGuesses) Consider(g);
             foreach (var n in w.units)
                 if (n != null && !n.dying && n.Type == UnitType.Ore) Consider(n.pos);
+            // The best of those looked at in the last minute, and nothing found: what is left stands
+            // elsewhere, so the ground at large, where it has not looked for longest (16 m apart; its
+            // own record of what it has seen, as a player's minimap shows explored ground). A point
+            // is snapped to reachable ground only if its own score could beat the best so far.
+            if (!LegacySweep && w.Staleness(team, best) < 60f)
+            {
+                float size = w.MapSize;
+                for (float x = 8f; x < size; x += 16f)
+                    for (float y = 8f; y < size; y += 16f)
+                    {
+                        var q = new Vector2(x, y);
+                        if (Mathf.Min(w.Staleness(team, q), 240f) - (q - from).magnitude * 0.6f > bestScore) Consider(q);
+                    }
+            }
+            Dbg.sweeps++;
+            Dbg.sweepMsMax = Mathf.Max(Dbg.sweepMsMax, (float)((Time.realtimeSinceStartupAsDouble - t0) * 1000.0));
             return best;
         }
+
+        /// <summary>What it remembers of their fighting strength: their army, and a finished tower 250
+        /// and a finished Mech Bay's gun 400, as home defence weighs them.</summary>
+        float TheirStrength(Snapshot s)
+        {
+            float v = s.eArmyValue;
+            foreach (var r in Perception.Enemies)
+                if (!r.unfinished) v += r.type == UnitType.Sentinel ? 250f : r.type == UnitType.MechBay ? 400f : 0f;
+            return v;
+        }
+
+        // A Foundry of theirs seen at some point this match, and the wave on being a mop-up.
+        bool sawFoundry, mopUpWave;
+        // While massing: its army's last high (a twentieth over the one before) and when.
+        float massHigh, massHighAt;
+        /// <summary>Editor A/B only: no mop-up and no open-map search, as before. The evaluation
+        /// runner resets it.</summary>
+        public static bool LegacySweep;
 
         // ------------------------------------------------------------ micro
         void RunMicro()

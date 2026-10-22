@@ -410,7 +410,9 @@ as the Mauler's cannon (158-192 Hz, 41-58%), the deepest sounds in the game.
   a while when driven off -- and comes back to defend when you hit its base. When the
   ore by its Foundries runs low it saves for a new one at another field, it raises a new
   Foundry if it loses its own, and once it has lost track of everything of yours it
-  searches the ore fields and base sites it has looked at least lately.
+  searches the ore fields and base sites it has looked at least lately, then the open
+  ground. Once every Foundry of yours it has seen is down and nothing of yours it knows
+  of is a match for its army, it goes after what is left with whatever army it has.
   A Mauler whose shells keep landing short -- on a ridge between it and its target,
   or where a moving target used to be -- is moved after three misses from the same
   spot, to the nearest place round the target from which the shell's actual arc
@@ -436,9 +438,11 @@ as the Mauler's cannon (158-192 Hz, 41-58%), the deepest sounds in the game.
   your Mech it keeps its army together and puts everything it has on it, and it does
   not feed it: it waits for an army that can break your Mech (less once it has seen
   your Mech hurt, less again with its own Mech going in), each attack your Mech throws
-  back makes it wait longer, and it does not forget your Mech just because it has not
-  seen it lately. When it sees your Mech badly hurt it strikes at once, before your bay
-  can mend it. It builds against your Mech once it has seen its guns -- tanks
+  back makes it wait longer -- after two it stops trickling in and masses a far bigger
+  army, or as big as it can get, before its next planned push -- and it does not
+  forget your Mech just because it has not seen it lately. When it sees your Mech
+  badly hurt it strikes at once, before your bay can mend it. It builds against your
+  Mech once it has seen its guns -- tanks
   against one made to burn infantry, a swarm of rifles against one made to kill armour
   -- strikes your base when your Mech is out in the field far from home, going for
   your Mech Bay then (it is what would mend your Mech), and gathers its attacks on its

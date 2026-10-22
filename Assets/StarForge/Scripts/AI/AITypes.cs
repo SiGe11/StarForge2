@@ -257,6 +257,14 @@ namespace StarForge.AI
         /// <summary>Waves sent at a Mech it knew was about, by what sent them: the plan's threshold,
         /// its own Mech's call, their Mech away, their Mech hurt, nothing left to wait for.</summary>
         public readonly int[] mechWavesBy = new int[5];
+        /// <summary>Beaten back twice by their Mech: the army a plan wave now waits for (0 when not),
+        /// the plan waves that went while massing (those on an army that had stopped growing short of
+        /// it) and when the first did, and waves called off (not beaten).</summary>
+        public float massedArmy, firstMassedAt = -1f, pushThreshold;
+        public int massedWaves, stalledWaves, wavesCalledOff;
+        /// <summary>Sweep's searches for what is left of theirs, and the longest one took.</summary>
+        public int sweeps;
+        public float sweepMsMax;
         /// <summary>Enemy guns over its ore: what it last saw, and Diggers moved to safe ore
         /// or stood clear.</summary>
         public string guns = "";

@@ -64,6 +64,73 @@ namespace StarForge.EditorTools
         public static string HuntCase1Old() { MechBrain.LegacyHunt = true; BayEdgeCases.Only = 1; return BayEdgeCases.Run(); }
         public static string ResetHunt() { MechBrain.LegacyHunt = false; BayEdgeCases.Only = -1; return "hunt rule as it is; all cases"; }
 
+        /// <summary>The player's side cut to one Digger standing as far as it can from every base site
+        /// and ore field (as one stopped on the road when its Foundry fell), once the AI has seen their
+        /// Foundry, the AI given 12 riflemen: how long until it finds and kills it, with the mop-up and
+        /// the open-map search (New) or without (Old). Read HiddenDiggerReport; restart play after.
+        /// Every entry sets every switch it reads (a run cut short leaves them).</summary>
+        public static string HiddenDiggerNew() => StartHidden(false, null, UnitType.Worker, 12);
+        public static string HiddenDiggerOld() => StartHidden(true, null, UnitType.Worker, 12);
+        /// <summary>The same two at the spot the first old run used, (240,102), for a like-for-like A/B.</summary>
+        public static string HiddenDiggerNewAtEdge() => StartHidden(false, Edge, UnitType.Worker, 12);
+        public static string HiddenDiggerOldAtEdge() => StartHidden(true, Edge, UnitType.Worker, 12);
+        /// <summary>A Bunkhouse at that spot instead of the Digger, and 3 riflemen.</summary>
+        public static string HiddenBunkNew() => StartHidden(false, Edge, UnitType.Bunkhouse, 3);
+        public static string HiddenBunkOld() => StartHidden(true, Edge, UnitType.Bunkhouse, 3);
+        /// <summary>A Foundry there, the AI's army replaced by 3 riflemen and a Skimmer and its ore held
+        /// at 0 (under its push threshold for good): a mop-up wave must go on to the Foundry it finds,
+        /// which ends the mop-up's own condition (an army under the threshold was called off there).</summary>
+        public static string HiddenFoundryNew() => StartHidden(false, Edge, UnitType.Foundry, 3, true);
+        public static string HiddenFoundryOld() => StartHidden(true, Edge, UnitType.Foundry, 3, true);
+        /// <summary>The Digger hidden at that spot, the AI starved as above; once a mop-up wave is out, a
+        /// Foundry of theirs is put down 18 m ahead of it: the wave must go on and take it, though the
+        /// Foundry ends the mop-up's own condition and the army is under the push threshold.</summary>
+        public static string MopUpFindsFoundry() => StartHidden(false, Edge, UnitType.Worker, 3, true, true);
+        static readonly Vector2 Edge = new Vector2(240f, 102f);
+        static string StartHidden(bool legacy, Vector2? at, UnitType hideType, int troopers, bool starve = false, bool foundryAhead = false)
+        {
+            HiddenDiggerProbe.FoundryAhead = foundryAhead;
+            if (!EditorApplication.isPlaying) return "not playing";
+            Commander.Suspended = false;
+            Commander.LegacySweep = legacy;
+            HiddenDiggerProbe.HideAt = at;
+            HiddenDiggerProbe.HideType = hideType;
+            HiddenDiggerProbe.Troopers = troopers;
+            HiddenDiggerProbe.Starve = starve;
+            var old = Object.FindAnyObjectByType<HiddenDiggerProbe>();
+            if (old != null) Object.Destroy(old.gameObject);
+            new GameObject("HiddenDiggerProbe").AddComponent<HiddenDiggerProbe>();
+            return $"hidden {hideType} trial running ({(legacy ? "old" : "new")} search); call HiddenDiggerReport";
+        }
+        public static string HiddenDiggerReport()
+        {
+            var p = Object.FindAnyObjectByType<HiddenDiggerProbe>();
+            return p == null ? "no hidden Digger trial running" : p.report;
+        }
+
+        /// <summary>A massed wave at a Mech-held base (seed 1000, AI against AI at 8x; team 1 watched):
+        /// once the AI has their Mech in mind at home and no wave out, two repulses are set and it is
+        /// given Maulers to just over its massed army. Over 300 s: waves started, called off and beaten
+        /// back, each wave's army at its start and the least it held while on, and how it ended. One wave
+        /// going on below the massed army is the rule; a wave called off at its first losses and sent
+        /// again is the loop it must not make. Read MassReport; restart play after.</summary>
+        public static string MassTrial()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            Commander.Suspended = false;
+            Commander.LegacyNoMaxOut = false;
+            Commander.LegacySweep = false;
+            var old = Object.FindAnyObjectByType<MassProbe>();
+            if (old != null) Object.Destroy(old.gameObject);
+            new GameObject("MassProbe").AddComponent<MassProbe>();
+            return "massed wave trial running; call MassReport";
+        }
+        public static string MassReport()
+        {
+            var p = Object.FindAnyObjectByType<MassProbe>();
+            return p == null ? "no massed wave trial running" : p.report;
+        }
+
         /// <summary>The Full evaluation's five games against one opponent only (0 Rusher, 1 Macro,
         /// 2 Turtle, 3 Harasser): the Macro player, who buys its Mech upgrades and turtles behind
         /// it, is where most matches run to the cap.</summary>
@@ -75,6 +142,221 @@ namespace StarForge.EditorTools
             PlayerPrefs.SetInt(AIEvalRunner.PrefFirst, 0);
             AIEvalMenu.Run(5, 900f);
             return $"evaluating 5 games against {(ScriptedOpponent.Kind)EvalKind}, 900 s cap";
+        }
+    }
+
+    public sealed class HiddenDiggerProbe : MonoBehaviour
+    {
+        public string report = "staging";
+        /// <summary>Hide the Digger here instead of the furthest spot (null: furthest).</summary>
+        public static Vector2? HideAt;
+        /// <summary>What is hidden; riflemen given to the AI; Starve: the AI's army replaced by those
+        /// and a Skimmer (its scout), its ore held at 0.</summary>
+        public static UnitType HideType = UnitType.Worker;
+        public static int Troopers = 12;
+        public static bool Starve;
+        /// <summary>Put a Foundry of theirs ahead of the first mop-up wave (MopUpFindsFoundry).</summary>
+        public static bool FoundryAhead;
+
+        IEnumerator Start()
+        {
+            var boot = GameBootstrap.Instance;
+            if (boot == null) { report = "no bootstrap"; yield break; }
+            if (GameWorld.Instance == null || !GameWorld.Instance.running)
+            {
+                MatchSettings.spectate = false;
+                MatchSettings.aiMemory = false;
+                MatchSettings.fixedSeed = true;
+                MatchSettings.seed = 1000;
+                boot.StartMatch();
+                MatchSettings.fixedSeed = false;
+                yield return null;
+            }
+            var world = GameWorld.Instance;
+            var map = world.Map;
+            var ai = boot.AI;
+            foreach (var cam in FindObjectsByType<Camera>()) cam.cullingMask = 0;
+            Application.targetFrameRate = -1;
+            Time.timeScale = 8f;
+            // Until the AI has seen their Foundry (its scout), at most 400 s.
+            while (ai.Perception.Snap.eFoundries == 0 && world.time < 400f) { report = $"waiting for the AI to see their Foundry ({world.time:0}s)"; yield return null; }
+            if (ai.Perception.Snap.eFoundries == 0) { report = "the AI never saw their Foundry"; Time.timeScale = 1f; yield break; }
+            // ...and its tactics have taken it in (the mop-up's latch), a few passes later.
+            float seenFoundryAt = world.time;
+            var sawField = typeof(Commander).GetField("sawFoundry", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            while (!(bool)sawField.GetValue(ai) && world.time - seenFoundryAt < 10f) yield return null;
+            // The walkable spot furthest from both base sites and every ore field, reachable from the AI's base.
+            Vector2 a = map.StartPos(0), b = map.StartPos(1), hide = a;
+            float best = -1f, size = world.MapSize;
+            for (float x = 12f; x < size - 12f; x += 6f)
+                for (float z = 12f; z < size - 12f; z += 6f)
+                {
+                    var p = new Vector2(x, z);
+                    float d = Mathf.Min((p - a).magnitude, (p - b).magnitude);
+                    foreach (var n in world.units)
+                        if (Unit.Live(n) && n.Type == UnitType.Ore) d = Mathf.Min(d, (n.pos - p).magnitude);
+                    if (d <= best || !world.Walkable(p, 0.6f)) continue;
+                    var q = world.NearestReachable(b, p);
+                    if ((q - p).sqrMagnitude > 3f * 3f) continue;
+                    best = d; hide = p;
+                }
+            if (best < 0f) { report = "no hiding place found"; Time.timeScale = 1f; yield break; }
+            // A fixed spot for an A/B (the furthest spot moves with the ore mined by then).
+            if (HideAt.HasValue) { hide = world.NearestReachable(b, HideAt.Value); best = -1f; }
+            var hidden = world.Spawn(HideType, 0, hide, true);
+            string what = HideType.ToString();
+            bool mechLanded = world.MechOf(0) != null;
+            foreach (var u in world.units)
+                if (Unit.Live(u) && u.team == 0 && u != hidden && u.Type != UnitType.Ore) world.Damage(u, 1e7f, u.pos, null);
+            if (Starve)
+                foreach (var u in world.units)
+                    if (Unit.Live(u) && u.team == 1 && (u.Type == UnitType.Trooper || u.Type == UnitType.Mauler || u.Type == UnitType.Skimmer))
+                        world.Damage(u, 1e7f, u.pos, null);
+            for (int i = 0; i < Troopers; i++) world.Spawn(UnitType.Trooper, 1, b + new Vector2((i % 4) * 2f - 3f, (i / 4) * 2f + 8f), true);
+            if (Starve) world.Spawn(UnitType.Skimmer, 1, b + new Vector2(0f, 14f), true);
+            // Killed out of its sight, the AI would believe their base and towers stand until it looks
+            // again, which a starved army under its threshold never does: with a Foundry put ahead of
+            // the mop-up, it is given what it would have seen (everything of theirs gone).
+            if (FoundryAhead)
+                ((System.Collections.IList)typeof(Perception).GetField("mem", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(ai.Perception)).Clear();
+            else world.factions[1].ore += 3000;
+            var waveOnField = typeof(Commander).GetField("waveOn", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            bool WaveOn() => (bool)waveOnField.GetValue(ai);
+            var mopUpField = typeof(Commander).GetField("mopUpWave", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Unit ahead = null;
+            float aheadAt = -1f, aheadArmy = 0f, aheadNeed = 0f, aheadDead = -1f;
+            int calledAtAhead = 0;
+            bool aheadWaveAfter = false, aheadChecked = false;
+            float nextTrace = 0f;
+            float t0 = world.time, seenAt = -1f, armyAtSight = 0f, needAtSight = 0f;
+            bool waveAtSight = false, waveAfter = false, checkedAfter = false;
+            int calledAtSight = 0, sweeps0 = ai.Dbg.sweeps;
+            while (world.time - t0 < 900f && world.winner < 0)
+            {
+                if (Starve) world.factions[1].ore = 0;
+                if (FoundryAhead && ahead == null && (bool)mopUpField.GetValue(ai) && WaveOn())
+                {
+                    Vector2 c = Vector2.zero; int n = 0;
+                    foreach (var u in world.units)
+                        if (Unit.Live(u) && u.team == 1 && u.Type == UnitType.Trooper) { c += u.pos; n++; }
+                    if (n > 0)
+                    {
+                        c /= n;
+                        Vector2 dir = c - b; dir = dir.sqrMagnitude > 1f ? dir.normalized : Vector2.right;
+                        ahead = world.Spawn(UnitType.Foundry, 0, world.NearestReachable(b, c + dir * 18f), true);
+                        aheadAt = world.time - t0; aheadArmy = ai.Perception.Snap.armyValue; aheadNeed = ai.Dbg.pushThreshold;
+                        calledAtAhead = ai.Dbg.wavesCalledOff;
+                    }
+                }
+                if (FoundryAhead && world.time >= nextTrace)
+                {
+                    nextTrace = world.time + 20f;
+                    const System.Reflection.BindingFlags P = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                    var sn = ai.Perception.Snap;
+                    var mainList = (System.Collections.IList)typeof(Commander).GetField("main", P).GetValue(ai);
+                    Debug.Log($"[MopUpTrace] {world.time - t0:0}s eFoundries {sn.eFoundries} sawFoundry {typeof(Commander).GetField("sawFoundry", P).GetValue(ai)} eMech {sn.eMech} " +
+                              $"strength {typeof(Commander).GetMethod("TheirStrength", P).Invoke(ai, new object[] { sn })} army {sn.armyValue} main {mainList.Count} waveOn {WaveOn()} " +
+                              $"threshold {ai.Dbg.pushThreshold} waves {ai.Dbg.waves} plan {ai.Dbg.strategy} remembered {ai.Perception.Enemies.Count}");
+                }
+                if (ahead != null && !aheadChecked && world.time - t0 >= aheadAt + 15f) { aheadChecked = true; aheadWaveAfter = WaveOn(); }
+                if (ahead != null && aheadDead < 0f && !Unit.Live(ahead)) aheadDead = world.time - t0;
+                if (FoundryAhead && aheadDead >= 0f && aheadChecked) break;
+                if (seenAt < 0f && Unit.Live(hidden) && world.Visible(1, hidden.pos))
+                {
+                    seenAt = world.time - t0;
+                    armyAtSight = ai.Perception.Snap.armyValue; needAtSight = ai.Dbg.pushThreshold;
+                    waveAtSight = WaveOn(); calledAtSight = ai.Dbg.wavesCalledOff;
+                }
+                if (seenAt >= 0f && !checkedAfter && world.time - t0 >= seenAt + 15f) { checkedAfter = true; waveAfter = WaveOn() || world.winner >= 0; }
+                report = $"running {world.time - t0:0}s (search {(Commander.LegacySweep ? "old" : "new")})";
+                yield return null;
+            }
+            Time.timeScale = 1f;
+            report = $"done: search {(Commander.LegacySweep ? "old" : "new")}; hidden {what} {best:0} m from the nearest ore field or base site, at ({hide.x:0},{hide.y:0}), hidden at {t0:0}s (their Mech {(mechLanded ? "landed" : "not landed")}); " +
+                     (seenAt >= 0f ? $"first seen by the AI after {seenAt:0} s with its army {armyAtSight:0} against a push threshold of {needAtSight:0}, a wave {(waveAtSight ? "on" : "not on")}, 15 s later {(checkedAfter ? (waveAfter ? "on" : "not on") : "n/a")}, waves called off since {ai.Dbg.wavesCalledOff - calledAtSight}; " : "never seen by the AI; ") +
+                     (world.winner >= 0 ? $"match over after {world.time - t0:0} s, winner {world.winner}" : $"no winner after {world.time - t0:0} s ({what} {(Unit.Live(hidden) ? "alive" : "dead")})") +
+                     (FoundryAhead ? (ahead == null ? "; no mop-up wave went out" : $"; a Foundry put 18 m ahead of the mop-up wave at {aheadAt:0} s (army {aheadArmy:0} against a push threshold of {aheadNeed:0}): wave on 15 s later {(aheadChecked ? (aheadWaveAfter ? "yes" : "no") : "n/a")}, called off since {ai.Dbg.wavesCalledOff - calledAtAhead}, the Foundry {(aheadDead >= 0f ? $"down {aheadDead - aheadAt:0} s after" : "standing")}") : "") +
+                     $"; AI waves {ai.Dbg.waves}, last {ai.Dbg.wave}; sweeps {ai.Dbg.sweeps - sweeps0}, longest {ai.Dbg.sweepMsMax:0.00} ms (restart play now)";
+            Commander.LegacySweep = false;
+        }
+    }
+
+    public sealed class MassProbe : MonoBehaviour
+    {
+        public string report = "staging";
+        // Spectating is the trial's, not the next match's.
+        void OnDestroy() => MatchSettings.spectate = false;
+
+        IEnumerator Start()
+        {
+            var boot = GameBootstrap.Instance;
+            if (boot == null) { report = "no bootstrap"; yield break; }
+            if (GameWorld.Instance == null || !GameWorld.Instance.running)
+            {
+                MatchSettings.spectate = true;   // AI against AI: the other side raises a bay and its Mech lands
+                MatchSettings.aiMemory = false;
+                MatchSettings.fixedSeed = true;
+                MatchSettings.seed = 1000;
+                boot.StartMatch();
+                MatchSettings.fixedSeed = false;
+                yield return null;
+            }
+            var world = GameWorld.Instance;
+            var ai = boot.AI;
+            foreach (var cam in FindObjectsByType<Camera>()) cam.cullingMask = 0;
+            Application.targetFrameRate = -1;
+            Time.timeScale = 8f;
+            const System.Reflection.BindingFlags Priv = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var waveOnField = typeof(Commander).GetField("waveOn", Priv);
+            var repulsesField = typeof(Commander).GetField("mechRepulses", Priv);
+            bool WaveOn() => (bool)waveOnField.GetValue(ai);
+            // Their Mech landed and in the AI's mind, no wave out; then two repulses, until it masses
+            // (their Mech at home: MaxingOut). At most 900 s.
+            while (world.time < 900f)
+            {
+                var m = world.MechOf(0);
+                if (m != null && m.mech != null && m.mech.Landed && ai.Perception.Snap.eMech && !WaveOn())
+                {
+                    repulsesField.SetValue(ai, 2);
+                    if (ai.Dbg.massedArmy > 0f) break;
+                }
+                report = $"waiting for their Mech at home in the AI's mind ({world.time:0}s)";
+                yield return null;
+            }
+            if (ai.Dbg.massedArmy <= 0f) { report = "never massing (their Mech never seen at home)"; Time.timeScale = 1f; yield break; }
+            float need = ai.Dbg.massedArmy, have = ai.Perception.Snap.armyValue;
+            int maulers = Mathf.Max(0, Mathf.CeilToInt((need * 1.08f - have) / 150f));
+            Vector2 b = world.Map.StartPos(1);
+            for (int i = 0; i < maulers; i++) world.Spawn(UnitType.Mauler, 1, b + new Vector2((i % 6) * 3f - 7.5f, (i / 6) * 3f + 10f), true);
+            float t0 = world.time;
+            int w0 = ai.Dbg.waves, c0 = ai.Dbg.wavesCalledOff, r0 = ai.Retreats, m0 = ai.Dbg.massedWaves;
+            var waves = new StringBuilder();
+            bool on = false;
+            float startArmy = 0f, minArmy = 0f, startT = 0f;
+            int calls = c0, rets = r0;
+            while (world.time - t0 < 300f && world.winner < 0)
+            {
+                float army = ai.Perception.Snap.armyValue;
+                bool now = WaveOn();
+                if (now && !on) { startArmy = minArmy = army; startT = world.time - t0; }
+                if (now) minArmy = Mathf.Min(minArmy, army);
+                if (!now && on)
+                {
+                    string how = ai.Dbg.wavesCalledOff > calls ? "called off" : ai.Retreats > rets ? "beaten back" : "ended";
+                    waves.Append($"[{startT:0}-{world.time - t0:0}s, army {startArmy:0} -> least {minArmy:0}, {how}] ");
+                }
+                calls = ai.Dbg.wavesCalledOff; rets = ai.Retreats;
+                on = now;
+                report = $"running {world.time - t0:0}s: waves {ai.Dbg.waves - w0}";
+                yield return null;
+            }
+            if (on) waves.Append($"[{startT:0}s-, army {startArmy:0} -> least {minArmy:0}, still on] ");
+            Time.timeScale = 1f;
+            var their = world.MechOf(0);
+            report = $"done: massed army {need:0} (it had {have:0}, given {maulers} Maulers), plan threshold {ai.Dbg.pushThreshold:0}; over {world.time - t0:0} s: " +
+                     $"waves {ai.Dbg.waves - w0} (massed {ai.Dbg.massedWaves - m0}, {ai.Dbg.stalledWaves} on a stalled army, first at {(ai.Dbg.firstMassedAt >= 0f ? ai.Dbg.firstMassedAt - t0 : -1f):0} s), called off {ai.Dbg.wavesCalledOff - c0}, beaten back {ai.Retreats - r0}, repulses now {repulsesField.GetValue(ai)}; " +
+                     $"{waves}; winner {world.winner}; their Mech {(their != null ? $"{their.hp / their.MaxHp * 100f:0}%, {their.kills} kills" : "gone")}; " +
+                     $"army now {ai.Perception.Snap.armyValue:0} (restart play now)";
         }
     }
 
@@ -117,6 +399,7 @@ namespace StarForge.EditorTools
         void OnDestroy()
         {
             if (world != null) { world.Ticked -= OnTick; world.Event -= OnEvent; }
+            MatchSettings.spectate = false;   // the trial's, not the next match's
         }
 
         void OnEvent(GameEvent e)
@@ -254,6 +537,7 @@ namespace StarForge.EditorTools
         void OnDestroy()
         {
             if (world != null) world.Ticked -= OnTick;
+            MatchSettings.spectate = false;   // the trial's, not the next match's
         }
 
         void OnTick(float dt)

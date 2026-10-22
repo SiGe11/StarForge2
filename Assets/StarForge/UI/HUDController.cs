@@ -1196,7 +1196,8 @@ namespace StarForge.UI
             "sends raiders at your workers rather than your army -- the most exposed ones, resting a while when driven off -- and " +
             "comes back to defend when you hit its base. When the ore by its Foundries runs low it saves for a new one at another " +
             "field, it raises a new Foundry if it loses its own, and once it has lost track of everything of yours it searches the " +
-            "ore fields and base sites it has looked at least lately. " +
+            "ore fields and base sites it has looked at least lately, then the open ground. Once every Foundry of yours it has seen " +
+            "is down and nothing of yours it knows of is a match for its army, it goes after what is left with whatever army it has. " +
             "A Mauler whose shells keep landing on a ridge in front of you, or where you were a moment ago, is moved to where it can hit.\n\n" +
             "It does not play the same match twice. Each match it opens differently and leans its own way -- more Troopers or more " +
             "Maulers, an early push or a late one. Its attacks go for different things (your base, your production, an outlying " +
@@ -1209,7 +1210,8 @@ namespace StarForge.UI
             "sometimes acts on it -- meeting a raid its Mech saw coming, striking when its Mech says the moment has come -- and " +
             "sometimes does not. Around your Mech it keeps its army together and puts everything it has on it, and it does not " +
             "feed it: it waits for an army that can break your Mech (less once it has seen your Mech hurt, less again with its own " +
-            "Mech going in), each attack your Mech throws back makes it wait longer, and it does not forget your Mech just because it " +
+            "Mech going in), each attack your Mech throws back makes it wait longer -- after two it stops trickling in and masses a far " +
+            "bigger army, or as big as it can get, before its next planned push -- and it does not forget your Mech just because it " +
             "has not seen it lately. When it sees your Mech badly hurt it strikes at once, before your bay can mend it. It builds against your " +
             "Mech once it has seen its guns -- tanks against one made to burn infantry, a swarm of rifles against one made to kill " +
             "armour -- strikes your base when your Mech is out in the field far from home, going for your Mech Bay then, and " +
