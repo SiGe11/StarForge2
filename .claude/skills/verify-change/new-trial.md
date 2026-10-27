@@ -11,6 +11,7 @@ Model: `TargetingTrial` in `Assets/StarForge/Editor/BugTrials.cs` (staged trial)
 - **Save and restore every static you touch in `try/finally`:** `Commander.Suspended` (silence the opponent so it does not interfere), `Time.timeScale`, A/B switches like `Unit.StickyTargets`. Statics survive play sessions; one left on skewed a whole evaluation.
 - **Spawn and order through the same API the game uses** (`world.Spawn`, `world.Cmd*`), and observe through `world.Event` (unsubscribe at the end). Do not poke private state to make the scenario happen.
 - **Own seeded randomness** (`new System.Random(<constant>)`), never `UnityEngine.Random`, so the trial repeats.
+- **`report` reads `staging` (or `running`) until the trial is done**, so `Tools/editor.sh wait <Name>Report` returns the moment it is; a report that shows progress before it is done needs its done-pattern given to `wait`.
 - **Report numbers next to the target**, plus A/B when a switch exists ("before"/"after" in one run). One line per case; say what "good" is in the doc comment (`/// <summary>`), and add the check and its target to the area notes of the code it tests.
 - Look-helpers (captures) never restart a running match; write PNGs to `Temp/<name>_*.png`; judge them by reading the PNG and, where possible, a number.
-- Writing the trial is a `.cs` write: take the Editor slot first (SKILL.md step 3), wait for `compiling=False` before `play`, or the Editor enters play on the old assembly without your trial.
+- Writing the trial is a `.cs` write: take the Editor slot first (SKILL.md step 3), run `Tools/editor.sh compile` before `play`, or the Editor enters play on the old assembly without your trial.

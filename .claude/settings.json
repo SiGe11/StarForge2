@@ -34,6 +34,9 @@
     ]
   },
   "bashOutputMaxChars": 40000,
+  "env": {
+    "CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT": "300000"
+  },
   "hooks": {
     "PreToolUse": [
       {

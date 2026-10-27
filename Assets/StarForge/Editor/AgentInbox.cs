@@ -5,9 +5,18 @@
 //
 //     menu StarForge/Build All          run a menu item
 //     refresh                           AssetDatabase.Refresh
-//     play | stop                       enter or leave play mode
+//     play | play here | stop           enter or leave play mode (play opens the
+//                                       Battlefield scene first; "here" plays the open one)
+//     ready                             whether a played scene is up: "ready: ..." once
+//                                       its GameBootstrap, world and map exist
 //     call Namespace.Type.Method        invoke a public static method (no
 //                                       arguments); a string it returns is reported
+//
+// It also leaves stamps beside the commands for Tools/editor.sh compile, which must
+// know about compiles it cannot ask about (the inbox is down while one runs):
+// compile.started and compile.done (error count, then the errors) at each script
+// compile, reloaded after each domain reload. A failed compile reloads nothing, so
+// its errors are written by the domain that is still loaded.
 //
 // Play mode a command starts (play, an evaluation menu, a call that enters play) is
 // muted until it stops (AgentAudio; call StarForge.EditorTools.AgentAudio.Hear first for
@@ -21,12 +30,16 @@
 // file under Assets/ changes, so edited scripts compile without the Editor
 // window being brought to the front (macOS only checks on focus otherwise).
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using UnityEditor;
+using UnityEditor.Compilation;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using StarForge.Game;
 using StarForge.World;
 
 namespace StarForge.EditorTools
@@ -37,15 +50,34 @@ namespace StarForge.EditorTools
         static readonly string Dir = Path.GetFullPath("Temp/AgentInbox");
         static double nextPoll, nextScan;
         static DateTime lastChange;
+        static int playFrame;
+        static readonly List<string> compileErrors = new List<string>();
 
         static AgentInbox()
         {
             Directory.CreateDirectory(Dir);
             lastChange = LatestWrite();
             EditorApplication.update += Poll;
-            // GameWorld.ReachabilityOff is an A/B switch: set for a run, it must not carry into
-            // the next play session (statics survive them with domain reload off).
-            EditorApplication.playModeStateChanged += s => { if (s == PlayModeStateChange.EnteredEditMode) GameWorld.ReachabilityOff = false; };
+            EditorApplication.playModeStateChanged += s =>
+            {
+                // GameWorld.ReachabilityOff is an A/B switch: set for a run, it must not carry into
+                // the next play session (statics survive them with domain reload off).
+                if (s == PlayModeStateChange.EnteredEditMode) GameWorld.ReachabilityOff = false;
+                if (s == PlayModeStateChange.EnteredPlayMode) playFrame = Time.frameCount;
+            };
+            CompilationPipeline.compilationStarted += _ => { compileErrors.Clear(); Stamp("compile.started", ""); };
+            CompilationPipeline.assemblyCompilationFinished += (_, messages) =>
+            {
+                foreach (var m in messages) if (m.type == CompilerMessageType.Error) compileErrors.Add(m.message);
+            };
+            CompilationPipeline.compilationFinished += _ => Stamp("compile.done", compileErrors.Count + "\n" + string.Join("\n", compileErrors));
+            Stamp("reloaded", "");
+        }
+
+        static void Stamp(string name, string text)
+        {
+            try { File.WriteAllText(Path.Combine(Dir, name), text); }
+            catch (IOException) { }
         }
 
         static void Poll()
@@ -105,9 +137,30 @@ namespace StarForge.EditorTools
                     AssetDatabase.Refresh();
                     return "refreshed";
                 case "play":
+                {
+                    // Every check plays the Battlefield; the Editor may have opened on an empty
+                    // scene, which played for minutes with nothing in it to answer.
+                    string opened = "";
+                    var scene = EditorSceneManager.GetActiveScene();
+                    if (arg != "here" && scene.path != MapBuilder.ScenePath)
+                    {
+                        if (scene.isDirty) throw new InvalidOperationException($"the open scene '{scene.name}' has unsaved changes: save it, or 'play here' to play it");
+                        EditorSceneManager.OpenScene(MapBuilder.ScenePath);
+                        opened = " (opened the Battlefield)";
+                    }
                     AgentAudio.AgentStartsPlay();
                     EditorApplication.EnterPlaymode();
-                    return "entering play mode";
+                    return "entering play mode" + opened;
+                }
+                case "ready":
+                {
+                    if (!EditorApplication.isPlaying) return EditorApplication.isPlayingOrWillChangePlaymode ? "entering" : "not playing";
+                    var boot = GameBootstrap.Instance;
+                    bool up = boot != null && GameWorld.Instance != null && MapInfo.Instance != null;
+                    if (Time.frameCount - playFrame < 3) return "loading";
+                    if (!up) return $"no match in scene '{EditorSceneManager.GetActiveScene().name}' (no GameBootstrap, world or map)";
+                    return $"ready: match {boot.State}, timeScale {Time.timeScale:0.##}";
+                }
                 case "stop":
                     EditorApplication.ExitPlaymode();
                     return "leaving play mode";
