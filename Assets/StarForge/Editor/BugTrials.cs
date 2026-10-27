@@ -387,17 +387,21 @@ namespace StarForge.EditorTools
         /// many Diggers does the AI lose and train meanwhile, and how many stand in the Mech's reach (in a
         /// 40-minute match one side trained Diggers into a Mech parked in its base, 111 lost, until it was
         /// broke).</summary>
-        public static string MechInOre() { MechInOreTrial.Leave = false; MechInOreTrial.Walk = false; MechInOreTrial.Second = false; return Stage<MechInOreTrial>("MechInOre"); }
+        public static string MechInOre() { MechInOreTrial.Leave = false; MechInOreTrial.Walk = false; MechInOreTrial.Second = false; MechInOreTrial.Stand = 0f; return Stage<MechInOreTrial>("MechInOre"); }
         /// <summary>As MechInOre, but the Mech is taken away after 60 s: does the AI train Diggers again?</summary>
-        public static string MechInOreLeave() { MechInOreTrial.Leave = true; MechInOreTrial.Walk = false; MechInOreTrial.Second = false; return Stage<MechInOreTrial>("MechInOre"); }
+        public static string MechInOreLeave() { MechInOreTrial.Leave = true; MechInOreTrial.Walk = false; MechInOreTrial.Second = false; MechInOreTrial.Stand = 0f; return Stage<MechInOreTrial>("MechInOre"); }
         /// <summary>As MechInOreLeave, with a finished Foundry of the AI's raised by an ore field 45-100 m
         /// from its main one, out of the Mech's reach, before the Mech goes in: its Diggers are moved to that
         /// line; do they come home once the Mech has gone (step 5c)?</summary>
-        public static string MechInOreLeave2() { MechInOreTrial.Leave = true; MechInOreTrial.Walk = false; MechInOreTrial.Second = true; return Stage<MechInOreTrial>("MechInOre"); }
+        public static string MechInOreLeave2() { MechInOreTrial.Leave = true; MechInOreTrial.Walk = false; MechInOreTrial.Second = true; MechInOreTrial.Stand = 0f; return Stage<MechInOreTrial>("MechInOre"); }
         /// <summary>As MechInOre, but the Mech is put 70 m out from the AI's main Foundry, on our side, and
         /// walks in to the same spot: how many Diggers die more than 3 s after the AI first had it in its
         /// memory (the only ones moving them could save; a Digger sees 22 m, a Foundry 32, the Mech reaches 34).</summary>
-        public static string MechInOreWalk() { MechInOreTrial.Leave = false; MechInOreTrial.Walk = true; MechInOreTrial.Second = false; return Stage<MechInOreTrial>("MechInOre"); }
+        public static string MechInOreWalk() { MechInOreTrial.Leave = false; MechInOreTrial.Walk = true; MechInOreTrial.Second = false; MechInOreTrial.Stand = 0f; return Stage<MechInOreTrial>("MechInOre"); }
+        /// <summary>Our Mech stood 50 m from the AI's main Foundry (toward our base) for the two minutes,
+        /// as one guarding a forward bay: past its reach of the seams, inside the 60 m the AI keeps away
+        /// from at outlying lines. Reports idle Digger-seconds and ore mined, for its economy.</summary>
+        public static string MechInOreStand() { MechInOreTrial.Leave = false; MechInOreTrial.Walk = false; MechInOreTrial.Second = false; MechInOreTrial.Stand = 50f; return Stage<MechInOreTrial>("MechInOre"); }
         public static string MechInOreReport() => Report<MechInOreTrial>();
 
         /// <summary>The AI's first scouting trip, from the title screen (restart play first): a new match,
@@ -2635,6 +2639,7 @@ namespace StarForge.EditorTools
     public sealed class MechInOreTrial : BugTrial
     {
         public static bool Leave, Walk, Second;
+        public static float Stand;
         int diggersLost, soldiersLost, lostAfterSeen;
         float firstSeen = -1f;
 
@@ -2677,6 +2682,7 @@ namespace StarForge.EditorTools
                 if (kv.Value > most && (kv.Key.pos - foundry.pos).magnitude < 45f) { most = kv.Value; node = kv.Key; }
             if (node == null) { report = "none of its Diggers mine by its main Foundry"; yield break; }
             Vector2 at = world.NearestReachable(foundry.pos, Vector2.Lerp(foundry.pos, node.pos, 0.5f));
+            if (Stand > 0f) at = world.NearestReachable(foundry.pos, foundry.pos + (map.StartPos(0) - foundry.pos).normalized * Stand);
             bool walk = Walk, second = Second;
             string secondNote = "";
             Unit line2 = null;
@@ -2721,6 +2727,7 @@ namespace StarForge.EditorTools
             int HomeMiners() { int m = 0; foreach (var u in world.units) if (Unit.Live(u) && u.team == 1 && u.Type == UnitType.Worker && Unit.Live(u.harvestNode) && (u.harvestNode.pos - foundry.pos).magnitude < 25f) m++; return m; }
             int homeBefore = HomeMiners(), homeWhileThere = -1;
             int ore0 = world.factions[1].ore, trained = 0, samples = 0, inReach = 0, inReachMost = 0, trainedAfter = 0;
+            int mined0 = world.factions[1].oreMined, idleSeconds = 0;
             bool leave = Leave; float firstAfter = -1f;
             world.Event += OnEvent;
             float t0 = world.time, nextSample = 0f;
@@ -2755,6 +2762,7 @@ namespace StarForge.EditorTools
                         if (leave && world.time - t0 >= 60f) { trainedAfter++; if (firstAfter < 0f) firstAfter = world.time - t0 - 60f; }
                     }
                     if (sample && Unit.Live(mech) && (u.pos - mech.pos).magnitude < reach) n++;
+                    if (sample && u.order == Order.Idle) idleSeconds++;
                 }
                 if (sample) { inReach += n; inReachMost = Mathf.Max(inReachMost, n); }
             }
@@ -2769,7 +2777,8 @@ namespace StarForge.EditorTools
                            (snapEnd != null ? $", their Mech {(snapEnd.eMech ? $"remembered, seen {snapEnd.eMechSeenAgo:0} s ago" : "not remembered")}" : "");
             ClearSpawned();
             Time.timeScale = 1f;
-            string orders = aiC != null ? $"; step 5b cleared {aiC.Dbg.diggersCleared - cleared0} and moved {aiC.Dbg.diggersMoved - moved0} Diggers, {aiC.Budget.denied - denied0} actions refused for the APM cap" : "";
+            string economy = $"; idle Digger-seconds {idleSeconds}, ore mined {world.factions[1].oreMined - mined0}";
+            string orders = economy + (aiC != null ? $"; step 5b cleared {aiC.Dbg.diggersCleared - cleared0} and moved {aiC.Dbg.diggersMoved - moved0} Diggers, {aiC.Budget.denied - denied0} actions refused for the APM cap" : "");
             string lineNote = line2 != null ? $"; mining at the second line at the end {MinersBy(line2)}" : "";
             string seen = secondNote + (walk ? $"walked in from {(from - foundry.pos).magnitude:0} m (the AI first had it in memory {(firstSeen >= 0f ? $"{firstSeen - t0:0} s in" : "never")}; Diggers lost more than 3 s after that {lostAfterSeen}), " : "");
             report = seen + $"our Mech ({reach:0} m reach{(alive ? "" : ", killed")}) stood {(at - foundry.pos).magnitude:0} m from the AI's main Foundry, {(at - node.pos).magnitude:0} m from the ore {most} of its Diggers mined, " +

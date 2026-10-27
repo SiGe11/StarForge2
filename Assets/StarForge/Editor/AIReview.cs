@@ -131,6 +131,12 @@ namespace StarForge.EditorTools
             return p == null ? "no massed wave trial running" : p.report;
         }
 
+        /// <summary>Diggers against their Mech as before (Old) or as now (New), for the BugTrials trials
+        /// that follow (MechInOre*). Not for an evaluation: AIEvalRunner resets it every game. It stays
+        /// set for later plays until New or an evaluation.</summary>
+        public static string DiggerSafetyOld() { Commander.LegacyDiggerSafety = true; return "Digger safety: old rule"; }
+        public static string DiggerSafetyNew() { Commander.LegacyDiggerSafety = false; return "Digger safety: new rule"; }
+
         /// <summary>The Full evaluation's five games against one opponent only (0 Rusher, 1 Macro,
         /// 2 Turtle, 3 Harasser): the Macro player, who buys its Mech upgrades and turtles behind
         /// it, is where most matches run to the cap.</summary>

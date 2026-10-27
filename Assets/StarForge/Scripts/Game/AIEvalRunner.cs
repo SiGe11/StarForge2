@@ -110,6 +110,7 @@ namespace StarForge.Game
             MechBrain.LegacyCommit = false;
             Commander.LegacyNoMaxOut = false;
             Commander.LegacySweep = false;
+            Commander.LegacyDiggerSafety = false;
             World.GameWorld.LegacyBreakPick = false;   // the morale trials' A/B switch
             MatchSettings.skipMenu = true;
             MatchSettings.spectate = false;
@@ -139,6 +140,7 @@ namespace StarForge.Game
             // And its Mechs' verdicts on deserters, for the same reason.
             foreach (var b in boot.MechBrains) b?.ReseedPunish(MatchSettings.seed ^ ((uint)kind + 1u) * 0x85EBCA6Bu);
             world.Ticked += OnTick;
+            world.Event += OnWorldEvent;
             // The world clamps each step to 0.1 s, so a high time scale buys speed
             // without coarsening the simulation beyond what it already tolerates.
             Time.timeScale = 8f;
@@ -210,6 +212,12 @@ namespace StarForge.Game
             // From when it waits for a massed army (beaten back twice by their Mech), and how big.
             if (ai.Dbg.massedArmy > 0f) { if (massingFrom < 0f) massingFrom = world.time; massedNeed = ai.Dbg.massedArmy; }
             lastWaves = ai.Dbg.waves;
+            foreach (var u in world.units)
+                if (Unit.Live(u) && u.team == 1 && u.Type == StarForge.Sim.UnitType.Worker)
+                {
+                    lastOrder[u] = u.order;
+                    if (u.order == StarForge.Sim.Order.Build && u.buildTarget != null) lastBuild[u] = u.buildTarget.Type;
+                }
 
             if (world.winner >= 0 || world.time >= maxSeconds) Finish();
         }
@@ -218,10 +226,69 @@ namespace StarForge.Game
         int mechWavesKnown, peakSupply;
         int lastWaves, wavesAtMech, wavesForgotten;
 
+        // The AI's Diggers lost: how many, how many by their Mech (within 45 m of it), and when it
+        // had none left -- whether its economy survives a hunting Mech.
+        void OnWorldEvent(GameEvent e)
+        {
+            if (finished || e.kind != GameEventKind.Death || e.team != 1 || e.type != StarForge.Sim.UnitType.Worker) return;
+            diggersLost++;
+            var m = world.MechOf(0);
+            Vector2 at = new Vector2(e.pos.x, e.pos.z);
+            if (m != null && (m.pos - at).magnitude < 45f)
+            {
+                diggersToMech++;
+                var sn = boot.AI.Perception.Snap;
+                if (sn.eMech && sn.eMechSeenAgo < 4f) toMechSeen++;
+                toMechRange += (m.pos - at).magnitude;
+                // What it was doing the tick before (a dying unit's order is already cleared).
+                lastOrder.TryGetValue(e.unit, out var o);
+                if (o == StarForge.Sim.Order.Harvest) toMechDoing[0]++;
+                else if (o == StarForge.Sim.Order.Return) toMechDoing[1]++;
+                else if (o == StarForge.Sim.Order.Move) toMechDoing[2]++;
+                else if (o == StarForge.Sim.Order.Build) { toMechDoing[3]++; if (lastBuild.TryGetValue(e.unit, out var bt)) builderLostAt[(int)bt]++; }
+                else toMechDoing[4]++;
+                if ((at - world.Map.StartPos(1)).magnitude < 40f) toMechAtHome++;
+                if ((at - world.Map.StartPos(0)).magnitude < 60f) toMechNearThem++;
+                float nf = 1e9f;
+                foreach (var u in world.units)
+                    if (Unit.Live(u) && u.team == 1 && u.Type == StarForge.Sim.UnitType.Foundry) nf = Mathf.Min(nf, (u.pos - at).magnitude);
+                if (nf < 25f) toMechByFoundry++;
+                var brain0 = boot.MechBrains[0];
+                if (brain0 != null) toMechMode[(int)brain0.Mode]++;
+            }
+            int left = 0;
+            foreach (var u in world.units)
+                if (Unit.Live(u) && u.team == 1 && u.Type == StarForge.Sim.UnitType.Worker && u != e.unit) left++;
+            if (left == 0 && noDiggersAt < 0f) noDiggersAt = world.time;
+        }
+        string BuiltShares()
+        {
+            var sb = new StringBuilder();
+            for (int i = 0; i < builderLostAt.Length; i++)
+                if (builderLostAt[i] > 0) sb.Append($"{(sb.Length > 0 ? ", " : " (")}{(StarForge.Sim.UnitType)i} {builderLostAt[i]}");
+            return sb.Length > 0 ? sb.Append(')').ToString() : "";
+        }
+        static string ModeShares(int[] by)
+        {
+            var sb = new StringBuilder();
+            for (int i = 0; i < by.Length; i++)
+                if (by[i] > 0) sb.Append($"{(sb.Length > 0 ? ", " : "")}{(MechIntent)i} {by[i]}");
+            return sb.Length > 0 ? sb.ToString() : "-";
+        }
+        int diggersLost, diggersToMech, toMechSeen, toMechAtHome, toMechNearThem, toMechByFoundry;
+        readonly Dictionary<Unit, StarForge.Sim.Order> lastOrder = new Dictionary<Unit, StarForge.Sim.Order>();
+        readonly Dictionary<Unit, StarForge.Sim.UnitType> lastBuild = new Dictionary<Unit, StarForge.Sim.UnitType>();
+        readonly int[] builderLostAt = new int[(int)StarForge.Sim.UnitType.Count];
+        readonly int[] toMechMode = new int[16];
+        float toMechRange;
+        readonly int[] toMechDoing = new int[5];
+        float noDiggersAt = -1f;
+
         void Finish()
         {
             finished = true;
             world.Ticked -= OnTick;
+            world.Event -= OnWorldEvent;
             var ai = boot.AI;
             var s = stats[kind];
             s.games++;
@@ -249,6 +316,7 @@ namespace StarForge.Game
                       $"their Mech alive {mechAliveT:0}s, believed gone {(mechAliveT > 0f ? 100f * mechForgottenT / mechAliveT : 0f):0}% of it, waves started meanwhile {wavesAtMech} ({wavesForgotten} believing it gone); " +
                       $"AI army peak {peakArmy:0} (supply up to {peakSupply}), at waves started while it knew of their Mech {(mechWavesKnown > 0 ? armyAtMechWaves / mechWavesKnown : 0f):0} on average, at the end {ArmyValue(1):0} against their {ArmyValue(0):0}; " +
                       $"{(massingFrom >= 0f ? $"massing from {massingFrom:0}s (last needed {massedNeed:0}), massed waves {ai.Dbg.massedWaves} ({ai.Dbg.stalledWaves} on a stalled army){(ai.Dbg.firstMassedAt >= 0f ? $" (first at {ai.Dbg.firstMassedAt:0}s)" : "")}" : "never massing")}, waves called off {ai.Dbg.wavesCalledOff}, sweeps {ai.Dbg.sweeps} (longest {ai.Dbg.sweepMsMax:0.0} ms); " +
+                      $"AI Diggers lost {diggersLost} ({diggersToMech} by their Mech: {toMechSeen} with it seen in the last 4 s, from {(diggersToMech > 0 ? toMechRange / diggersToMech : 0f):0} m on average, {toMechAtHome} within 40 m of its start, {toMechNearThem} within 60 m of theirs, {toMechByFoundry} within 25 m of a Foundry of its own; their Mech {ModeShares(toMechMode)}; mining {toMechDoing[0]}, carrying {toMechDoing[1]}, walking {toMechDoing[2]}, building {toMechDoing[3]}{BuiltShares()}, other {toMechDoing[4]}){(noDiggersAt >= 0f ? $", none left from {noDiggersAt:0}s" : "")}, moved off guns {ai.Dbg.diggersMoved}, cleared {ai.Dbg.diggersCleared}; " +
                       $"APM {ai.BudgetBySite()}; " +
                       $"morale: {MoraleLine()}");
             var m0 = world.morale[0];

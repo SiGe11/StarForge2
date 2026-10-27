@@ -526,6 +526,12 @@ namespace StarForge.AI
                 gunFoundries = OwnOf(UnitType.Foundry);
                 gunWorkers = OwnOf(UnitType.Worker);
             }
+            // Not a Digger in their Mech's reach, nor one cleared from any gun these 8 s: sent to build, it
+            // was cleared again in the same pass (and a new site handed to one stood abandoned, its ore spent).
+            if (!LegacyDiggerSafety)
+                for (int i = freeWorkers.Count - 1; i >= 0; i--)
+                    if (UnderMech(freeWorkers[i].pos) || (clearedAt.TryGetValue(freeWorkers[i], out float clearedT) && w.time - clearedT < 8f))
+                        freeWorkers.RemoveAt(i);
             Unit Builder() => freeWorkers.Count == 0 ? null : freeWorkers[rng.IRange(0, freeWorkers.Count)];
 
             // A human macros in bursts and is limited by hands, not by a one-action-
@@ -586,6 +592,10 @@ namespace StarForge.AI
                     foreach (var h in w.units)
                         if (h != null && !h.dying && h.team == team && h.Type == UnitType.Worker && h.order == Order.Build && h.buildTarget == e) { tended = true; break; }
                     if (tended) continue;
+                    // Not into their Mech's reach, nor where it was seen these 30 s (MechLingers): each
+                    // Digger sent was killed on the way or at the site, 19 of one match's at a site it was
+                    // hunting round. (Not towers: under one by its base, the site may be all there is.)
+                    if (!LegacyDiggerSafety && (UnderMech(e.pos) || MechLingers(e.pos))) continue;
                     Unit best = null;
                     float bestD = float.MaxValue;
                     foreach (var h in freeWorkers)
@@ -746,7 +756,9 @@ namespace StarForge.AI
                 foreach (var h in gunWorkers)
                 {
                     if (moved + cleared >= 3 || issued >= MaxPerPass || !Budget.Can(2)) break;
-                    if (Reserved(h) || h.order == Order.Build) continue;
+                    // A builder is left to build under a tower or bay (by its main Foundry that is the
+                    // whole economy), but not under their Mech, which hunts it down.
+                    if (Reserved(h) || (h.order == Order.Build && (LegacyDiggerSafety || !UnderMech(h.pos)))) continue;
                     // Cleared lately and walking out of every gun's reach: left to get there (re-ordered
                     // each pass while still in it, a Mech walking through the line ate the army's orders).
                     // Anything else on the move (a scout walked home, the explorer) is still pulled off.
@@ -783,6 +795,15 @@ namespace StarForge.AI
                     Vector2 dir = d.sqrMagnitude > 0.01f ? d.normalized : (home - g).normalized;
                     Vector2 to = default;
                     bool clear = false;
+                    // From their Mech, home first, among its towers and army -- unless the way home runs
+                    // towards it: cleared only past its reach, a Digger stood there and the Mech, hunting
+                    // the knot, walked up to it again (24-30 a match killed at its outlying lines, 41-104
+                    // clears).
+                    if (!LegacyDiggerSafety && UnderMech(onDuty ? h.harvestNode.pos : h.pos) && !MechAhead(h.pos, home))
+                    {
+                        to = w.NearestReachable(home, home);
+                        clear = !UnderGun(to);
+                    }
                     for (int k = 0; k < 5 && !clear; k++)
                     {
                         float ang = (k == 0 ? 0f : ((k & 1) == 1 ? 1f : -1f) * ((k + 1) / 2) * 60f) * Mathf.Deg2Rad;
@@ -818,6 +839,7 @@ namespace StarForge.AI
                     if (!Unit.Live(h) || !Unit.Live(n) || n.oreLeft <= 0 || h.order == Order.Build || Reserved(h)) { pruneBuf.Add(h); continue; }
                     if (back >= 3 || !Budget.Can(2)) continue;
                     if (!FinishedFoundryNear(n.pos, 25f)) continue;   // kept: back once one stands again
+                    if (MechLingers(n.pos)) continue;                 // kept: back once the place is quiet
                     if (staticGuns > 0 && !SafeOre(n)) { pruneBuf.Add(h); continue; }
                     if (h.harvestNode == n) { pruneBuf.Add(h); continue; }   // back there already
                     if (Issue(Single(h), 4, n.pos, n)) { back++; pruneBuf.Add(h); }
@@ -843,6 +865,7 @@ namespace StarForge.AI
                     if (n == null || n.dying || n.Type != UnitType.Ore || n.oreLeft <= 0) continue;
                     if ((n.pos - home).magnitude > 50f && !NearOwnFoundry(n.pos, 25f)) continue;
                     if (guns.Count > 0 && ((!SafeOre(n) && (anySafe || !coreCovered)) || UnderMech(n.pos))) continue;
+                    if (MechLingers(n.pos)) continue;
                     float d = (n.pos - at).sqrMagnitude;
                     if (d < pickD) { pickD = d; pick = n; }
                 }
@@ -874,7 +897,7 @@ namespace StarForge.AI
                 float dHome = (e.pos - home).magnitude;
                 if (dHome < 26f || dHome > 110f) continue;
                 if (Barred(e.pos)) continue;
-                if (UnderGun(e.pos, 16f)) continue;   // the Foundry goes up to 16 m from the ore
+                if (UnderGun(e.pos, 16f) || MechLingers(e.pos, 16f)) continue;   // the Foundry goes up to 16 m from the ore
                 // Not a line it already has, nor one it has seen them hold.
                 if (NearOwnFoundry(e.pos, 22f) || NearTheirStructure(e.pos, 25f)) continue;
                 float score = -dHome * 0.02f - Influence.Sample(2, e.pos) * 3f + FieldOre(e.pos) * 0.0001f;
@@ -929,7 +952,7 @@ namespace StarForge.AI
             {
                 if (n == null || n.dying || n.Type != UnitType.Ore || w.Explored(team, n.pos)) continue;
                 float d = (n.pos - home).magnitude;
-                if (d < 26f || d > 110f || UnderGun(n.pos, 16f)) continue;
+                if (d < 26f || d > 110f || UnderGun(n.pos, 16f) || MechLingers(n.pos, 16f)) continue;
                 bool tried = false;
                 foreach (var f in fieldsTried) if ((f - n.pos).sqrMagnitude < 12f * 12f) { tried = true; break; }
                 if (!tried && d < best) { best = d; field = n; }
@@ -972,6 +995,37 @@ namespace StarForge.AI
         /// <summary>How many of <see cref="guns"/> are towers and bays (the rest: their Mech).</summary>
         int staticGuns;
         const float MechReach = 40f;
+
+        /// <summary>Whether the way from a to b passes one of their Mechs it has in sight (step 5b's guns
+        /// past the towers) within 25 m, and nearer than a stands now (Diggers it killed died 16-33 m
+        /// from it on average).</summary>
+        bool MechAhead(Vector2 a, Vector2 b)
+        {
+            Vector2 ab = b - a;
+            float len2 = Mathf.Max(0.01f, ab.sqrMagnitude);
+            for (int i = staticGuns; i < guns.Count; i++)
+            {
+                var g = new Vector2(guns[i].x, guns[i].y);
+                float t = Mathf.Clamp01(Vector2.Dot(g - a, ab) / len2);
+                if ((a + ab * t - g).magnitude < Mathf.Min((a - g).magnitude - 1f, 25f)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Where their Mech was last seen stays a danger for half a minute (its last sighting;
+        /// a player keeps away from where it was): no Digger is sent to ore there, moved back there,
+        /// sent to build, expand or explore there. At its reach by home, 20 m past it at the outlying
+        /// lines (a Mech guarding a bay 45-60 m from its main seams would leave them unworked). As a
+        /// gun (4 s), Diggers mined there until it went out of sight and were sent straight back: it
+        /// stood beyond their sight at their outlying lines and killed 20-37 of them a match in three
+        /// of five Macro games.</summary>
+        bool MechLingers(Vector2 p, float margin = 0f)
+        {
+            var s = Perception.Snap;
+            if (LegacyDiggerSafety || !s.eMech || s.eMechSeenAgo > 30f) return false;
+            float r = MechReach + ((p - Perception.Home).sqrMagnitude > 40f * 40f ? 20f : 0f) + margin;
+            return (p - s.eMechPos).sqrMagnitude < r * r;
+        }
         /// <summary>Expansion sites a Foundry would not go up round, barred until z (see step 3).</summary>
         readonly List<Vector3> barredSites = new List<Vector3>();
         float missSince = -1f, lastMiss;
@@ -1059,7 +1113,7 @@ namespace StarForge.AI
             {
                 if (n == null || n.dying || n.Type != UnitType.Ore || n.oreLeft <= 0) continue;
                 float d = (n.pos - home).magnitude;
-                if (d > 110f || !SafeOre(n)) continue;
+                if (d > 110f || !SafeOre(n) || MechLingers(n.pos)) continue;
                 int load = 0;
                 foreach (var h in gunWorkers) if (h.harvestNode == n) load++;
                 float score = d + load * 6f;
@@ -1926,6 +1980,11 @@ namespace StarForge.AI
                 if (!r.unfinished) v += r.type == UnitType.Sentinel ? 250f : r.type == UnitType.MechBay ? 400f : 0f;
             return v;
         }
+
+        /// <summary>Editor A/B only: Diggers as before -- half-built sites tended and builders left be
+        /// whatever is there, their Mech a danger only while seen (4 s), Diggers cleared just past its
+        /// reach. The evaluation runner resets it.</summary>
+        public static bool LegacyDiggerSafety;
 
         // A Foundry of theirs seen at some point this match, and the wave on being a mop-up.
         bool sawFoundry, mopUpWave;

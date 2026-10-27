@@ -260,8 +260,11 @@ and both AIs treat a bay in a strange place as the gamble it is. The opponent go
 a Sentinel) going up beside its base with whatever army it has, and for a finished one once its
 army can take the gun on, rather than feeding it a few rifles at a time; meanwhile it moves its
 Diggers to ore the gun cannot reach, and avoids expanding under it. Your Mech gets the same
-respect while it is seen among the opponent's Diggers: they are pulled out of its reach, none is
-trained at a Foundry it stands by, and they go back to work once it has gone. Your Mech is mended only at a
+respect: Diggers it is seen among are moved to ore out of its reach, or sent home when there is
+none (straight away from it when it stands in the way); none is trained at a Foundry it stands by;
+no Digger is sent to mine, finish a half-built structure, expand or look for ore where it was seen
+in the last half minute, and they go back to work once it has been gone that long. Your Mech is
+mended only at a
 bay on your half of the map, or at one where nothing out-guns it; if it keeps losing hull in a
 forward bay's gantry it says so and stays away for a while, and hurt with no bay to go to, it
 falls back to your lines. It guards your base, not a bay far forward.
