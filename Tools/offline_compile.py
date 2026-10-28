@@ -26,7 +26,7 @@ import tempfile
 
 # The newest installed Editor's SDK (the project follows the Editor through upgrades).
 _EDITORS = sorted(glob.glob('/Applications/Unity/Hub/Editor/*/Unity.app/Contents/Resources/Scripting/DotNetSdk'))
-UNITY = _EDITORS[-1] if _EDITORS else '/Applications/Unity/Hub/Editor/6000.6.5f1/Unity.app/Contents/Resources/Scripting/DotNetSdk'
+UNITY = _EDITORS[-1] if _EDITORS else '/Applications/Unity/Hub/Editor/6000.6.7f1/Unity.app/Contents/Resources/Scripting/DotNetSdk'
 DOTNET = os.path.join(UNITY, 'dotnet')
 
 

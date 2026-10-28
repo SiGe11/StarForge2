@@ -38,9 +38,9 @@ No check covers it? Write one (see [new-trial.md](new-trial.md)) rather than rep
 
 ## 3. Take the Editor slot
 The Editor is one shared resource for every session: a `.cs` write recompiles under anyone's play mode and wrecks their trial.
-1. `pgrep -f "Unity.app/Contents/MacOS/Unity"`: no Editor means no play-mode check (`editor.sh` would wait 900 s). Start it only if the user or task needs it: `open -na /Applications/Unity/Hub/Editor/6000.6.5f1/Unity.app --args -projectPath /Users/sige/starforge` (minutes to import).
+1. `pgrep -f "Unity.app/Contents/MacOS/Unity"`: no Editor means no play-mode check (`editor.sh` would wait 900 s). Start it only if the user or task needs it: `open -na /Applications/Unity/Hub/Editor/6000.6.7f1/Unity.app --args -projectPath /Users/sige/starforge` (minutes to import).
 2. `ListAgents`: a busy peer that announced an Editor window or trial has it; message it and wait, do not stop its play mode. Subagents cannot do this step: the main session takes the slot.
-3. `SF_EDITOR_TIMEOUT=30 Tools/editor.sh state` → want `playing=False compiling=False`. Behind other apps it keeps ~7.6x only at Interaction Mode No Throttling (`editor.sh call StarForge.EditorTools.EditorThrottle.State`; `.NoThrottling` sets it). If it still crawls, bring it frontmost: `open -a /Applications/Unity/Hub/Editor/6000.6.5f1/Unity.app`.
+3. `SF_EDITOR_TIMEOUT=30 Tools/editor.sh state` → want `playing=False compiling=False`. Behind other apps it keeps ~7.6x only at Interaction Mode No Throttling (`editor.sh call StarForge.EditorTools.EditorThrottle.State`; `.NoThrottling` sets it). If it still crawls, bring it frontmost: `open -a /Applications/Unity/Hub/Editor/6000.6.7f1/Unity.app`.
 4. Busy peers: one `SendMessage` each — what you run, for how long, "no .cs writes until I say".
 
 ## 4. Compile, play, run
