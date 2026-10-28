@@ -84,7 +84,7 @@ namespace StarForge.View
         }
 
         struct Scorch { public Vector3 pos; public float rot, size, born; public int frame; }
-        struct TrackMark { public Vector3 pos; public float yaw, length, width, born, band, halfBand, pitch; }
+        struct TrackMark { public Vector3 pos; public float yaw, length, width, born, band, halfBand, pitch; public Color soil; }
         struct Marker { public Vector3 pos; public float born; public int kind; }
         struct FlashSlot { public Light light; public float t, life, intensity; }
         struct Blast { public Vector3 pos; public float t, scale; }
@@ -2158,14 +2158,18 @@ namespace StarForge.View
                 // Mauler tracks sit 1.30 m either side of the centre line, 0.66 m wide;
                 // a Digger's 0.60 m out, 0.32 m wide; a Juggernaut Mech's 1.86 m out and
                 // 1.1 m wide (the kit's 1.55 and 0.92, drawn 1.2 times larger). Width is
-                // the box across both.
-                float width = tracked ? 5.0f : mauler ? 3.4f : 1.6f;
+                // the box across both, with room for the soil each tread pushes aside.
+                float width = tracked ? 5.8f : mauler ? 3.9f : 1.9f;
                 float band = tracked ? 1.86f : mauler ? 1.30f : 0.60f, half = tracked ? 0.55f : mauler ? 0.33f : 0.17f;
+                // Pressed into the ground it crosses: the groove darkens toward that ground's
+                // own soil, a little warmed (FXDirector.Ground).
+                var gr = GroundAt(mid);
                 trackMarks[trackHead] = new TrackMark
                 {
                     pos = mid, yaw = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, length = moved * 1.15f, width = width,
                     born = now, band = band / (width * 0.5f), halfBand = half / (width * 0.5f),
-                    pitch = tracked ? 2.4f : mauler ? 3.2f : 4.5f
+                    pitch = tracked ? 2.4f : mauler ? 3.2f : 4.5f,
+                    soil = Color.Lerp(new Color(0.11f, 0.085f, 0.06f), gr.clod * 0.22f, 0.75f)
                 };
                 trackHead = (trackHead + 1) % MaxTracks;
                 trackCount = Mathf.Min(trackCount + 1, MaxTracks);
@@ -2339,8 +2343,9 @@ namespace StarForge.View
                 if (age > TrackLife) continue;
                 if (!Seen(m.pos) && !world.Explored(me, new Vector2(m.pos.x, m.pos.z))) continue;
                 float fade = 1f - Mathf.SmoothStep(0f, 1f, age / TrackLife);
+                // Groove colour in _Color, cleat pitch in _UVRect.x (SF_GroundDecal kind 6).
                 tracks.Add(Matrix4x4.TRS(m.pos, Quaternion.Euler(0f, m.yaw, 0f), new Vector3(m.width, 2.5f, m.length)),
-                           new Color(0.11f, 0.09f, 0.07f, 0.52f * fade), new Vector4(6f, fade, m.band, m.halfBand),
+                           new Color(m.soil.r, m.soil.g, m.soil.b, 0.55f * fade), new Vector4(6f, fade, m.band, m.halfBand),
                            new Vector4(m.pitch, 0f, 0f, 0f));
             }
             tracks.Draw(cube, scorchMaterial);

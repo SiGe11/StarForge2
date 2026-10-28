@@ -45,6 +45,26 @@ Shader "StarForge/GroundDecal"
                 UNITY_DEFINE_INSTANCED_PROP(float4, _Params)   // x kind, y progress/time, z rotation, w extra
                 UNITY_DEFINE_INSTANCED_PROP(float4, _UVRect)   // sheet cell: xy offset, zw size
             UNITY_INSTANCING_BUFFER_END(Props)
+            float _SF_Rain;   // how wet a shower has left the ground (FXDirector.Weather)
+
+            // An integer hash of a cell's coordinates: no period over the map (a float hash
+            // with two-decimal multipliers repeated every 50 and 100 cells).
+            float Hash21(float2 q)
+            {
+                uint2 u = (uint2)(int2)q;
+                uint h = (u.x * 1597334677u) ^ (u.y * 3812015801u);
+                h = (h ^ (h >> 16)) * 2246822519u;
+                h ^= h >> 13;
+                return h * (1.0 / 4294967296.0);
+            }
+
+            float VNoise(float2 q)
+            {
+                float2 i = floor(q), f = frac(q);
+                f = f * f * (3.0 - 2.0 * f);
+                return lerp(lerp(Hash21(i), Hash21(i + float2(1, 0)), f.x),
+                            lerp(Hash21(i + float2(0, 1)), Hash21(i + 1.0), f.x), f.y);
+            }
 
             struct Attributes
             {
@@ -145,17 +165,34 @@ Shader "StarForge/GroundDecal"
                 {
                     // Track segment, alpha-blended: two treads either side of the
                     // centre line (z band centre, w half-width, both as fractions of
-                    // the half-width across), with cleats across them. The cleats are
-                    // spaced in world units along the heading, so consecutive segments
-                    // line up; the ends are soft so overlapping segments blend.
+                    // the half-width across), pressed into the ground: a compacted
+                    // groove (_Color, the ground's own soil darkened) with cleats across
+                    // it and a soft darker fringe where the edge pressed in. It only
+                    // darkens: a paler heaped-soil line each side read as lane markings
+                    // and glowed in shade (the decal is unlit). Edges and depth are
+                    // broken up by world-space noise, so consecutive segments line up
+                    // and no two look painted on; the ends are soft so overlapping
+                    // segments blend. Cleats finer than a couple of pixels fade to
+                    // their average instead of aliasing into a moire.
+                    float4 uvr = UNITY_ACCESS_INSTANCED_PROP(Props, _UVRect);   // x cleat pitch
                     float3 fwd = normalize(float3(UNITY_MATRIX_M._m02, 0.0, UNITY_MATRIX_M._m22));
-                    float along = dot(wp.xz, fwd.xz) * UNITY_ACCESS_INSTANCED_PROP(Props, _UVRect).x;
+                    float alongM = dot(wp.xz, fwd.xz);
+                    float along = alongM * uvr.x;
                     half across = abs(d.x);
-                    half tread = 1.0 - smoothstep(p.w * 0.75, p.w, abs(across - p.z));
-                    half cleat = 0.45 + 0.55 * smoothstep(0.12, 0.28, abs(frac(along) - 0.5));
+                    half n1 = VNoise(wp.xz * 2.3);
+                    half n2 = VNoise(wp.xz * 7.1 + 13.7);
+                    half t = abs(across - p.z) / max(p.w, 1e-3) * (1.0 + (n1 - 0.5) * 0.35);
+                    half groove = 1.0 - smoothstep(0.72, 1.0, t);
+                    half fringe = (1.0 - smoothstep(0.95, 1.4, t)) * 0.3 * (0.5 + 0.5 * n2);
+                    half cleatSharp = 0.3 + 0.7 * smoothstep(0.12, 0.28, abs(frac(along) - 0.5));
+                    half cleat = lerp(0.72, cleatSharp, saturate(1.5 - fwidth(along) * 3.0));
                     half ends = 1.0 - smoothstep(0.87, 1.0, abs(d.y));
-                    a = tread * cleat * ends;
-                    return half4(color.rgb, a * color.a * upness * vfade);
+                    half wet = 1.0 + 0.35 * _SF_Rain;   // a wet groove holds water and goes darker
+                    half aGroove = max(groove * cleat * (0.55 + 0.45 * n1), fringe) * wet;
+                    // Faded inside the box's long sides too, so nothing that reaches them
+                    // (a Mech pad's fringe did) ends in a straight edge.
+                    a = aGroove * ends * (1.0 - smoothstep(0.86, 1.0, across));
+                    return half4(color.rgb, saturate(a * color.a) * upness * vfade);
                 }
                 else
                 {

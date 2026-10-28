@@ -31,6 +31,12 @@ namespace StarForge.View
         Matrix4x4[] seenPose;
         Vector4[] seenParams;
         bool[] seenGone;
+        // How much of a slender trunk is still standing as the player last saw it: a pine
+        // or a tall young broadleaf whose crown has burnt away is drawn burnt down to a
+        // broken stump (it stood as a bare black pole 10-15 m tall, nothing left on it).
+        // View only, like the rest of what is drawn here.
+        float[] seenCut;
+        bool[] slender;
 
         // What Vegetation.Pose read when seenPose was worked out: the only inputs of it
         // that change in a match (where a plant stands, its turn, size and kind are
@@ -95,6 +101,15 @@ namespace StarForge.View
             seenPose = new Matrix4x4[n];
             seenParams = new Vector4[n];
             seenGone = new bool[n];
+            seenCut = new float[n];
+            slender = new bool[vegetation.kinds.Length];
+            for (int k = 0; k < slender.Length; k++)
+            {
+                var kd = vegetation.kinds[k];
+                // A single thin stem under its crown (pine 10.5 m on 0.30, tall broadleaf
+                // 10.9 on 0.26); the broadleaf, birch and dead snags keep their limbs.
+                slender[k] = !kd.bush && kd.crownRadii.y > 0f && kd.height / Mathf.Max(kd.trunkRadius, 0.01f) > 28f;
+            }
             poseKey = new PoseKey[n];
             poseKnown = new bool[n];
             posePlants = vegetation.plants;
@@ -145,6 +160,11 @@ namespace StarForge.View
             // Felled and lying trees stop swaying; embers glow with the fire.
             float sway = s.state == PlantState.Standing ? 1f : 0f;
             seenParams[i] = new Vector4(s.charred, s.fire, s.foliageLost, sway);
+            // Burnt through as the char deepens: 35-60% of the stem left, by plant.
+            float keep = 0.35f + 0.25f * Mathf.Repeat(i * 0.61803f, 1f);
+            seenCut[i] = slender[vegetation.plants[i].kind]
+                ? Mathf.Lerp(1f, keep, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 0.95f, s.charred)))
+                : 1f;
             seenGone[i] = s.state == PlantState.Gone;
         }
 
@@ -178,12 +198,13 @@ namespace StarForge.View
                 float nearCam = Vector3.Distance(camPos, new Vector3(pose.m03, pose.m13 + kind.crownCenter.y * plants[i].scale, pose.m23));
                 if (kind.drawDistance > 0f && nearCam > kind.drawDistance) continue;
                 Matrix4x4 m = pose;
+                if (seenCut[i] < 0.999f) m = pose * Matrix4x4.Scale(new Vector3(1f, seenCut[i], 1f));
                 if (nearCam < cameraClearance + kind.crownRadii.x * plants[i].scale)
                 {
                     float k = Mathf.Clamp01((nearCam - cameraClearance * 0.4f) / (cameraClearance * 0.6f + kind.crownRadii.x * plants[i].scale));
                     k = Mathf.SmoothStep(0f, 1f, k);
                     if (k < 0.02f) continue;
-                    m = pose * Matrix4x4.Scale(new Vector3(k, k, k));
+                    m = pose * Matrix4x4.Scale(new Vector3(k, k * seenCut[i], k));
                 }
                 bool far = kind.lodMesh != null && nearCam > lodDistance;
                 int slot = plants[i].kind * 2 + (far ? 1 : 0);

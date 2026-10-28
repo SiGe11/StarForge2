@@ -7,8 +7,8 @@
 //    bare ground and wanders downwind before it falls apart.
 //  * About three days in ten bring passing showers: rain slanting with the wind, rings
 //    on the lakes, splashes on the ground; the ground, the grass and the machines
-//    darken and take a sheen as they wet (`_SF_Rain`, read by SF_Terrain, SF_Unit and
-//    SF_Grass) and dry off slowly after; the sun dims and the air thickens while it
+//    darken and take a sheen as they wet (`_SF_Rain`, read by SF_Terrain, SF_Unit,
+//    SF_Grass, SF_Rock and the tread marks in SF_GroundDecal) and dry off slowly after; the sun dims and the air thickens while it
 //    rains (Atmosphere).
 //
 // `-sfweather rain` or `-sfweather clear` forces the showers on or off (seed 1000, the

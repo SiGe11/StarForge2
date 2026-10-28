@@ -1,9 +1,10 @@
 // FXDirector.Ground.cs — what the ground is made of where something strikes it, so the
 // dust and clods that come off it are its own: a pale plume off sand, a puff of ash off
 // burnt grass, torn turf and little dust off a meadow, brown dust and stones off gravel,
-// chips and hardly any dust off rock, mud and no dust at the water's edge. Read from the
-// same splat rule the terrain is painted by (MapGenerator.SplatAt), the grass fire's grid
-// and the water level, so it agrees with what the player sees under the foot.
+// chips and hardly any dust off rock, mud and no dust at the water's edge or after a
+// shower. Read from the same splat rule the terrain is painted by (MapGenerator.SplatAt),
+// the grass fire's grid, the water level and the weather's wetness, so it agrees with
+// what the player sees under the foot.
 using UnityEngine;
 using StarForge.World;
 
@@ -60,6 +61,15 @@ namespace StarForge.View
                 g.dustAmount *= 1f - 0.85f * damp;
                 g.clods *= 1f + 0.6f * damp;
             }
+            // After a shower the ground is wet everywhere: mud, and next to no dust (a Mech's
+            // feet threw pale dry dust in pouring rain). `wetNow` is FXDirector.Weather's.
+            if (wetNow > 0f)
+            {
+                g.clod = Color.Lerp(g.clod, MudClod, 0.6f * wetNow);
+                g.dust = Color.Lerp(g.dust, g.dust * 0.7f, wetNow);
+                g.dustAmount *= 1f - 0.85f * wetNow;
+                g.clods *= 1f + 0.4f * wetNow;
+            }
             g.dust.a = g.clod.a = 1f;
             return g;
         }
@@ -103,7 +113,8 @@ namespace StarForge.View
                 // A solid, soft-edged pad: with the tread's cleats (pitch 2.5) a line of
                 // them read as the rungs of a ladder.
                 pos = new Vector3(at.x, world.Map.HeightAt(new Vector2(at.x, at.z)), at.z), yaw = yawDeg, length = 1.7f, width = 1.3f,
-                born = Time.time, band = 0f, halfBand = 0.85f, pitch = 0f
+                born = Time.time, band = 0f, halfBand = 0.85f, pitch = 0f,
+                soil = Color.Lerp(new Color(0.11f, 0.085f, 0.06f), gr.clod * 0.22f, 0.75f)
             };
             trackHead = (trackHead + 1) % MaxTracks;
             trackCount = Mathf.Min(trackCount + 1, MaxTracks);
