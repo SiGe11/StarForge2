@@ -136,7 +136,10 @@ air instead (AI against AI on seed 1000, the other side given extra Kestrels fro
 up to six and sent at its base), it trained 6 and 4 Aegis tanks and 4 and 1 Marksmen in two
 runs; the same match without the Kestrels, none of either. Quick evaluations on
 the final code (after the review fixes) won 3 of 4 (the Macro game running to the 720 s cap
-with both Mechs standing) and, with the capes in, 4 of 4; none lost, 0 exceptions.
+with both Mechs standing) and, with the capes in, 4 of 4; none lost, 0 exceptions. The
+evaluation's five seeds draw only two of the AI's four openings; three more seeds that draw the
+other two (Standard twice, EarlyGarrison once) won all 12 matches against the four scripted
+players, 0 exceptions.
 
 **Terrain** *(new)*: units wade into shallow water (up to 1 m deep) at about half
 speed, Skimmers skim over it at full speed, and deeper water stops everyone.
@@ -320,13 +323,16 @@ a Sentinel) going up beside its base with whatever army it has, and for a finish
 army can take the gun on, rather than feeding it a few rifles at a time; meanwhile it moves its
 Diggers to ore the gun cannot reach, and avoids expanding under it. Your Mech gets the same
 respect: Diggers it is seen among are moved to ore out of its reach, or sent home when there is
-none (straight away from it when it stands in the way); none is trained at a Foundry it stands by;
+none (straight away from it when it, or a tower or bay of yours, stands in the way); none is
+trained at a Foundry it stands by;
 no Digger is sent to mine, finish a half-built structure, expand or look for ore where it was seen
 in the last half minute, and they go back to work once it has been gone that long. Your Mech is
 mended only at a
 bay on your half of the map, or at one where nothing out-guns it; if it keeps losing hull in a
-forward bay's gantry it says so and stays away for a while, and hurt with no bay to go to, it
-falls back to your lines. It guards your base, not a bay far forward.
+forward bay's gantry it says so and stays away for a while, and hurt with no safe bay to go to,
+it falls back to your lines. With its bay destroyed it fights on -- no repair is coming, so
+waiting gains nothing -- taking only long odds as its hull falls. It guards your base, not a bay
+far forward.
 
 `BayEdgeCases` (Editor/MechTrials.cs) checks ten cases on the default map, AI against AI. A
 Digger walked into the enemy base at a minute and a half was shot as it began work, and its site
