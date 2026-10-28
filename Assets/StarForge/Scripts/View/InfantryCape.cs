@@ -1,13 +1,13 @@
 // InfantryCape.cs — the cape a soldier may earn: at each promotion a soldier without one
 // gets one 81% of the time (a hash of the unit and its new rank, never the match's random
-// stream), in a deep shade of the side's colour with a hem band that marks the rank. A
-// knight's cape: hung from the shoulders under the pauldrons, the pack worn over it, falling
-// to the ankles in deep folds and flaring wide. It is Unity Cloth near the camera -- the
-// shoulders and the stretch under the pack held, the skirt free, thrown back by the soldier's
-// own movement and blown by the match's wind. Away from the camera, above 3.5x, through a
-// hitch or past the budget of simulated capes it is the same mesh at rest, leant back on a
-// spring as the soldier moves. Presentation only: UnitView makes and ticks it and the
-// simulation never knows it is there.
+// stream), in a deep shade of the side's colour, an embroidered trim down both edges and
+// along the hem in the rank's colour. A knight's cape: hung from the shoulders under the
+// pauldrons, the pack worn over it, falling nearly straight to the ankles in a few broad
+// folds. It is Unity Cloth near the camera -- the shoulders and the stretch under the pack
+// held, the skirt free, thrown back by the soldier's own movement and blown by the match's
+// wind. Away from the camera, above 3.5x, through a hitch or past the budget of simulated
+// capes it is the same mesh at rest, leant back on a spring as the soldier moves.
+// Presentation only: UnitView makes and ticks it and the simulation never knows it is there.
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -19,7 +19,7 @@ namespace StarForge.View
     {
         /// <summary>The chance a promotion brings a cape to a soldier without one.</summary>
         public const float Chance = 0.81f;
-        const int Cols = 13, Rows = 14;          // cloth vertices across and down
+        const int Cols = 15, Rows = 14;          // cloth vertices across and down; the outer columns and the last row are the trim
         const int MaxSimulated = 24;             // cloth capes at once, the nearest the camera's focus
         const float SimNear = 42f, SimFar = 50f; // metres from the focus a cape starts / stops simulating
         const float MaxStep = 0.1f;              // a longer frame (a hitch) is not simulated
@@ -33,7 +33,14 @@ namespace StarForge.View
         // Body space (the model faces +Z, 2 units tall): the shoulder line it hangs from, where
         // it comes out from under the pack, and the hem.
         const float ShoulderY = 1.50f, ShoulderZ = -0.20f, HalfTop = 0.52f;
-        const float FreeY = 1.02f, HemY = 0.22f, HalfHem = 0.95f;
+        const float FreeY = 1.02f, HemY = 0.22f, HalfHem = 0.78f;
+        const float EdgeHold = 0.5f;             // how much less an edge particle may swing than the middle
+        const float Trim = 0.13f, HemTrim = 0.12f;   // the edge trims' share of the half-width; the hem trim's height
+        // The embroidered band across the fabric texture: v at its outer rope and its inner one,
+        // its height in u (the texture is square), and the palmette over a crossing that the corners and
+        // the middle of the hem show. Its u runs on along the trims, the texture mirrored (wrap U).
+        const float BandOut = 0.027f, BandIn = 0.209f, BandU = BandIn - BandOut, Palmette = 0.503f;
+        const float Weave = 2f;                  // metres of cape across the fabric texture
 
         static readonly bool Off = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-sfnocapes") >= 0;
         /// <summary>For the fps A/B at the full budget: <c>-sfallcapes</c> on the player gives every
@@ -83,6 +90,7 @@ namespace StarForge.View
         int team, rank, id;
         bool shown = true, frozen, gaveUp, simulating, wanted;
         float focusDistance, lean, leanVel, nextCheck, crumple;
+        int hem;   // the particle the give-up check reads: the lowest at rest (welded particles keep no documented order)
         Quaternion restRot;
         Vector3 restPos;
         /// <summary>Times this cape went from cloth to rest and back (for trials: flicker).</summary>
@@ -94,6 +102,9 @@ namespace StarForge.View
         /// simulates (allocates; null otherwise), whether it is drawn.</summary>
         public Mesh Rest => mesh;
         public Vector3[] ClothVertices() => simulating && cloth != null ? cloth.vertices : null;
+        /// <summary>For trials: the cloth's particles at rest, in the order <see cref="ClothVertices"/> gives
+        /// them (Cloth welds the mesh's seam vertices, so they do not follow the mesh's own order).</summary>
+        public Vector3[] RestParticles { get; private set; }
         public bool Drawn => smr != null && smr.enabled;
 
         /// <summary>Soldiers on foot earn capes; workers (the Prospector's hopper is on its back),
@@ -150,7 +161,7 @@ namespace StarForge.View
             this.id = id;
             restRot = transform.localRotation;
             restPos = transform.localPosition;
-            mesh = CapeMesh(backZ, team, rank);
+            mesh = CapeMesh(backZ, team, rank, id);
             smr = gameObject.AddComponent<SkinnedMeshRenderer>();
             smr.sharedMesh = mesh;
             smr.sharedMaterial = capeMat;
@@ -166,13 +177,19 @@ namespace StarForge.View
             cloth.sleepThreshold = 0.05f;
             // The shoulders and the stretch under the pack are held where they lie; below, the
             // skirt may swing as far as it hangs below the pack, and never in through the soldier
-            // (the backstop at its rest surface, whose normals face out behind him).
+            // (the backstop at its rest surface, whose normals face out behind him). The backstop
+            // only stops a particle along its normal, so the edges swing less: free as far as the
+            // middle, a hem corner slid 0.5 m sideways and in front of a leg.
             var coeff = cloth.coefficients;
             var verts = cloth.vertices;
+            RestParticles = verts;
+            for (int i = 1; i < verts.Length; i++) if (verts[i].y < verts[hem].y) hem = i;
             for (int i = 0; i < coeff.Length && i < verts.Length; i++)
             {
-                float below = FreeY - (ShoulderY + verts[i].y);
-                coeff[i].maxDistance = below <= 0f ? 0f : Mathf.Min(0.55f, 0.06f + below * 0.65f);
+                float by = ShoulderY + verts[i].y, below = FreeY - by;
+                float half = Mathf.Lerp(HalfTop, HalfHem, Mathf.Pow(Mathf.InverseLerp(ShoulderY, HemY, by), 0.8f));
+                float edge = Mathf.Clamp01(Mathf.Abs(verts[i].x) / half);
+                coeff[i].maxDistance = below <= 0f ? 0f : Mathf.Min(0.55f, 0.06f + below * 0.65f) * (1f - EdgeHold * edge);
                 coeff[i].collisionSphereDistance = 0f;
             }
             cloth.coefficients = coeff;
@@ -239,7 +256,7 @@ namespace StarForge.View
                 {
                     nextCheck = Time.time + 2f;
                     var v = cloth.vertices;
-                    if (v.Length > 0 && !(v[v.Length - 1].magnitude < Reach))
+                    if (v.Length > hem && !(v[hem].magnitude < Reach))
                     {
                         gaveUp = true;
                         GaveUp++;
@@ -330,64 +347,144 @@ namespace StarForge.View
 
         // ------------------------------------------------------------ mesh
 
+        /// <summary>For trials and look checks: the cape's mesh as <see cref="Make"/> builds it.</summary>
+        public static Mesh PreviewMesh(float backZ, int team, int rank, int id) => CapeMesh(backZ, team, rank, id);
+
         /// <summary>Body-space depth of the cape's middle at height y: under the pack against the
-        /// back, then standing off behind the legs and flaring back to the hem. A deeper pack
-        /// (the Scorcher's tanks) pushes the skirt a little further out.</summary>
+        /// back, out from under its bottom edge, then hanging nearly straight behind the legs. A
+        /// deeper pack (the Scorcher's tanks) pushes the skirt a little further out.</summary>
         static float MiddleZ(float y, float backZ)
         {
             float off = Mathf.Clamp(-0.49f - backZ, 0f, 0.3f) * 0.4f;
             if (y >= FreeY) return Mathf.Lerp(ShoulderZ, -0.26f, Mathf.InverseLerp(ShoulderY, FreeY, y));
-            float f = Mathf.InverseLerp(FreeY, HemY, y);
-            return -0.26f - off - (0.46f + off) * Mathf.Sqrt(f);   // out fast below the pack, then steadier
+            float f = 1f - Mathf.InverseLerp(FreeY, HemY, y);
+            return -0.26f - off - (0.44f + off) * (1f - f * f * f);
         }
 
-        /// <summary>Rows from the shoulders to the hem; across, from wrapped round the left side to
-        /// the right, gathered into folds that start at the shoulders and deepen to the hem.</summary>
-        static Mesh CapeMesh(float backZ, int team, int rank)
+        /// <summary>A few broad folds across the back, -1..1 (a ridge at 1), placed by the unit so no
+        /// two capes hang alike. At least six columns to a fold, or the hem shows its corners.</summary>
+        static float Fold(float s, int id)
         {
-            var v = new Vector3[Cols * Rows];
-            var uv = new Vector2[v.Length];
-            for (int y = 0; y < Rows; y++)
+            float p = (id * 0.618034f) % 1f * 6.2832f;
+            return 0.75f * Mathf.Cos(7f * s + p) + 0.25f * Mathf.Cos(3.7f * s - 1.3f * p);
+        }
+
+        // The parts a cell belongs to. A grid point on a seam gets a vertex for each part round it
+        // (Cloth welds them back into one particle), so colour and texture change at the seam.
+        const int Body = 0, EdgeL = 1, EdgeR = 2, Hem = 3, CornerL = 4, CornerR = 5;
+        static int Part(int r, int c) =>
+            c == 0 ? (r == Rows - 2 ? CornerL : EdgeL) :
+            c == Cols - 2 ? (r == Rows - 2 ? CornerR : EdgeR) :
+            r == Rows - 2 ? Hem : Body;
+        // Per vertex, the same for every cape: whether it is trim, and how far down it hangs (0-1).
+        static bool[] vertTrim;
+        static float[] vertDown;
+
+        /// <summary>Rows from the shoulders to the hem; across, from the left edge to the right, wrapped
+        /// a little round the soldier toward the hem. The outer columns and the last row are the trim:
+        /// the band of the fabric texture runs down each edge and along the hem, and the corners show
+        /// its palmette.</summary>
+        static Mesh CapeMesh(float backZ, int team, int rank, int id)
+        {
+            int n = Rows * Cols;
+            var grid = new Vector3[n];
+            var downs = new float[Rows];
+            for (int r = 0; r < Rows; r++)
             {
-                float fy = y / (Rows - 1f);
-                float by = Mathf.Lerp(ShoulderY, HemY, fy);           // body-space height
-                float down = fy;
+                float by = r < Rows - 1 ? Mathf.Lerp(ShoulderY, HemY + HemTrim, r / (Rows - 2f)) : HemY;
+                float down = Mathf.InverseLerp(ShoulderY, HemY, by);
+                downs[r] = down;
                 float half = Mathf.Lerp(HalfTop, HalfHem, Mathf.Pow(down, 0.8f));
                 float mid = MiddleZ(by, backZ);
-                for (int x = 0; x < Cols; x++)
+                float depth = 0.012f + 0.12f * Mathf.Pow(down, 1.3f);
+                for (int c = 0; c < Cols; c++)
                 {
-                    float fx = x / (Cols - 1f), s = 2f * fx - 1f;
-                    // The edges come round toward the front (the cape wraps the soldier a little),
-                    // more toward the hem; the shoulders curve round under the pauldrons.
-                    float wrap = s * s * (0.06f + 0.30f * down);
-                    // Folds: alternate columns in and out, none at the edges.
-                    float fold = (x == 0 || x == Cols - 1) ? 0f : (x % 2 == 0 ? 1f : -1f) * (0.012f + 0.075f * Mathf.Pow(down, 1.2f));
-                    v[y * Cols + x] = new Vector3(s * half, by - ShoulderY, mid + wrap - fold - ShoulderZ);
-                    uv[y * Cols + x] = new Vector2(fx, 1f - fy);
+                    float s = c == 0 ? -1f : c == Cols - 1 ? 1f : Mathf.Lerp(-1f + Trim, 1f - Trim, (c - 1) / (Cols - 3f));
+                    float wrap = s * s * (0.06f + 0.18f * down);
+                    grid[r * Cols + c] = new Vector3(s * half, by - ShoulderY, mid + wrap - Fold(s, id) * depth - ShoulderZ);
                 }
             }
-            // Wound so the normals face out behind the soldier: the backstop keeps the cloth on that side.
-            var tris = new List<int>((Cols - 1) * (Rows - 1) * 6);
-            for (int y = 0; y < Rows - 1; y++)
-                for (int x = 0; x < Cols - 1; x++)
+            // Smooth normals over the whole grid, the trim seams included; wound so they face out
+            // behind the soldier (the backstop keeps the cloth on that side).
+            var gridN = new Vector3[n];
+            for (int r = 0; r < Rows - 1; r++)
+                for (int c = 0; c < Cols - 1; c++)
                 {
-                    int a = y * Cols + x, b = a + 1, c = a + Cols, d = c + 1;
-                    tris.Add(a); tris.Add(b); tris.Add(c);
-                    tris.Add(b); tris.Add(d); tris.Add(c);
+                    int a = r * Cols + c, b = a + 1, cc = a + Cols, d = cc + 1;
+                    var f1 = Vector3.Cross(grid[b] - grid[a], grid[cc] - grid[a]);
+                    var f2 = Vector3.Cross(grid[d] - grid[b], grid[cc] - grid[b]);
+                    gridN[a] += f1; gridN[b] += f1 + f2; gridN[cc] += f1 + f2; gridN[d] += f2;
                 }
+            // Texture u along the trims, keeping the band's proportions: down each edge from the
+            // corner up, and along the hem out from its middle.
+            var edgeU = new float[Rows];
+            for (int r = Rows - 3; r >= 0; r--)
+            {
+                float w = 0.5f * (Vector3.Distance(grid[r * Cols], grid[r * Cols + 1]) + Vector3.Distance(grid[(r + 1) * Cols], grid[(r + 1) * Cols + 1]));
+                edgeU[r] = edgeU[r + 1] + Vector3.Distance(grid[r * Cols], grid[(r + 1) * Cols]) * BandU / w;
+            }
+            var hemU = new float[Cols];
+            int midC = Cols / 2, last = (Rows - 1) * Cols;
+            hemU[midC] = Palmette;
+            for (int c = midC + 1; c < Cols - 1; c++) hemU[c] = hemU[c - 1] + Vector3.Distance(grid[last + c], grid[last + c - 1]) * BandU / HemTrim;
+            for (int c = midC - 1; c > 0; c--) hemU[c] = hemU[c + 1] - Vector3.Distance(grid[last + c], grid[last + c + 1]) * BandU / HemTrim;
+
+            var verts = new List<Vector3>(n * 2);
+            var norms = new List<Vector3>(n * 2);
+            var uvs = new List<Vector2>(n * 2);
+            var trim = new List<bool>(n * 2);
+            var down01 = new List<float>(n * 2);
+            var index = new int[6 * n];
+            for (int i = 0; i < index.Length; i++) index[i] = -1;
+            int Vertex(int part, int r, int c)
+            {
+                int key = part * n + r * Cols + c;
+                if (index[key] >= 0) return index[key];
+                var p = grid[r * Cols + c];
+                Vector2 uv;
+                bool outer = c == 0 || c == Cols - 1, hem = r == Rows - 1;
+                switch (part)
+                {
+                    case Body: uv = new Vector2(0.5f + p.x / Weave, 1f + p.y / Weave); break;
+                    case EdgeL: case EdgeR: uv = new Vector2(edgeU[r], outer ? BandOut : BandIn); break;
+                    case Hem: uv = new Vector2(hemU[c], hem ? BandOut : BandIn); break;
+                    default:
+                        bool left = part == CornerL ? c == 0 : c == Cols - 2;
+                        uv = new Vector2(Palmette + (left ? -0.5f : 0.5f) * BandU, hem ? BandOut : BandIn);
+                        break;
+                }
+                index[key] = verts.Count;
+                verts.Add(p);
+                norms.Add(gridN[r * Cols + c].normalized);
+                uvs.Add(uv);
+                trim.Add(part != Body);
+                down01.Add(downs[r]);
+                return index[key];
+            }
+            var tris = new List<int>((Cols - 1) * (Rows - 1) * 6);
+            for (int r = 0; r < Rows - 1; r++)
+                for (int c = 0; c < Cols - 1; c++)
+                {
+                    int part = Part(r, c);
+                    int a = Vertex(part, r, c), b = Vertex(part, r, c + 1), cc = Vertex(part, r + 1, c), d = Vertex(part, r + 1, c + 1);
+                    tris.Add(a); tris.Add(b); tris.Add(cc);
+                    tris.Add(b); tris.Add(d); tris.Add(cc);
+                }
+            vertTrim = trim.ToArray();
+            vertDown = down01.ToArray();
             var m = new Mesh { name = "SF_Cape" };
-            m.vertices = v;
-            m.uv = uv;
+            m.SetVertices(verts);
+            m.SetNormals(norms);
+            m.SetUVs(0, uvs);
             m.colors = Colours(team, rank);
             m.SetTriangles(tris, 0);
-            m.RecalculateNormals();
             m.RecalculateBounds();
             return m;
         }
 
-        /// <summary>A deep shade of the side's colour, a little darker in the folds' hollows and
-        /// toward the hem, with a band along the hem: dark for the first stripe, bronze for the
-        /// second, gold for the third.</summary>
+        /// <summary>A deep shade of the side's colour, darkening a little toward the hem, and the trim:
+        /// dark for the first stripe, bronze for the second, gold for the third. The folds are left
+        /// to the light.</summary>
         static Color[] Colours(int team, int rank)
         {
             // Authored as the eye sees them; vertex colours reach the shader unconverted, so they
@@ -396,18 +493,14 @@ namespace StarForge.View
             Color main = Color.Lerp(side, new Color(0.08f, 0.08f, 0.1f), 0.32f);
             Color band = rank >= 3 ? new Color(0.95f, 0.74f, 0.30f) : rank == 2 ? new Color(0.70f, 0.44f, 0.22f) : main * 0.45f;
             bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
-            var c = new Color[Cols * Rows];
-            for (int y = 0; y < Rows; y++)
-                for (int x = 0; x < Cols; x++)
-                {
-                    float down = y / (Rows - 1f);
-                    bool hollow = x != 0 && x != Cols - 1 && x % 2 == 1;
-                    Color col = main * (1f - 0.18f * down) * (hollow ? 0.82f : 1f);
-                    if (y >= Rows - 2) col = y == Rows - 1 ? band : Color.Lerp(band, col, 0.45f);
-                    if (linear) col = col.linear;
-                    col.a = 1f;
-                    c[y * Cols + x] = col;
-                }
+            var c = new Color[vertTrim.Length];
+            for (int i = 0; i < c.Length; i++)
+            {
+                Color col = (vertTrim[i] ? band : main) * (1.04f - 0.16f * vertDown[i]);
+                if (linear) col = col.linear;
+                col.a = 1f;
+                c[i] = col;
+            }
             return c;
         }
     }

@@ -122,6 +122,13 @@ namespace StarForge.EditorTools
                 ti.alphaIsTransparency = true;
                 ti.maxTextureSize = 512;
             }
+            else if (file == "cape_fabric")
+            {
+                // The capes' weave and embroidered band (InfantryCape): the band runs on along
+                // each trim past the texture's width, mirrored so it never shows a seam.
+                ti.wrapModeU = TextureWrapMode.Mirror;
+                ti.wrapModeV = TextureWrapMode.Repeat;
+            }
         }
 
         public const string AudioDir = "Assets/StarForge/Audio/";

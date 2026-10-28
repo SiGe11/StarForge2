@@ -81,6 +81,116 @@ namespace StarForge.EditorTools
         /// soldier; rear renders to Temp/cape_*.png.</summary>
         public static string Capes() => Start<RosterCapes>("capes");
         public static string CapesReport() => Report<RosterCapes>();
+        /// <summary>The cloth without the 200-soldier load (whose re-pathing hitches the Editor and keeps the
+        /// cloth at rest): 40 soldiers, 8 of each type, at the camera's focus. Standing, 10 s with every cape
+        /// at rest against 10 s with cloth allowed, twice: frames over 0.1 s in each (for each slow frame
+        /// with cloth allowed, how many capes changed over in it). Then walking back and forth at 1x for
+        /// 24 s: the cloth's fit on the soldiers (<see cref="CapeFit"/>), by type.</summary>
+        public static string CapeCloth() => Start<RosterCapeCloth>("cape cloth");
+        public static string CapeClothReport() => Report<RosterCapeCloth>();
+
+        /// <summary>Edit mode, seconds: the cape at rest on a Trooper (first stripe), a Marksman (second)
+        /// and a Scorcher (third) in a preview scene, each from three-quarters behind, behind, the side
+        /// and three-quarters in front, a close look at a corner, and the three from game distance:
+        /// Temp/cape_preview.png. The material is the game's (FX_Debris, both sides, the fabric x6.4).</summary>
+        public static string CapePreview()
+        {
+            if (EditorApplication.isPlaying) return "edit mode only";
+            var fabric = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/StarForge/Art/Textures/cape_fabric.png");
+            var mat = new Material(AssetDatabase.LoadAssetAtPath<Material>("Assets/StarForge/Art/Materials/FX/FX_Debris.mat"));
+            mat.SetFloat("_Cull", 0f);
+            mat.SetTexture("_BaseMap", fabric);
+            mat.SetColor("_BaseColor", new Color(6.4f, 6.4f, 6.4f, 1f).gamma);
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.NewPreviewScene();
+            var rt = new RenderTexture(640, 640, 24) { antiAliasing = 4 };
+            var meshes = new List<UnityEngine.Mesh>();
+            Texture2D sheet = null;
+            bool dirtyBefore = UnityEngine.SceneManagement.SceneManager.GetActiveScene().isDirty;
+            try
+            {
+                void Put(GameObject go) => UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(go, scene);
+                var who = new[] { (UnitType.Trooper, 1, 3), (UnitType.Marksman, 2, 7), (UnitType.Scorcher, 3, 11) };
+                const float Gap = 9f;
+                for (int k = 0; k < who.Length; k++)
+                {
+                    var go = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/StarForge/Prefabs/{who[k].Item1}_P0.prefab"), scene);
+                    go.transform.position = new Vector3(k * Gap, 0f, 0f);
+                    var body = go.transform.Find("Body");
+                    float backZ = 0f;
+                    foreach (var mf in body.GetComponentsInChildren<MeshFilter>())
+                        if (mf.sharedMesh != null && mf.name != "LegL" && mf.name != "LegR" && mf.name != "Gun")
+                        {
+                            var b = mf.sharedMesh.bounds;
+                            for (int i = 0; i < 8; i++)
+                            {
+                                var c = b.center + Vector3.Scale(b.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                                backZ = Mathf.Min(backZ, body.InverseTransformPoint(mf.transform.TransformPoint(c)).z);
+                            }
+                        }
+                    var cape = new GameObject("Cape");
+                    cape.transform.SetParent(body, false);
+                    cape.transform.localPosition = new Vector3(0f, 1.5f, -0.2f);
+                    meshes.Add(InfantryCape.PreviewMesh(backZ, 0, who[k].Item2, who[k].Item3));
+                    cape.AddComponent<MeshFilter>().sharedMesh = meshes[meshes.Count - 1];
+                    cape.AddComponent<MeshRenderer>().sharedMaterial = mat;
+                }
+                var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
+                Put(ground);
+                ground.transform.localScale = new Vector3(6f, 1f, 6f);
+                ground.transform.position = new Vector3(Gap, 0f, 0f);
+                var sun = new GameObject("Sun").AddComponent<Light>();
+                Put(sun.gameObject);
+                sun.type = LightType.Directional;
+                sun.intensity = 1.6f;
+                sun.transform.rotation = Quaternion.Euler(50f, 30f, 0f);   // from behind and to the left: the folds in light
+                var cam = new GameObject("Cam").AddComponent<Camera>();
+                Put(cam.gameObject);
+                cam.scene = scene;
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = new Color(0.45f, 0.5f, 0.55f);
+                cam.nearClipPlane = 0.05f;
+                cam.farClipPlane = 120f;
+                cam.targetTexture = rt;
+                var views = new[] { new Vector3(-0.5f, 0.95f, -1f), new Vector3(0f, 0.25f, -1f), new Vector3(1f, 0.2f, 0f), new Vector3(0.7f, 0.5f, 1f) };
+                sheet = new Texture2D(640 * (views.Length + 1), 640 * who.Length, TextureFormat.RGB24, false);
+                void Snap(Vector3 at, Vector3 from, float fov, int col, int row)
+                {
+                    cam.fieldOfView = fov;
+                    cam.transform.position = from;
+                    cam.transform.LookAt(at);
+                    cam.Render();
+                    RenderTexture.active = rt;
+                    sheet.ReadPixels(new Rect(0, 0, 640, 640), 640 * col, 640 * (who.Length - 1 - row));
+                    RenderTexture.active = null;
+                }
+                for (int k = 0; k < who.Length; k++)
+                {
+                    var at = new Vector3(k * Gap, 1.05f, 0f);
+                    for (int i = 0; i < views.Length; i++) Snap(at, at + views[i].normalized * 5.2f, 30f, i, k);
+                }
+                // Last column: the left corner of the gold-trimmed cape close in, the bronze one's, and
+                // the three from game distance (the camera 18 m off, pitched 55 degrees).
+                var corner = new Vector3(2f * Gap - 0.7f, 0.3f, -0.95f);
+                Snap(corner, corner + new Vector3(-0.3f, 0.35f, -1f).normalized * 1.3f, 30f, views.Length, 2);
+                corner = new Vector3(Gap - 0.7f, 0.3f, -0.75f);
+                Snap(corner, corner + new Vector3(-0.3f, 0.35f, -1f).normalized * 1.3f, 30f, views.Length, 1);
+                var mid = new Vector3(Gap, 1f, 0f);
+                Snap(mid, mid + new Vector3(0f, Mathf.Sin(55f * Mathf.Deg2Rad), -Mathf.Cos(55f * Mathf.Deg2Rad)) * 18f, 40f, views.Length, 0);
+                sheet.Apply();
+                System.IO.File.WriteAllBytes("Temp/cape_preview.png", sheet.EncodeToPNG());
+                return "Temp/cape_preview.png" + (UnityEngine.SceneManagement.SceneManager.GetActiveScene().isDirty && !dirtyBefore ? " (the open scene was marked dirty)" : "");
+            }
+            finally
+            {
+                // The scene (and its camera, which targets rt) first, then what it used.
+                UnityEditor.SceneManagement.EditorSceneManager.ClosePreviewScene(scene);
+                rt.Release();
+                Object.DestroyImmediate(rt);
+                if (sheet != null) Object.DestroyImmediate(sheet);
+                foreach (var m in meshes) Object.DestroyImmediate(m);
+                Object.DestroyImmediate(mat);
+            }
+        }
         public static string Economy() => Start<RosterEconomy>("economy");
         public static string EconomyReport() => Report<RosterEconomy>();
         /// <summary>An AI-vs-AI match (both sides the Commander, memory off) at 8x for <see cref="RosterAIvsAI.Seconds"/>:
@@ -572,11 +682,181 @@ namespace StarForge.EditorTools
 
 namespace StarForge.EditorTools
 {
+    /// <summary>How a walking soldier's cloth cape sits on him, summed over the frames sampled: how far
+    /// any particle came in past where it hangs at rest, how near the ground the hem got, and how many
+    /// particle-frames were inside the soldier -- each leg a 0.15 capsule from the hip down its own
+    /// axis, the waist a box under the pack (above it the cape is meant to lie under pack and pauldrons).</summary>
+    internal sealed class CapeFit
+    {
+        float intrude, lowest = 9f, far, deepest;
+        int samples, inside, checkedVerts, inLeg, inWaist;
+        // Where the inside particles hang at rest: rows of the cape from the shoulders (0) to the hem
+        // (1) in quarters, and edge (outer fifth of the width) or middle.
+        readonly int[] byRow = new int[4];
+        int atEdge;
+        string worstAt = "";
+
+        public void Sample(Unit u, InfantryCape c, GameWorld world)
+        {
+            var v = c != null ? c.ClothVertices() : null;
+            if (v == null) return;
+            var rest = c.RestParticles;
+            float ground = world.Map.HeightAt(u.pos);
+            var body = u.view != null ? u.view.body : null;
+            Transform legL = null, legR = null;
+            if (body != null) foreach (var t in body.GetComponentsInChildren<Transform>()) { if (t.name == "LegL") legL = t; else if (t.name == "LegR") legR = t; }
+            for (int i = 0; i < v.Length && i < rest.Length; i++)
+            {
+                var w = c.transform.TransformPoint(v[i]);
+                intrude = Mathf.Max(intrude, v[i].z - rest[i].z);
+                lowest = Mathf.Min(lowest, w.y - ground);
+                far = Mathf.Max(far, v[i].magnitude);
+                float legDepth = 0f, waistDepth = 0f;
+                foreach (var leg in new[] { legL, legR })
+                {
+                    if (leg == null) continue;
+                    Vector3 a0 = leg.position, a1 = leg.position - leg.up * 0.72f;
+                    Vector3 ab = a1 - a0;
+                    float tt = Mathf.Clamp01(Vector3.Dot(w - a0, ab) / ab.sqrMagnitude);
+                    legDepth = Mathf.Max(legDepth, 0.15f - Vector3.Distance(w, a0 + ab * tt));
+                }
+                if (body != null)
+                {
+                    var q = body.InverseTransformPoint(w);
+                    if (q.y > 0.80f && q.y < 1.02f && Mathf.Abs(q.x) < 0.30f && q.z > -0.17f)
+                        waistDepth = q.z + 0.17f;
+                }
+                float depth = Mathf.Max(legDepth, waistDepth);
+                if (depth > 0f)
+                {
+                    inside++;
+                    if (legDepth > 0f) inLeg++; else inWaist++;
+                    float down = Mathf.Clamp01(-rest[i].y / 1.28f);
+                    byRow[Mathf.Min(3, (int)(down * 4f))]++;
+                    if (Mathf.Abs(rest[i].x) > 0.8f * (0.52f + 0.26f * down)) atEdge++;
+                    if (depth > deepest)
+                    {
+                        deepest = depth;
+                        float pace = u.agent != null ? u.agent.velocity.magnitude : 0f;
+                        worstAt = $" (deepest: {(legDepth >= waistDepth ? "leg" : "waist")}, particle at rest x {rest[i].x:0.00} y {rest[i].y:0.00} z {rest[i].z:0.00}, now {v[i].x:0.00}/{v[i].y:0.00}/{v[i].z:0.00}, pace {pace:0.0} m/s)";
+                    }
+                }
+                checkedVerts++;
+            }
+            samples++;
+        }
+
+        public override string ToString() =>
+            $"{samples} cape-frames; furthest any particle came in past its rest {intrude:0.000} (model units), hem lowest {lowest:0.00} m above the ground, furthest from the collar {far:0.00}; inside the soldier (legs as 0.15 capsules, the waist) {inside} of {checkedVerts} particle-frames ({inLeg} leg, {inWaist} waist; by quarter down {byRow[0]}/{byRow[1]}/{byRow[2]}/{byRow[3]}, {atEdge} at the edges), deepest {deepest:0.000}{worstAt}";
+    }
+
+    public sealed class RosterCapeCloth : BugTrial
+    {
+        IEnumerator Start()
+        {
+            yield return EnsureMatch();
+            if (!Ready) { report = "no match running"; yield break; }
+            HoldStatics();
+            Time.timeScale = 1f;
+            var sb = new StringBuilder();
+            using (var errors = new RosterTrials.ErrorCount())
+            {
+                if (!FindField(new System.Random(7), out var b, out var d)) { report = "no field"; ReleaseStatics(); yield break; }
+                var rig = Object.FindAnyObjectByType<RTSCamera>();
+                if (rig != null) rig.JumpTo(b);
+                Vector2 side = new Vector2(-d.y, d.x);
+                var troops = new List<Unit>();
+                var types = new[] { UnitType.Trooper, UnitType.Thumper, UnitType.Scorcher, UnitType.Marksman, UnitType.Rocketeer };
+                for (int i = 0; i < 40; i++)
+                    troops.Add(Put(types[i % types.Length], 0, world.NearestReachable(b, b + side * ((i % 8) - 3.5f) * 1.8f - d * ((i / 8) - 2f) * 1.8f)));
+                yield return Wait(0.5f);
+                foreach (var u in troops) { u.CreditKill(); u.CreditKill(); }
+                yield return Wait(2f);
+                int caped = 0;
+                foreach (var u in troops) if (u.GetComponentInChildren<InfantryCape>(true) != null) caped++;
+                sb.AppendLine($"{caped} of 40 caped");
+                for (int k = 0; k < 4; k++)
+                {
+                    InfantryCape.RestOnly = k % 2 == 0;
+                    yield return new WaitForSecondsRealtime(0.5f);
+                    int frames = 0, slow = 0, hitches0 = InfantryCape.Hitches;
+                    float worst = 0f;
+                    var slowAt = new StringBuilder();
+                    int lastSwitches = Switches(troops);
+                    float end = Time.realtimeSinceStartup + 10f;
+                    while (Time.realtimeSinceStartup < end)
+                    {
+                        yield return null;
+                        frames++;
+                        float dt = Time.unscaledDeltaTime;
+                        int sw = Switches(troops);
+                        worst = Mathf.Max(worst, dt);
+                        if (dt > 0.1f) { slow++; if (slowAt.Length < 300) slowAt.Append($" {dt * 1000f:0}ms/{sw - lastSwitches}sw/{InfantryCape.Simulating}sim"); }
+                        lastSwitches = sw;
+                    }
+                    sb.AppendLine($"{(k % 2 == 0 ? "all at rest " : "cloth allowed")}: {frames} frames, worst {worst * 1000f:0} ms, {slow} over 0.1 s, {InfantryCape.Hitches - hitches0} hitches;{slowAt}");
+                }
+                InfantryCape.RestOnly = false;
+
+                // Walking: four legs of 6 s each way along the field, cloth near the focus.
+                var fits = new Dictionary<UnitType, CapeFit>();
+                foreach (var t in types) fits[t] = new CapeFit();
+                int hitchesWalk = InfantryCape.Hitches;
+                for (int leg = 0; leg < 4; leg++)
+                {
+                    var goal = world.NearestReachable(b, b + d * (leg % 2 == 0 ? 9f : -9f));
+                    var movers = new List<Unit>();
+                    foreach (var u in troops) if (u != null && !u.dying) movers.Add(u);
+                    world.CmdMove(movers, goal, false);
+                    float until = world.time + 6f;
+                    while (world.time < until)
+                    {
+                        foreach (var u in movers)
+                            if (u != null) fits[u.Type].Sample(u, u.GetComponentInChildren<InfantryCape>(true), world);
+                        if (rig != null) rig.JumpTo(b);
+                        yield return null;
+                    }
+                }
+                foreach (var t in types) sb.AppendLine($"walking, {t}: {fits[t]}");
+                sb.AppendLine($"hitches while walking {InfantryCape.Hitches - hitchesWalk}, gave up {InfantryCape.GaveUp}");
+                sb.AppendLine($"errors {errors.count}");
+            }
+            ClearSpawned();
+            ReleaseStatics();
+            report = sb.ToString();
+        }
+
+        static int Switches(List<Unit> troops)
+        {
+            int n = 0;
+            foreach (var u in troops) { var c = u != null ? u.GetComponentInChildren<InfantryCape>(true) : null; if (c != null) n += c.Switches; }
+            return n;
+        }
+
+        void OnDisable() => InfantryCape.RestOnly = false;
+    }
+
     public sealed class RosterCapes : BugTrial
     {
         static readonly UnitType[] Soldiers = { UnitType.Trooper, UnitType.Thumper, UnitType.Scorcher, UnitType.Marksman, UnitType.Rocketeer };
 
         static InfantryCape CapeOf(Unit u) => u != null ? u.GetComponentInChildren<InfantryCape>(true) : null;
+
+        // Frames since the last Frames(): the worst, and how many were over the capes' 0.1 s (each a
+        // hitch that sends every cape to rest for a second).
+        float worstFrame;
+        int slowFrames;
+        void Update()
+        {
+            worstFrame = Mathf.Max(worstFrame, Time.unscaledDeltaTime);
+            if (Time.unscaledDeltaTime > 0.1f) slowFrames++;
+        }
+        string Frames()
+        {
+            string s = $" [frames: worst {worstFrame * 1000f:0} ms, {slowFrames} over 0.1 s]";
+            worstFrame = 0f; slowFrames = 0;
+            return s;
+        }
 
         static int MeshesAlive()
         {
@@ -670,6 +950,8 @@ namespace StarForge.EditorTools
                 // Vsync off for it (it holds the Editor's frame at 16.7 ms), put back after.
                 float[] ms = new float[6];
                 int clothOn = 0;
+                var clothSeen = new int[3];
+                Frames();
                 int vsync = QualitySettings.vSyncCount, fpsCap = Application.targetFrameRate;
                 QualitySettings.vSyncCount = 0;
                 Application.targetFrameRate = -1;
@@ -682,11 +964,12 @@ namespace StarForge.EditorTools
                     float end = Time.realtimeSinceStartup + 4f;
                     while (Time.realtimeSinceStartup < end) { yield return null; sum += Time.unscaledDeltaTime; frames++; }
                     ms[k] = frames > 0 ? (float)(sum / frames * 1000.0) : 0f;
+                    if (k % 2 == 0) foreach (var u in troops) { var c = CapeOf(u); if (c != null && c.IsCloth) clothSeen[k / 2]++; }
                 }
                 InfantryCape.RestOnly = false;
                 QualitySettings.vSyncCount = vsync;
                 Application.targetFrameRate = fpsCap;
-                sb.AppendLine($"frame time (Editor, vsync off) with {clothOn} capes as cloth / all at rest, three times: {ms[0]:0.00} / {ms[1]:0.00}, {ms[2]:0.00} / {ms[3]:0.00}, {ms[4]:0.00} / {ms[5]:0.00} ms");
+                sb.AppendLine($"frame time (Editor, vsync off) with {clothOn} capes as cloth / all at rest, three times: {ms[0]:0.00} / {ms[1]:0.00}, {ms[2]:0.00} / {ms[3]:0.00}, {ms[4]:0.00} / {ms[5]:0.00} ms; cloth at the end of each cloth turn {clothSeen[0]}/{clothSeen[1]}/{clothSeen[2]}{Frames()}");
 
                 // Cloth near the camera at 1x, none at 8x.
                 yield return Wait(1.5f);
@@ -696,7 +979,7 @@ namespace StarForge.EditorTools
                 yield return null; yield return null;
                 int cloth8 = 0;
                 foreach (var u in troops) { var c = CapeOf(u); if (c != null && c.IsCloth) cloth8++; }
-                sb.AppendLine($"cloth at 1x {cloth1} (budget 24, Simulating {InfantryCape.Simulating} at 8x), at 8x {cloth8}");
+                sb.AppendLine($"cloth at 1x {cloth1} (budget 24, Simulating {InfantryCape.Simulating} at 8x), at 8x {cloth8}{Frames()}");
                 // The rigid cape, leaning as the soldiers walk at 8x.
                 var walkers = new List<Unit>();
                 foreach (var u in troops) if (CapeOf(u) != null && walkers.Count < 30) walkers.Add(u);
@@ -717,62 +1000,21 @@ namespace StarForge.EditorTools
                 int switches0 = 0;
                 foreach (var u in troops) { var c = CapeOf(u); if (c != null) switches0 += c.Switches; }
                 float flickFrom = world.time;
+                Frames();
                 int hitches0 = InfantryCape.Hitches;
-                float intrude = 0f, lowest = 9f, far = 0f, deepest = 0f;
-                int samples = 0, inside = 0, checkedVerts = 0;
-                var restCache = new Dictionary<InfantryCape, Vector3[]>();
+                var fit = new CapeFit();
                 float until = world.time + 6f;
                 bool shotWalk = false;
                 while (world.time < until)
                 {
-                    foreach (var u in walkers)
-                    {
-                        var c = CapeOf(u);
-                        var v = c != null ? c.ClothVertices() : null;
-                        if (v == null) continue;
-                        if (!restCache.TryGetValue(c, out var rest)) restCache[c] = rest = c.Rest.vertices;
-                        float ground = world.Map.HeightAt(u.pos);
-                        // The soldier as solids: each leg a capsule from the hip down its own axis,
-                        // the torso and pack a box in body space.
-                        var view = u.view;
-                        var body = view != null ? view.body : null;
-                        Transform legL = null, legR = null;
-                        if (body != null) foreach (var t in body.GetComponentsInChildren<Transform>()) { if (t.name == "LegL") legL = t; else if (t.name == "LegR") legR = t; }
-                        for (int i = 0; i < v.Length && i < rest.Length; i++)
-                        {
-                            var w = c.transform.TransformPoint(v[i]);
-                            intrude = Mathf.Max(intrude, v[i].z - rest[i].z);
-                            lowest = Mathf.Min(lowest, w.y - ground);
-                            far = Mathf.Max(far, v[i].magnitude);
-                            float depth = 0f;
-                            foreach (var leg in new[] { legL, legR })
-                            {
-                                if (leg == null) continue;
-                                Vector3 a0 = leg.position, a1 = leg.position - leg.up * 0.72f;
-                                Vector3 ab = a1 - a0;
-                                float tt = Mathf.Clamp01(Vector3.Dot(w - a0, ab) / ab.sqrMagnitude);
-                                depth = Mathf.Max(depth, 0.15f - Vector3.Distance(w, a0 + ab * tt));
-                            }
-                            if (body != null)
-                            {
-                                // The skirt against the waist (its back at z -0.16); above, the cape
-                                // is meant to lie under the pack and the pauldrons.
-                                var q = body.InverseTransformPoint(w);
-                                if (q.y > 0.80f && q.y < 1.02f && Mathf.Abs(q.x) < 0.30f && q.z > -0.17f)
-                                    depth = Mathf.Max(depth, q.z + 0.17f);
-                            }
-                            if (depth > 0f) { inside++; deepest = Mathf.Max(deepest, depth); }
-                            checkedVerts++;
-                        }
-                        samples++;
-                    }
+                    foreach (var u in walkers) fit.Sample(u, CapeOf(u), world);
                     if (!shotWalk && world.time > until - 3f && walkers.Count > 0) { shotWalk = true; yield return Shot(walkers[0], "cloth_walk", 4.5f); }
                     yield return null;
                 }
                 int switches1 = 0;
                 foreach (var u in troops) { var c = CapeOf(u); if (c != null) switches1 += c.Switches; }
-                sb.AppendLine($"while all 200 walked {world.time - flickFrom:0.0} s: {switches1 - switches0} changes between cloth and rest over {caped2} capes, {InfantryCape.Hitches - hitches0} hitches (frames over 0.1 s: each sends every cape to rest for a second, two changes apiece)");
-                sb.AppendLine($"walking as cloth: {samples} cape-frames; furthest any vertex came in past its rest {intrude:0.000} (model units), hem lowest {lowest:0.00} m above the ground, furthest from the collar {far:0.00}; inside the soldier (legs as 0.15 capsules, the waist) {inside} of {checkedVerts} vertex-frames, deepest {deepest:0.000}; gave up {InfantryCape.GaveUp}");
+                sb.AppendLine($"while all 200 walked {world.time - flickFrom:0.0} s: {switches1 - switches0} changes between cloth and rest over {caped2} capes, {InfantryCape.Hitches - hitches0} hitches (frames over 0.1 s: each sends every cape to rest for a second, two changes apiece){Frames()}");
+                sb.AppendLine($"walking as cloth: {fit}; gave up {InfantryCape.GaveUp}");
 
                 // A hidden enemy: promoted until caped, its cape must not be drawn.
                 Unit enemy = null;
@@ -807,13 +1049,14 @@ namespace StarForge.EditorTools
                     if (CapeOf(show[i]) != null) yield return Shot(show[i], Soldiers[i].ToString(), 4f);
                 var f0 = show[Soldiers.Length]; var f1 = show[Soldiers.Length + 1];
                 var c0 = CapeOf(f0); var c1 = CapeOf(f1);
+                bool had0 = c0 != null, had1 = c1 != null;
                 Vector2 fw0 = new Vector2(f0.transform.forward.x, f0.transform.forward.z), fw1 = new Vector2(f1.transform.forward.x, f1.transform.forward.z);
                 world.Damage(f0, 1e6f, f0.pos - fw0 * 5f, null);   // shot from behind: thrown forward, face down
                 world.Damage(f1, 1e6f, f1.pos + fw1 * 5f, null);   // shot from the front: thrown back
                 yield return Wait(3f);
                 if (c0 != null) yield return ShotAt(c0.transform.position, "death_forward");
                 if (c1 != null) yield return ShotAt(c1.transform.position, "death_back");
-                sb.AppendLine($"showcase: {show.FindAll(u => CapeOf(u) != null || !Unit.Live(u)).Count} of {show.Count} caped; fallers' capes kept {(c0 != null)}/{(c1 != null)}");
+                sb.AppendLine($"showcase: {show.FindAll(u => CapeOf(u) != null || !Unit.Live(u)).Count} of {show.Count} caped; fallers caped {had0}/{had1}, their capes kept on the wrecks 3 s on {(c0 != null)}/{(c1 != null)}");
                 sb.Append($"errors {errors.count}" + (errors.first != null ? " first: " + errors.first.Split('\n')[0] : ""));
             }
             report = sb.ToString();

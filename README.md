@@ -148,9 +148,10 @@ health per rank) and slowly repair once out of combat. **A soldier may earn a ca
 each promotion a Trooper, Thumper, Scorcher, Marksman or Rocketeer without one has an 81%
 chance of one (so about 96% wear one by their second stripe, 99% by the third; the
 Prospector, a worker with an ore hopper on its back, does not). It hangs from the shoulders
-under the pauldrons with the pack worn over it and falls to the ankles, flaring wide in deep
-folds: woven cloth in a deep shade of the side's colour, with an embroidered hem band whose
-colour marks the rank (dark, bronze, gold). The fabric texture (`Art/Textures/cape_fabric.png`)
+under the pauldrons with the pack worn over it and falls nearly straight to the ankles in a
+few broad folds, placed differently on every soldier: woven cloth in a deep shade of the
+side's colour, edged down both sides and along the hem with an embroidered trim whose colour
+marks the rank (dark, bronze, gold), a palmette in each lower corner. The fabric texture (`Art/Textures/cape_fabric.png`)
 was made for this project by the author with an image model. Near the camera it is real cloth (Unity's `Cloth`), swinging as the soldier
 walks and stops and blown by the match's wind; further off, past 24 at once, for a second
 after a stutter, or in the AI evaluation's 8x it hangs as a rigid cape that sways back as he
@@ -962,7 +963,9 @@ on a warm Mac. **The capes** (`-sfnocapes` turns them off) cost nothing measurab
 1000 with them, without, with them again, 51.1, 51.2 and 50.3 fps -- a match there promotes
 few soldiers (3-5 capes at most, 2-3 of them cloth at once). The full budget, 24 capes as
 cloth at once, has not been measured on the player; in the Editor, 24 against none in a crowd
-of 200 made no difference beyond its frame-to-frame spread of a few milliseconds. 0
+of 200 made no difference beyond its frame-to-frame spread of a few milliseconds, and the
+trimmed cape (210 cloth particles, was 182) the same: 12.8 / 13.3, 13.4 / 13.6 ms with cloth /
+at rest, with 40 soldiers standing 0 frames over 0.1 s either way. 0
 exceptions in all eleven runs.
 
 The median frame is a full 60 Hz refresh (16.7 ms), and the average is how often one is
