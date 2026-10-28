@@ -387,22 +387,55 @@ namespace StarForge.EditorTools
         /// many Diggers does the AI lose and train meanwhile, and how many stand in the Mech's reach (in a
         /// 40-minute match one side trained Diggers into a Mech parked in its base, 111 lost, until it was
         /// broke).</summary>
-        public static string MechInOre() { MechInOreTrial.Leave = false; MechInOreTrial.Walk = false; MechInOreTrial.Second = false; MechInOreTrial.Stand = 0f; return Stage<MechInOreTrial>("MechInOre"); }
+        public static string MechInOre() => StageMechInOre(leave: false, walk: false, second: false, stand: 0f, outlying: false, tower: false);
         /// <summary>As MechInOre, but the Mech is taken away after 60 s: does the AI train Diggers again?</summary>
-        public static string MechInOreLeave() { MechInOreTrial.Leave = true; MechInOreTrial.Walk = false; MechInOreTrial.Second = false; MechInOreTrial.Stand = 0f; return Stage<MechInOreTrial>("MechInOre"); }
+        public static string MechInOreLeave() => StageMechInOre(leave: true, walk: false, second: false, stand: 0f, outlying: false, tower: false);
         /// <summary>As MechInOreLeave, with a finished Foundry of the AI's raised by an ore field 45-100 m
         /// from its main one, out of the Mech's reach, before the Mech goes in: its Diggers are moved to that
         /// line; do they come home once the Mech has gone (step 5c)?</summary>
-        public static string MechInOreLeave2() { MechInOreTrial.Leave = true; MechInOreTrial.Walk = false; MechInOreTrial.Second = true; MechInOreTrial.Stand = 0f; return Stage<MechInOreTrial>("MechInOre"); }
+        public static string MechInOreLeave2() => StageMechInOre(leave: true, walk: false, second: true, stand: 0f, outlying: false, tower: false);
         /// <summary>As MechInOre, but the Mech is put 70 m out from the AI's main Foundry, on our side, and
         /// walks in to the same spot: how many Diggers die more than 3 s after the AI first had it in its
         /// memory (the only ones moving them could save; a Digger sees 22 m, a Foundry 32, the Mech reaches 34).</summary>
-        public static string MechInOreWalk() { MechInOreTrial.Leave = false; MechInOreTrial.Walk = true; MechInOreTrial.Second = false; MechInOreTrial.Stand = 0f; return Stage<MechInOreTrial>("MechInOre"); }
+        public static string MechInOreWalk() => StageMechInOre(leave: false, walk: true, second: false, stand: 0f, outlying: false, tower: false);
         /// <summary>Our Mech stood 50 m from the AI's main Foundry (toward our base) for the two minutes,
         /// as one guarding a forward bay: past its reach of the seams, inside the 60 m the AI keeps away
         /// from at outlying lines. Reports idle Digger-seconds and ore mined, for its economy.</summary>
-        public static string MechInOreStand() { MechInOreTrial.Leave = false; MechInOreTrial.Walk = false; MechInOreTrial.Second = false; MechInOreTrial.Stand = 50f; return Stage<MechInOreTrial>("MechInOre"); }
+        public static string MechInOreStand() => StageMechInOre(leave: false, walk: false, second: false, stand: 50f, outlying: false, tower: false);
+        /// <summary>A second Foundry of the AI's raised 45-100 m out, six of its Diggers sent to mine there, then our
+        /// Mech put down by that field at 30% hull and left to die (no bay: our side is idle): the bayless,
+        /// battered Mech that hunted outlying lines in the evaluation. Reports Diggers lost at that line, the
+        /// most of the AI's army within 35 m of our Mech, and whether it was killed.</summary>
+        public static string MechInOreOutlying() => StageMechInOre(leave: false, walk: false, second: true, stand: 0f, outlying: true, tower: false);
+        /// <summary>The same with a Sentinel of ours (held standing) halfway between that line and the AI's main
+        /// Foundry: Diggers fleeing our Mech must not be sent home through its reach. Reports Diggers it killed.</summary>
+        public static string MechInOreOutlyingTower() => StageMechInOre(leave: false, walk: false, second: true, stand: 0f, outlying: true, tower: true);
+        /// <summary>The outlying line again, with our Mech given to our side (its own MechBrain drives it; our side
+        /// has no bay, so it is the bayless Mech that hunted on in the evaluation), held at 30% hull or under, 180 s.
+        /// Reports Diggers lost anywhere and at that line, how far our Mech went, and whether it was killed.</summary>
+        public static string MechInOreHunting() => StageMechInOre(leave: false, walk: false, second: true, stand: 0f, outlying: true, tower: false, hunting: true);
+        /// <summary>The tower case with no safe ore anywhere (every node off the outlying line emptied once the
+        /// Diggers are there), so 5b must clear them rather than move them: home, unless the way runs through the
+        /// Sentinel. Pair with AIReview.WayHomeOld/New; reports Diggers lost in the Sentinel's reach.</summary>
+        public static string MechInOreOutlyingTowerNoSafe() => StageMechInOre(leave: false, walk: false, second: true, stand: 0f, outlying: true, tower: true, noSafe: true);
+        /// <summary>The plain outlying case with the AI's ore held at 2,500 or more through the window: whether its
+        /// trains take step 5b's hands (5b runs after step 5 and stops at an empty budget or MaxPerPass).</summary>
+        public static string MechInOreOutlyingRich() => StageMechInOre(leave: false, walk: false, second: true, stand: 0f, outlying: true, tower: false, rich: true);
         public static string MechInOreReport() => Report<MechInOreTrial>();
+        /// <summary>Hunting at 80% hull: over the 40% at which the AI sends its hurt-Mech wave, as the bayless Mechs
+        /// of the evaluation were at 23-91%. Reports what sent its army (waves started, hurt-Mech waves).</summary>
+        public static string MechInOreHuntingWhole() => StageMechInOre(leave: false, walk: false, second: true, stand: 0f, outlying: true, tower: false, hunting: true, hull: 0.8f);
+
+        /// <summary>Every MechInOre entry sets every switch (one left from a staging that never ran -- called out of
+        /// play mode -- would otherwise carry into the next).</summary>
+        static string StageMechInOre(bool leave, bool walk, bool second, float stand, bool outlying, bool tower,
+                                     bool hunting = false, bool noSafe = false, bool rich = false, float hull = 0.3f)
+        {
+            MechInOreTrial.Leave = leave; MechInOreTrial.Walk = walk; MechInOreTrial.Second = second; MechInOreTrial.Stand = stand;
+            MechInOreTrial.Outlying = outlying; MechInOreTrial.TowerOnWay = tower; MechInOreTrial.Hunting = hunting;
+            MechInOreTrial.NoSafeOre = noSafe; MechInOreTrial.Rich = rich; MechInOreTrial.Hull = hull;
+            return Stage<MechInOreTrial>("MechInOre");
+        }
 
         /// <summary>The AI's first scouting trip, from the title screen (restart play first): a new match,
         /// our base kept standing (nobody plays our side), five game minutes at 8x. When does the AI first
@@ -2640,13 +2673,43 @@ namespace StarForge.EditorTools
     {
         public static bool Leave, Walk, Second;
         public static float Stand;
+        public static bool Outlying, TowerOnWay;
+        public static bool Hunting, NoSafeOre, Rich;
+        /// <summary>The outlying variants' hull cap for our Mech (share of its full hull).</summary>
+        public static float Hull = 0.3f;
+        Unit outlyingLine, wayTower;
+        bool towerKnown;
+        // Diggers sent home from far out (a move order ending by the main Foundry, given 35+ m from it).
+        readonly HashSet<Unit> sentHome = new HashSet<Unit>();
+        int lostAtLine, lostToTower;
+        // Diggers whose ore changed from the outlying line's to ore 20+ m from it (5b's moves, and any other
+        // re-pick: step 6, a seam run dry), where they were sent, and how they died.
+        readonly Dictionary<Unit, Vector2> movedTo = new Dictionary<Unit, Vector2>();
+        readonly Dictionary<Unit, Unit> lastNode = new Dictionary<Unit, Unit>();
+        int movedDiedOnWay, movedDiedAtNode, movedDiedBack;
+        float moveNodeFromMech, moveWayNearest = 1e9f, moveWayNearestSum, moveSentDist;
         int diggersLost, soldiersLost, lostAfterSeen;
         float firstSeen = -1f;
 
         void OnEvent(GameEvent e)
         {
             if (e.kind != GameEventKind.Death || e.team != 1) return;
-            if (e.type == UnitType.Worker) { diggersLost++; if (firstSeen >= 0f && world.time - firstSeen > 3f) lostAfterSeen++; }
+            if (e.type == UnitType.Worker)
+            {
+                diggersLost++;
+                if (firstSeen >= 0f && world.time - firstSeen > 3f) lostAfterSeen++;
+                if (outlyingLine != null && (new Vector2(e.pos.x, e.pos.z) - outlyingLine.pos).magnitude < 35f) lostAtLine++;
+                if (wayTower != null && (new Vector2(e.pos.x, e.pos.z) - wayTower.pos).magnitude < wayTower.def.range + 3f) lostToTower++;
+                // A Digger 5b moved off the line: where it died -- on its walk, at the ore it was sent to, or
+                // back at the line.
+                if (e.unit != null && movedTo.TryGetValue(e.unit, out var mv))
+                {
+                    var at = new Vector2(e.pos.x, e.pos.z);
+                    if ((at - mv).magnitude < 8f) movedDiedAtNode++;
+                    else if (outlyingLine != null && (at - outlyingLine.pos).magnitude < 35f && e.unit.harvestNode != null && (e.unit.harvestNode.pos - mv).sqrMagnitude > 1f) movedDiedBack++;
+                    else movedDiedOnWay++;
+                }
+            }
             else if (e.unit != null && !e.unit.def.building) soldiersLost++;
         }
 
@@ -2654,6 +2717,8 @@ namespace StarForge.EditorTools
 
         IEnumerator Start()
         {
+            bool hunting = Hunting, noSafe = NoSafeOre, rich = Rich;
+            float hullCap = Hull;
             yield return EnsureMatch();
             if (!Ready) { report = "no match running"; yield break; }
             if (Commander.Suspended) { report = "the opponent AI is silenced"; yield break; }
@@ -2706,7 +2771,53 @@ namespace StarForge.EditorTools
                     }
                 if (line2 == null) { report = "no room for a second Foundry 45-100 m out"; yield break; }
                 secondNote = $"a second Foundry of theirs {(line2.pos - foundry.pos).magnitude:0} m from the main one; ";
-                yield return Wait(2f);
+                yield return Hold(2f);
+                if (Outlying)
+                {
+                    // Its home seams emptied, so its own step 6 sends its miners to that line (sent there by
+                    // the trial, the Commander took them straight back home); then our Mech beside it.
+                    int emptied = 0;
+                    foreach (var n in world.units)
+                        if (Unit.Live(n) && n.Type == UnitType.Ore && (n.pos - foundry.pos).magnitude < 30f) { n.oreLeft = 0; emptied++; }
+                    // Our base held through this too: let go, the AI's army took it and the match was over before the Mech went in.
+                    yield return Hold(40f);
+                    if (world.winner >= 0) { report = $"the match ended at {world.time:0} s (winner {world.winner}) before the Mech went in"; yield break; }
+                    outlyingLine = line2;
+                    at = world.NearestReachable(line2.pos, far.pos + (far.pos - line2.pos).normalized * 6f);
+                    if (TowerOnWay)
+                    {
+                        // On the way home, a little nearer the line than halfway, and never with home in its reach
+                        // (5b's guns list it at range + 5 m: covering home, both rules turn the home-first clear down).
+                        Vector2 mid = Vector2.Lerp(line2.pos, foundry.pos, 0.42f);
+                        float homeClear = Defs.Get(UnitType.Sentinel).range + 5f + 4f;
+                        for (int k = 0; k < 24 && wayTower == null; k++)
+                        {
+                            var p3 = mid + new Vector2(Mathf.Cos(k * 0.8f), Mathf.Sin(k * 0.8f)) * (k / 6) * 3f;
+                            if ((p3 - foundry.pos).magnitude > homeClear && world.CanPlace(UnitType.Sentinel, p3)) wayTower = world.Spawn(UnitType.Sentinel, 0, p3, true);
+                        }
+                        if (wayTower == null) { report = "no room for a Sentinel on the way home clear of home"; yield break; }
+                        spawned.Add(wayTower);
+                        // The AI must have seen it for any rule to weigh it: one of its riflemen walks up to it (it
+                        // sees 20+ m; the tower shoots it), as a Digger or soldier passing by would.
+                        var looker = world.Spawn(UnitType.Trooper, 1, world.NearestReachable(foundry.pos, Vector2.MoveTowards(wayTower.pos, foundry.pos, 14f)), true);
+                        spawned.Add(looker);
+                        yield return Hold(4f);
+                        var aiS = GameBootstrap.Instance != null ? GameBootstrap.Instance.AI : null;
+                        if (aiS != null)
+                            foreach (var r in aiS.Perception.Enemies)
+                                if (r.type == UnitType.Sentinel && (r.pos - wayTower.pos).magnitude < 3f) towerKnown = true;
+                        secondNote += $"a Sentinel of ours {(wayTower.pos - foundry.pos).magnitude:0} m from its main Foundry, {(wayTower.pos - line2.pos).magnitude:0} m from that line's, " +
+                                      $"{(towerKnown ? "seen by the AI" : "NOT seen by the AI")}; ";
+                    }
+                    secondNote += $"its {emptied} home seams emptied, {MinersBy(line2)} of its Diggers mining at that line 40 s later; ";
+                    if (noSafe)
+                    {
+                        int others = 0;
+                        foreach (var n in world.units)
+                            if (Unit.Live(n) && n.Type == UnitType.Ore && n.oreLeft > 0 && (n.pos - line2.pos).magnitude > 25f) { n.oreLeft = 0; others++; }
+                        secondNote += $"every other node emptied ({others}): no safe ore; way home {(Commander.LegacyWayHome ? "old rule" : "new rule")}; ";
+                    }
+                }
             }
             Vector2 from = at;
             if (walk)
@@ -2714,8 +2825,14 @@ namespace StarForge.EditorTools
                 Vector2 toUs = (map.StartPos(0) - foundry.pos).normalized;
                 from = world.NearestReachable(foundry.pos, foundry.pos + toUs * 70f);
             }
-            var mech = world.TrialMech(0, MechParts.Generate(777u), from, 0f, false);
+            if (Outlying) from = at;
+            var mech = world.TrialMech(0, MechParts.Generate(777u), from, 0f, false, hunting);
+            float travelled = 0f; Vector2 lastPos = mech.pos;
             spawned.Add(mech);
+            bool outlying = Outlying, hullSet = false;
+            Vector2 homeSpot = world.NearestReachable(foundry.pos, foundry.pos);
+            float nearestMiner = -1f;
+            int armyNearMost = 0; float mechDiedAt = -1f;
             float reach = mech.mech != null ? mech.mech.MaxRange : 25f;
             var known = new HashSet<Unit>();
             int diggers0 = 0;
@@ -2733,11 +2850,18 @@ namespace StarForge.EditorTools
             float t0 = world.time, nextSample = 0f;
             var aiC = GameBootstrap.Instance != null ? GameBootstrap.Instance.AI : null;
             int cleared0 = aiC != null ? aiC.Dbg.diggersCleared : 0, moved0 = aiC != null ? aiC.Dbg.diggersMoved : 0, denied0 = aiC != null ? aiC.Budget.denied : 0;
+            // What its actions went on in the window, by the step that asked (the evaluation line's
+            // tally is the whole match's), and how often 5b could have run at all.
+            var spent0 = BudgetTally(aiC, "spentBy"); var refused0 = BudgetTally(aiC, "refusedBy");
+            int seenSeconds = 0, lowBudgetSeconds = 0;
             if (walk) world.CmdMechMove(mech, at);
-            while (world.time - t0 < 120f && world.winner < 0)
+            while (world.time - t0 < (hunting ? 180f : 120f) && world.winner < 0)
             {
                 yield return null;
                 HoldOurBase();
+                if (Unit.Live(mech)) { travelled += (mech.pos - lastPos).magnitude; lastPos = mech.pos; }
+                // Rich all through: its production has ore for every idle building, every pass.
+                if (rich && world.factions[1].ore < 2500) world.factions[1].ore = 2500;
                 if (firstSeen < 0f && aiC != null)
                     foreach (var r in aiC.Perception.Enemies) if (r.type == UnitType.Mech) { firstSeen = r.firstSeen; break; }
                 if (walk && Unit.Live(mech) && mech.order != Order.Move && (mech.pos - at).magnitude > 4f) world.CmdMechMove(mech, at);
@@ -2749,7 +2873,48 @@ namespace StarForge.EditorTools
                 if (leave && Unit.Live(mech))
                     foreach (var u in world.units)
                         if (Unit.Live(u) && u.team == 1 && u.Type == UnitType.Foundry && u.Complete) u.hp = u.def.hp;
-                if (Unit.Live(mech) && mech.mech != null) mech.hp = mech.mech.MaxHp;
+                if (Unit.Live(mech) && mech.mech != null && !outlying) mech.hp = mech.mech.MaxHp;
+                if (outlying)
+                {
+                    // Battered and kept so (its design's nanites mended it back to full in two minutes); it can
+                    // still be killed. Read once its core is up: set at the spawn, MaxHp read 0 and it was gone.
+                    if (Unit.Live(mech) && mech.mech != null && mech.mech.MaxHp > 0f)
+                    {
+                        if (!hullSet) { hullSet = true; nearestMiner = NearestMiner(mech.pos); }
+                        mech.hp = Mathf.Min(mech.hp, mech.mech.MaxHp * hullCap);
+                    }
+                    if (hullSet && !Unit.Live(mech) && mechDiedAt < 0f) mechDiedAt = world.time - t0;
+                    // Each Digger whose ore changes from the line's to another: where it was sent, how near
+                    // the straight way passes our Mech, how far that ore is from it.
+                    if (outlyingLine != null)
+                        foreach (var u in world.units)
+                        {
+                            if (!Unit.Live(u) || u.team != 1 || u.Type != UnitType.Worker) continue;
+                            if (u.order == Order.Move && (u.orderPos - homeSpot).magnitude < 6f && (u.pos - homeSpot).magnitude > 35f) sentHome.Add(u);
+                            var nodeNow = Unit.Live(u.harvestNode) ? u.harvestNode : null;
+                            lastNode.TryGetValue(u, out var was);
+                            if (nodeNow != null && was != null && nodeNow != was && (was.pos - outlyingLine.pos).magnitude < 35f &&
+                                (nodeNow.pos - outlyingLine.pos).magnitude > 20f && Unit.Live(mech) && !movedTo.ContainsKey(u))
+                            {
+                                movedTo[u] = nodeNow.pos;
+                                Vector2 a = u.pos, ab = nodeNow.pos - u.pos;
+                                float t = Mathf.Clamp01(Vector2.Dot(mech.pos - a, ab) / Mathf.Max(0.01f, ab.sqrMagnitude));
+                                float closest = (a + ab * t - mech.pos).magnitude;
+                                moveWayNearest = Mathf.Min(moveWayNearest, closest);
+                                moveWayNearestSum += closest;
+                                moveNodeFromMech += (nodeNow.pos - mech.pos).magnitude;
+                                moveSentDist += ab.magnitude;
+                            }
+                            if (nodeNow != null) lastNode[u] = nodeNow;
+                        }
+                    if (Unit.Live(mech))
+                    {
+                        int near = 0;
+                        foreach (var u in world.UnitsNear(mech.pos, 35f))
+                            if (Unit.Live(u) && u.team == 1 && !u.def.building && u.Type != UnitType.Worker) near++;
+                        armyNearMost = Mathf.Max(armyNearMost, near);
+                    }
+                }
                 bool sample = world.time - t0 >= nextSample;
                 if (sample) { nextSample += 1f; samples++; }
                 int n = 0;
@@ -2765,8 +2930,16 @@ namespace StarForge.EditorTools
                     if (sample && u.order == Order.Idle) idleSeconds++;
                 }
                 if (sample) { inReach += n; inReachMost = Mathf.Max(inReachMost, n); }
+                if (sample && aiC != null)
+                {
+                    var sn = aiC.Perception.Snap;
+                    if (sn != null && sn.eMech && sn.eMechSeenAgo < 4f) seenSeconds++;
+                    if (!aiC.Budget.Can(2)) lowBudgetSeconds++;
+                }
             }
             world.Event -= OnEvent;
+            // Read before the spawned units are cleared below.
+            string mechEnd = !outlying ? "" : mechDiedAt >= 0f ? $"killed {mechDiedAt:0} s in" : Unit.Live(mech) && mech.mech != null ? $"alive at {mech.hp / mech.mech.MaxHp * 100f:0}%" : "gone";
             int end = 0;
             foreach (var u in world.units) if (Unit.Live(u) && u.team == 1 && u.Type == UnitType.Worker) end++;
             int homeAfter = HomeMiners();
@@ -2778,8 +2951,16 @@ namespace StarForge.EditorTools
             ClearSpawned();
             Time.timeScale = 1f;
             string economy = $"; idle Digger-seconds {idleSeconds}, ore mined {world.factions[1].oreMined - mined0}";
-            string orders = economy + (aiC != null ? $"; step 5b cleared {aiC.Dbg.diggersCleared - cleared0} and moved {aiC.Dbg.diggersMoved - moved0} Diggers, {aiC.Budget.denied - denied0} actions refused for the APM cap" : "");
+            string orders = economy + (aiC != null ? $"; step 5b cleared {aiC.Dbg.diggersCleared - cleared0} and moved {aiC.Dbg.diggersMoved - moved0} Diggers, {aiC.Budget.denied - denied0} actions refused for the APM cap" +
+                                                     $"; their Mech seen in the last 4 s at {seenSeconds} of {samples} samples, budget under 2 at {lowBudgetSeconds}" +
+                                                     $"; actions in the window: spent {TallyDelta(aiC, "spentBy", spent0)}; refused {TallyDelta(aiC, "refusedBy", refused0)}" : "");
             string lineNote = line2 != null ? $"; mining at the second line at the end {MinersBy(line2)}" : "";
+            if (outlying)
+                lineNote += (wayTower != null ? $"; {lostToTower} Diggers lost in the Sentinel's reach, {sentHome.Count} sent home from far out" : "") + $"; our Mech put down {(at - outlyingLine.pos).magnitude:0} m from that line's Foundry, the nearest of its Diggers {nearestMiner:0} m off, reach {reach:0} m" +
+                            $"; at that line {lostAtLine} Diggers lost, the AI's army within 35 m of our Mech {armyNearMost} at most, our Mech {mechEnd}" +
+                            (rich ? "; the AI's ore held at 2,500 or more" : "") +
+                            (hunting ? $"; our Mech hunting on its own (no bay), travelled {travelled:0} m, Diggers lost anywhere {diggersLost}" : "") +
+                            (movedTo.Count > 0 ? $"; moved off the line {movedTo.Count}: sent {moveSentDist / movedTo.Count:0} m on average to ore {moveNodeFromMech / movedTo.Count:0} m from our Mech, the straight way passing it at {moveWayNearestSum / movedTo.Count:0} m on average ({moveWayNearest:0} at the nearest); of them lost on the way {movedDiedOnWay}, at that ore {movedDiedAtNode}, back at the line {movedDiedBack}" : "; moved off the line 0");
             string seen = secondNote + (walk ? $"walked in from {(from - foundry.pos).magnitude:0} m (the AI first had it in memory {(firstSeen >= 0f ? $"{firstSeen - t0:0} s in" : "never")}; Diggers lost more than 3 s after that {lostAfterSeen}), " : "");
             report = seen + $"our Mech ({reach:0} m reach{(alive ? "" : ", killed")}) stood {(at - foundry.pos).magnitude:0} m from the AI's main Foundry, {(at - node.pos).magnitude:0} m from the ore {most} of its Diggers mined, " +
                      $"{world.time - t0:0} s from {t0:0} s: the AI lost {diggersLost} Diggers and trained {trained} (Diggers {diggers0} -> {end}), lost {soldiersLost} soldiers; " +
@@ -2791,6 +2972,44 @@ namespace StarForge.EditorTools
         {
             foreach (var u in world.units)
                 if (Unit.Live(u) && u.team == 0 && u.def.building && u.Complete) u.hp = u.def.hp;
+        }
+
+        const System.Reflection.BindingFlags Priv = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+
+        static Dictionary<int, int> BudgetTally(Commander c, string field)
+        {
+            if (c == null) return new Dictionary<int, int>();
+            return new Dictionary<int, int>((Dictionary<int, int>)typeof(Commander).GetField(field, Priv).GetValue(c));
+        }
+
+        static string TallyDelta(Commander c, string field, Dictionary<int, int> before)
+        {
+            var now = BudgetTally(c, field);
+            var names = (Dictionary<int, string>)typeof(Commander).GetField("siteNames", Priv).GetValue(c);
+            var l = new List<KeyValuePair<int, int>>();
+            foreach (var kv in now)
+            {
+                before.TryGetValue(kv.Key, out int had);
+                if (kv.Value > had) l.Add(new KeyValuePair<int, int>(kv.Key, kv.Value - had));
+            }
+            l.Sort((a, b) => b.Value.CompareTo(a.Value));
+            var parts = new List<string>();
+            for (int i = 0; i < l.Count && i < 6; i++) parts.Add($"{(names.TryGetValue(l[i].Key, out var nm) ? nm : l[i].Key.ToString())} {l[i].Value}");
+            return parts.Count > 0 ? string.Join(", ", parts) : "none";
+        }
+
+        IEnumerator Hold(float seconds)
+        {
+            float until = world.time + seconds;
+            while (world.time < until && world.winner < 0) { yield return null; HoldOurBase(); }
+        }
+
+        float NearestMiner(Vector2 p)
+        {
+            float best = 1e9f;
+            foreach (var u in world.units)
+                if (Unit.Live(u) && u.team == 1 && u.Type == UnitType.Worker) best = Mathf.Min(best, (u.pos - p).magnitude);
+            return best;
         }
 
         int MinersBy(Unit f)

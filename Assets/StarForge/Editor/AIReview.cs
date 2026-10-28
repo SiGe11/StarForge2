@@ -131,11 +131,38 @@ namespace StarForge.EditorTools
             return p == null ? "no massed wave trial running" : p.report;
         }
 
+        /// <summary>The stall rule (seed 1000, AI against AI at 8x; team 1 watched): once the AI has their
+        /// Mech in mind at home and no wave out, two repulses are set (it masses) and it is given Maulers to
+        /// 1.3x its plan threshold, under the massed army; from then its ore is held at 0, so the army stops
+        /// growing. No plan wave should start for the first 60 s (still massing), then a massed wave on the
+        /// stalled army. Reports when each wave started and why, and the massed/stalled counts. Read
+        /// StallReport; restart play after.</summary>
+        public static string StallTrial()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            Commander.Suspended = false;
+            Commander.LegacyNoMaxOut = false;
+            Commander.LegacySweep = false;
+            var old = Object.FindAnyObjectByType<StallProbe>();
+            if (old != null) Object.Destroy(old.gameObject);
+            new GameObject("StallProbe").AddComponent<StallProbe>();
+            return "stall rule trial running; call StallReport";
+        }
+        public static string StallReport()
+        {
+            var p = Object.FindAnyObjectByType<StallProbe>();
+            return p == null ? "no stall rule trial running" : p.report;
+        }
+
         /// <summary>Diggers against their Mech as before (Old) or as now (New), for the BugTrials trials
         /// that follow (MechInOre*). Not for an evaluation: AIEvalRunner resets it every game. It stays
         /// set for later plays until New or an evaluation.</summary>
         public static string DiggerSafetyOld() { Commander.LegacyDiggerSafety = true; return "Digger safety: old rule"; }
         public static string DiggerSafetyNew() { Commander.LegacyDiggerSafety = false; return "Digger safety: new rule"; }
+        /// <summary>The way home from their Mech as before (Old: home whatever lies on the way) or as now (New:
+        /// not through a tower's or bay's reach, nor past the Mech), for the BugTrials trials that follow.</summary>
+        public static string WayHomeOld() { Commander.LegacyWayHome = true; return "way home: old rule"; }
+        public static string WayHomeNew() { Commander.LegacyWayHome = false; return "way home: new rule"; }
 
         /// <summary>The Full evaluation's five games against one opponent only (0 Rusher, 1 Macro,
         /// 2 Turtle, 3 Harasser): the Macro player, who buys its Mech upgrades and turtles behind
@@ -148,6 +175,19 @@ namespace StarForge.EditorTools
             PlayerPrefs.SetInt(AIEvalRunner.PrefFirst, 0);
             AIEvalMenu.Run(5, 900f);
             return $"evaluating 5 games against {(ScriptedOpponent.Kind)EvalKind}, 900 s cap";
+        }
+
+        /// <summary>The openings a Full never plays: games 5-7 of the evaluation's seed series (1000 + 37 x game,
+        /// counted from 0; the evaluation line prints them as games 6-8) draw Standard, Standard and EarlyGarrison,
+        /// where games 0-4 draw SkimmerFirst four times and FastExpand once. Three games against each of the four
+        /// opponents, 900 s cap (~17 min).</summary>
+        public static string EvalOtherOpenings()
+        {
+            if (EditorApplication.isPlaying) return "playing: stop first";
+            PlayerPrefs.DeleteKey(AIEvalRunner.PrefOnly);
+            PlayerPrefs.SetInt(AIEvalRunner.PrefFirst, 5);
+            AIEvalMenu.Run(3, 900f);
+            return "evaluating games 5-7 (printed 6-8: Standard, Standard, EarlyGarrison) against every opponent, 900 s cap";
         }
     }
 
@@ -363,6 +403,90 @@ namespace StarForge.EditorTools
                      $"waves {ai.Dbg.waves - w0} (massed {ai.Dbg.massedWaves - m0}, {ai.Dbg.stalledWaves} on a stalled army, first at {(ai.Dbg.firstMassedAt >= 0f ? ai.Dbg.firstMassedAt - t0 : -1f):0} s), called off {ai.Dbg.wavesCalledOff - c0}, beaten back {ai.Retreats - r0}, repulses now {repulsesField.GetValue(ai)}; " +
                      $"{waves}; winner {world.winner}; their Mech {(their != null ? $"{their.hp / their.MaxHp * 100f:0}%, {their.kills} kills" : "gone")}; " +
                      $"army now {ai.Perception.Snap.armyValue:0} (restart play now)";
+        }
+    }
+
+    public sealed class StallProbe : MonoBehaviour
+    {
+        public string report = "staging";
+        void OnDestroy() => MatchSettings.spectate = false;
+
+        IEnumerator Start()
+        {
+            var boot = GameBootstrap.Instance;
+            if (boot == null) { report = "no bootstrap"; yield break; }
+            if (GameWorld.Instance == null || !GameWorld.Instance.running)
+            {
+                MatchSettings.spectate = true;
+                MatchSettings.aiMemory = false;
+                MatchSettings.fixedSeed = true;
+                MatchSettings.seed = 1000;
+                boot.StartMatch();
+                MatchSettings.fixedSeed = false;
+                yield return null;
+            }
+            var world = GameWorld.Instance;
+            var ai = boot.AI;
+            foreach (var cam in FindObjectsByType<Camera>()) cam.cullingMask = 0;
+            Application.targetFrameRate = -1;
+            Time.timeScale = 8f;
+            const System.Reflection.BindingFlags Priv = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var waveOnField = typeof(Commander).GetField("waveOn", Priv);
+            var repulsesField = typeof(Commander).GetField("mechRepulses", Priv);
+            bool WaveOn() => (bool)waveOnField.GetValue(ai);
+            while (world.time < 900f)
+            {
+                var m = world.MechOf(0);
+                if (m != null && m.mech != null && m.mech.Landed && ai.Perception.Snap.eMech && !WaveOn())
+                {
+                    repulsesField.SetValue(ai, 2);
+                    if (ai.Dbg.massedArmy > 0f) break;
+                }
+                report = $"waiting for their Mech at home in the AI's mind ({world.time:0}s)";
+                yield return null;
+            }
+            if (ai.Dbg.massedArmy <= 0f) { report = "never massing (their Mech never seen at home)"; Time.timeScale = 1f; yield break; }
+            float need = ai.Dbg.massedArmy, threshold = ai.Dbg.pushThreshold, have = ai.Perception.Snap.armyValue;
+            float aim = Mathf.Min(threshold * 1.3f, need * 0.85f);
+            int maulers = Mathf.Max(0, Mathf.CeilToInt((aim - have) / 150f));
+            Vector2 b = world.Map.StartPos(1);
+            for (int i = 0; i < maulers; i++) world.Spawn(UnitType.Mauler, 1, b + new Vector2((i % 6) * 3f - 7.5f, (i / 6) * 3f + 10f), true);
+            float t0 = world.time;
+            int w0 = ai.Dbg.waves, c0 = ai.Dbg.wavesCalledOff, r0 = ai.Retreats, m0 = ai.Dbg.massedWaves, s0 = ai.Dbg.stalledWaves;
+            var by0 = (int[])ai.Dbg.mechWavesBy.Clone();
+            var waves = new StringBuilder();
+            bool on = false;
+            float startArmy = 0f, startT = 0f;
+            int calls = c0, rets = r0, lastBy = 0;
+            string[] why = { "threshold", "its Mech's call", "their Mech away", "their Mech hurt", "broke" };
+            while (world.time - t0 < 240f && world.winner < 0)
+            {
+                world.factions[1].ore = 0;   // nothing more to train: the army stops growing
+                if ((int)repulsesField.GetValue(ai) < 2) repulsesField.SetValue(ai, 2);
+                bool now = WaveOn();
+                if (now && !on)
+                {
+                    startArmy = ai.Perception.Snap.armyValue; startT = world.time - t0;
+                    string cause = "not at a Mech";
+                    for (int k = 0; k < 5; k++) if (ai.Dbg.mechWavesBy[k] > by0[k]) { cause = why[k]; by0[k] = ai.Dbg.mechWavesBy[k]; }
+                    waves.Append($"[{startT:0}s, army {startArmy:0}, {cause}{(ai.Dbg.stalledWaves > s0 + lastBy ? ", stalled" : "")}");
+                    lastBy = ai.Dbg.stalledWaves - s0;
+                }
+                if (!now && on)
+                {
+                    string how = ai.Dbg.wavesCalledOff > calls ? "called off" : ai.Retreats > rets ? "beaten back" : "ended";
+                    waves.Append($" -> {how} at {world.time - t0:0}s] ");
+                }
+                calls = ai.Dbg.wavesCalledOff; rets = ai.Retreats;
+                on = now;
+                report = $"running {world.time - t0:0}s: waves {ai.Dbg.waves - w0}";
+                yield return null;
+            }
+            if (on) waves.Append(" -> still on] ");
+            Time.timeScale = 1f;
+            report = $"done: plan threshold {threshold:0}, massed army {need:0}, it had {have:0} and was given {maulers} Maulers (aim {aim:0}), ore held at 0; over {world.time - t0:0} s: " +
+                     $"waves {ai.Dbg.waves - w0} (massed {ai.Dbg.massedWaves - m0}, {ai.Dbg.stalledWaves - s0} on a stalled army, first massed at {(ai.Dbg.firstMassedAt >= t0 ? ai.Dbg.firstMassedAt - t0 : -1f):0} s), " +
+                     $"called off {ai.Dbg.wavesCalledOff - c0}, beaten back {ai.Retreats - r0}; {waves}; winner {world.winner} (restart play now)";
         }
     }
 

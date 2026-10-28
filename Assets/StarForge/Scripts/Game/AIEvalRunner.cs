@@ -111,6 +111,7 @@ namespace StarForge.Game
             Commander.LegacyNoMaxOut = false;
             Commander.LegacySweep = false;
             Commander.LegacyDiggerSafety = false;
+            Commander.LegacyWayHome = false;
             World.GameWorld.LegacyBreakPick = false;   // the morale trials' A/B switch
             MatchSettings.skipMenu = true;
             MatchSettings.spectate = false;

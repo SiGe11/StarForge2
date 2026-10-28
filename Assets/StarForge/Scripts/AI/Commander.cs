@@ -910,7 +910,7 @@ namespace StarForge.AI
                     // towards it or through a tower's or bay's reach: cleared only past its reach, a Digger
                     // stood there and the Mech, hunting the knot, walked up to it again (24-30 a match
                     // killed at its outlying lines, 41-104 clears).
-                    if (!LegacyDiggerSafety && UnderMech(onDuty ? h.harvestNode.pos : h.pos) && !WayBlocked(h.pos, home))
+                    if (!LegacyDiggerSafety && UnderMech(onDuty ? h.harvestNode.pos : h.pos) && (LegacyWayHome || !WayBlocked(h.pos, home)))
                     {
                         to = w.NearestReachable(home, home);
                         clear = !UnderGun(to);
@@ -2249,6 +2249,9 @@ namespace StarForge.AI
         /// whatever is there, their Mech a danger only while seen (4 s), Diggers cleared just past its
         /// reach. The evaluation runner resets it.</summary>
         public static bool LegacyDiggerSafety;
+        /// <summary>Editor A/B only: a Digger cleared from their Mech goes home whatever lies on the way
+        /// (no <see cref="WayBlocked"/> test). The evaluation runner resets it.</summary>
+        public static bool LegacyWayHome;
 
         // A Foundry of theirs seen at some point this match, and the wave on being a mop-up.
         bool sawFoundry, mopUpWave;
