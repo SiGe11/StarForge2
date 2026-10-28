@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Hauler
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 20
+  displayName: Hauler
+  blurb: Armoured ore carrier. Slow and costly, but brings in 20 ore a trip and shrugs off raids. Cannot build. Requires a Workshop.
+  building: 0
+  neutral: 0
+  radius: 1.25
+  hp: 280
+  speed: 4.6
+  turnRate: 3
+  range: 0
+  damage: 0
+  cooldown: 0
+  splash: 0
+  sight: 20
+  bonusVsWorkers: 1
+  weapon: 0
+  hitsAir: 0
+  hitsGround: 1
+  minRange: 0
+  vsLight: 1
+  vsHeavy: 1
+  vsStructure: 1
+  vsAir: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 2
+  harvester: 1
+  builder: 0
+  carry: 20
+  harvestTime: 2.6
+  heavyArmour: 1
+  flying: 0
+  altitude: 0
+  organic: 0
+  buildTime: 24
+  cost: 125
+  supplyCost: 1
+  supplyGive: 0
+  hotkey: 74
+  producer: 4
+  requires: 6
+  prefabs:
+  - {fileID: 8562904178346553100, guid: ea03fd33583a64a4783511040de22da1, type: 3}
+  - {fileID: 6054585514122860084, guid: 5f40e21acf7904f38800515dbbdca2e7, type: 3}
+  icon: {fileID: 2800000, guid: 44f4ef08b1c4449deb579f8111d953f0, type: 3}
+  visualRadius: 2
+  visualHeight: 2.2

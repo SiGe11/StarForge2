@@ -289,7 +289,7 @@ namespace StarForge.World
                 if (u.dying || u.team > 1 || u.Untargetable || u.deserted) continue;
                 float v = u.mech != null ? 1500f * (0.5f + 0.5f * Saturate(u.hp / Mathf.Max(1f, u.MaxHp)))
                         : u.def.building ? (u.def.Armed ? 250f : 0f) : Defs.ArmyValue(u.Type);
-                if (u.Type == UnitType.Worker) v = 0f;
+                if (u.def.harvester) v = 0f;
                 if (u.team == t)
                 {
                     mine += v;
@@ -334,8 +334,9 @@ namespace StarForge.World
             foreach (var u in group)
                 // Not the dying (under a quarter of its hull): picked first as the wounded, three
                 // of ten natural deserters died 0-2 s after the warning, never having run.
+                // Nor aircrews (they cannot land among the camp) or the Biolab's creatures (bred to it).
                 if (Unit.Live(u) && u.team == t && !u.deserted && u.def.IsArmy && u.Complete && u.rank < 2 &&
-                    u.hp >= u.MaxHp * 0.25f) moraleScratch.Add(u);
+                    !u.def.flying && !u.def.organic && u.hp >= u.MaxHp * 0.25f) moraleScratch.Add(u);
             if (moraleScratch.Count == 0) return 0;
             int n = Mathf.Clamp(Mathf.RoundToInt(group.Count * 0.15f), 1, 4);
             if (count > 0) n = count;
@@ -343,7 +344,7 @@ namespace StarForge.World
 
             var M = morale[t];
             EnsureCamp(t);
-            int troopers = 0, maulers = 0, skimmers = 0;
+            System.Array.Clear(whoCount, 0, whoCount.Length);
             Unit first = null;
             breakWeights.Clear();
             foreach (var u in moraleScratch) breakWeights.Add(BreakWeight(u));
@@ -364,9 +365,7 @@ namespace StarForge.World
                 breakWeights.RemoveAt(ci);
                 MakeDeserter(chosen);
                 if (first == null) first = chosen;
-                if (chosen.Type == UnitType.Trooper) troopers++;
-                else if (chosen.Type == UnitType.Mauler) maulers++;
-                else skimmers++;
+                whoCount[(int)chosen.Type]++;
             }
             M.episodes++;
             M.mechAtBreak = MechOf(t) is Unit mm && mm.mech.Landed;
@@ -375,12 +374,13 @@ namespace StarForge.World
             Raise(new GameEvent
             {
                 kind = GameEventKind.Desertion, team = t, unit = first, type = first.Type, index = n,
-                pos = map.Ground(at), end = map.Ground(M.camp), text = Who(troopers, maulers, skimmers)
+                pos = map.Ground(at), end = map.Ground(M.camp), text = Who(whoCount)
             });
             return n;
         }
 
         readonly List<float> breakWeights = new List<float>();
+        readonly int[] whoCount = new int[(int)UnitType.Count];
         readonly List<Unit> breakFoes = new List<Unit>();
 
         /// <summary>The old pick (no rear, no under-fire weighting), for MoraleTrials.BreakPick's
@@ -394,7 +394,9 @@ namespace StarForge.World
         /// never having got clear of the fight they broke from.</summary>
         float BreakWeight(Unit u)
         {
-            float k = u.Type == UnitType.Trooper ? 1f : u.Type == UnitType.Skimmer ? 0.7f : 0.35f;
+            // Riflemen (every infantry type), then light vehicles, then tank crews.
+            float k = u.def.upgradeClass == UnitClass.Infantry || u.Type == UnitType.Trooper ? 1f
+                    : u.Type == UnitType.Skimmer ? 0.7f : 0.35f;
             k *= 1.6f - Saturate(u.hp / Mathf.Max(1f, u.MaxHp));
             if (u.rank == 1) k *= 0.35f;
             if (LegacyBreakPick) return k;
@@ -410,17 +412,25 @@ namespace StarForge.World
             return k;
         }
 
-        /// <summary>"A Trooper is", "3 Troopers and a Mauler are": who is deserting.</summary>
-        static string Who(int troopers, int maulers, int skimmers)
+        /// <summary>"A Trooper is", "3 Troopers and a Mauler are": who is deserting, by type.</summary>
+        static string Who(int[] count)
         {
-            var parts = new List<string>(3);
-            void Add(int c, string name) { if (c > 0) parts.Add(c == 1 ? $"a {name}" : $"{c} {name}s"); }
-            Add(troopers, "Trooper");
-            Add(maulers, "Mauler");
-            Add(skimmers, "Skimmer");
+            var parts = new List<string>(4);
+            int total = 0;
+            for (int i = 0; i < count.Length; i++)
+            {
+                int c = count[i];
+                if (c <= 0) continue;
+                total += c;
+                var d = Defs.Get((UnitType)i);
+                string name = d != null ? d.displayName : ((UnitType)i).ToString();
+                string plural = name.EndsWith("man") ? name.Substring(0, name.Length - 3) + "men" : name + "s";
+                parts.Add(c == 1 ? $"a {name}" : $"{c} {plural}");
+            }
+            if (parts.Count == 0) return "Soldiers are";
             string s = parts.Count == 1 ? parts[0] : string.Join(", ", parts.GetRange(0, parts.Count - 1)) + " and " + parts[parts.Count - 1];
             s = char.ToUpperInvariant(s[0]) + s.Substring(1);
-            return s + (troopers + maulers + skimmers == 1 ? " is" : " are");
+            return s + (total == 1 ? " is" : " are");
         }
 
         void MakeDeserter(Unit u)

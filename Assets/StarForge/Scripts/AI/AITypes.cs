@@ -137,6 +137,10 @@ namespace StarForge.AI
         public readonly int[] queuedType = new int[(int)UnitType.Count];
         public int ore, supplyUsed, supplyCap;
         public float armyValue;
+        /// <summary>Every type of its own, finished, by count (the wider roster reads these), and
+        /// its workers of every kind (Diggers, Haulers, Prospectors; <c>workers</c> is the Diggers).</summary>
+        public readonly int[] own = new int[(int)UnitType.Count];
+        public int harvesters;
         /// <summary>Its own Mech Bay and Mech (the Mech is not part of the army value: it
         /// takes no orders, it only joins in).</summary>
         public bool mechBay, mechAlive;
@@ -146,6 +150,11 @@ namespace StarForge.AI
         public int eWorkers, eTroopers, eMaulers, eSkimmers;
         public int eFoundries, eGarrisons, eWorkshops, eBunkhouses, eSentinels;
         public float eArmyValue;         // believed present right now
+        /// <summary>What it remembers of theirs by type, and their army split by what answers it:
+        /// aircraft, armour, light ground troops (infantry, creatures, Skimmers), and the share of
+        /// their army that can shoot at aircraft.</summary>
+        public readonly int[] seen = new int[(int)UnitType.Count];
+        public float eAirValue, eHeavyValue, eLightValue, eAntiAirValue;
         public float eArmyEstimate;      // decaying peak: what we think they have overall
         public float eArmyOurHalf;       // enemy combat units on our side of the map
         public float eCommitPeak;        // decaying peak of force committed at us
@@ -176,6 +185,10 @@ namespace StarForge.AI
             foundries = garrisons = workshops = bunkhouses = sentinels = pending = 0;
             System.Array.Clear(pendingType, 0, pendingType.Length);
             System.Array.Clear(queuedType, 0, queuedType.Length);
+            System.Array.Clear(own, 0, own.Length);
+            System.Array.Clear(seen, 0, seen.Length);
+            harvesters = 0;
+            eAirValue = eHeavyValue = eLightValue = eAntiAirValue = 0f;
             ore = supplyUsed = supplyCap = 0;
             armyValue = 0f;
             eWorkers = eTroopers = eMaulers = eSkimmers = 0;
@@ -218,11 +231,17 @@ namespace StarForge.AI
         public float raidTaste;       // 0 .. 1, how readily it splits off a second prong
         public float adviceTrust;     // 0.35 .. 0.95, how readily it acts on what its Mech tells it
         public float mechBayAt;       // seconds into the match it raises its Mech Bay
+        /// <summary>The wider roster: which tech it leans to (0 armour, 1 aircraft, 2 the Biolab's
+        /// creatures), when it raises its Armory, how keen it is on research (0..1) and on heavy
+        /// workers (0..1). Drawn from their own stream, so the draws above are what they were.</summary>
+        public int techPath;
+        public float armoryAt, researchTaste, haulerTaste;
         public readonly float[] taste = new float[(int)Strategy.Count];   // per-plan score offsets
 
         public string Describe() =>
             $"{opening}, troopers {trooperShift:+0.00;-0.00}, skimmers +{extraSkimmers}, workshops {workshopShift:+0;-0;0}, " +
-            $"timing x{timing:0.00}, flank {flankTaste:0.0}, raid {raidTaste:0.0}, trusts its Mech {adviceTrust:0.00}, bay at {mechBayAt:0}s";
+            $"timing x{timing:0.00}, flank {flankTaste:0.0}, raid {raidTaste:0.0}, trusts its Mech {adviceTrust:0.00}, bay at {mechBayAt:0}s, " +
+            $"tech {(techPath == 1 ? "air" : techPath == 2 ? "bio" : "armour")}, armory at {armoryAt:0}s, research {researchTaste:0.0}, haulers {haulerTaste:0.0}";
     }
 
     public sealed class AIDebug
@@ -247,6 +266,9 @@ namespace StarForge.AI
         public int waves;
         public string mechAdvice = "";
         public int adviceHeeded, adviceIgnored, upgradesBought;
+        /// <summary>The wider roster: Armory research bought, and units trained by type.</summary>
+        public int researchBought;
+        public readonly int[] trained = new int[(int)UnitType.Count];
         /// <summary>Waves sent while their Mech was away, and waves gathered on its own Mech.</summary>
         public int mechWindows, stagedWithMech;
         /// <summary>Waves sent at their Mech seen badly hurt, before its bay could mend it.</summary>

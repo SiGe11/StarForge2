@@ -54,6 +54,8 @@ namespace StarForge.EditorTools
             { "ore_glow",   new Entry(0.03f, 0.07f, 0.09f, 0.15f, 0f, 0f, 3.0f) },
             { "rock",       new Entry(0.19f, 0.18f, 0.17f, 0.92f, 0f, 0f, 0f) },
             { "shadowed",   new Entry(0.10f, 0.10f, 0.10f, 0.85f, 0.10f, 0f, 0f) },
+            // The Biolab's vats (Tools/blender/build_roster.py).
+            { "glow_bio",   new Entry(0.45f, 1.00f, 0.35f, 0.20f, 0f, 0f, 2.2f) },
         };
 
         public static bool IsTeamSlot(string slot) => Palette.TryGetValue(slot, out var e) && e.team > 0f;

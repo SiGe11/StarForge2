@@ -129,7 +129,7 @@ SOURCES = [
     S("Interface Sounds", "Kenney", CC0, "https://kenney.nl/assets/interface-sounds", ("kenney", None),
       [A + "Sfx/ui_*.ogg"], ["interface-sounds"]),
 
-    # Quaternius -- animated animals (CC0), via OpenGameArt
+    # Quaternius -- animated animals (CC0), via OpenGameArt (and one pack via itch.io)
     S("Animals Pack", "Quaternius", CC0, "https://opengameart.org/content/5-low-poly-animals",
       ("oga", "5-low-poly-animals"),
       ["Assets/StarForge/Art/Fauna/Fox.fbx", "Assets/StarForge/Art/Fauna/Songbird.fbx",
@@ -138,6 +138,12 @@ SOURCES = [
       "https://opengameart.org/content/animated-animales-low-poly", ("oga", "animated-animales-low-poly"),
       ["Assets/StarForge/Art/Fauna/Wolf.fbx", "Assets/StarForge/Art/Fauna/Eagle.fbx"],
       ["Animal_Pack_Vol.2_by_Quaternius"]),
+    S("Easy Animated Enemy Pack", "Quaternius", CC0, "https://quaternius.itch.io/animated-easy-enemies",
+      ("itch", None), ["Assets/StarForge/Art/Fauna/Creature_Skitter.fbx", "Assets/StarForge/Art/Fauna/Creature_Spitter.fbx",
+              "Assets/StarForge/Art/Fauna/Creature_Razorwing.fbx"], ["Easy_Enemy_Pack"]),
+    S("Farm Animals Pack", "Quaternius", CC0, "https://opengameart.org/content/lowpoly-animated-farm-animal-pack",
+      ("oga", "lowpoly-animated-farm-animal-pack"), ["Assets/StarForge/Art/Fauna/Creature_Gorehorn.fbx"],
+      ["Farm_Animals_by_Quaternius"]),
 
     # OpenGameArt -- music (CC0)
     S("At Home (orchestral)", "wolfgang", CC0, "https://opengameart.org/content/at-home-orchestral",
@@ -206,7 +212,7 @@ SOURCES = [
 # register above is an asset nobody has recorded the origin of.
 OWN = [
     M + "SF_*.fbx",                       # minus SF_SCAN_*, which the register claims
-    T + "*.png", T + "*.jpg",
+    T + "*.png", T + "*.jpg",             # cape_fabric.png: made for this project by the author with an image model (2026-10-28)
     "Assets/StarForge/Map/*.png",
     "Assets/StarForge/Art/Icons/*.png",
     "Assets/StarForge/Art/AppIcon.png",
@@ -278,6 +284,11 @@ def verify(src):
         said = (m.group(1).strip() if m else "?")
         badge = "publicdomain/zero" in page
         return (badge and said.upper().replace(" ", "") == "CC0", f"the page states {said!r}")
+    if kind == "itch":
+        # The itch.io page states it in its description ("... formats and CC0 license").
+        page = fetch(src["url"])
+        text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", page)))
+        return ("CC0 license" in text or "CC0 License" in text, "the itch.io page states 'CC0 license'")
     if kind == "jangafx":
         page = fetch(src["url"])
         text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", page)))

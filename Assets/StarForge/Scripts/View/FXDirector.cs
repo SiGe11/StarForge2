@@ -36,6 +36,8 @@ namespace StarForge.View
 
         [Header("Debris")]
         public Material debrisMaterial;
+        [Tooltip("The soldiers' cape cloth (InfantryCape): a grey weave with an embroidered hem band, tinted by the cape's vertex colours.")]
+        public Texture2D capeFabric;
         public Material trailMaterial;
 
         [Header("Water")]
@@ -611,17 +613,25 @@ namespace StarForge.View
                 case GameEventKind.Fire:
                     if (!Seen(e.pos)) return;
                     if (e.type == UnitType.Mech) MechFire(e);
+                    // The wider roster: flak and the interceptor's gun are the Mech's autocannon,
+                    // the gunship's rockets its missiles; the rest have their own (FXDirector.Roster).
+                    else if (e.projectileKind == 4 || e.projectileKind == 5) MechFire(e);
+                    else if (e.projectileKind >= GameWorld.ProjSniper) RosterFire(e);
                     else MuzzleFlash(e);
                     break;
                 case GameEventKind.Beam:
                     if (!Seen(e.pos) && !Seen(e.end)) return;
-                    MechBeam(e);
+                    if (e.type != UnitType.Mech) RosterFlame(e);
+                    else MechBeam(e);
                     break;
                 case GameEventKind.MechInbound:
                     if (e.team == (player != null ? player.team : 0) || Seen(e.pos) || MatchSettings.spectate) MechInbound(e);
                     break;
                 case GameEventKind.MechLanded:
                     if (Seen(e.pos)) MechLanded(e);
+                    break;
+                case GameEventKind.Impact when e.projectileKind >= GameWorld.ProjSniper:
+                    if (Seen(e.pos)) RosterImpact(e);
                     break;
                 case GameEventKind.Impact when e.projectileKind >= 4:
                     if (Seen(e.pos)) MechImpact(e);
@@ -638,7 +648,8 @@ namespace StarForge.View
                     if (!Seen(e.pos) && !(e.unit != null && e.unit.everSeenByPlayer && e.unit.def.building)) return;
                     if (e.type == UnitType.Boulder) RockSmash(e.pos, e.scale, e.dir);
                     else if (e.type == UnitType.Ore) CrystalShatter(e.pos);
-                    else if (e.type == UnitType.Trooper) TrooperDown(e);
+                    else if (e.type == UnitType.Trooper || IsInfantry(e.type)) TrooperDown(e);
+                    else if (IsCreature(e.type)) CreatureDown(e);
                     else if (e.type == UnitType.Mech) MechDeath(e);
                     else
                     {
@@ -1263,9 +1274,13 @@ namespace StarForge.View
         /// <summary>How much air a thing displaces as it goes up, against a shell's.
         /// It follows what GameWorld.Kill actually blasts with: a wrecked hull throws
         /// a wall of it over the ground, a rifleman throws none.</summary>
+        static bool IsInfantry(UnitType t) { var d = Defs.Get(t); return d != null && d.upgradeClass == UnitClass.Infantry; }
+        static bool IsCreature(UnitType t) { var d = Defs.Get(t); return d != null && d.organic; }
+
         static float PressureOf(UnitType t) => t switch
         {
-            UnitType.Mauler => 1.1f,
+            UnitType.Mauler or UnitType.Lancer or UnitType.Aegis or UnitType.Hauler or UnitType.Ironclad => 1.1f,
+            UnitType.Kestrel or UnitType.Swift => 0.5f,
             UnitType.Skimmer => 0.6f,
             UnitType.Worker => 0.5f,
             _ => 0f
@@ -2272,7 +2287,7 @@ namespace StarForge.View
             // path, so it reads as a continuous arc whatever the frame rate.
             foreach (var p in world.projectiles)
             {
-                if (p.kind != 1 && p.kind != 6) continue;
+                if (p.kind != 1 && p.kind != 6 && p.kind != GameWorld.ProjLob && p.kind != GameWorld.ProjRocket) continue;
                 if (!trailState.TryGetValue(p, out var st) || p.age < st.age)
                     st = (p.prevPos, p.age);
                 Vector3 seg = p.pos - st.last;
@@ -2346,7 +2361,7 @@ namespace StarForge.View
                     rings.Add(Matrix4x4.TRS(u.Ground, Quaternion.identity, new Vector3(size, 3f, size)),
                               OreLight * (left * Mathf.Lerp(0.3f, 0.85f, breathe) * 0.6f), new Vector4(7f, 0f, 0f, 0f));
                 }
-                else if (u.Type == UnitType.Worker && (u.visibleToPlayer || MatchSettings.spectate) && u.view != null && u.view.OreGlow > 0.01f)
+                else if (u.def.harvester && (u.visibleToPlayer || MatchSettings.spectate) && u.view != null && u.view.OreGlow > 0.01f)
                 {
                     float g = u.view.OreGlow;
                     rings.Add(Matrix4x4.TRS(u.Ground, Quaternion.identity, new Vector3(4.2f + g * 1.4f, 4f, 4.2f + g * 1.4f)),
@@ -2468,6 +2483,14 @@ namespace StarForge.View
                     case 4: streak = Mathf.Clamp(len * 1.4f, 1.5f, 4f); width = 0.22f; c = new Color(3.4f, 2.4f, 1.0f); halo = new Color(0.8f, 0.45f, 0.15f); break;
                     case 5: streak = 1.4f; width = 0.34f; c = new Color(5f, 3.4f, 1.5f); halo = new Color(1.2f, 0.55f, 0.16f); break;
                     case 6: streak = Mathf.Clamp(len * 1.2f, 1.4f, 3f); width = 0.55f; c = new Color(3.6f, 2.2f, 0.9f); halo = new Color(1f, 0.45f, 0.12f); break;
+                    // The wider roster's (FXDirector.Roster): a mortar bomb, a sniper's round, an
+                    // armour-piercing slug, a glob of acid, a spinning glaive.
+                    case GameWorld.ProjLob: streak = Mathf.Clamp(len * 1.2f, 0.9f, 2f); width = 0.32f; c = new Color(3.2f, 2.0f, 0.8f); halo = new Color(0.8f, 0.4f, 0.12f); break;
+                    case GameWorld.ProjSniper: streak = Mathf.Clamp(len * 1.6f, 3f, 7f); width = 0.07f; c = new Color(4f, 3.8f, 3.2f); halo = Color.clear; break;
+                    case GameWorld.ProjAP: streak = Mathf.Clamp(len * 1.4f, 2f, 5f); width = 0.24f; c = new Color(3.6f, 2.6f, 1.2f); halo = new Color(0.8f, 0.45f, 0.15f); break;
+                    case GameWorld.ProjAcid: streak = 0.9f; width = 0.32f; c = AcidColor; halo = AcidColor * 0.25f; break;
+                    case GameWorld.ProjGlaive: streak = 1.2f; width = 0.3f; c = GlaiveColor; halo = GlaiveColor * 0.25f; break;
+                    case GameWorld.ProjRocket: streak = 1.1f; width = 0.3f; c = new Color(5f, 3.2f, 1.3f); halo = new Color(1.1f, 0.5f, 0.15f); break;
                     default: streak = Mathf.Min(len * 1.5f, 3.5f); width = 0.12f; c = p.team == 0 ? new Color(0.9f, 1.8f, 2.6f) : new Color(2.6f, 1.2f, 0.5f); halo = Color.clear; break;
                 }
                 AddStreak(p.pos, dir, streak, width, c, 1f);

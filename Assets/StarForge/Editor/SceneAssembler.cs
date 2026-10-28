@@ -508,6 +508,7 @@ namespace StarForge.EditorTools
             fx.debrisMaterial.SetColor("_BaseColor", new Color(0.42f, 0.40f, 0.37f));
             fx.debrisMaterial.enableInstancing = true;
             EditorUtility.SetDirty(fx.debrisMaterial);
+            fx.capeFabric = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/StarForge/Art/Textures/cape_fabric.png");
 
             fx.ringMaterial = Instanced("FX_GroundRings", decal, UnityEngine.Rendering.BlendMode.One, UnityEngine.Rendering.BlendMode.One, 2800);
             fx.scorchMaterial = Instanced("FX_Scorch", decal, UnityEngine.Rendering.BlendMode.SrcAlpha, UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha, 2790);

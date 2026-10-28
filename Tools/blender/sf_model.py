@@ -71,6 +71,8 @@ MATERIALS = {
     # gives panel gaps and wheel wells a shadow the lighting alone will not
     # produce at this scale.
     'shadowed':   (0.10, 0.10, 0.10, 0.85, 0.10, 0.0, 0.0, 0.30),
+    # The Biolab's vats: a sickly green light (build_roster.py).
+    'glow_bio':   (0.45, 1.00, 0.35, 0.20, 0.00, 0.0, 2.2, 1.0),
 }
 MAT_NAMES = list(MATERIALS.keys())
 MAT_INDEX = {n: i for i, n in enumerate(MAT_NAMES)}

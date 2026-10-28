@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Thumper
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 13
+  displayName: Thumper
+  blurb: Mortar infantry. Lobs shells over cover at long range; cannot fire at anything within 7 m, nor at aircraft. Requires an Armory.
+  building: 0
+  neutral: 0
+  radius: 0.6
+  hp: 70
+  speed: 5.2
+  turnRate: 8
+  range: 26
+  damage: 24
+  cooldown: 2.8
+  splash: 2.6
+  sight: 28
+  bonusVsWorkers: 1
+  weapon: 2
+  hitsAir: 0
+  hitsGround: 1
+  minRange: 7
+  vsLight: 1
+  vsHeavy: 0.6
+  vsStructure: 1.25
+  vsAir: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 1
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 0
+  flying: 0
+  altitude: 0
+  organic: 0
+  buildTime: 20
+  cost: 100
+  supplyCost: 2
+  supplyGive: 0
+  hotkey: 77
+  producer: 5
+  requires: 26
+  prefabs:
+  - {fileID: 4517765721322604925, guid: d82ee7aec3ecc49409fecf0bef2291f9, type: 3}
+  - {fileID: 4121000078259214006, guid: eb439369ebe664425804fd4780a8c012, type: 3}
+  icon: {fileID: 2800000, guid: d5cd0c666a489448887b5f60233af6c9, type: 3}
+  visualRadius: 0.96000004
+  visualHeight: 2.003

@@ -27,6 +27,25 @@ MonoBehaviour:
   splash: 0
   sight: 30
   bonusVsWorkers: 1
+  weapon: 0
+  hitsAir: 1
+  hitsGround: 1
+  minRange: 0
+  vsLight: 1
+  vsHeavy: 1
+  vsStructure: 1
+  vsAir: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 0
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 0
+  flying: 0
+  altitude: 0
+  organic: 0
   buildTime: 35
   cost: 100
   supplyCost: 0

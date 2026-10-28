@@ -95,6 +95,9 @@ namespace StarForge.World
         public float turnRate;
         /// <summary>A flame weapon: the flamer and the Flame Tower.</summary>
         public bool Flame => id == MechWeapon.Flamer || id == MechWeapon.FlameTower;
+        /// <summary>Can it shoot at an aircraft: everything but the mortar and the flame weapons
+        /// (a slug, a beam, a burst or a missile goes up as well as along).</summary>
+        public bool HitsAir => id != MechWeapon.Mortar && !Flame;
         /// <summary>What it is for, as the AI and the tooltip describe it.</summary>
         public bool antiLight, antiHeavy, antiGroup;
         /// <summary>How hard it shoves the torso and the ground when it fires, 0..1.</summary>

@@ -589,6 +589,470 @@
     ]
   },
   "_mounts": {
-    "SENTINEL_HEAD_Y": 1.4
+    "SENTINEL_HEAD_Y": 1.4,
+    "LANCER_TURRET_Y": 1.18,
+    "AEGIS_TURRET_Y": 1.3,
+    "IRONCLAD_TORSO_Y": 2.3
+  },
+  "THUMPER": {
+    "radius": 1.07,
+    "height": 2.003,
+    "triangles": 2788,
+    "materials": [
+      "dark",
+      "armor",
+      "armor_dark",
+      "team",
+      "steel",
+      "shadowed",
+      "armor_lit",
+      "glow_warm",
+      "glow_cyan",
+      "glow_dim"
+    ],
+    "groups": {
+      "LegR": [
+        0.27,
+        0.8,
+        0.0
+      ],
+      "LegL": [
+        -0.27,
+        0.8,
+        0.0
+      ],
+      "Gun": [
+        0.3,
+        1.4,
+        0.0
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "SCORCHER": {
+    "radius": 1.007,
+    "height": 2.003,
+    "triangles": 2936,
+    "materials": [
+      "dark",
+      "armor",
+      "armor_dark",
+      "team",
+      "steel",
+      "shadowed",
+      "armor_lit",
+      "glow_warm",
+      "glow_cyan",
+      "rust",
+      "team_dark",
+      "glow_amber"
+    ],
+    "groups": {
+      "LegR": [
+        0.27,
+        0.8,
+        0.0
+      ],
+      "LegL": [
+        -0.27,
+        0.8,
+        0.0
+      ],
+      "Gun": [
+        0.3,
+        1.1,
+        0.1
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "MARKSMAN": {
+    "radius": 1.773,
+    "height": 2.003,
+    "triangles": 2568,
+    "materials": [
+      "dark",
+      "armor",
+      "armor_dark",
+      "team",
+      "steel",
+      "shadowed",
+      "armor_lit",
+      "glow_warm",
+      "glow_cyan"
+    ],
+    "groups": {
+      "LegR": [
+        0.27,
+        0.8,
+        0.0
+      ],
+      "LegL": [
+        -0.27,
+        0.8,
+        0.0
+      ],
+      "Gun": [
+        0.3,
+        1.22,
+        0.1
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "PROSPECTOR": {
+    "radius": 1.06,
+    "height": 2.003,
+    "triangles": 2932,
+    "materials": [
+      "dark",
+      "armor",
+      "armor_dark",
+      "team",
+      "steel",
+      "shadowed",
+      "armor_lit",
+      "glow_warm",
+      "glow_cyan",
+      "ore_glow",
+      "crystal"
+    ],
+    "groups": {
+      "LegR": [
+        0.27,
+        0.8,
+        0.0
+      ],
+      "LegL": [
+        -0.27,
+        0.8,
+        0.0
+      ],
+      "Gun": [
+        0.3,
+        1.14,
+        0.1
+      ],
+      "Load": [
+        0.0,
+        1.44,
+        -0.48
+      ],
+      "Cutter": [
+        -0.47,
+        1.0,
+        0.34
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "LANCER_HULL": {
+    "radius": 2.401,
+    "height": 1.31,
+    "triangles": 3024,
+    "materials": [
+      "rubber",
+      "dark",
+      "steel",
+      "armor_dark",
+      "team",
+      "armor",
+      "armor_lit",
+      "shadowed",
+      "glow_dim"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "LANCER_TURRET": {
+    "radius": 3.272,
+    "height": 0.545,
+    "triangles": 780,
+    "materials": [
+      "armor",
+      "armor_lit",
+      "armor_dark",
+      "team",
+      "steel",
+      "dark",
+      "glow_cyan"
+    ],
+    "groups": {
+      "Barrel": [
+        0.0,
+        0.22,
+        0.6
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "AEGIS_HULL": {
+    "radius": 2.11,
+    "height": 1.48,
+    "triangles": 1236,
+    "materials": [
+      "rubber",
+      "steel",
+      "armor_dark",
+      "armor",
+      "armor_lit",
+      "team",
+      "glow_dim",
+      "rust"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "AEGIS_TURRET": {
+    "radius": 2.001,
+    "height": 1.219,
+    "triangles": 804,
+    "materials": [
+      "armor",
+      "team",
+      "armor_dark",
+      "steel",
+      "dark",
+      "armor_lit",
+      "glow_cyan"
+    ],
+    "groups": {
+      "Barrels": [
+        0.0,
+        0.62,
+        0.3
+      ],
+      "Head": [
+        0.0,
+        0.7,
+        -0.45
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "HAULER": {
+    "radius": 2.268,
+    "height": 2.2,
+    "triangles": 2616,
+    "materials": [
+      "rubber",
+      "dark",
+      "steel",
+      "armor",
+      "glow_cyan",
+      "team",
+      "armor_dark",
+      "ore_glow",
+      "crystal",
+      "glow_amber"
+    ],
+    "groups": {
+      "Load": [
+        0.0,
+        1.92,
+        -0.55
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "KESTREL": {
+    "radius": 2.564,
+    "height": 1.34,
+    "triangles": 1500,
+    "materials": [
+      "armor",
+      "armor_lit",
+      "glow_cyan",
+      "armor_dark",
+      "team",
+      "dark",
+      "glow_amber",
+      "steel",
+      "shadowed"
+    ],
+    "groups": {
+      "RotorR": [
+        1.45,
+        0.62,
+        0.0
+      ],
+      "RotorL": [
+        -1.45,
+        0.62,
+        0.0
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "SWIFT": {
+    "radius": 2.4,
+    "height": 1.137,
+    "triangles": 644,
+    "materials": [
+      "armor",
+      "armor_lit",
+      "glow_cyan",
+      "armor_dark",
+      "team",
+      "team_dark",
+      "steel",
+      "dark",
+      "glow_amber"
+    ],
+    "groups": {},
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "ARMORY": {
+    "radius": 4.58,
+    "height": 4.7,
+    "triangles": 1184,
+    "materials": [
+      "dark",
+      "armor",
+      "armor_dark",
+      "team",
+      "shadowed",
+      "glow_warm",
+      "glow_amber",
+      "steel",
+      "armor_lit",
+      "rust"
+    ],
+    "groups": {},
+    "chunks": 8,
+    "lod1_triangles": 0
+  },
+  "AIRFIELD": {
+    "radius": 6.195,
+    "height": 5.96,
+    "triangles": 1220,
+    "materials": [
+      "dark",
+      "armor_dark",
+      "team",
+      "glow_cyan",
+      "armor_lit",
+      "armor",
+      "shadowed",
+      "steel",
+      "glow_amber"
+    ],
+    "groups": {},
+    "chunks": 10,
+    "lod1_triangles": 0
+  },
+  "BIOLAB": {
+    "radius": 4.084,
+    "height": 3.68,
+    "triangles": 2628,
+    "materials": [
+      "dark",
+      "armor",
+      "armor_dark",
+      "team",
+      "steel",
+      "glow_bio",
+      "shadowed"
+    ],
+    "groups": {},
+    "chunks": 9,
+    "lod1_triangles": 0
+  },
+  "ROCKETEER": {
+    "radius": 1.283,
+    "height": 2.003,
+    "triangles": 2876,
+    "materials": [
+      "dark",
+      "armor",
+      "armor_dark",
+      "team",
+      "steel",
+      "shadowed",
+      "armor_lit",
+      "glow_warm",
+      "glow_cyan",
+      "glow_amber"
+    ],
+    "groups": {
+      "LegR": [
+        0.27,
+        0.8,
+        0.0
+      ],
+      "LegL": [
+        -0.27,
+        0.8,
+        0.0
+      ],
+      "Gun": [
+        0.36,
+        1.62,
+        0.0
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "IRONCLAD_LEGS": {
+    "radius": 1.404,
+    "height": 2.381,
+    "triangles": 1572,
+    "materials": [
+      "armor_dark",
+      "steel",
+      "armor",
+      "team",
+      "dark"
+    ],
+    "groups": {
+      "LegR": [
+        0.82,
+        2.05,
+        0.0
+      ],
+      "LegL": [
+        -0.82,
+        2.05,
+        0.0
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "IRONCLAD_TORSO": {
+    "radius": 2.465,
+    "height": 1.75,
+    "triangles": 1512,
+    "materials": [
+      "armor",
+      "armor_lit",
+      "glow_cyan",
+      "team",
+      "armor_dark",
+      "steel",
+      "dark",
+      "glow_amber"
+    ],
+    "groups": {
+      "Barrels": [
+        0.0,
+        0.85,
+        0.4
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
   }
 }

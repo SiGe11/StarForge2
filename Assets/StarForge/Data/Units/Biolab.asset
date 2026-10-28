@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Biolab
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 27
+  displayName: Biolab
+  blurb: Breeds Skitters, Spitters, Razorwings and Gorehorns. Requires a Garrison.
+  building: 1
+  neutral: 0
+  radius: 4.2
+  hp: 1000
+  speed: 0
+  turnRate: 0
+  range: 0
+  damage: 0
+  cooldown: 0
+  splash: 0
+  sight: 26
+  bonusVsWorkers: 1
+  weapon: 0
+  hitsAir: 0
+  hitsGround: 1
+  minRange: 0
+  vsLight: 1
+  vsHeavy: 1
+  vsStructure: 1
+  vsAir: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 0
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 0
+  flying: 0
+  altitude: 0
+  organic: 0
+  buildTime: 35
+  cost: 175
+  supplyCost: 0
+  supplyGive: 0
+  hotkey: 79
+  producer: -1
+  requires: 5
+  prefabs:
+  - {fileID: 4454403696493227986, guid: 354f92864c1a840c7b6f74ab509a7bb0, type: 3}
+  - {fileID: 7432042608812186028, guid: 14d96e899d21442e2a4b25c5e8e4b33c, type: 3}
+  icon: {fileID: 2800000, guid: f897490f45e7341aa9aba7b70de1da59, type: 3}
+  visualRadius: 4.084
+  visualHeight: 3.68

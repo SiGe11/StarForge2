@@ -39,6 +39,10 @@ namespace StarForge.EditorTools
             return go;
         }
 
+        /// <summary>Forget the read models.json (it is cached in a static, which outlives a play
+        /// session: a model exported since would read as unknown).</summary>
+        public static void ResetMeta() => meta = null;
+
         public static ModelMeta Meta(string model)
         {
             if (meta == null)

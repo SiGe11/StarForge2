@@ -475,9 +475,11 @@ namespace StarForge.UI
             unitStatus.text = StatusText(s);
 
             var F = s.team < 2 ? world.factions[s.team] : null;
-            bool research = s.Type == UnitType.MechBay && F != null && F.researching >= 0 && s.team == player.team;
+            bool armory = s.Type == UnitType.Armory && s.researchLine >= 0 && s.team == player.team;
+            bool research = armory || s.Type == UnitType.MechBay && F != null && F.researching >= 0 && s.team == player.team;
             bool producing = s.team == player.team && s.queue.Count > 0;
-            int researchNow = research ? F.researching : -1;
+            // An Armory's line is told from the bay's upgrade of the same number.
+            int researchNow = !research ? -1 : armory ? 100 + s.researchLine : F.researching;
             bool same = s == queueFor && researchNow == queueResearch && queueShown.Count == (producing ? s.queue.Count : 0);
             for (int i = 0; same && i < queueShown.Count; i++) same = queueShown[i] == s.queue[i];
             if (!same)
@@ -499,7 +501,8 @@ namespace StarForge.UI
                     researchBar.style.height = 8;
                     researchBar.style.marginRight = 8;
                     researchBar.FillColor = new Color(1f, 0.71f, 0.28f);
-                    var slot = new Label(MechParts.Upgrade((MechUpgrade)F.researching).name.ToUpperInvariant()) { pickingMode = PickingMode.Ignore };
+                    string what = armory ? GameWorld.ArmyUpgradeOf((ArmyUpgrade)s.researchLine).name : MechParts.Upgrade((MechUpgrade)F.researching).name;
+                    var slot = new Label(what.ToUpperInvariant()) { pickingMode = PickingMode.Ignore };
                     slot.AddToClassList("comms-hint");
                     row.Add(researchBar);
                     row.Add(slot);
@@ -521,7 +524,9 @@ namespace StarForge.UI
                         queue.Add(slot);
                     }
             }
-            if (researchBar != null) researchBar.Value = 1f - Mathf.Clamp01(F.researchLeft / Mathf.Max(0.01f, F.researchTotal));
+            if (researchBar != null)
+                researchBar.Value = armory ? 1f - Mathf.Clamp01(s.researchLeft / Mathf.Max(0.01f, s.researchTotal))
+                                           : 1f - Mathf.Clamp01(F.researchLeft / Mathf.Max(0.01f, F.researchTotal));
             if (queueBar != null) queueBar.Value = 1f - Mathf.Clamp01(s.queueTimer / Mathf.Max(0.01f, Defs.Get(s.queue[0]).buildTime));
         }
 
@@ -555,6 +560,7 @@ namespace StarForge.UI
                 if (!u.Complete) return $"Under construction · {u.buildProgress * 100f:0}%";
                 if (u.team != player.team && !MatchSettings.spectate) return "";   // what it makes is not ours to see
                 if (u.queue.Count > 0) return $"Training {Defs.Get(u.queue[0]).displayName} · {u.queueTimer:0}s";
+                if (u.researchLine >= 0) return $"Researching {GameWorld.ArmyUpgradeOf((ArmyUpgrade)u.researchLine).name} · {u.researchLeft:0}s";
                 if (u.def.Armed) return u.target != null ? "Engaging" : "Watching";
                 return "Idle";
             }
@@ -680,6 +686,7 @@ namespace StarForge.UI
                     Alert("Enemy Mech has landed", "alert--warn");
                     break;
                 case GameEventKind.UpgradeComplete when e.team == me:
+                case GameEventKind.ArmyUpgradeComplete when e.team == me:
                     Alert(e.text, "alert--good");
                     break;
                 case GameEventKind.Desertion:
@@ -1204,6 +1211,12 @@ namespace StarForge.UI
             "Foundry, your Diggers), come in straight or round a flank, gather before they go in, and sometimes split to hit two " +
             "places at once. About half the time it keeps a pair of Skimmers raiding your Diggers whatever else it is doing. " +
             "A plan that is not paying off is dropped, and a way in that you beat is not tried again soon.\n\n" +
+            "It uses the whole roster. Each match it leans to armour, aircraft or the Biolab's creatures, raises an Armory and " +
+            "researches weapons and armour for whatever it fields most, and answers what it has seen of yours: Aegis tanks, Swifts, " +
+            "Spitters and Marksmen against your aircraft, Lancers and Rocketeers against your armour, Ironclads and Gorehorns to break " +
+            "your line, Scorchers against massed infantry, " +
+            "Thumpers and Maulers against your towers, and gunships or Razorwings where little of yours can shoot up. It adds " +
+            "Haulers to its ore lines once it has a Workshop, and Prospectors -- miners that fight back -- while you raid them.\n\n" +
             "It has a Mech too. It raises a Mech Bay early, buys its Mech upgrades from spare ore -- guns and hardpoints when it " +
             "means to attack, armour when it means to hold -- and goes for your Mech Bay while your Mech has not yet landed. " +
             "Its Mech is not under its command any more than yours is under yours: it listens to what its Mech tells it and " +

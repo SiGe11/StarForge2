@@ -3,6 +3,7 @@
 //
 //     StarForge.app/Contents/MacOS/StarForge -sfbench 120 [-sfbenchout /tmp/bench.txt] [-sfshot /tmp/shot.png] [-sfshotat 90]
 //         [-sfquality high|balanced|battery] [-sfburst /tmp/burst.raw] [-sfburstat 20] [-sfburstframes 60] [-sfburstzoom 150]
+//         [-sfburstbase]
 //
 // Plays an AI-vs-AI match with vsync off, the camera tracking the fighting,
 // and after a warm-up records frame times, then writes average / percentile
@@ -11,7 +12,9 @@
 // -sfburst holds the camera still and records consecutive final frames (the
 // centre 1408x880 pixels, after upscaling) for shimmer analysis: a 12-byte
 // header of width, height and frame count (int32), then RGB rows bottom-up per
-// frame. The first full frame is saved alongside as a PNG.
+// frame. The first full frame is saved alongside as a PNG. -sfburstbase holds it on
+// the player's base as the gallery's base close-up frames it (the Diggers' tread
+// marks, which the fighting the camera follows never shows).
 //
 // -sfgallery <dir> takes the same set of screenshots every run, for comparing
 // art changes: the player's base close and mid, an ore field, a shore with
@@ -46,12 +49,13 @@ namespace StarForge.Game
         float burstAt = -1f;
         int burstFrames = 60;
         float burstZoom = -1f;
+        bool burstBase;
         bool burstStarted, holdCamera;
         string galleryDir;
         bool galleryQuick;
         float start;
         readonly List<float> frames = new List<float>(20000);
-        int maxEntities, maxProjectiles;
+        int maxEntities, maxProjectiles, maxCapes, maxClothCapes;
         float minScale = 1f;
         Vector3 musicSum;
         int musicFrames;
@@ -89,6 +93,7 @@ namespace StarForge.Game
                          int.TryParse(args[i + 1], out int bf)) burstFrames = Mathf.Max(3, bf);
                 else if (args[i] == "-sfgallery" && i + 1 < args.Length) { galleryDir = args[i + 1]; active = true; }
                 else if (args[i] == "-sfgalleryquick") galleryQuick = true;
+                else if (args[i] == "-sfburstbase") burstBase = true;
                 else if (args[i] == "-sfburstzoom" && i + 1 < args.Length &&
                          float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float,
                              System.Globalization.CultureInfo.InvariantCulture, out float bz)) burstZoom = bz;
@@ -193,6 +198,8 @@ namespace StarForge.Game
             {
                 maxEntities = Mathf.Max(maxEntities, world.units.Count);
                 maxProjectiles = Mathf.Max(maxProjectiles, world.projectiles.Count);
+                maxCapes = Mathf.Max(maxCapes, StarForge.View.InfantryCape.Worn);
+                maxClothCapes = Mathf.Max(maxClothCapes, StarForge.View.InfantryCape.Simulating);
             }
             if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)
             {
@@ -261,7 +268,15 @@ namespace StarForge.Game
         IEnumerator Burst()
         {
             holdCamera = true;
-            if (burstZoom > 0f && rig != null) rig.ZoomTo(burstZoom);
+            if (burstBase && rig != null && MapInfo.Instance != null)
+            {
+                Vector2 home = MapInfo.Instance.StartPos(0);
+                foreach (var u in world.units)
+                    if (u != null && u.team == 0 && u.Type == UnitType.Foundry) { home = u.pos; break; }
+                rig.JumpTo(home + new Vector2(4f, -4f));
+                rig.ZoomTo(burstZoom > 0f ? burstZoom : 30f);
+            }
+            else if (burstZoom > 0f && rig != null) rig.ZoomTo(burstZoom);
             yield return new WaitForSecondsRealtime(1.5f);   // let the camera settle
             const int CropW = 1408, CropH = 880;
             FileStream file = null;
@@ -521,6 +536,7 @@ namespace StarForge.Game
                           (mechFrames.Count > 0 ? $" ({mechScaleSum / mechFrames.Count:0.00} with a Mech in view)" : "") +
                           $" · shadows {(GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset ua ? ua.shadowDistance : 0f):0} m");
             sb.AppendLine($"game time {(world != null ? world.time : 0f):0}s · winner {(world != null ? world.winner : -1)}");
+            sb.AppendLine($"capes: peak {maxCapes} worn, peak {maxClothCapes} as cloth at once" + (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-sfnocapes") >= 0 ? " (-sfnocapes)" : StarForge.View.InfantryCape.All ? " (-sfallcapes)" : ""));
             sb.AppendLine($"simulation p50 {Pct(simFrames, 0.5f):0.0} · p95 {Pct(simFrames, 0.95f):0.0} · p99 {Pct(simFrames, 0.99f):0.0} · max {Pct(simFrames, 1f):0.0} ms " +
                           $"(AIs p99 {Pct(tickFrames, 0.99f):0.0}, Mech brains p99 {Pct(brainFrames, 0.99f):0.0}, max {Pct(brainFrames, 1f):0.0} ms); " +
                           $"{gcTotal} GCs, {islandTotal} NavMesh island builds" +
@@ -555,6 +571,15 @@ namespace StarForge.Game
                     var m = world.MechOf(t);
                     sb.AppendLine($"team {t} Mech: {(F.design != null ? F.design.ToString() : "-")}; bay {(F.bay != null ? "standing" : F.bayLost ? "lost" : F.bayPlaced ? "?" : "never raised")}, " +
                                   $"mech {(m != null ? $"alive {m.hp:0}/{m.MaxHp:0}, {m.kills} kills" : F.mechLost ? "lost" : F.mechDropped ? "?" : "not dropped")}, upgrades {string.Join("", F.upgrades)}");
+                    // The wider roster that side fielded (both sides are the Commander in a benchmark).
+                    var ai = GameBootstrap.Instance != null ? (t == 1 ? GameBootstrap.Instance.AI : GameBootstrap.Instance.PlayerProxy) : null;
+                    if (ai != null)
+                    {
+                        var trained = new StringBuilder();
+                        for (int i = (int)UnitType.Mech + 1; i < (int)UnitType.Count; i++)
+                            if (ai.Dbg.trained[i] > 0) trained.Append(trained.Length > 0 ? ", " : "").Append($"{(UnitType)i} {ai.Dbg.trained[i]}");
+                        sb.AppendLine($"team {t} wider roster trained: {(trained.Length > 0 ? trained.ToString() : "none")}");
+                    }
                 }
             if (musicFrames > 0)
             {

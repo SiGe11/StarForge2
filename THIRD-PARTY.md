@@ -87,7 +87,7 @@ and mixes two of them into the energy weapons.
 
 ## Quaternius — CC0 1.0 (<https://quaternius.com>)
 
-Animated low-poly animals, via OpenGameArt. `Tools/pack_fauna.py` copies the
+Animated low-poly animals, via OpenGameArt and itch.io. `Tools/pack_fauna.py` copies the
 FBXs; `Tools/blender/build_songbird.py` re-poses and re-animates the perched
 bird into a flying one and paints it with a palette texture.
 
@@ -95,6 +95,8 @@ bird into a flying one and paints it with a palette texture.
 |---|---|
 | [Animals Pack](https://opengameart.org/content/5-low-poly-animals) | `Art/Fauna/Fox.fbx`, `Songbird.fbx`, `Songbird_palette.png` |
 | [Animal Pack Vol. 2](https://opengameart.org/content/animated-animales-low-poly) | `Art/Fauna/Wolf.fbx`, `Eagle.fbx` |
+| [Easy Animated Enemy Pack](https://quaternius.itch.io/animated-easy-enemies) (itch.io, "CC0 license"; fetched by `Tools/fetch_assets.py` through itch's free-download flow) | the spider, frog and wasp `Tools/blender/build_creatures.py` makes monstrous (horns, plates, spines, glands joined into the skinned mesh) as `Art/Fauna/Creature_Skitter.fbx`, `Creature_Spitter.fbx`, `Creature_Razorwing.fbx`: the Biolab's creatures (`Editor/PrefabBuilder.cs` colours them per team) |
+| [Farm Animals Pack](https://opengameart.org/content/lowpoly-animated-farm-animal-pack) (its `License.txt`: CC0 1.0) | the cow `build_creatures.py` turns into the armoured, tusked `Art/Fauna/Creature_Gorehorn.fbx` |
 
 ## JangaFX — CC0 1.0 (<https://jangafx.com/software/embergen/download/free-vdb-animations>)
 

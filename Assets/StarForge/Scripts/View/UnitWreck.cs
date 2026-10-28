@@ -96,9 +96,21 @@ namespace StarForge.View
             w.Build(unit, body, turret, gun, legL, legR, velocity);
         }
 
+        /// <summary>The wreck the wider roster leaves, by the original unit it falls like: infantry
+        /// as a rifleman (a ragdoll on his legs), the tanks and the Hauler as a Mauler, aircraft
+        /// as a Skimmer (dropping out of the sky still going), the Prospector as a rifleman.</summary>
+        static UnitType WreckAs(UnitDef d)
+        {
+            if (d.type <= UnitType.Skimmer) return d.type;
+            if (d.flying) return UnitType.Skimmer;
+            if (d.upgradeClass == UnitClass.Infantry) return UnitType.Trooper;
+            if (d.heavyArmour) return UnitType.Mauler;
+            return UnitType.Worker;
+        }
+
         void Build(Unit unit, Transform body, Transform turret, Transform gun, Transform lL, Transform lR, Vector3 vel)
         {
-            type = unit.Type;
+            type = WreckAs(unit.def);
             map = unit.World.Map;
             water = map.waterLevel;
             // Unity's null check, not ??=: the statics outlive a play session (no domain

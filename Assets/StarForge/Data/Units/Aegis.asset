@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Aegis
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 17
+  displayName: Aegis
+  blurb: Anti-aircraft tank. Twin flak cannons that shred aircraft; light work against ground targets.
+  building: 0
+  neutral: 0
+  radius: 1.35
+  hp: 200
+  speed: 4.8
+  turnRate: 2.8
+  range: 21
+  damage: 9
+  cooldown: 0.4
+  splash: 1.6
+  sight: 32
+  bonusVsWorkers: 1
+  weapon: 6
+  hitsAir: 1
+  hitsGround: 1
+  minRange: 0
+  vsLight: 0.6
+  vsHeavy: 0.4
+  vsStructure: 0.3
+  vsAir: 2.2
+  bounces: 0
+  ignite: 0
+  upgradeClass: 2
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 1
+  flying: 0
+  altitude: 0
+  organic: 0
+  buildTime: 24
+  cost: 150
+  supplyCost: 3
+  supplyGive: 0
+  hotkey: 70
+  producer: 6
+  requires: -1
+  prefabs:
+  - {fileID: 2674157487543773597, guid: 18e521dbd78864ef982059b7d24c176a, type: 3}
+  - {fileID: 4232863230405141254, guid: 7f474943364f94a66b3a9f0addb9a77a, type: 3}
+  icon: {fileID: 2800000, guid: a8ad34630ed19459b81577dd9cafd240, type: 3}
+  visualRadius: 2.11
+  visualHeight: 2.519

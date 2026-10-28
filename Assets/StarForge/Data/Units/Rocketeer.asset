@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Rocketeer
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 28
+  displayName: Rocketeer
+  blurb: Anti-armour infantry. A shoulder rocket that wrecks tanks, Mechs and buildings; poor against infantry, cannot fire at aircraft.
+  building: 0
+  neutral: 0
+  radius: 0.62
+  hp: 90
+  speed: 5.4
+  turnRate: 8
+  range: 19
+  damage: 34
+  cooldown: 1.9
+  splash: 0.8
+  sight: 26
+  bonusVsWorkers: 1
+  weapon: 12
+  hitsAir: 0
+  hitsGround: 1
+  minRange: 0
+  vsLight: 0.45
+  vsHeavy: 1.6
+  vsStructure: 1.1
+  vsAir: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 1
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 0
+  flying: 0
+  altitude: 0
+  organic: 0
+  buildTime: 18
+  cost: 90
+  supplyCost: 2
+  supplyGive: 0
+  hotkey: 66
+  producer: 5
+  requires: -1
+  prefabs:
+  - {fileID: 8508045346927083215, guid: 065ba282da7c04d289474d21dcbf51c4, type: 3}
+  - {fileID: 2492914040479992547, guid: 8d0e43d21cb3d4b869e4e23c5402321a, type: 3}
+  icon: {fileID: 2800000, guid: 73656e816fea44e14b8f9b1e4fb89e06, type: 3}
+  visualRadius: 0.99200004
+  visualHeight: 2.003

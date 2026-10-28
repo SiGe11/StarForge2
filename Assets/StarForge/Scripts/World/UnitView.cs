@@ -46,7 +46,12 @@ namespace StarForge.World
         // A Mauler shouldering a tree: how far its nose is up, and the jolt as it meets the trunk.
         float pushLean, bumpT = -1f, prevPush;
 
-        Transform legL, legR, gun, arm, cutter, drum, barrel, head, trolley, load, crystals;
+        Transform legL, legR, gun, arm, cutter, drum, barrel, head, trolley, load, crystals, rotorL, rotorR;
+        // A Biolab creature's animal model (Quaternius, legacy clips): what it plays moving,
+        // standing, striking and dying.
+        Animation anim;
+        string clipMove, clipIdle, clipAttack, clipDeath, clipJump;
+        float rotorAngle, bank;
         Quaternion legLRest, legRRest, armRest, cutterRest, drumRest, headRest;
         Vector3 gunRest, barrelRest, trolleyRest, loadRest, crystalsRest;
         float recoil, prevCooldown, armDip, cutterAngle, drumAngle, loadFill, oreScale = -1f;
@@ -56,6 +61,12 @@ namespace StarForge.World
         float bodyBaseZ;
         float glowFill, glowFlare;
         int prevCarrying;
+        // A soldier's cape (InfantryCape), earned at a promotion: whether this unit can wear
+        // one, how far back its torso and pack reach, and the last rank looked at.
+        InfantryCape cape;
+        bool capeable;
+        float capeBackZ;
+        int seenRank;
 
         /// <summary>How brightly a Digger's ore glass glows, 0..~1.4: eased in as the
         /// load goes aboard with a flare as it is sealed, eased out at the drop-off.
@@ -102,7 +113,37 @@ namespace StarForge.World
                     case "Trolley": trolley = t; trolleyRest = t.localPosition; break;
                     case "Load": load = t; loadRest = t.localScale; break;
                     case "Crystals": crystals = t; crystalsRest = t.localScale; break;
+                    case "RotorL": rotorL = t; break;
+                    case "RotorR": rotorR = t; break;
                 }
+            }
+            anim = GetComponentInChildren<Animation>(true);
+            if (anim != null)
+            {
+                foreach (AnimationState st in anim)
+                {
+                    string n = st.name.ToLowerInvariant();
+                    if (n.Contains("death")) clipDeath = st.name;
+                    else if (n.Contains("attack")) clipAttack = st.name;
+                    else if (n.Contains("idle")) clipIdle = st.name;
+                    // The plain walk before a slow one or a run (the Gorehorn's cow has all three).
+                    else if ((n.Contains("walk") && !n.Contains("slow")) || n.Contains("flying")) clipMove = st.name;
+                    else if (n.Contains("run") && clipMove == null) clipMove = st.name;
+                    else if (n.Contains("jump")) clipJump = st.name;
+                }
+                // A frog hops; a beast with no strike of its own lunges (its jump) instead.
+                if (clipMove == null) clipMove = clipJump;
+                else if (clipAttack == null) clipAttack = clipJump;
+                if (clipIdle == null) clipIdle = clipMove;
+                if (clipAttack != null) { anim[clipAttack].wrapMode = WrapMode.Once; anim[clipAttack].layer = 1; }
+                if (clipMove != null) anim.Play(clipMove);
+            }
+            capeable = body != null && InfantryCape.Eligible(u.def);
+            if (capeable)
+            {
+                capeBackZ = BackOf(body);
+                seenRank = u.rank;
+                if (InfantryCape.All) cape = InfantryCape.Make(body, capeBackZ, u.team, u.rank, u.id);
             }
             // The exporter writes nested groups side by side (Tools/blender/export_fbx.py):
             // the cutter rides the arm.
@@ -115,6 +156,24 @@ namespace StarForge.World
 
         public void OnDeath() { }
 
+        /// <summary>How far back (body space, the model facing +Z) the torso and its pack reach:
+        /// where a cape hangs. Legs and gun are left out.</summary>
+        static float BackOf(Transform body)
+        {
+            float back = -0.45f;
+            foreach (var mf in body.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (mf.sharedMesh == null || mf.name == "LegL" || mf.name == "LegR" || mf.name == "Gun") continue;
+                var b = mf.sharedMesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    var c = b.center + Vector3.Scale(b.extents, new Vector3((i & 1) == 0 ? -1f : 1f, (i & 2) == 0 ? -1f : 1f, (i & 4) == 0 ? -1f : 1f));
+                    back = Mathf.Min(back, body.InverseTransformPoint(mf.transform.TransformPoint(c)).z);
+                }
+            }
+            return back;
+        }
+
         void LateUpdate()
         {
             if (unit == null || handedOff) return;
@@ -124,7 +183,12 @@ namespace StarForge.World
             if (unit.dying && unit.def.IsMobile)
             {
                 handedOff = true;
-                if (shown && body != null) UnitWreck.Create(unit, body, turret, gun, legL, legR, velocity);
+                if (cape != null) cape.Freeze();
+                if (shown && body != null)
+                {
+                    if (unit.def.organic) CreatureCorpse.Create(unit, body, anim, clipDeath);
+                    else UnitWreck.Create(unit, body, turret, gun, legL, legR, velocity);
+                }
                 return;
             }
             float step = Time.deltaTime;
@@ -141,6 +205,19 @@ namespace StarForge.World
             {
                 shown = visible;
                 foreach (var r in renderers) if (r != null) r.enabled = visible;
+            }
+            if (capeable)
+            {
+                // Each promotion a soldier without a cape has its chance of one; a further
+                // stripe re-trims the one he has. Hidden by the fog, so is the cape.
+                if (unit.rank > seenRank)
+                {
+                    for (int r = seenRank + 1; r <= unit.rank && cape == null; r++)
+                        if (InfantryCape.Earned(unit.id, r)) cape = InfantryCape.Make(body, capeBackZ, unit.team, unit.rank, unit.id);
+                    if (cape != null) cape.SetRank(unit.rank);
+                    seenRank = unit.rank;
+                }
+                if (cape != null) cape.Tick(visible, velocity, transform.forward);
             }
             if (!visible) return;
 
@@ -171,11 +248,25 @@ namespace StarForge.World
                     float aboveWater = unit.World.Map.waterLevel + hoverHeight * 0.8f - transform.position.y;
                     y = Mathf.Max(y, bodyBaseY + aboveWater);
                 }
-                else if (unit.Type == UnitType.Trooper)
+                else if (unit.def.flying)
+                {
+                    // Aloft, bobbing on the air, never lower over a crest than its height over
+                    // the ground a little ahead (the simulation flies it at a fixed height over
+                    // whatever is under it).
+                    y += hoverHeight + Mathf.Sin(t * 1.7f + unit.id) * 0.18f;
+                    // Over the lake its height is over the water, not the bed (GameWorld.AirPoint).
+                    y = Mathf.Max(y, bodyBaseY + hoverHeight + unit.World.Map.waterLevel - transform.position.y);
+                    var ahead = unit.pos + new Vector2(Mathf.Sin(unit.yaw), Mathf.Cos(unit.yaw)) * 3f;
+                    if (unit.World.Map.InBounds(ahead))
+                        y = Mathf.Max(y, bodyBaseY + hoverHeight * 0.8f + unit.World.Map.HeightAt(ahead) - transform.position.y);
+                }
+                else if (unit.Type == UnitType.Trooper || unit.def.upgradeClass == UnitClass.Infantry)
                     y += Mathf.Abs(Mathf.Sin(unit.bob)) * 0.06f;
+                else if (unit.Type == UnitType.Ironclad)
+                    y -= Mathf.Abs(Mathf.Sin(unit.bob * 0.45f)) * 0.10f;
                 // Units ride the NavMesh, which craters do not change: sink the model
                 // into the crater instead.
-                if (!unit.def.building && unit.World.GroundShape != null)
+                if (!unit.def.building && !unit.def.flying && unit.World.GroundShape != null)
                     y -= unit.World.GroundShape.Drop(unit.pos);
                 if (unit.dying)
                 {
@@ -222,6 +313,16 @@ namespace StarForge.World
                     }
                     body.localRotation = Quaternion.Slerp(body.localRotation, Quaternion.Euler(0f, 0f, bank), dt * 6f);
                 }
+                else if (unit.def.flying)
+                {
+                    // Bank into the turn (by how fast the heading swings) and lean into the speed.
+                    Vector3 lv = transform.InverseTransformDirection(unit.Velocity);
+                    float turnRate = Mathf.DeltaAngle(prevYaw * Mathf.Rad2Deg, unit.yaw * Mathf.Rad2Deg) / Mathf.Max(dt, 1e-4f);
+                    prevYaw = unit.yaw;
+                    bank = Mathf.Lerp(bank, Mathf.Clamp(-turnRate * 0.35f - lv.x * 2f, -35f, 35f), 1f - Mathf.Exp(-dt * 5f));
+                    float pitch = Mathf.Clamp(lv.z * 0.9f, -6f, 10f);
+                    body.localRotation = Quaternion.Euler(pitch, 0f, bank);
+                }
             }
 
             AnimateParts(t, dt);
@@ -238,6 +339,8 @@ namespace StarForge.World
             }
         }
 
+        float prevYaw;
+
         /// <summary>How long the hull goes on rocking after a shot.</summary>
         const float RockTime = 0.85f;
 
@@ -248,23 +351,45 @@ namespace StarForge.World
 
         void AnimateParts(float t, float dt)
         {
-            var agent = unit.agent;
-            float speed = agent != null && agent.enabled ? agent.velocity.magnitude : 0f;
+            float speed = unit.Velocity.magnitude;
             float kick = 1f - (1f - recoil) * (1f - recoil);   // snaps back, eases home
+            if (rotorL != null || rotorR != null)
+            {
+                rotorAngle += dt * Mathf.Lerp(1300f, 1900f, Mathf.Clamp01(speed / Mathf.Max(1f, unit.def.speed)));
+                if (rotorL != null) rotorL.localRotation = Quaternion.Euler(0f, rotorAngle, 0f);
+                if (rotorR != null) rotorR.localRotation = Quaternion.Euler(0f, -rotorAngle, 0f);
+            }
+            if (anim != null && !unit.dying)
+            {
+                // The animal's own cycles: its gait at the pace it is going, standing still
+                // its idle, and a strike over either when it fires.
+                bool moving = speed > 0.4f || unit.def.flying;
+                string want = moving ? clipMove : clipIdle;
+                if (want != null)
+                {
+                    if (!anim.IsPlaying(want)) anim.CrossFade(want, 0.2f);
+                    if (moving && !unit.def.flying) anim[want].speed = Mathf.Clamp(speed / Mathf.Max(1f, unit.def.speed) * 1.6f, 0.5f, 2f);
+                }
+                if (recoil >= 0.99f && clipAttack != null) anim.CrossFade(clipAttack, 0.05f, PlayMode.StopSameLayer);
+            }
 
             if (legL != null && legR != null)
             {
-                float swing = Mathf.Sin(unit.bob) * 30f * Mathf.Clamp01(speed / 2f);
+                // The mini-mech strides at half the cadence, longer and heavier.
+                float phase = unit.Type == UnitType.Ironclad ? unit.bob * 0.45f : unit.bob;
+                float swing = Mathf.Sin(phase) * (unit.Type == UnitType.Ironclad ? 24f : 30f) * Mathf.Clamp01(speed / 2f);
                 legL.localRotation = legLRest * Quaternion.Euler(swing, 0f, 0f);
                 legR.localRotation = legRRest * Quaternion.Euler(-swing, 0f, 0f);
             }
             if (gun != null) gun.localPosition = gunRest + Vector3.back * 0.12f * kick;
-            if (barrel != null) barrel.localPosition = barrelRest + Vector3.back * (unit.Type == UnitType.Mauler ? 0.38f : 0.22f) * kick;
+            if (barrel != null) barrel.localPosition = barrelRest + Vector3.back * (unit.Type == UnitType.Mauler || unit.Type == UnitType.Lancer ? 0.38f : 0.22f) * kick;
 
             bool mining = unit.working && unit.order == Order.Harvest;
+            // The arm dips while it mines (the Digger); a drill with no arm (the Prospector's)
+            // still spins up.
+            armDip = Mathf.MoveTowards(armDip, mining ? 1f : 0f, dt * 2.5f);
             if (arm != null)
             {
-                armDip = Mathf.MoveTowards(armDip, mining ? 1f : 0f, dt * 2.5f);
                 float jitter = mining ? Mathf.Sin(t * 11f + unit.id) * 1.5f : 0f;
                 arm.localRotation = armRest * Quaternion.Euler(armDip * 16f + jitter, 0f, 0f);
             }
@@ -283,7 +408,7 @@ namespace StarForge.World
                 // The heap grows while the cutter works, stays heaped on the way
                 // home and empties at the drop-off.
                 float want = unit.carrying > 0 ? 1f
-                           : mining ? Mathf.Clamp01(unit.harvestTimer / Unit.HarvestTime) * 0.85f : 0f;
+                           : mining ? Mathf.Clamp01(unit.harvestTimer / unit.def.harvestTime) * 0.85f : 0f;
                 loadFill = Mathf.MoveTowards(loadFill, want, dt * (want < loadFill ? 2.5f : 1.2f));
                 float f = Mathf.Max(0.02f, loadFill);
                 load.localScale = Vector3.Scale(loadRest, new Vector3(Mathf.Lerp(0.55f, 1f, f), f, Mathf.Lerp(0.55f, 1f, f)));
@@ -292,7 +417,7 @@ namespace StarForge.World
                 // the load is aboard, eased both ways (a smoothstep of an exponential
                 // approach, so it neither pops on nor snaps off), with a brief flare
                 // as the hopper seals and a slower fade as it is emptied.
-                float glowWant = unit.carrying > 0 ? 1f : mining ? Mathf.Clamp01(unit.harvestTimer / Unit.HarvestTime) * 0.3f : 0f;
+                float glowWant = unit.carrying > 0 ? 1f : mining ? Mathf.Clamp01(unit.harvestTimer / unit.def.harvestTime) * 0.3f : 0f;
                 float rate = glowWant > glowFill ? 1.6f : 0.9f;
                 glowFill = Mathf.Lerp(glowFill, glowWant, 1f - Mathf.Exp(-dt * rate * 2.2f));
                 if (Mathf.Abs(glowFill - glowWant) < 0.002f) glowFill = glowWant;

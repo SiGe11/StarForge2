@@ -123,6 +123,8 @@ namespace StarForge.View
                     // Nor for a rifleman, who falls rather than burns (a shell that
                     // killed him scorched the ground with its own burst).
                     if (e.type == UnitType.Ore || e.type == UnitType.Boulder || e.type == UnitType.Trooper) break;
+                    // Infantry and creatures fall; an aircraft burns where its wreck comes down.
+                    if (e.unit != null && (e.unit.def.upgradeClass == UnitClass.Infantry || e.unit.def.organic || e.unit.def.flying)) break;
                     float r = e.unit != null && e.unit.def.building ? e.unit.def.radius * 1.5f : 1.6f * Mathf.Max(1f, e.scale);
                     Stamp(burn, e.pos, r, 255);
                     break;
@@ -173,9 +175,9 @@ namespace StarForge.View
                 foreach (var u in world.units)
                 {
                     // Skimmers hover over the grass; everything else parts it.
-                    if (!Unit.Live(u) || !u.def.IsMobile || u.Type == UnitType.Skimmer) continue;
+                    if (!Unit.Live(u) || !u.def.IsMobile || u.Type == UnitType.Skimmer || u.def.flying) continue;
                     if (u.agent == null || !u.agent.enabled || u.agent.velocity.sqrMagnitude < 0.25f) continue;
-                    Stamp(trample, u.Ground, u.def.radius * (u.Type == UnitType.Mauler ? 0.95f : 0.7f) + 0.25f, 255);
+                    Stamp(trample, u.Ground, u.def.radius * (u.Type == UnitType.Mauler || u.def.heavyArmour ? 0.95f : 0.7f) + 0.25f, 255);
                     // A Mauler churns the ground as well as flattening the grass: a band
                     // of turned earth along its path, drawn as a crater's thrown soil
                     // and healing over minutes like one, where trampled grass stands

@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Lancer
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 16
+  displayName: Lancer
+  blurb: Tank destroyer. A long, fast-firing cannon that punches through armour; wasteful against infantry.
+  building: 0
+  neutral: 0
+  radius: 1.4
+  hp: 280
+  speed: 5.2
+  turnRate: 2.8
+  range: 18
+  damage: 36
+  cooldown: 1.7
+  splash: 0
+  sight: 30
+  bonusVsWorkers: 1
+  weapon: 5
+  hitsAir: 0
+  hitsGround: 1
+  minRange: 0
+  vsLight: 0.7
+  vsHeavy: 1.5
+  vsStructure: 1
+  vsAir: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 2
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 1
+  flying: 0
+  altitude: 0
+  organic: 0
+  buildTime: 28
+  cost: 175
+  supplyCost: 3
+  supplyGive: 0
+  hotkey: 76
+  producer: 6
+  requires: -1
+  prefabs:
+  - {fileID: 3657079016525120734, guid: 0c95e30e2c46f48aaae81a65ce6144ee, type: 3}
+  - {fileID: 4268887390863567952, guid: 9136c21593f064d91b4f3394119b0d2e, type: 3}
+  icon: {fileID: 2800000, guid: 319d54f1a568b4d8884a979e06ea72c9, type: 3}
+  visualRadius: 2.24
+  visualHeight: 1.7249999

@@ -514,7 +514,7 @@ namespace StarForge.AI
             foreach (var e in scratch)
             {
                 if (e.Untargetable || e.Type == UnitType.Ore) continue;
-                if (!e.def.Armed && e.Type != UnitType.Worker && !e.def.building) continue;
+                if (!e.def.Armed && !e.def.harvester && !e.def.building) continue;
                 float d = m.Dist(e) - e.def.radius;
                 if (d > radius) continue;
                 // Armed things first: a Digger is not a threat, only a target.
@@ -557,7 +557,10 @@ namespace StarForge.AI
         {
             if (e.mech != null) return e.mech.Dps(true);
             if (!e.def.Armed || e.Type == UnitType.Worker) return 0f;
-            return e.def.damage * (1f + 0.15f * e.rank) / Mathf.Max(0.1f, e.def.cooldown);
+            // What it can do to a Mech: armour-piercing guns more, flak and anti-infantry guns less;
+            // nothing at all from a gun that only reaches aircraft.
+            if (!e.def.hitsGround) return 0f;
+            return e.def.damage * e.def.vsHeavy * (1f + 0.15f * e.rank) / Mathf.Max(0.1f, e.def.cooldown);
         }
 
         static float Toughness(Unit e) => e.mech != null ? e.mech.EffectiveHp : Mathf.Max(1f, e.hp);
@@ -620,7 +623,7 @@ namespace StarForge.AI
                     if (e.team == team || e.team > 1 || e.Untargetable) continue;
                     // An enemy Mech Bay or tower raised beside its base is an attack too.
                     if (e.def.building && e.Type != UnitType.MechBay && e.Type != UnitType.Sentinel) continue;
-                    if (!e.def.building && (!e.def.Armed || e.Type == UnitType.Worker)) continue;
+                    if (!e.def.building && (!e.def.Armed || e.Type == UnitType.Worker || (e.def.harvester && !e.def.IsArmy && e.def.range < 4f))) continue;
                     float v = e.Type == UnitType.MechBay ? 600f : e.Type == UnitType.Sentinel ? 300f : Defs.ArmyValue(e.Type);
                     threat += v;
                     sum += e.pos * v;
@@ -726,14 +729,18 @@ namespace StarForge.AI
             float avoid = 0f;
             if (!LegacyHunt && foeMech != null && foeMech.mech.Landed && Ratio(foeMech.pos, 30f, m, out _, out _) <= caution * Doctrine.duel)
                 avoid = foeMech.mech.FightRange + core.FightRange + 6f;
+            bool reachesAir = false;
+            foreach (var g in core.guns) if (g.part.HitsAir) { reachesAir = true; break; }
             foreach (var e in w.units)
             {
                 // Their deserters harm no one: not worth the walk.
                 if (e == null || e.dying || e.team == team || e.team > 1 || e.Untargetable || e.deserted) continue;
+                // An aircraft is prey only for a Mech with a gun that reaches it (a mortar and flamers do not).
+                if (e.def.flying && !reachesAir) continue;
                 float value;
                 if (e.Type == UnitType.MechBay) value = F.mechDropped && w.factions[1 - team].mechDropped ? 250f : 900f;
                 else if (e.Type == UnitType.Foundry) value = 350f;
-                else if (e.Type == UnitType.Worker) value = 40f;
+                else if (e.def.harvester) value = e.Type == UnitType.Worker ? 40f : e.def.cost * 0.5f;
                 else if (e.def.building) value = e.def.Armed ? 60f : 150f;
                 else value = Defs.ArmyValue(e.Type);
                 if (value < 40f) continue;
@@ -768,7 +775,7 @@ namespace StarForge.AI
         {
             float v = 0f;
             foreach (var e in w.UnitsNear(at, radius))
-                if (e.team != team && e.team < 2 && !e.def.building && !e.deserted) v += e.Type == UnitType.Worker ? 40f : Defs.ArmyValue(e.Type);
+                if (e.team != team && e.team < 2 && !e.def.building && !e.deserted) v += e.def.harvester ? 40f : Defs.ArmyValue(e.Type);
             return v;
         }
 
@@ -1379,6 +1386,7 @@ namespace StarForge.AI
             if (maulers > 0) parts.Add($"{maulers} Mauler{(maulers == 1 ? "" : "s")}");
             if (troopers > 0) parts.Add($"{troopers} Trooper{(troopers == 1 ? "" : "s")}");
             if (skimmers > 0) parts.Add($"{skimmers} Skimmer{(skimmers == 1 ? "" : "s")}");
+            if (other > 0) parts.Add(parts.Count == 0 ? $"{other} enemy unit{(other == 1 ? "" : "s")}" : $"{other} more");
             if (parts.Count == 0) return "an enemy force";
             if (parts.Count == 1) return parts[0];
             return string.Join(", ", parts.GetRange(0, parts.Count - 1)) + " and " + parts[parts.Count - 1];

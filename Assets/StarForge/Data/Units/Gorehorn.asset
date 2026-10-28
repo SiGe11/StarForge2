@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Gorehorn
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 30
+  displayName: Gorehorn
+  blurb: Bred armoured beast. Charges in and sweeps its tusks through everything round what it strikes; cannot reach aircraft. Requires an Armory.
+  building: 0
+  neutral: 0
+  radius: 1.4
+  hp: 520
+  speed: 5
+  turnRate: 4
+  range: 2.2
+  damage: 32
+  cooldown: 1.3
+  splash: 2.4
+  sight: 24
+  bonusVsWorkers: 1
+  weapon: 14
+  hitsAir: 0
+  hitsGround: 1
+  minRange: 0
+  vsLight: 1
+  vsHeavy: 1
+  vsStructure: 0.8
+  vsAir: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 3
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 1
+  flying: 0
+  altitude: 0
+  organic: 1
+  buildTime: 32
+  cost: 275
+  supplyCost: 5
+  supplyGive: 0
+  hotkey: 71
+  producer: 27
+  requires: 26
+  prefabs:
+  - {fileID: 7941529320238065772, guid: 447da31451b64482ea23c5f72584fdac, type: 3}
+  - {fileID: 2040211441848067763, guid: 04f6e09854ada41f3b4909667139bbf0, type: 3}
+  icon: {fileID: 2800000, guid: fe2fd9ffb211142d7b99ee169b21c2ea, type: 3}
+  visualRadius: 2.1
+  visualHeight: 3

@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Ironclad
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 29
+  displayName: Ironclad
+  blurb: Walking mini-mech. Twin shoulder cannons for the ground, missile pods for the air; slow and very hard to stop. Requires an Armory.
+  building: 0
+  neutral: 0
+  radius: 1.45
+  hp: 480
+  speed: 3.8
+  turnRate: 2.4
+  range: 20
+  damage: 24
+  cooldown: 1.3
+  splash: 0
+  sight: 32
+  bonusVsWorkers: 1
+  weapon: 13
+  hitsAir: 1
+  hitsGround: 1
+  minRange: 0
+  vsLight: 0.7
+  vsHeavy: 1.2
+  vsStructure: 1
+  vsAir: 1.6
+  bounces: 0
+  ignite: 0
+  upgradeClass: 2
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 1
+  flying: 0
+  altitude: 0
+  organic: 0
+  buildTime: 45
+  cost: 300
+  supplyCost: 6
+  supplyGive: 0
+  hotkey: 84
+  producer: 6
+  requires: 26
+  prefabs:
+  - {fileID: 5367536743383863931, guid: 1334e8519a9914c76a1b945ed98e34c7, type: 3}
+  - {fileID: 5473888429469434949, guid: cb06de744c1c64e2792fc00f7b893bcd, type: 3}
+  icon: {fileID: 2800000, guid: 502835c0604b948fda40f976fee005c5, type: 3}
+  visualRadius: 1.404
+  visualHeight: 4.05

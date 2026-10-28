@@ -173,7 +173,11 @@ namespace StarForge.EditorTools
                 fm.animationType = ModelImporterAnimationType.Legacy;
                 fm.importAnimation = true;
                 fm.animationWrapMode = WrapMode.Loop;
-                fm.materialImportMode = ModelImporterMaterialImportMode.None;
+                // The Biolab's creatures (Tools/blender/build_creatures.py) keep their materials'
+                // names, which PrefabBuilder colours them by: the submesh order is not the file's
+                // slot order (the wasp's wings took its stripes' colour by index).
+                fm.materialImportMode = Path.GetFileName(assetPath).StartsWith("Creature_")
+                    ? ModelImporterMaterialImportMode.ImportStandard : ModelImporterMaterialImportMode.None;
                 fm.isReadable = false;
                 return;
             }

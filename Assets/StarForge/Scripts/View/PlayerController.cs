@@ -11,7 +11,8 @@ using StarForge.World;
 
 namespace StarForge.View
 {
-    public enum CardKind { None, Build, Train, AttackMove, Stop, Hold, CancelQueue, CancelConstruction, CancelPlacement, MechUpgrade, CancelUpgrade, Info }
+    public enum CardKind { None, Build, Train, AttackMove, Stop, Hold, CancelQueue, CancelConstruction, CancelPlacement, MechUpgrade, CancelUpgrade, Info,
+                           ArmyUpgrade, CancelResearch }
 
     public struct CardAction
     {
@@ -27,6 +28,7 @@ namespace StarForge.View
         public string glyph;
         public bool enabled;
         public MechUpgrade upgrade;
+        public ArmyUpgrade armyUpgrade;
     }
 
     public sealed class PlayerController : MonoBehaviour
@@ -138,7 +140,8 @@ namespace StarForge.View
             {
                 if (u == null || u.dying || u.def.type == UnitType.Boulder) continue;
                 if (u.team == 1 && !u.visibleToPlayer && !(u.def.building && u.everSeenByPlayer)) continue;
-                Vector3 c = u.Ground + Vector3.up * (u.def.visualHeight * 0.45f);
+                // An aircraft is where it flies, not over the ground under it.
+                Vector3 c = u.def.flying ? GameWorld.AirPoint(u) : u.Ground + Vector3.up * (u.def.visualHeight * 0.45f);
                 Vector3 sp = cam.WorldToScreenPoint(c);
                 if (sp.z <= 0f) continue;
                 Vector3 edge = cam.WorldToScreenPoint(c + cam.transform.right * u.def.visualRadius);
@@ -310,7 +313,7 @@ namespace StarForge.View
             foreach (var u in world.units)
             {
                 if (!Unit.Live(u) || !Mine(u)) continue;
-                Vector3 sp = cam.WorldToScreenPoint(u.Ground + Vector3.up * (u.def.visualHeight * 0.4f));
+                Vector3 sp = cam.WorldToScreenPoint(u.def.flying ? GameWorld.AirPoint(u) : u.Ground + Vector3.up * (u.def.visualHeight * 0.4f));
                 if (sp.z <= 0f || !r.Contains(new Vector2(sp.x, sp.y))) continue;
                 scratch.Add(u);
                 if (u.def.IsMobile) anyMobile = true;
@@ -386,7 +389,7 @@ namespace StarForge.View
             float best = float.MaxValue;
             foreach (var u in OwnSelection())
             {
-                if (u.Type != UnitType.Worker) continue;
+                if (!u.def.builder) continue;
                 float d = (u.pos - gp).sqrMagnitude + (u.order == Order.Build ? 4000f : 0f);
                 if (d < best) { best = d; builder = u; }
             }
@@ -428,7 +431,7 @@ namespace StarForge.View
             bool mixedStructures = false, anyIncomplete = false, anyQueue = false;
             foreach (var u in own)
             {
-                if (u.Type == UnitType.Worker) anyWorker = true;
+                if (u.def.builder) anyWorker = true;
                 // The Mech takes no orders: it adds no orders to the card.
                 if (u.def.IsMobile && !u.def.Autonomous) anyMobile = true;
                 if (u.def.building)
@@ -470,6 +473,12 @@ namespace StarForge.View
                 BayCard(into, F);
                 return;
             }
+            // The Armory's research, likewise only for Armories on their own.
+            if (structureType == UnitType.Armory && !mixedStructures && !anyIncomplete && !anyMobile)
+            {
+                ArmoryCard(into, F, own);
+                return;
+            }
             if (!anyMobile && structureType == UnitType.None && own.TrueForAll(u => u.def.Autonomous))
             {
                 into.Add(new CardAction
@@ -481,25 +490,31 @@ namespace StarForge.View
                 });
                 return;
             }
-            if (structureType != UnitType.None && !mixedStructures && !anyIncomplete)
+            // Not with Diggers selected: their nine builds and the three orders fill the card's
+            // twelve slots, and a production card past them would be hidden but still answer
+            // its hotkey (as the Mech Bay's once did).
+            if (structureType != UnitType.None && !mixedStructures && !anyIncomplete && !anyWorker)
             {
                 for (int i = 0; i < (int)UnitType.Count; i++)
                 {
                     var d = Defs.Get((UnitType)i);
                     if (d == null || d.producer != structureType) continue;
                     bool supplyOk = F.supplyUsed + d.supplyCost <= Mathf.Min(F.supplyCap, GameWorld.MaxSupply);
+                    bool reqOk = d.requires == UnitType.None || world.HasComplete(team, d.requires);
                     into.Add(new CardAction
                     {
                         kind = CardKind.Train, type = d.type, hotkey = d.hotkey, title = "Train " + d.displayName,
-                        body = d.blurb + (supplyOk ? "" : "\nNot enough supply — build a Bunkhouse."),
+                        body = d.blurb + (reqOk ? "" : $"\nRequires a {Defs.Get(d.requires).displayName}.") +
+                               (supplyOk ? "" : "\nNot enough supply — build a Bunkhouse."),
                         cost = d.cost, supply = d.supplyCost, time = d.buildTime, icon = d.icon,
-                        enabled = F.ore >= d.cost && supplyOk
+                        enabled = F.ore >= d.cost && supplyOk && reqOk
                     });
                 }
                 if (anyQueue)
                     into.Add(new CardAction { kind = CardKind.CancelQueue, hotkey = 'X', title = "Cancel last", body = "Refunds the most recently queued unit.", glyph = "✕", enabled = true });
             }
-            if (anyIncomplete)
+            // Not beside the Diggers' twelve: a hidden thirteenth would still answer X.
+            if (anyIncomplete && !anyWorker)
                 into.Add(new CardAction { kind = CardKind.CancelConstruction, hotkey = 'X', title = "Cancel construction", body = "Refunds 75% of the cost.", glyph = "✕", enabled = true });
         }
 
@@ -531,6 +546,40 @@ namespace StarForge.View
             }
             if (F.researching >= 0)
                 into.Add(new CardAction { kind = CardKind.CancelUpgrade, hotkey = 'X', title = "Cancel upgrade", body = "Refunds the upgrade in progress.", glyph = "✕", enabled = true });
+        }
+
+        /// <summary>The Armory's card: weapons and armour for each class, one level at a time; a
+        /// line one Armory works on is not offered by another.</summary>
+        void ArmoryCard(List<CardAction> into, Faction F, List<Unit> own)
+        {
+            Unit free = null;
+            bool busy = false;
+            foreach (var u in own)
+                if (u.Type == UnitType.Armory && u.Complete)
+                {
+                    if (u.researchLine < 0) { if (free == null) free = u; }
+                    else busy = true;
+                }
+            for (int i = 0; i < (int)ArmyUpgrade.Count; i++)
+            {
+                var up = (ArmyUpgrade)i;
+                var info = GameWorld.ArmyUpgradeOf(up);
+                int lvl = F.armyUpgrades[i];
+                int cost = world.ArmyUpgradeCost(team, up);
+                var at = world.ResearchingAt(team, up);
+                string state = cost < 0 ? "\nComplete." : at != null ? $"\nResearching: {at.researchLeft:0}s left." : free == null ? "\nThe Armory is busy." : "";
+                into.Add(new CardAction
+                {
+                    kind = CardKind.ArmyUpgrade, armyUpgrade = up, hotkey = info.hotkey,
+                    title = cost < 0 ? $"{info.name} (complete)" : $"{info.name} {MechParts.Roman(lvl + 1)}",
+                    body = info.blurb + state + $"\nLevel {lvl} of {info.Levels}.",
+                    cost = Mathf.Max(0, cost), time = cost < 0 ? 0f : info.time[lvl],
+                    glyph = (info.armour ? "⛨" : "✹") + (lvl > 0 ? new string('·', lvl) : ""),
+                    enabled = cost >= 0 && at == null && free != null && F.ore >= cost
+                });
+            }
+            if (busy)
+                into.Add(new CardAction { kind = CardKind.CancelResearch, hotkey = 'X', title = "Cancel research", body = "Refunds the research in progress.", glyph = "✕", enabled = true });
         }
 
         static string UpgradeGlyph(MechUpgrade up) => up switch
@@ -582,6 +631,12 @@ namespace StarForge.View
                     break;
                 case CardKind.CancelUpgrade:
                     foreach (var u in own) if (u.Type == UnitType.MechBay) { world.CmdCancelMechUpgrade(u); break; }
+                    break;
+                case CardKind.ArmyUpgrade:
+                    foreach (var u in own) if (u.Type == UnitType.Armory && u.Complete && u.researchLine < 0) { world.CmdArmoryResearch(u, c.armyUpgrade); break; }
+                    break;
+                case CardKind.CancelResearch:
+                    foreach (var u in own) if (u.Type == UnitType.Armory && u.researchLine >= 0) { world.CmdCancelArmoryResearch(u); break; }
                     break;
             }
         }

@@ -213,7 +213,7 @@ namespace StarForge.Game
             if (ai.Dbg.massedArmy > 0f) { if (massingFrom < 0f) massingFrom = world.time; massedNeed = ai.Dbg.massedArmy; }
             lastWaves = ai.Dbg.waves;
             foreach (var u in world.units)
-                if (Unit.Live(u) && u.team == 1 && u.Type == StarForge.Sim.UnitType.Worker)
+                if (Unit.Live(u) && u.team == 1 && u.def.harvester)
                 {
                     lastOrder[u] = u.order;
                     if (u.order == StarForge.Sim.Order.Build && u.buildTarget != null) lastBuild[u] = u.buildTarget.Type;
@@ -230,7 +230,8 @@ namespace StarForge.Game
         // had none left -- whether its economy survives a hunting Mech.
         void OnWorldEvent(GameEvent e)
         {
-            if (finished || e.kind != GameEventKind.Death || e.team != 1 || e.type != StarForge.Sim.UnitType.Worker) return;
+            // Every kind of worker (Diggers, Haulers, Prospectors): the economy a hunting Mech can break.
+            if (finished || e.kind != GameEventKind.Death || e.team != 1 || !StarForge.Sim.Defs.IsWorkerType(e.type)) return;
             diggersLost++;
             var m = world.MechOf(0);
             Vector2 at = new Vector2(e.pos.x, e.pos.z);
@@ -258,9 +259,18 @@ namespace StarForge.Game
             }
             int left = 0;
             foreach (var u in world.units)
-                if (Unit.Live(u) && u.team == 1 && u.Type == StarForge.Sim.UnitType.Worker && u != e.unit) left++;
+                if (Unit.Live(u) && u.team == 1 && u.def.harvester && u != e.unit) left++;
             if (left == 0 && noDiggersAt < 0f) noDiggersAt = world.time;
         }
+        /// <summary>The wider roster the AI trained this match, by type ("none" if it stuck to the original three).</summary>
+        static string RosterTrained(StarForge.AI.Commander ai)
+        {
+            var sb = new System.Text.StringBuilder();
+            for (int i = (int)StarForge.Sim.UnitType.Mech + 1; i < (int)StarForge.Sim.UnitType.Count; i++)
+                if (ai.Dbg.trained[i] > 0) sb.Append(sb.Length > 0 ? ", " : "").Append($"{(StarForge.Sim.UnitType)i} {ai.Dbg.trained[i]}");
+            return sb.Length > 0 ? sb.ToString() : "none";
+        }
+
         string BuiltShares()
         {
             var sb = new StringBuilder();
@@ -308,7 +318,7 @@ namespace StarForge.Game
                       $"{(world.winner == 1 ? "AI won" : world.winner == 0 ? "AI lost" : world.winner == 2 ? "draw" : "time cap")} at {world.time:0}s, " +
                       $"read correctly {(samples > 0 ? 100f * correct / samples : 0f):0}% of the time; " +
                       $"style {ai.Dbg.personality}; {ai.Dbg.waves} attack waves, last {ai.Dbg.wave}; " +
-                      $"Mechs: AI {MechLine(1)}, opponent {MechLine(0)}; advice heeded {ai.Dbg.adviceHeeded}, ignored {ai.Dbg.adviceIgnored}, upgrades bought {ai.Dbg.upgradesBought}, waves while their Mech was away {ai.Dbg.mechWindows}, gathered on its Mech {ai.Dbg.stagedWithMech}; " +
+                      $"Mechs: AI {MechLine(1)}, opponent {MechLine(0)}; advice heeded {ai.Dbg.adviceHeeded}, ignored {ai.Dbg.adviceIgnored}, upgrades bought {ai.Dbg.upgradesBought}, wider roster trained {RosterTrained(ai)}, Armory research {ai.Dbg.researchBought}, waves while their Mech was away {ai.Dbg.mechWindows}, gathered on its Mech {ai.Dbg.stagedWithMech}; " +
                       $"AI Mech's time: {IntentShares()}; " +
                       $"their Mech's time: {Shares(theirIntent)}; " +
                       $"left at the end: AI {Left(1)}, opponent {Left(0)}; AI retreats {ai.Retreats}, waves at their Mech hurt {ai.Dbg.hurtWindows}, raids {ai.Dbg.raidSorties} ({ai.Dbg.sideRaidSorties} beside another plan), plans {PlanShares()}; " +

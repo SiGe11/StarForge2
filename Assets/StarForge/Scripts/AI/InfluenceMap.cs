@@ -65,7 +65,7 @@ namespace StarForge.AI
                 // Deserters (GameWorld.Morale) hold no ground for it.
                 if (e == null || e.dying || e.team != team || !e.Complete || e.deserted) continue;
                 var D = e.def;
-                if (D.range <= 0f && D.type != UnitType.Worker) continue;
+                if (D.range <= 0f && !D.harvester) continue;
                 Add(e.pos, Defs.InfluenceStrength(D.type), Mathf.Max(12f, D.range * 1.4f), 1f);
             }
             foreach (var r in p.Enemies)

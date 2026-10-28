@@ -345,7 +345,7 @@ namespace StarForge.World
         }
 
         bool Valid(MechGun g, Unit t) =>
-            Unit.Live(t) && world.Hostile(unit, t) && !t.Untargetable && InRange(g, t);
+            Unit.Live(t) && world.Hostile(unit, t) && !t.Untargetable && (!t.def.flying || g.part.HitsAir) && InRange(g, t);
 
         bool Aimed(MechGun g, Unit t)
         {
@@ -370,6 +370,7 @@ namespace StarForge.World
             foreach (var e in near)
             {
                 if (e.Untargetable || e.Type == UnitType.Ore) continue;
+                if (e.def.flying && !p.HitsAir) continue;
                 float d = unit.Dist(e) - e.def.radius;
                 if (d > range || d < p.minRange) continue;
                 bool heavy = e.def.Heavy;

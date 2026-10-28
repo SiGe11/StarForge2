@@ -23,6 +23,9 @@ FILES = {
     "Fox.fbx": "Animals_Pack_by_Quaternius/Animals Pack by Quaternius/FBX/Red Fox.fbx",
     "Songbird.fbx": "Animals_Pack_by_Quaternius/Animals Pack by Quaternius/FBX/bird.fbx",
 }
+# The Biolab's creatures (Creature_*.fbx) are not plain copies: Tools/blender/build_creatures.py
+# makes them monstrous (horns, plates, spines, glands) from the spider, frog and wasp of the Easy
+# Animated Enemy Pack and the cow of the Farm Animals pack, and writes them here itself.
 
 
 def main():

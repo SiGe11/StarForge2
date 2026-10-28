@@ -54,6 +54,10 @@ namespace StarForge.World
                     case UnitType.Worker: t.light += u.def.cost * 0.4f; break;
                     default:
                         if (u.def.building) t.structures += u.def.cost * (u.def.Armed ? 1.5f : 0.5f);
+                        // The wider roster by its armour class (aircraft and creatures are light);
+                        // workers count for less, as the Digger does.
+                        else if (u.def.harvester) { if (u.def.Heavy) t.heavy += u.def.cost * 0.4f; else t.light += u.def.cost * 0.4f; }
+                        else if (u.def.IsArmy) { if (u.def.Heavy) t.heavy += u.def.cost; else t.light += u.def.cost; }
                         break;
                 }
             }

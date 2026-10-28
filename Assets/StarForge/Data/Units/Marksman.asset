@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Marksman
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 15
+  displayName: Marksman
+  blurb: Sniper. Outranges everything but the Mech; one shot fells a rifleman. Fragile, slow to fire, poor against armour. Requires an Armory.
+  building: 0
+  neutral: 0
+  radius: 0.56
+  hp: 55
+  speed: 5.6
+  turnRate: 9
+  range: 30
+  damage: 58
+  cooldown: 3.2
+  splash: 0
+  sight: 34
+  bonusVsWorkers: 1
+  weapon: 4
+  hitsAir: 1
+  hitsGround: 1
+  minRange: 0
+  vsLight: 1
+  vsHeavy: 0.5
+  vsStructure: 0.25
+  vsAir: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 1
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 0
+  flying: 0
+  altitude: 0
+  organic: 0
+  buildTime: 22
+  cost: 125
+  supplyCost: 2
+  supplyGive: 0
+  hotkey: 78
+  producer: 5
+  requires: 26
+  prefabs:
+  - {fileID: 3759478433532905748, guid: 61b396aff07394e06a9849e9f7b6ba5a, type: 3}
+  - {fileID: 1039568159876553593, guid: 4157a9c07634044a79b51938f194c062, type: 3}
+  icon: {fileID: 2800000, guid: 9a5f05720e12949379559be11007a210, type: 3}
+  visualRadius: 0.896
+  visualHeight: 2.003

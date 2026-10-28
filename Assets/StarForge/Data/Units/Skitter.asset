@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Skitter
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 22
+  displayName: Skitter
+  blurb: Bred swarmer. Cheap, very fast, bites what it reaches; strong in a pack, nothing alone. Cannot reach aircraft.
+  building: 0
+  neutral: 0
+  radius: 0.5
+  hp: 45
+  speed: 8.6
+  turnRate: 12
+  range: 1.8
+  damage: 6
+  cooldown: 0.45
+  splash: 0
+  sight: 22
+  bonusVsWorkers: 1
+  weapon: 9
+  hitsAir: 0
+  hitsGround: 1
+  minRange: 0
+  vsLight: 1
+  vsHeavy: 1
+  vsStructure: 1
+  vsAir: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 3
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 0
+  flying: 0
+  altitude: 0
+  organic: 1
+  buildTime: 9
+  cost: 35
+  supplyCost: 1
+  supplyGive: 0
+  hotkey: 90
+  producer: 27
+  requires: -1
+  prefabs:
+  - {fileID: 482657947491123994, guid: e01aeaf168a0944c583e048a190049d7, type: 3}
+  - {fileID: 3653858010438684544, guid: 82e1731499a5f43eb8277dd7f1bb891c, type: 3}
+  icon: {fileID: 2800000, guid: 37ea55f648346437788d83647c9a077f, type: 3}
+  visualRadius: 0.8
+  visualHeight: 1.1

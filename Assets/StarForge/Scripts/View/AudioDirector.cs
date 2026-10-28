@@ -249,13 +249,14 @@ namespace StarForge.View
                         PlayUI(bank.mechRadio[Random.Range(0, bank.mechRadio.Length)], e.advice == MechAdviceKind.Morale ? 0.2f : 0.5f, 1f);
                     break;
                 case GameEventKind.UpgradeComplete when e.team == me:
+                case GameEventKind.ArmyUpgradeComplete when e.team == me:
                     PlayUI(bank.uiPromote != null ? bank.uiPromote : promote, 0.5f, 1f);
                     break;
-                case GameEventKind.Impact when e.projectileKind >= 5:
+                case GameEventKind.Impact when (e.projectileKind >= 5 && e.projectileKind <= 7) || e.projectileKind == GameWorld.ProjLob || e.projectileKind == GameWorld.ProjRocket:
                     if (!Seen(e.pos)) return;
                     Heat(e.pos, 0.2f);
                     if (e.projectileKind == 5) PlayAt(e.pos, bank.boom, 0.4f, 0.06f, boom);
-                    else PlayAt(e.pos, bank.blast != null && bank.blast.Length > 0 ? bank.blast : bank.boom, e.projectileKind == 6 ? 0.8f : 0.55f, 0.06f, boom);
+                    else PlayAt(e.pos, bank.blast != null && bank.blast.Length > 0 ? bank.blast : bank.boom, e.projectileKind == 6 ? 0.8f : 0.5f, 0.06f, boom);
                     QuietBirds(e.pos);
                     break;
                 case GameEventKind.Fire:
@@ -267,6 +268,19 @@ namespace StarForge.View
                             PlayAt(e.pos, bank.cannon, 0.92f, 0.06f, cannon);
                             PlayAt(e.pos, bank.thud, 0.42f, 0.06f);
                             break;
+                        // The wider roster borrows the Mech's guns' recordings, quieter for smaller arms.
+                        case 4: PlayAt(e.pos, bank.mechAutocannon, 0.42f, 0.08f, cannon); break;
+                        case 5: PlayAt(e.pos, bank.mechMissile, 0.36f, 0.07f, pulse); break;
+                        case GameWorld.ProjLob: PlayAt(e.pos, bank.mechMortar, 0.45f, 0.15f, cannon); PlayAt(e.pos, bank.thud, 0.2f, 0.15f); break;
+                        case GameWorld.ProjSniper: PlayAt(e.pos, bank.rifle, 0.62f, 0.02f, rifle); PlayAt(e.pos, bank.thud, 0.15f, 0.05f); break;
+                        case GameWorld.ProjAP: PlayAt(e.pos, bank.cannon, 0.7f, 0.08f, cannon); break;
+                        case GameWorld.ProjAcid: PlayAt(e.pos, bank.pulse, 0.18f, 0.12f, pulse); break;
+                        case GameWorld.ProjClaw:
+                            if (e.type == UnitType.Gorehorn) { PlayAt(e.pos, bank.stomp, 0.55f, 0.15f); PlayAt(e.pos, bank.thud, 0.35f, 0.15f); }
+                            else PlayAt(e.pos, bank.stomp, 0.12f, 0.2f);
+                            break;
+                        case GameWorld.ProjRocket: PlayAt(e.pos, bank.mechMissile, 0.42f, 0.07f, pulse); break;
+                        case GameWorld.ProjGlaive: PlayAt(e.pos, bank.bolt, 0.2f, 0.1f, bolt); break;
                         case 2: PlayAt(e.pos, bank.pulse, 0.3f, 0.03f, pulse); break;
                         case 3: PlayAt(e.pos, bank.bolt, 0.4f, 0.04f, bolt); break;
                         // A rifle at 0.22 was lost once tanks and shells got their weight:
@@ -293,7 +307,10 @@ namespace StarForge.View
                     else if (e.type == UnitType.Boulder) { PlayAt(e.pos, bank.rock, 0.55f, 0.05f, boom); PlayAt(e.pos, bank.stomp, 0.3f, 0.05f); }
                     // A rifleman does not blow up: the round rings off his armour and he
                     // goes down (the wreck, UnitWreck, is him falling).
-                    else if (e.type == UnitType.Trooper) { PlayAt(e.pos, bank.hitMetal, 0.28f, 0.05f); PlayAt(e.pos, bank.stomp, 0.22f, 0.08f); }
+                    else if (e.type == UnitType.Trooper || e.unit != null && e.unit.def.upgradeClass == UnitClass.Infantry)
+                        { PlayAt(e.pos, bank.hitMetal, 0.28f, 0.05f); PlayAt(e.pos, bank.stomp, 0.22f, 0.08f); }
+                    // A creature goes down with a thud, not a bang.
+                    else if (e.unit != null && e.unit.def.organic) { PlayAt(e.pos, bank.stomp, 0.3f, 0.1f); PlayAt(e.pos, bank.thud, 0.2f, 0.1f); }
                     else if (e.type == UnitType.Mech)
                     {
                         // The reactor: the loudest thing in a match.
@@ -308,7 +325,7 @@ namespace StarForge.View
                     }
                     else
                     {
-                        bool heavy = e.type == UnitType.Mauler;
+                        bool heavy = e.type == UnitType.Mauler || e.unit != null && e.unit.def.heavyArmour;
                         PlayAt(e.pos, heavy && bank.blast != null && bank.blast.Length > 0 ? bank.blast : bank.boom,
                                heavy ? 0.8f : 0.65f, 0.05f, boom);
                         if (heavy) PlayAt(e.pos, bank.thud, 0.6f, 0.1f);
@@ -589,6 +606,11 @@ namespace StarForge.View
                     if (u.mech.design.locomotion == MechLocomotion.Hover && u.agent != null && u.agent.enabled)
                         hoverMoving += a * (0.5f + Mathf.Clamp01(u.agent.velocity.magnitude / 4f));
                 }
+                // A Scorcher's jet is the Mech flamer's roar, smaller.
+                if (u.Type == UnitType.Scorcher && Unit.Live(u.target) && u.cooldown > 0f && u.Dist(u.target) - u.target.def.radius <= u.def.range)
+                    flamerNear = Mathf.Max(flamerNear, Attenuation(u.Ground) * 0.7f);
+                // Aircraft hum like a Skimmer, a little louder.
+                if (u.def.flying) { hoverMoving += Attenuation(u.Ground) * 0.5f; continue; }
                 if (u.agent == null || !u.agent.enabled || u.agent.velocity.sqrMagnitude < 0.5f) continue;
                 float att = Attenuation(u.Ground);
                 if (u.Type == UnitType.Skimmer) hoverMoving += att * 0.4f;
@@ -623,7 +645,7 @@ namespace StarForge.View
             {
                 // At its ore and mining (Unit.working, as FXDirector's dust): keyed on an empty
                 // load, a Digger topping up a part load mined in silence.
-                if (u == null || u.dying || u.Type != UnitType.Worker || u.order != Order.Harvest || !u.working) continue;
+                if (u == null || u.dying || !u.def.harvester || u.order != Order.Harvest || !u.working) continue;
                 if (u.agent != null && u.agent.enabled && u.agent.velocity.sqrMagnitude > 0.3f) continue;
                 if (u.team != me && !MatchSettings.spectate && !u.visibleToPlayer) continue;
                 if (Random.value > 0.35f) continue;

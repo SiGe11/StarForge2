@@ -1013,7 +1013,7 @@ namespace StarForge.AI
         {
             if (t == UnitType.Mech) return 1500f;
             if (d.building) return Mathf.Max(100f, d.cost);
-            if (t == UnitType.Worker) return 50f;
+            if (t == UnitType.Worker || d.harvester) return d.harvester && t != UnitType.Worker ? d.cost : 50f;
             return Defs.ArmyValue(t);
         }
 
@@ -1044,7 +1044,7 @@ namespace StarForge.AI
                     if (mine) { ob += v; ourStructures++; structs.Add(u); if (u.Type == UnitType.Foundry) foundry = true; }
                     else tb += v;
                 }
-                else if (u.Type == UnitType.Worker) { if (mine) ob += 50f; else tb += 50f; }
+                else if (u.def.harvester) { float hv = u.Type == UnitType.Worker ? 50f : u.def.cost; if (mine) ob += hv; else tb += hv; }
                 else if (u.def.IsArmy && !u.deserted)   // deserters have left the war
                 {
                     float v = Defs.ArmyValue(u.Type);

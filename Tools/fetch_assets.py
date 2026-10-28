@@ -111,6 +111,8 @@ SFX = {
 QUATERNIUS = {
     "Animals_Pack_by_Quaternius": "https://opengameart.org/sites/default/files/Animals%20Pack%20by%20Quaternius.zip",
     "Animal_Pack_Vol.2_by_Quaternius": "https://opengameart.org/sites/default/files/Animal%20Pack%20Vol.2%20by%20%40Quaternius.zip",
+    # The cow the Biolab's Gorehorn is made from (Tools/blender/build_creatures.py).
+    "Farm_Animals_by_Quaternius": "https://opengameart.org/sites/default/files/Farm%20Animals%20by%20%40Quaternius.zip",
 }
 
 
@@ -230,6 +232,48 @@ def fetch_plain():
         print(f"  quaternius {name}  {os.path.getsize(zpath) / 1e6:.1f} MB")
 
 
+# Quaternius's "Easy Animated Enemy Pack" (CC0, https://quaternius.itch.io/animated-easy-enemies:
+# "FBX, OBJ and Blend formats and CC0 license"): the spider, frog and wasp the Biolab's
+# creatures are made from. It is only on itch.io, free as "name your own price": the
+# download goes through itch's own no-payment flow (a csrf token from the purchase page,
+# a download page, then a short-lived file link), which this follows.
+ITCH_PACKS = {
+    "Easy_Enemy_Pack": ("https://quaternius.itch.io/animated-easy-enemies", 1254673),
+}
+
+
+def fetch_itch():
+    import http.cookiejar
+    import re
+    import urllib.parse
+    import zipfile
+    out = os.path.join(ROOT, "Art", "Source", "quaternius")
+    os.makedirs(out, exist_ok=True)
+    for name, (page, upload) in ITCH_PACKS.items():
+        folder = os.path.join(out, name)
+        if os.path.isdir(folder):
+            continue
+        jar = http.cookiejar.CookieJar()
+        web = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+        web.addheaders = [("User-Agent", "Mozilla/5.0 (StarForge-fetch/1.0)")]
+
+        def token(html):
+            return re.search(r'name="csrf_token" value="([^"]+)"', html).group(1)
+
+        html = web.open(page + "/purchase", timeout=60).read().decode("utf-8", "replace")
+        body = urllib.parse.urlencode({"csrf_token": token(html)}).encode()
+        dl = json.loads(web.open(page + "/download_url", data=body, timeout=60).read())["url"]
+        html = web.open(dl, timeout=60).read().decode("utf-8", "replace")
+        body = urllib.parse.urlencode({"csrf_token": token(html)}).encode()
+        url = json.loads(web.open(f"{page}/file/{upload}?source=game_download", data=body, timeout=60).read())["url"]
+        zpath = folder + ".zip"
+        with urllib.request.urlopen(url, timeout=300) as r, open(zpath, "wb") as f:
+            f.write(r.read())
+        with zipfile.ZipFile(zpath) as z:
+            z.extractall(folder)
+        print(f"  quaternius {name}  {os.path.getsize(zpath) / 1e6:.1f} MB")
+
+
 def fetch_kenney():
     import zipfile
     out = os.path.join(ROOT, "Art", "Source", "kenney")
@@ -335,6 +379,7 @@ def main():
     fetch_ambientcg()
     fetch_sfx()
     fetch_plain()
+    fetch_itch()
     fetch_jangafx()
 
 

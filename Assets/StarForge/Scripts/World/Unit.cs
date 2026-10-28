@@ -74,6 +74,16 @@ namespace StarForge.World
         /// <summary>Broke and ran (GameWorld.Morale): it takes no orders, fights only when its
         /// camp is set upon, and <see cref="fleeing"/> while still on its way there.</summary>
         [System.NonSerialized] public bool deserted, fleeing;
+        /// <summary>An Armory's research (GameWorld.Roster): the ArmyUpgrade it works on (-1 none)
+        /// and the seconds left of its total.</summary>
+        [System.NonSerialized] public int researchLine = -1;
+        [System.NonSerialized] public float researchLeft, researchTotal;
+        /// <summary>An aircraft's flight (no NavMesh agent): where it is going, whether it is,
+        /// and how fast it is moving over the ground.</summary>
+        [System.NonSerialized] public Vector2 flyGoal, flyVel;
+        [System.NonSerialized] public bool flyHasGoal;
+        /// <summary>Shots fired by a gun with more than one barrel (the Ironclad's shoulders take turns).</summary>
+        [System.NonSerialized] public int volleys;
 
         GameWorld world;
         NavMeshObstacle obstacle;
@@ -97,8 +107,13 @@ namespace StarForge.World
         public float TurnRate => mech != null ? mech.TurnRate : def.turnRate;
         public Vector3 Ground => world.Map.Ground(pos);
         public bool HasTurret => def.type == UnitType.Mauler || def.type == UnitType.Sentinel ||
-                                 def.type == UnitType.Mech || def.type == UnitType.MechBay;
-        public bool Moving => agent != null && agent.enabled && agent.isOnNavMesh && (agent.pathPending || agent.hasPath);
+                                 def.type == UnitType.Mech || def.type == UnitType.MechBay ||
+                                 def.type == UnitType.Lancer || def.type == UnitType.Aegis || def.type == UnitType.Ironclad;
+        public bool Moving => def.flying ? flyHasGoal || flyVel.sqrMagnitude > 0.25f
+                            : agent != null && agent.enabled && agent.isOnNavMesh && (agent.pathPending || agent.hasPath);
+        /// <summary>How fast it is going over the ground (an aircraft's own, else the agent's).</summary>
+        public Vector3 Velocity => def.flying ? new Vector3(flyVel.x, 0f, flyVel.y)
+                                 : agent != null && agent.enabled ? agent.velocity : Vector3.zero;
         public GameWorld World => world;
 
         public static bool Live(Unit u) => u != null && !u.dying;
@@ -114,6 +129,9 @@ namespace StarForge.World
             buildProgress = complete ? 1f : 0f;
             hp = complete ? d.hp : d.hp * 0.08f;
             rally = pos + new Vector2(0f, d.radius + 4f);
+            researchLine = -1;
+            flyHasGoal = false;
+            flyVel = Vector2.zero;
             if (d.type != UnitType.Ore) oreLeft = 0;
             else if (oreLeft <= 0) oreLeft = NodeCapacity;
             view = GetComponent<UnitView>();
@@ -124,7 +142,13 @@ namespace StarForge.World
                 mech.Bind(this, w);
             }
 
-            if (d.IsMobile)
+            // An aircraft flies over everything: no agent (Unit.TickFlight moves it).
+            if (d.flying)
+            {
+                var stray = GetComponent<NavMeshAgent>();
+                if (stray != null) { stray.enabled = false; Destroy(stray); }
+            }
+            else if (d.IsMobile)
             {
                 agent = GetComponent<NavMeshAgent>();
                 if (agent == null) agent = gameObject.AddComponent<NavMeshAgent>();
@@ -138,10 +162,11 @@ namespace StarForge.World
                 agent.updateRotation = false;
                 // Diggers ignore each other, the way StarCraft workers mineral-walk:
                 // a mining line of avoiding agents turns into a traffic jam.
-                agent.obstacleAvoidanceType = d.type == UnitType.Worker
+                agent.obstacleAvoidanceType = d.harvester
                     ? ObstacleAvoidanceType.NoObstacleAvoidance
                     : ObstacleAvoidanceType.MedQualityObstacleAvoidance;
-                agent.avoidancePriority = d.type == UnitType.Mech ? 10 : d.type == UnitType.Mauler ? 30 : (d.type == UnitType.Skimmer ? 60 : 50);
+                agent.avoidancePriority = d.type == UnitType.Mech ? 10 : d.type == UnitType.Mauler || d.heavyArmour ? 30
+                                        : d.type == UnitType.Skimmer || d.type == UnitType.Skitter ? 60 : 50;
                 // Boulders stand on Rubble ground: only a Mauler's path runs
                 // through them, and a Mech's (they crush them, GameWorld.CrushBoulders).
                 agent.areaMask = d.type == UnitType.Mauler || d.type == UnitType.Mech ? NavMesh.AllAreas : GameWorld.GroundAreas;
@@ -179,6 +204,7 @@ namespace StarForge.World
 
         public void MoveTo(Vector2 dest)
         {
+            if (def.flying) { flyGoal = world.ClampToMap(dest); flyHasGoal = true; return; }
             if (agent == null || !agent.enabled) return;
             if (!agent.isOnNavMesh)
             {
@@ -191,10 +217,11 @@ namespace StarForge.World
 
         public void Halt()
         {
+            if (def.flying) { flyHasGoal = false; return; }
             if (agent != null && agent.enabled && agent.isOnNavMesh) agent.ResetPath();
         }
 
-        bool Arrived() =>
+        bool Arrived() => def.flying ? !flyHasGoal :
             agent == null || !agent.enabled || !agent.isOnNavMesh ||
             (!agent.pathPending && (!agent.hasPath || agent.remainingDistance <= agent.stoppingDistance + 0.5f));
 
@@ -231,6 +258,7 @@ namespace StarForge.World
             {
                 if (!Complete) return;
                 if (def.Armed) UpdateCombat(dt);
+                if (researchLine >= 0) world.TickArmory(this, dt);
                 UpdateProduction(dt);
                 return;
             }
@@ -253,7 +281,8 @@ namespace StarForge.World
                 float d = Dist(target) - target.def.radius;
                 if (d > def.range * 0.92f && (repathTimer -= dt) <= 0f)
                 {
-                    MoveTo(target.pos);
+                    // Under an aircraft that may be over water or a plateau: as near as it can get.
+                    MoveTo(target.def.flying && !def.flying ? world.NearestReachable(this, target.pos) : target.pos);
                     repathTimer = world.Rng.Range(0.45f, 0.75f);
                 }
             }
@@ -267,7 +296,37 @@ namespace StarForge.World
             if (order == Order.Move && !Moving) KeepGoing(dt);
             else if (agent != null && agent.enabled && agent.isOnNavMesh && agent.hasPath) pathRetries = 0;
 
-            UpdateFacing(dt);
+            if (def.flying) TickFlight(dt);
+            else UpdateFacing(dt);
+        }
+
+        /// <summary>An aircraft: no NavMesh, it flies straight at its goal over whatever is
+        /// under it, eases in at the end, keeps clear of other aircraft, and stays over the map.
+        /// It turns to face where it goes; standing (hovering) and firing it faces its target.</summary>
+        void TickFlight(float dt)
+        {
+            Vector2 want = Vector2.zero;
+            if (flyHasGoal)
+            {
+                Vector2 to = flyGoal - pos;
+                float d = to.magnitude;
+                if (d < 0.6f) flyHasGoal = false;
+                else want = to / d * Mathf.Min(Speed, d * 1.8f + 0.5f);
+            }
+            want += world.AirSeparation(this) * Speed * 0.6f;
+            flyVel = Vector2.MoveTowards(flyVel, want, Speed * 2.4f * dt);
+            Vector2 np = world.ClampToMap(pos + flyVel * dt);
+            transform.position = world.Map.Ground(np);
+            pos = np;
+            float speed = flyVel.magnitude;
+            bool aiming = Live(target) && Dist(target) - target.def.radius <= def.range;
+            if (speed > 0.6f && !aiming)
+            {
+                yaw = ApproachAngle(yaw, Mathf.Atan2(flyVel.x, flyVel.y), TurnRate * dt);
+                bob += speed * dt * 1.2f;
+            }
+            turretYaw = yaw;
+            transform.rotation = Quaternion.Euler(0f, yaw * Mathf.Rad2Deg, 0f);
         }
 
         /// <summary>The Mech: its guns look after themselves (MechCore); its AI gives it
@@ -337,7 +396,7 @@ namespace StarForge.World
                 bob += speed * dt * 3.2f;
                 // Tracks cannot strafe: a Mauler slows until it has turned to face
                 // where it is going, instead of sliding sideways like a hovercraft.
-                if (Type == UnitType.Mauler)
+                if (Type == UnitType.Mauler || Type == UnitType.Lancer || Type == UnitType.Aegis || Type == UnitType.Hauler || Type == UnitType.Ironclad)
                     pace = Lerp(0.3f, 1f, Saturate(Mathf.Cos(WrapAngle(want - yaw))));
                 // Nor can legs, much: a walking Mech turns before it goes; a grav
                 // skirt slides whichever way it likes.
@@ -347,7 +406,7 @@ namespace StarForge.World
             else
             {
                 yawVel = Mathf.MoveTowards(yawVel, 0f, 4f * dt);
-                if (Type == UnitType.Mauler && !Live(target))
+                if (HasTurret && !Live(target))
                     turretYaw = ApproachAngle(turretYaw, yaw, 1.2f * dt);
             }
             // Wading through the shallows is slow going; a Skimmer hovers over them, and
@@ -372,6 +431,16 @@ namespace StarForge.World
             if (!def.Armed || !Complete) return;
             // Auto-acquire unless explicitly told to move without engaging.
             bool acquires = order != Order.Move && order != Order.Harvest && order != Order.Return && order != Order.Build;
+            // An armed worker (the Prospector) at its work shoots back at what comes into its
+            // reach, and keeps working: it neither chases nor drops the load.
+            if (!acquires && def.harvester && def.weapon != WeaponKind.Auto && (order == Order.Harvest || order == Order.Return))
+            {
+                if (!Live(target) || target.team == team || Dist(target) - target.def.radius > def.range || !GameWorld.CanHit(this, target))
+                    target = world.NearestEnemyInReach(this, def.range, false);
+                targetOrdered = false;
+                if (target != null && cooldown <= 0f && Dist(target) - target.def.radius >= def.minRange) Fire();
+                return;
+            }
             if (!Live(target) || target.team == team)
             {
                 target = null;
@@ -401,6 +470,14 @@ namespace StarForge.World
                 targetOrdered = false;
             }
             if (target == null) return;
+            // A mortar too close to fire: something else in its band, or it waits for the
+            // others to deal with what is on top of it.
+            if (def.minRange > 0f && Dist(target) - target.def.radius < def.minRange)
+            {
+                var band = world.NearestEnemyInBand(this, def.minRange, def.range);
+                if (band != null) { target = band; targetOrdered = false; }
+                else return;
+            }
             if (!AimAndFire(dt)) return;
             if (order == Order.Attack || order == Order.AttackMove) Halt();
         }
@@ -413,7 +490,7 @@ namespace StarForge.World
             float want = Mathf.Atan2(target.pos.x - pos.x, target.pos.y - pos.y);
             if (HasTurret)
             {
-                float turn = Type == UnitType.Mauler ? 2.6f : def.turnRate;
+                float turn = Type == UnitType.Mauler || Type == UnitType.Lancer ? 2.6f : Type == UnitType.Aegis ? 4f : def.turnRate;
                 turretYaw = ApproachAngle(turretYaw, want, turn * dt);
                 if (Mathf.Abs(WrapAngle(want - turretYaw)) < 0.10f && cooldown <= 0f) Fire();
             }
@@ -573,7 +650,7 @@ namespace StarForge.World
             {
                 // Full already (sent back to the ore with a load, or off a build it carried
                 // one to): bring it in first rather than mine over it.
-                if (carrying >= OrePerTrip) { order = Order.Return; waitAtOre = world.NearestDropoff(this) == null; return; }
+                if (carrying >= def.carry) { order = Order.Return; waitAtOre = world.NearestDropoff(this) == null; return; }
                 var node = harvestNode;
                 if (!Live(node) || node.oreLeft <= 0)
                 {
@@ -589,11 +666,11 @@ namespace StarForge.World
                     yaw = ApproachAngle(yaw, Mathf.Atan2(node.pos.x - pos.x, node.pos.y - pos.y), 8f * dt);
                     working = true;
                     harvestTimer += dt;
-                    if (harvestTimer >= HarvestTime)
+                    if (harvestTimer >= def.harvestTime)
                     {
                         harvestTimer = 0f;
                         // Topped up, not replaced: a part load (the last of a seam) is kept.
-                        int take = Mathf.Min(OrePerTrip - carrying, node.oreLeft);
+                        int take = Mathf.Min(def.carry - carrying, node.oreLeft);
                         node.oreLeft -= take;
                         carrying += take;
                         if (node.oreLeft <= 0) world.Deplete(node);
@@ -719,7 +796,7 @@ namespace StarForge.World
             queue.RemoveAt(0);
             if (queue.Count > 0) queueTimer = Defs.Get(queue[0]).buildTime;
 
-            bool wantHarvest = what == UnitType.Worker && !rallySet;
+            bool wantHarvest = d.harvester && !rallySet;
             var n = world.Spawn(what, team, spot, true, Mathf.Atan2(spot.x - pos.x, spot.y - pos.y));
             world.factions[team].unitsProduced++;
             if (wantHarvest)

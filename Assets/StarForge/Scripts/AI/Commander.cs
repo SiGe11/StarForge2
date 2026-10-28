@@ -145,6 +145,12 @@ namespace StarForge.AI
         public int Team => team;
 
         Rng rng = new Rng(11);
+        /// <summary>The wider roster's choices (which unit a building trains, what it researches):
+        /// their own stream, so the rolls the plan made before -- the trooper share, the Mech's
+        /// advice -- come out as they did.</summary>
+        Rng mixRng = new Rng(29);
+        /// <summary>When an enemy last hit one of its workers (its own alert: what a player hears).</summary>
+        float lastWorkerHitAt = -1e9f;
         float thinkT, macroT, scoutT, tacticT, microT;
         float thinkPeriod = 1f / 6f;
         float reactionDelay = 0.22f;
@@ -214,6 +220,8 @@ namespace StarForge.AI
             w = world;
             team = t;
             rng = new Rng(seed ^ 0x9E3779B9u);
+            mixRng = new Rng(seed ^ 0x3F1B7Du);
+            lastWorkerHitAt = -1e9f;
             Difficulty = difficulty;
             learn = useMemory;
             memory = useMemory ? AIMemory.Load() : new AIMemoryData();
@@ -274,6 +282,11 @@ namespace StarForge.AI
             // how early is a matter of taste (and of the opening).
             pe.mechBayAt = r.Range(40f, 120f) * (pe.opening == Opening.FastExpand ? 1.3f : 1f);
             for (int i = 0; i < pe.taste.Length; i++) pe.taste[i] = r.Range(-0.12f, 0.12f);
+            var r2 = new Rng(seed ^ 0x7EC4A1u);
+            pe.techPath = r2.IRange(0, 3);
+            pe.armoryAt = r2.Range(180f, 330f);
+            pe.researchTaste = r2.F01();
+            pe.haulerTaste = r2.F01();
             Dbg.personality = pe.Describe();
         }
 
@@ -305,6 +318,41 @@ namespace StarForge.AI
             }
             return v;
         }
+
+        /// <summary>Its workers of every kind (Diggers, Haulers, Prospectors): what mines, and what
+        /// a gun or their Mech by the ore must not catch. Builders are the Diggers alone.</summary>
+        List<Unit> OwnHarvesters(bool idleOnly = false)
+        {
+            var v = new List<Unit>();
+            foreach (var e in w.units)
+            {
+                if (e == null || e.dying || e.team != team || !e.def.harvester || !e.Complete || e.deserted) continue;
+                if (idleOnly && e.order != Order.Idle) continue;
+                v.Add(e);
+            }
+            return v;
+        }
+
+        /// <summary>Every fighting type, in the order squads take them (the raiders first).</summary>
+        static UnitType[] squadTypes;
+        static UnitType[] SquadTypes
+        {
+            get
+            {
+                if (squadTypes != null) return squadTypes;
+                var l = new List<UnitType> { UnitType.Skimmer, UnitType.Razorwing, UnitType.Skitter, UnitType.Kestrel, UnitType.Trooper };
+                for (int i = 0; i < (int)UnitType.Count; i++)
+                {
+                    var d = Defs.Get((UnitType)i);
+                    if (d != null && d.IsArmy && !d.Autonomous && !l.Contains(d.type)) l.Add(d.type);
+                }
+                return squadTypes = l.ToArray();
+            }
+        }
+
+        /// <summary>Fit for a raid: fast and light (the Mauler never was).</summary>
+        static bool Raider(UnitType t) => t == UnitType.Skimmer || t == UnitType.Trooper || t == UnitType.Razorwing ||
+                                          t == UnitType.Skitter || t == UnitType.Kestrel;
 
         IReadOnlyList<Unit> Single(Unit u)
         {
@@ -394,7 +442,7 @@ namespace StarForge.AI
         bool Pay(int n, string site, int line = 0)
         {
             bool paid = Budget.Spend(n);
-            int key = line > 0 ? line : site == "Train" ? -1 : site == "Build" ? -2 : site == "Tend" ? -3 : -4;
+            int key = line > 0 ? line : site == "Train" ? -1 : site == "Build" ? -2 : site == "Tend" ? -3 : site == "Research" ? -5 : -4;
             if (!siteNames.ContainsKey(key)) siteNames[key] = line > 0 ? site + ":" + line : site;
             var into = paid ? spentBy : refusedBy;
             into.TryGetValue(key, out int had);
@@ -524,7 +572,7 @@ namespace StarForge.AI
             if (guns.Count > 0)
             {
                 gunFoundries = OwnOf(UnitType.Foundry);
-                gunWorkers = OwnOf(UnitType.Worker);
+                gunWorkers = OwnHarvesters();
             }
             // Not a Digger in their Mech's reach, nor one cleared from any gun these 8 s: sent to build, it
             // was cleared again in the same pass (and a new site handed to one stood abandoned, its ore spent).
@@ -626,6 +674,8 @@ namespace StarForge.AI
 
             // 1c. Upgrades for the Mech, from ore it can spare.
             if (issued < MaxPerPass && !saving && BuyMechUpgrade(F)) issued++;
+            // 1d. The Armory's research for what it fields most, from ore it can spare.
+            if (issued < MaxPerPass && !saving && BuyResearch(s, F)) issued++;
 
             // 2. Production structures, at most two going up at once.
             int extraProd = F.ore > 550 ? 2 : (F.ore > 320 ? 1 : 0);
@@ -656,6 +706,25 @@ namespace StarForge.AI
                 if (b != null && PlaceNear(UnitType.Sentinel, around, 0f, 10f, out var spot) && Build(b, UnitType.Sentinel, spot)) issued++;
             }
 
+            // 2c. The wider roster's buildings: an Armory once established (its upgrades, and the
+            //     Thumper and the Marksman), then the tech its personality leans to -- an Airfield
+            //     or a Biolab -- and the other one as an answer later: an Airfield against an army
+            //     that cannot shoot up, a Biolab once it is rich.
+            if (issued < MaxPerPass && !saving && s.pending < 2)
+            {
+                UnitType want = TechBuildingWanted(s, F);
+                if (want != UnitType.None && F.ore >= Need(want))
+                {
+                    var b = Builder();
+                    // The Airfield is the widest footprint after the Foundry: the inner ring of a
+                    // grown base often has no room for it (an air-path AI never raised one), so further out.
+                    // ...and only where its builder can walk (the outer ring can be a plateau top or a
+                    // clearing no ground unit reaches: a site there stood pending and blocked the rest).
+                    if (b != null && ((PlaceNear(want, home, 12f, 30f, out var spot) && w.Reaches(b, spot)) ||
+                                      (PlaceNear(want, home, 30f, 46f, out spot) && w.Reaches(b, spot))) && Build(b, want, spot)) issued++;
+                }
+            }
+
             // 3. Expansion, at the site chosen above.
             if (issued < MaxPerPass && expand && F.ore >= foundryCost)
             {
@@ -679,7 +748,11 @@ namespace StarForge.AI
             }
 
             // 4. Workers -- never allowed to block army production below.
-            if (issued < MaxPerPass && s.workers + s.queuedType[(int)UnitType.Worker] < plan.workers &&
+            // A Hauler brings in what about two Diggers do: fewer Diggers once it has some (never under
+            // ten: they build).
+            int wantDiggers = Mathf.Max(Mathf.Min(10, plan.workers), plan.workers - 2 * (s.own[(int)UnitType.Hauler] + s.queuedType[(int)UnitType.Hauler])
+                                        - s.own[(int)UnitType.Prospector] / 2);
+            if (issued < MaxPerPass && s.workers + s.queuedType[(int)UnitType.Worker] < wantDiggers &&
                 F.ore >= Defs.Get(UnitType.Worker).cost && !MapMinedOut())
             {
                 foreach (var e in w.units)
@@ -694,16 +767,43 @@ namespace StarForge.AI
                 }
             }
 
+            // 4b. The heavy workers: Haulers once a Workshop stands (a taste for them, or Diggers
+            //     being lost to raids), Prospectors -- miners that fight back -- while its workers are
+            //     being raided.
+            if (issued < MaxPerPass && !saving && s.workers >= 8 && !MapMinedOut())
+            {
+                bool raided = w.time - lastWorkerHitAt < 90f;
+                int wantHaulers = s.workshops == 0 || w.time < 240f ? 0
+                                : Mathf.Min(4, s.foundries * (Personality.haulerTaste > 0.5f || raided ? 2 : 1));
+                int wantProspectors = s.garrisons == 0 || w.time < 200f ? 0 : raided ? 3 : Personality.haulerTaste > 0.75f ? 1 : 0;
+                UnitType pick = UnitType.None;
+                if (s.own[(int)UnitType.Hauler] + s.queuedType[(int)UnitType.Hauler] < wantHaulers) pick = UnitType.Hauler;
+                else if (s.own[(int)UnitType.Prospector] + s.queuedType[(int)UnitType.Prospector] < wantProspectors) pick = UnitType.Prospector;
+                if (pick != UnitType.None && F.ore >= Need(pick))
+                    foreach (var e in w.units)
+                    {
+                        if (e == null || e.dying || e.team != team || e.Type != UnitType.Foundry || !e.Complete || e.queue.Count > 0) continue;
+                        if (s.eMech && s.eMechSeenAgo < 10f && (s.eMechPos - e.pos).magnitude < 40f) continue;
+                        if (Train(e, pick)) { issued++; s.queuedType[(int)pick]++; }
+                        break;
+                    }
+            }
+
             // 5. Army from every idle production structure. Floating ore is the
             //    single most common way for an RTS bot to lose a game it should win.
             bool rich = F.ore > 400;
             // Only while it has the hands for it (here and in 5b, 5c): a loop that went on past
             // an empty budget had every later order refused, pass after pass -- over a thousand
             // refused in a match, which said nothing about what it actually left undone.
+            // The tech its personality leans to (an Airfield, a Biolab) trains first: last in the unit
+            // list, it found the ore spent by the Garrisons and Workshops before it, pass after pass, and
+            // on a thin economy a Biolab stood a whole match without breeding anything.
+            for (int pass = 0; pass < 2; pass++)
             for (int i = 0; i < w.units.Count && issued < MaxPerPass && !saving && Budget.Can(2); i++)
             {
                 var e = w.units[i];
                 if (e == null || e.dying || e.team != team || !e.Complete || e.queue.Count >= 2) continue;
+                if ((e.Type == UnitType.Airfield || e.Type == UnitType.Biolab) != (pass == 0)) continue;
                 if (e.Type == UnitType.Garrison)
                 {
                     int skimHave = s.skimmers + s.queuedType[(int)UnitType.Skimmer];
@@ -714,12 +814,23 @@ namespace StarForge.AI
                     else if (F.ore >= Need(UnitType.Trooper) &&
                              (rich || s.workshops == 0 || rng.F01() < plan.trooperBias))
                     {
-                        if (Train(e, UnitType.Trooper)) issued++;
+                        var pick = PickInfantry(s);
+                        if (F.ore < Need(pick)) pick = UnitType.Trooper;
+                        if (Train(e, pick)) issued++;
                     }
                 }
                 else if (e.Type == UnitType.Workshop && F.ore >= Need(UnitType.Mauler))
                 {
-                    if (Train(e, UnitType.Mauler)) issued++;
+                    var pick = PickTank(s);
+                    // Rolled something it cannot afford yet: the base tank, rather than an idle Workshop.
+                    if (F.ore < Need(pick)) pick = UnitType.Mauler;
+                    if (F.ore >= Need(pick) && Train(e, pick)) issued++;
+                }
+                else if (e.Type == UnitType.Airfield || e.Type == UnitType.Biolab)
+                {
+                    var pick = e.Type == UnitType.Airfield ? PickAircraft(s) : PickCreature(s);
+                    if (F.ore < Need(pick)) pick = e.Type == UnitType.Airfield ? UnitType.Kestrel : UnitType.Skitter;
+                    if (F.ore >= Need(pick) && Train(e, pick)) issued++;
                 }
             }
 
@@ -796,10 +907,10 @@ namespace StarForge.AI
                     Vector2 to = default;
                     bool clear = false;
                     // From their Mech, home first, among its towers and army -- unless the way home runs
-                    // towards it: cleared only past its reach, a Digger stood there and the Mech, hunting
-                    // the knot, walked up to it again (24-30 a match killed at its outlying lines, 41-104
-                    // clears).
-                    if (!LegacyDiggerSafety && UnderMech(onDuty ? h.harvestNode.pos : h.pos) && !MechAhead(h.pos, home))
+                    // towards it or through a tower's or bay's reach: cleared only past its reach, a Digger
+                    // stood there and the Mech, hunting the knot, walked up to it again (24-30 a match
+                    // killed at its outlying lines, 41-104 clears).
+                    if (!LegacyDiggerSafety && UnderMech(onDuty ? h.harvestNode.pos : h.pos) && !WayBlocked(h.pos, home))
                     {
                         to = w.NearestReachable(home, home);
                         clear = !UnderGun(to);
@@ -852,7 +963,7 @@ namespace StarForge.AI
             //    any other Foundry of its own (once home runs dry, that is where the ore is),
             //    the seam nearest where they stand.
             var idle = new List<Unit>();
-            foreach (var h in OwnOf(UnitType.Worker, true)) if (!Reserved(h)) idle.Add(h);
+            foreach (var h in OwnHarvesters(true)) if (!Reserved(h)) idle.Add(h);
             if (idle.Count > 0 && issued < MaxPerPass)
             {
                 Vector2 at = Vector2.zero;
@@ -914,8 +1025,10 @@ namespace StarForge.AI
         }
 
         bool EconomyDead(Snapshot s) =>
+            // No Digger and none coming, and no Foundry or (nothing mining either) no Digger's price: a
+            // Hauler or Prospector left with a Foundry still brings in what buys one.
             (s.workers + s.queuedType[(int)UnitType.Worker] == 0 &&
-             (w.factions[team].ore < Defs.Get(UnitType.Worker).cost || s.foundries == 0))
+             (s.foundries == 0 || (s.harvesters == 0 && w.factions[team].ore < Defs.Get(UnitType.Worker).cost)))
             // The map mined out (a seam that runs dry is gone from the map for everyone) and less
             // in hand than a rifleman: nothing it does can grow its army again either (two sides
             // with Diggers idle and armies under their thresholds stood the last 20 minutes apart).
@@ -996,18 +1109,19 @@ namespace StarForge.AI
         int staticGuns;
         const float MechReach = 40f;
 
-        /// <summary>Whether the way from a to b passes one of their Mechs it has in sight (step 5b's guns
-        /// past the towers) within 25 m, and nearer than a stands now (Diggers it killed died 16-33 m
-        /// from it on average).</summary>
-        bool MechAhead(Vector2 a, Vector2 b)
+        /// <summary>Whether the straight way from a to b passes one of their Mechs it has in sight (step
+        /// 5b's guns past the towers) within 25 m and nearer than a stands now (Diggers it killed died
+        /// 16-33 m from it on average), or runs through a tower's or bay's reach.</summary>
+        bool WayBlocked(Vector2 a, Vector2 b)
         {
             Vector2 ab = b - a;
             float len2 = Mathf.Max(0.01f, ab.sqrMagnitude);
-            for (int i = staticGuns; i < guns.Count; i++)
+            for (int i = 0; i < guns.Count; i++)
             {
                 var g = new Vector2(guns[i].x, guns[i].y);
                 float t = Mathf.Clamp01(Vector2.Dot(g - a, ab) / len2);
-                if ((a + ab * t - g).magnitude < Mathf.Min((a - g).magnitude - 1f, 25f)) return true;
+                float closest = (a + ab * t - g).magnitude;
+                if (i < staticGuns ? closest < guns[i].z : closest < Mathf.Min((a - g).magnitude - 1f, 25f)) return true;
             }
             return false;
         }
@@ -1129,6 +1243,154 @@ namespace StarForge.AI
         static readonly MechUpgrade[] RaidOrder = { MechUpgrade.Servos, MechUpgrade.Weapons, MechUpgrade.Hardpoint, MechUpgrade.Armour, MechUpgrade.Targeting };
         static readonly MechUpgrade[] AttackOrder = { MechUpgrade.Hardpoint, MechUpgrade.Weapons, MechUpgrade.Armour, MechUpgrade.Servos, MechUpgrade.Targeting };
 
+        // ------------------------------------------------------------ the wider roster
+        /// <summary>The tech building it raises next, or None: the Armory once established; then
+        /// the tech its personality leans to (an Airfield or a Biolab), and the other later as an
+        /// answer -- an Airfield against an army that cannot shoot up, either once rich.</summary>
+        UnitType TechBuildingWanted(Snapshot s, Faction F)
+        {
+            if (s.garrisons < 1) return UnitType.None;
+            int Have(UnitType t) => s.own[(int)t] + s.pendingType[(int)t];
+            if (Have(UnitType.Armory) == 0 && w.time >= Personality.armoryAt) return UnitType.Armory;
+            float theirs = s.eLightValue + s.eHeavyValue + s.eAirValue;
+            float aa = theirs > 1f ? s.eAntiAirValue / theirs : 0.5f;
+            int path = Personality.techPath;
+            bool rich = F.ore > 700;
+            if (Have(UnitType.Airfield) == 0 && s.workshops >= 1 && w.time >= 300f &&
+                (path == 1 || (w.time >= 480f && theirs > 600f && aa < 0.3f) || (rich && w.time >= 600f)))
+                return UnitType.Airfield;
+            if (Have(UnitType.Biolab) == 0 && w.time >= 240f && (path == 2 || (rich && w.time >= 540f)))
+                return UnitType.Biolab;
+            // A second of its own tech's building once it has the ore.
+            if (path == 2 && Have(UnitType.Biolab) == 1 && F.ore > 600 && w.time > 480f) return UnitType.Biolab;
+            if (path == 1 && Have(UnitType.Airfield) == 1 && F.ore > 700 && w.time > 540f) return UnitType.Airfield;
+            return UnitType.None;
+        }
+
+        /// <summary>Their army as it has seen it, by what answers it: shares of aircraft, armour
+        /// (their Mech among it, as a target for armour-piercing guns), light ground troops, and
+        /// what of theirs can shoot at aircraft.</summary>
+        static void Shares(Snapshot s, out float air, out float heavy, out float light, out float aa)
+        {
+            float tot = s.eLightValue + s.eHeavyValue + s.eAirValue;
+            if (tot < 1f) { air = 0f; heavy = 0.3f; light = 0.7f; aa = 0.5f; }
+            else { air = s.eAirValue / tot; heavy = s.eHeavyValue / tot; light = s.eLightValue / tot; aa = s.eAntiAirValue / tot; }
+            if (s.eMech) heavy = Mathf.Min(1f, heavy + 0.25f);
+        }
+
+        /// <summary>One of the options, by weight, on its own stream.</summary>
+        UnitType Weighted(params (UnitType t, float w)[] options)
+        {
+            float sum = 0f;
+            foreach (var o in options) if (o.w > 0f) sum += o.w;
+            if (sum <= 0f) return options[0].t;
+            float r = mixRng.F01() * sum;
+            foreach (var o in options)
+            {
+                if (o.w <= 0f) continue;
+                r -= o.w;
+                if (r <= 0f) return o.t;
+            }
+            return options[0].t;
+        }
+
+        /// <summary>A specialist's weight falls off as it has more of them (a third of the rest).</summary>
+        static float Few(Snapshot s, UnitType t, float wgt) => wgt * 3f / (3f + s.own[(int)t]);
+
+        /// <summary>The Garrison's rifleman of the moment: Troopers by default (they shoot at
+        /// aircraft too), Rocketeers against armour, Scorchers against light troops, Thumpers against towers and crowds,
+        /// Marksmen against aircraft and riflemen -- the last two once the Armory stands.</summary>
+        UnitType PickInfantry(Snapshot s)
+        {
+            Shares(s, out float air, out float heavy, out float light, out _);
+            bool armory = s.own[(int)UnitType.Armory] > 0;
+            return Weighted((UnitType.Trooper, 1f + 0.6f * air),
+                            (UnitType.Rocketeer, Few(s, UnitType.Rocketeer, 0.15f + 1.4f * heavy)),
+                            (UnitType.Scorcher, Few(s, UnitType.Scorcher, 0.2f + 1.1f * light)),
+                            (UnitType.Thumper, armory ? Few(s, UnitType.Thumper, 0.15f + (s.eSentinels > 0 ? 0.6f : 0f) + 0.4f * light) : 0f),
+                            (UnitType.Marksman, armory ? Few(s, UnitType.Marksman, 0.1f + 0.9f * air + 0.2f * light) : 0f));
+        }
+
+        /// <summary>The Workshop's tank: Maulers by default (towers above all), Lancers against
+        /// armour and their Mech, the Aegis once it has seen aircraft, the Ironclad (once the Armory
+        /// stands) against both.</summary>
+        UnitType PickTank(Snapshot s)
+        {
+            Shares(s, out float air, out float heavy, out float light, out _);
+            return Weighted((UnitType.Mauler, 1f + (s.eSentinels > 0 ? 0.8f : 0f) + 0.3f * light),
+                            (UnitType.Lancer, Few(s, UnitType.Lancer, 0.3f + 1.6f * heavy)),
+                            (UnitType.Aegis, air > 0.05f ? Few(s, UnitType.Aegis, 0.2f + 3f * air) : 0f),
+                            (UnitType.Ironclad, s.own[(int)UnitType.Armory] > 0 ? Few(s, UnitType.Ironclad, 0.25f + 0.8f * air + 0.5f * heavy) : 0f));
+        }
+
+        /// <summary>The Airfield's: gunships, more where little of theirs shoots up; interceptors
+        /// against their aircraft.</summary>
+        UnitType PickAircraft(Snapshot s)
+        {
+            Shares(s, out float air, out _, out _, out float aa);
+            return Weighted((UnitType.Kestrel, 1f + 0.6f * (1f - aa)),
+                            (UnitType.Swift, air > 0.05f ? 0.3f + 3f * air : 0.1f));
+        }
+
+        /// <summary>The Biolab's: Skitters by default, Spitters against aircraft, Razorwings where
+        /// little of theirs shoots up, the Gorehorn (once the Armory stands) to break their line.</summary>
+        UnitType PickCreature(Snapshot s)
+        {
+            Shares(s, out float air, out _, out _, out float aa);
+            Shares(s, out _, out _, out float light, out _);
+            return Weighted((UnitType.Skitter, 1f),
+                            (UnitType.Spitter, 0.8f + 2.5f * air),
+                            (UnitType.Razorwing, Few(s, UnitType.Razorwing, 0.4f + 0.6f * (1f - aa))),
+                            (UnitType.Gorehorn, s.own[(int)UnitType.Armory] > 0 ? Few(s, UnitType.Gorehorn, 0.35f + 0.6f * light) : 0f));
+        }
+
+        /// <summary>Armory research for the class it fields most, weapons and armour levelled out,
+        /// from ore it can spare (more readily the keener its personality).</summary>
+        bool BuyResearch(Snapshot s, Faction F)
+        {
+            if (w.time < 240f) return false;
+            Unit armory = null;
+            foreach (var u in w.units)
+                if (u != null && !u.dying && u.team == team && u.Type == UnitType.Armory && u.Complete && u.researchLine < 0) { armory = u; break; }
+            if (armory == null) return false;
+            int spare = F.ore - (int)Mathf.Lerp(450f, 200f, Personality.researchTaste);
+            if (spare <= 0) return false;
+            float inf = 0f, veh = 0f, bio = 0f;
+            for (int i = 0; i < (int)UnitType.Count; i++)
+            {
+                var d = Defs.Get((UnitType)i);
+                if (d == null || !d.IsArmy || s.own[i] == 0) continue;
+                float v = s.own[i] * d.cost;
+                if (d.upgradeClass == UnitClass.Infantry) inf += v;
+                else if (d.upgradeClass == UnitClass.Vehicle) veh += v;
+                else if (d.upgradeClass == UnitClass.Creature) bio += v;
+            }
+            var classes = new List<(float v, ArmyUpgrade weapons, ArmyUpgrade armour)>
+            {
+                (inf, ArmyUpgrade.InfantryWeapons, ArmyUpgrade.InfantryArmour),
+                (veh, ArmyUpgrade.VehicleWeapons, ArmyUpgrade.VehiclePlating),
+                (bio, ArmyUpgrade.CreatureWeapons, ArmyUpgrade.CreatureCarapace),
+            };
+            classes.Sort((a, b) => b.v.CompareTo(a.v));
+            foreach (var c in classes)
+            {
+                if (c.v < 300f) break;
+                var first = F.armyUpgrades[(int)c.armour] < F.armyUpgrades[(int)c.weapons] ? c.armour : c.weapons;
+                foreach (var up in new[] { first, first == c.weapons ? c.armour : c.weapons })
+                {
+                    int cost = w.ArmyUpgradeCost(team, up);
+                    if (cost < 0 || cost > spare || w.ResearchingAt(team, up) != null) continue;
+                    if (!Pay(2, "Research")) return false;           // select the Armory + hotkey
+                    Budget.Note(w.time);
+                    lastSelHash = -1f;
+                    if (!w.CmdArmoryResearch(armory, up)) return false;
+                    Dbg.researchBought++;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         bool BuyMechUpgrade(Faction F)
         {
             var bay = w.BayOf(team);
@@ -1162,6 +1424,8 @@ namespace StarForge.AI
         /// that can, and never with the base under attack.</summary>
         void OnWorldEvent(GameEvent e)
         {
+            if (e.kind == GameEventKind.UnderAttack && e.team == team && e.unit != null && e.unit.def.harvester) lastWorkerHitAt = w.time;
+            if (e.kind == GameEventKind.UnitReady && e.team == team && e.type >= 0 && e.type < UnitType.Count) Dbg.trained[(int)e.type]++;
             if (e.kind != GameEventKind.MechAdvice || e.team != team || w.winner >= 0) return;
             HearMech(e.advice, new Vector2(e.pos.x, e.pos.z));
         }
@@ -1317,11 +1581,11 @@ namespace StarForge.AI
             // Skimmers only ever scouted or walked with the army, and every match went the same way.
             bool sideRaid = st != Strategy.Harass && Personality.raidTaste > 0.5f && w.time > 180f && s.skimmers >= 2;
             int harassWant = st == Strategy.Harass ? 4 : sideRaid ? 2 : 0;
-            foreach (var t in new[] { UnitType.Skimmer, UnitType.Trooper, UnitType.Mauler })
+            foreach (var t in SquadTypes)
                 foreach (var h in OwnOf(t))
                 {
                     if (Reserved(h)) continue;
-                    if (t != UnitType.Mauler && harass.Count < harassWant && (!sideRaid || t == UnitType.Skimmer)) harass.Add(h);
+                    if (Raider(t) && harass.Count < harassWant && (!sideRaid || t == UnitType.Skimmer)) harass.Add(h);
                     else main.Add(h);
                 }
             if (sideRaid)
@@ -1375,7 +1639,7 @@ namespace StarForge.AI
                     if (d < (structAt - home).magnitude || structAt == home) structAt = r.pos;
                     continue;
                 }
-                threatHome += r.type == UnitType.Worker ? 15f : Defs.ArmyValue(r.type);
+                threatHome += Defs.IsWorkerType(r.type) && !Defs.Get(r.type).Armed ? 15f : r.type == UnitType.Worker ? 15f : Defs.ArmyValue(r.type);
                 if (d < (threatAt - home).magnitude || threatAt == home) threatAt = r.pos;
             }
             // ...but it is taken on with an army that can: a handful of Troopers sent at a Mech
@@ -1473,7 +1737,7 @@ namespace StarForge.AI
                 float bestD = 1e30f;
                 foreach (var e in w.units)
                 {
-                    if (e == null || e.dying || e.team == team || e.team == 2 || e.Type != UnitType.Worker) continue;
+                    if (e == null || e.dying || e.team == team || e.team == 2 || !e.def.harvester || e.def.Heavy) continue;
                     if (!w.Visible(team, e.pos)) continue;           // must actually see it
                     float d = (e.pos - hc).magnitude + 25f * Influence.Sample(1, e.pos);
                     if (d < bestD) { bestD = d; victim = e; target = e.pos; }
@@ -1759,7 +2023,7 @@ namespace StarForge.AI
                     prong.Clear();
                     int want = Mathf.Max(2, main.Count / 4);
                     for (int i = main.Count - 1; i >= 0 && prong.Count < want; i--)
-                        if (main[i].Type != UnitType.Mauler) { prong.Add(main[i]); main.RemoveAt(i); }
+                        if (main[i].Type != UnitType.Mauler && !main[i].def.heavyArmour && main[i].Type != UnitType.Thumper) { prong.Add(main[i]); main.RemoveAt(i); }
                     prongOn = prong.Count >= 2;
                     if (!prongOn) { main.AddRange(prong); prong.Clear(); }
                 }
@@ -1804,7 +2068,7 @@ namespace StarForge.AI
                 if (bestD > 1e29f)
                     foreach (var r in Perception.Enemies)
                     {
-                        if (r.type != UnitType.Worker || w.time - r.lastSeen > 30f) continue;
+                        if (!Defs.IsWorkerType(r.type) || r.type == UnitType.Hauler || w.time - r.lastSeen > 30f) continue;
                         float d = (r.pos - mainCentre).magnitude;
                         if (d < bestD) { bestD = d; waveAt = r.pos; }
                     }

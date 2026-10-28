@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Kestrel
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 18
+  displayName: Kestrel
+  blurb: Gunship. Flies over cliffs, water and woods and rockets what is on the ground; cannot fire at aircraft.
+  building: 0
+  neutral: 0
+  radius: 1.2
+  hp: 150
+  speed: 8.5
+  turnRate: 3.5
+  range: 12
+  damage: 18
+  cooldown: 1.1
+  splash: 1.6
+  sight: 32
+  bonusVsWorkers: 1
+  weapon: 7
+  hitsAir: 0
+  hitsGround: 1
+  minRange: 0
+  vsLight: 1
+  vsHeavy: 1.15
+  vsStructure: 1
+  vsAir: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 2
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 0
+  flying: 1
+  altitude: 7.5
+  organic: 0
+  buildTime: 26
+  cost: 175
+  supplyCost: 3
+  supplyGive: 0
+  hotkey: 71
+  producer: 25
+  requires: -1
+  prefabs:
+  - {fileID: 1408972460530436780, guid: 6f4e7ea02d1b94aae85e8f3c6ec6b857, type: 3}
+  - {fileID: 1070394727182033669, guid: 333d85756d8154a09abe8040a8c21e7f, type: 3}
+  icon: {fileID: 2800000, guid: ccbc01ca2123648909a6e40618d28b90, type: 3}
+  visualRadius: 1.9200001
+  visualHeight: 8.84

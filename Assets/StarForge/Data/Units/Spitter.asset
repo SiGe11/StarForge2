@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Spitter
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 23
+  displayName: Spitter
+  blurb: Bred acid-spitter. Hops into range and spits acid at ground and air alike.
+  building: 0
+  neutral: 0
+  radius: 0.75
+  hp: 100
+  speed: 5.4
+  turnRate: 8
+  range: 15
+  damage: 12
+  cooldown: 0.9
+  splash: 0
+  sight: 28
+  bonusVsWorkers: 1
+  weapon: 10
+  hitsAir: 1
+  hitsGround: 1
+  minRange: 0
+  vsLight: 1
+  vsHeavy: 1
+  vsStructure: 1
+  vsAir: 1.25
+  bounces: 0
+  ignite: 0
+  upgradeClass: 3
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 0
+  flying: 0
+  altitude: 0
+  organic: 1
+  buildTime: 18
+  cost: 90
+  supplyCost: 2
+  supplyGive: 0
+  hotkey: 84
+  producer: 27
+  requires: -1
+  prefabs:
+  - {fileID: 3615181904217672870, guid: 3833592d37f8d4d83ba8a6fb85179b24, type: 3}
+  - {fileID: 7645588707743446182, guid: fb281a487848c44199bfb3c0439ae30f, type: 3}
+  icon: {fileID: 2800000, guid: a75ea5ef1ed45464ab57cc4afda54847, type: 3}
+  visualRadius: 1.05
+  visualHeight: 1.6

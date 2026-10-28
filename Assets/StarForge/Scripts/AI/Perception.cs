@@ -103,6 +103,10 @@ namespace StarForge.AI
                 {
                     if (e.deserted) continue;   // gone from the army (GameWorld.Morale)
                     if (!e.Complete) { s.pending++; s.pendingType[(int)e.Type]++; continue; }
+                    s.own[(int)e.Type]++;
+                    if (e.def.harvester) s.harvesters++;
+                    // The wider roster's fighters by what they cost (the original three below, as before).
+                    if (e.def.IsArmy && e.Type > UnitType.Mech) s.armyValue += Defs.ArmyValue(e.Type);
                     switch (e.Type)
                     {
                         case UnitType.Worker: s.workers++; break;
@@ -187,6 +191,17 @@ namespace StarForge.AI
 
             foreach (var r in mem)
             {
+                s.seen[(int)r.type]++;
+                var RD = Defs.Get(r.type);
+                if (RD != null && RD.IsArmy)
+                {
+                    float v = Defs.ArmyValue(r.type);
+                    if (r.type > UnitType.Mech) s.eArmyValue += v;   // the original three below, as before
+                    if (RD.flying) s.eAirValue += v;
+                    else if (RD.Heavy) s.eHeavyValue += v;
+                    else s.eLightValue += v;
+                    if (RD.hitsAir) s.eAntiAirValue += v;
+                }
                 switch (r.type)
                 {
                     case UnitType.Worker: s.eWorkers++; break;
@@ -210,7 +225,7 @@ namespace StarForge.AI
                 }
                 var D = Defs.Get(r.type);
                 // The Mech is nobody's style: it is left out of the read of the player.
-                if (!D.building && r.type != UnitType.Worker && r.type != UnitType.Mech)
+                if (!D.building && !D.harvester && r.type != UnitType.Mech)
                 {
                     float dHome = (r.pos - Home).magnitude;
                     if (dHome < 70f) s.eArmyNearOurBase += Defs.ArmyValue(r.type);
@@ -229,7 +244,7 @@ namespace StarForge.AI
             if (s.enemyBaseKnown)
                 foreach (var r in mem)
                 {
-                    if (Defs.Get(r.type).building || r.type == UnitType.Worker || r.type == UnitType.Mech) continue;
+                    if (Defs.Get(r.type).building || Defs.Get(r.type).harvester || r.type == UnitType.Mech) continue;
                     if ((r.pos - s.enemyBase).magnitude > 45f) s.eArmyAwayFromHome += Defs.ArmyValue(r.type);
                 }
 

@@ -29,8 +29,17 @@ namespace StarForge.World
 
         /// <summary>Where a shot at <paramref name="t"/> is aimed: a little up its body,
         /// half-way up a Mech.</summary>
-        public static Vector3 AimPoint(Unit t) =>
+        public static Vector3 AimPoint(Unit t) => t.def.flying ? AirPoint(t) :
             t.Ground + Vector3.up * (t.mech != null ? t.def.visualHeight * 0.5f : t.def.radius * 0.6f);
+
+        /// <summary>Where an aircraft is: its height over the ground, or over the water where that is higher
+        /// (its transform rides the terrain, the lake bed included).</summary>
+        public static Vector3 AirPoint(Unit t)
+        {
+            var g = t.Ground;
+            g.y = Mathf.Max(g.y, t.World.Map.waterLevel) + t.def.altitude;
+            return g;
+        }
 
         public Unit MechOf(int team) => team >= 0 && team < 2 && Unit.Live(factions[team].mech) ? factions[team].mech : null;
         public Unit BayOf(int team) => team >= 0 && team < 2 && Unit.Live(factions[team].bay) ? factions[team].bay : null;
@@ -215,7 +224,7 @@ namespace StarForge.World
             {
                 if (e == m || e.def.building || e.def.neutral || e.dying) continue;
                 float k = 1f - Saturate((e.pos - m.pos).magnitude / LandingRadius);
-                if (e.team != m.team && e.team < 2) Damage(e, LandingDamage * k, m.pos, m, true);
+                if (e.team != m.team && e.team < 2 && !e.def.flying) Damage(e, LandingDamage * k, m.pos, m, true);
                 Shove(e, e.pos - m.pos, 9f * k);
             }
             Blast(at, 6.5f, 4.2f, 0.5f, 0.25f);
@@ -340,6 +349,8 @@ namespace StarForge.World
                     foreach (var e in gunScratch)
                     {
                         if (e.Untargetable || e.dying) continue;
+                        // Along the ground, or up at an aircraft: not both.
+                        if (e.def.flying != target.def.flying) continue;
                         if (DistToSegment(e.pos, a2, b2) > e.def.radius + 0.8f) continue;
                         hitList.Add((Vector2.Dot(e.pos - a2, (b2 - a2).normalized), e));
                     }
@@ -372,7 +383,7 @@ namespace StarForge.World
                     flameScratch.AddRange(gunScratch);
                     foreach (var e in flameScratch)
                     {
-                        if (e.Untargetable || e.dying) continue;
+                        if (e.Untargetable || e.dying || e.def.flying) continue;
                         Vector2 d = e.pos - shooter.pos;
                         float dist = d.magnitude - e.def.radius;
                         if (dist > reach) continue;
@@ -405,6 +416,13 @@ namespace StarForge.World
             p.vsLight = part.vsLight;
             p.vsHeavy = part.vsHeavy;
             p.vsStructure = part.vsStructure;
+            p.vsAir = part.vsLight;
+            // A burst catches the layer of what it was fired at: on an aircraft, aircraft round it; on the
+            // ground, what stands there (a missile at an aircraft does not burst on the men under it).
+            bool air = target != null && target.def.flying;
+            p.hitsAir = air;
+            p.hitsGround = !air;
+            p.bounces = 0;
             // Fired at its own side's deserters (GameWorld.Morale): the burst may catch them.
             p.purge = target != null && target.deserted && target.team == shooter.team;
             p.age = 0f;

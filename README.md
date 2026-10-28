@@ -61,8 +61,9 @@ rebuilt from the **StarForge** menu; **StarForge ▸ Build All** runs every step
 | **Select** | Click · drag a box · double-click selects that type on screen · `Shift` adds · `F2` whole army |
 | **Groups** | `Ctrl`/`Cmd`+`1`–`0` assign · `1`–`0` recall (double-tap to centre) |
 | **Orders** | Right-click: move / attack / mine / rally · `R` attack-move · `C` stop · `H` hold |
-| **Build** | Digger selected: `B` Bunkhouse · `G` Garrison · `V` Workshop · `N` Sentinel · `F` Foundry · `Y` Mech Bay |
-| **Train** | Foundry `U` Digger · Garrison `T` Trooper, `K` Skimmer · Workshop `M` · `X` cancel |
+| **Build** | Digger selected: `B` Bunkhouse · `G` Garrison · `V` Workshop · `N` Sentinel · `F` Foundry · `Y` Mech Bay · `U` Armory · `L` Airfield · `O` Biolab |
+| **Train** | Foundry `U` Digger, `J` Hauler, `K` Prospector · Garrison `T` Trooper, `K` Skimmer, `F` Scorcher, `M` Thumper, `N` Marksman, `B` Rocketeer · Workshop `M` Mauler, `L` Lancer, `F` Aegis, `T` Ironclad · Airfield `G` Kestrel, `F` Swift · Biolab `Z` Skitter, `T` Spitter, `V` Razorwing, `G` Gorehorn · `X` cancel. With Diggers in the selection the card shows only their builds |
+| **Armory** | The Armory selected on its own: `T` Infantry Weapons · `G` Infantry Armour · `V` Vehicle Weapons · `B` Vehicle Plating · `N` Creature Venom · `M` Creature Carapace · `X` cancel |
 | **Mech Bay** | The bay selected on its own: `V` Servo Actuators · `B` Ablative Armour · `N` Weapon Overcharge · `M` Extra Hardpoint · `K` Targeting Uplink · `X` cancel · click the Mech strip (top left) to find the Mech |
 | **Other** | `P` pause (no orders go in until you resume) · `,` `.` game speed, kept through a pause · `Esc` unwinds placement → selection → menu |
 
@@ -81,6 +82,21 @@ memory of how you play.
 | Trooper | 50 | 1 | 55 | Cheap ranged infantry |
 | Mauler | 150 | 3 | 180 | Tank; long-range splash artillery, outranges Sentinels; drives through boulders and trees, crushing them |
 | **Skimmer** *(new)* | 75 | 2 | 75 | Fast hover raider, wide sensors, double damage vs Diggers |
+| **Scorcher** | 75 | 1 | 95 | Flamethrower infantry: 6 m jet that burns every enemy on the ground in it; strong against infantry, Diggers and creatures, weak against armour; sets grass alight |
+| **Thumper** | 100 | 2 | 70 | Mortar infantry: lobs shells 26 m over cover with splash; cannot fire inside 7 m or at aircraft (needs an Armory) |
+| **Marksman** | 125 | 2 | 55 | Sniper: 30 m, one shot fells a rifleman; slow to fire, fragile, poor against armour; shoots at aircraft (needs an Armory) |
+| **Rocketeer** | 90 | 2 | 90 | Anti-armour infantry: a shoulder rocket (19 m, 1.6x against armour) that wrecks tanks, Mechs and buildings; poor against infantry, cannot fire at aircraft |
+| **Lancer** | 175 | 3 | 280 | Tank destroyer: armour-piercing cannon, 1.5x against armour, wasteful against infantry |
+| **Aegis** | 150 | 3 | 200 | Anti-aircraft tank: flak that bursts round aircraft (2.2x against them), light work against ground targets |
+| **Ironclad** | 300 | 6 | 480 | Walking mini-mech (Workshop, needs an Armory): twin shoulder cannons against the ground, missile pods against aircraft; slow, very hard to stop |
+| **Kestrel** | 175 | 3 | 150 | Gunship (Airfield): flies over cliffs, water and woods, rockets ground targets; cannot fire at aircraft |
+| **Swift** | 125 | 2 | 110 | Interceptor (Airfield): the fastest thing in the sky, made to hunt aircraft; strafes the ground for little |
+| **Hauler** | 125 | 1 | 280 | Armoured ore carrier: slow and costly but light on supply (about 1.6 Diggers' ore for one supply), 20 ore a trip, shrugs off raids; cannot build (needs a Workshop) |
+| **Prospector** | 100 | 2 | 100 | Armed miner: 5 ore a trip, fights back at its work; a fair soldier, a poor miner; cannot build (needs a Garrison) |
+| **Skitter** | 35 | 1 | 45 | Bred swarmer (Biolab): cheap and very fast, bites what it reaches; cannot reach aircraft |
+| **Spitter** | 90 | 2 | 100 | Bred acid-spitter (Biolab): hops into range, hits ground and air |
+| **Razorwing** | 150 | 2 | 130 | Bred flyer (Biolab): fast raider with a scything sting; hits ground and air |
+| **Gorehorn** | 275 | 5 | 520 | Bred armoured beast (Biolab, needs an Armory): charges in and sweeps its tusks through everything round what it strikes; cannot reach aircraft |
 
 | Structure | Cost | HP | Provides |
 |---|---|---|---|
@@ -90,6 +106,37 @@ memory of how you play.
 | Workshop | 200 | 1250 | Trains Maulers (needs a Garrison) |
 | **Sentinel** *(new)* | 125 | 500 | Defensive turret (needs a Garrison) |
 | **Mech Bay** *(new)* | 100 | 1800 | Calls down the side's Mech; gun tower, self-repair, repairs the Mech, sells its upgrades. One a match, never rebuilt ([Mechs](#mechs)) |
+| **Armory** | 150 | 900 | Research: weapons (+10% damage) and armour (-10% damage taken) for infantry, vehicles and creatures, two levels each; unlocks the Thumper, the Marksman, the Ironclad and the Gorehorn (needs a Garrison) |
+| **Airfield** | 200 | 1100 | Builds the Kestrel and the Swift (needs a Workshop) |
+| **Biolab** | 175 | 1000 | Breeds Skitters, Spitters, Razorwings and Gorehorns (needs a Garrison) |
+
+**Aircraft and creatures**: Kestrels, Swifts and Razorwings fly over cliffs, water, woods
+and rocks. Only guns that can shoot upward reach them -- Troopers, Marksmen, Prospectors,
+the Aegis, the Swift, the Spitter, the Razorwing, Sentinels, the Mech Bay's gun and every
+Mech weapon but the mortar and the flamers, and the Ironclad's missile pods; shells
+bursting on the ground do not. A downed aircraft falls where it was. The Biolab's
+creatures are Quaternius's animated spider, frog, wasp and cow made monstrous in Blender
+(`Tools/blender/build_creatures.py`: fangs, tusks and horns, spined backs, armoured
+carapaces, glowing glands, all moving with their own cycles), coloured for their side;
+they bleed rather than burn, and neither they nor aircrews ever desert. **Upgrades** from the Armory are a side's for good once
+researched; two Armories can research two lines at once, never the same one.
+
+**Balance of the wider roster** is measured, not guessed (`Editor/RosterTrials.cs`). In
+equal-ore duels (600 ore a side, every pair of the 17 fighting types) each unit wins some
+and loses some, mostly 7-10 of 16: Rocketeers and Lancers break armour, Scorchers and
+Thumpers break crowds of infantry, the Aegis and the Swift break aircraft, Skitter swarms
+overrun tanks and the Ironclad, and the Ironclad -- the strongest single unit -- was cut
+twice until Rocketeers, Spitters and Skitters beat it. Per 100 ore spent a Digger mines
+260 ore a minute, a Hauler 171 (but 213 per supply, and it shrugs off raids), a
+Prospector 72 (it is a soldier first). In the AI evaluation (20 matches against the four
+scripted players, which keep to the original units) the opponent AI using the whole
+roster won all 20, lost none (17 of 20 before), trained every new type but the Aegis (the
+scripted players field no aircraft) and researched 4-5 Armory levels a match. Raided from the
+air instead (AI against AI on seed 1000, the other side given extra Kestrels from 200 s, topped
+up to six and sent at its base), it trained 6 and 4 Aegis tanks and 4 and 1 Marksmen in two
+runs; the same match without the Kestrels, none of either. Quick evaluations on
+the final code (after the review fixes) won 3 of 4 (the Macro game running to the 720 s cap
+with both Mechs standing) and, with the capes in, 4 of 4; none lost, 0 exceptions.
 
 **Terrain** *(new)*: units wade into shallow water (up to 1 m deep) at about half
 speed, Skimmers skim over it at full speed, and deeper water stops everyone.
@@ -97,7 +144,18 @@ Boulders block everything except Maulers, which crush them and open the ground
 for all.
 
 **Veterancy** *(new)*: units rank up at 2, 5 and 10 kills (+15% damage and +10%
-health per rank) and slowly repair once out of combat.
+health per rank) and slowly repair once out of combat. **A soldier may earn a cape**: at
+each promotion a Trooper, Thumper, Scorcher, Marksman or Rocketeer without one has an 81%
+chance of one (so about 96% wear one by their second stripe, 99% by the third; the
+Prospector, a worker with an ore hopper on its back, does not). It hangs from the shoulders
+under the pauldrons with the pack worn over it and falls to the ankles, flaring wide in deep
+folds: woven cloth in a deep shade of the side's colour, with an embroidered hem band whose
+colour marks the rank (dark, bronze, gold). The fabric texture (`Art/Textures/cape_fabric.png`)
+was made for this project by the author with an image model. Near the camera it is real cloth (Unity's `Cloth`), swinging as the soldier
+walks and stops and blown by the match's wind; further off, past 24 at once, for a second
+after a stutter, or in the AI evaluation's 8x it hangs as a rigid cape that sways back as he
+moves, and when he falls it bunches up on his back. It is only for show and is hidden with
+the soldier by the fog of war.
 
 **Targets**: a unit sent after something (right-click, or attack-move onto it) stays on
 it. One that picked its own target -- idle, holding, on attack-move, or a Sentinel or a
@@ -406,6 +464,14 @@ as the Mauler's cannon (158-192 Hz, 41-58%), the deepest sounds in the game.
   a Sentinel wall while it techs to Maulers, a second ore line, a counter-attack
   while your army is away, or a feint. When its picture of you changes, so does
   its plan.
+- **It uses the whole roster.** Each match it leans to armour, aircraft or the
+  Biolab's creatures, raises an Armory and researches weapons and armour for whatever
+  it fields most, and answers what it has seen of yours: Aegis tanks, Swifts,
+  Spitters and Marksmen against your aircraft, Lancers and Rocketeers against your
+  armour, Ironclads and Gorehorns to break your line, Scorchers against massed infantry, Thumpers and Maulers against your towers, and
+  gunships or Razorwings where little of yours can shoot up. It adds Haulers to its
+  ore lines once it has a Workshop, and Prospectors -- miners that fight back --
+  while you raid them.
 - **It fights like a player.** It focuses fire on the weakest target that can
   shoot back and lets one that runs go rather than chase it across the map, pulls its
   army home when a fight turns against it and gathers it again before going back in,
@@ -659,7 +725,9 @@ out of it.
 - **Kenney** (kenney.nl): *Sci-Fi Sounds*, *Impact Sounds* and *Interface Sounds* (the
   Mech's footfalls, hydraulics, launches, lasers and drop are built from the first two).
 - **Quaternius** (via opengameart.org): *Animals Pack* and *Animal Pack Vol. 2* (wolf,
-  fox, eagle, songbird).
+  fox, eagle, songbird); (via itch.io) *Easy Animated Enemy Pack* and (via opengameart.org) *Farm Animals Pack*
+  (the spider, frog, wasp and cow the Biolab's Skitter, Spitter, Razorwing and Gorehorn are
+  made from, given horns, plates, spines and glands in Blender).
 - **JangaFX** (jangafx.com): the EmberGen simulations *Small Camp Fire* and *Ground
   Explosion* from their free VDB library, rendered in Blender into the fire and
   explosion flipbooks.
@@ -883,6 +951,19 @@ old build averaged 49.0 and 49.7 fps and the new one 49.4 and 50.2 (with a Mech 
 46.3 / 49.3 against 47.2 / 45.5, within the old build's own spread). Once more with the final build (banner
 check once a second, a cap on how long blasts keep a wreck lying, a quieter forest fire):
 50.0 against 50.4 fps, with a Mech in view 47.6 / 47.0.
+**The wider roster** (the new infantry, tanks, aircraft, workers, creatures and their
+buildings, with both AIs fielding them) costs nothing measurable either. On Unity 6000.6.7,
+High, plugged in with the battery full, the roster build averaged 50.0 fps (49.6 with a Mech
+in view, render scale 0.67) against 49.5 (48.7, 0.63) for the build from 21 October before it.
+On a second map (seed 1074, where one side goes the creature path; 540 s, run old, new, new,
+old) it averaged 46.5 and 47.9 against 45.0 and 45.1 (with a Mech in view 43.9 / 47.5 against
+41.3 / 42.7); a lone first run of it at 43.2 had come straight after two other benchmarks,
+on a warm Mac. **The capes** (`-sfnocapes` turns them off) cost nothing measurable in a match: on seed
+1000 with them, without, with them again, 51.1, 51.2 and 50.3 fps -- a match there promotes
+few soldiers (3-5 capes at most, 2-3 of them cloth at once). The full budget, 24 capes as
+cloth at once, has not been measured on the player; in the Editor, 24 against none in a crowd
+of 200 made no difference beyond its frame-to-frame spread of a few milliseconds. 0
+exceptions in all eleven runs.
 
 The median frame is a full 60 Hz refresh (16.7 ms), and the average is how often one is
 missed. Getting there took three findings, each measured on this benchmark:

@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Razorwing
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 24
+  displayName: Razorwing
+  blurb: Bred flyer. A fast raider that stings what it hunts; hits ground and air.
+  building: 0
+  neutral: 0
+  radius: 0.9
+  hp: 130
+  speed: 10.5
+  turnRate: 5
+  range: 8
+  damage: 12
+  cooldown: 1
+  splash: 0
+  sight: 30
+  bonusVsWorkers: 1.5
+  weapon: 11
+  hitsAir: 1
+  hitsGround: 1
+  minRange: 0
+  vsLight: 1
+  vsHeavy: 1
+  vsStructure: 1
+  vsAir: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 3
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 0
+  flying: 1
+  altitude: 5.5
+  organic: 1
+  buildTime: 24
+  cost: 150
+  supplyCost: 2
+  supplyGive: 0
+  hotkey: 86
+  producer: 27
+  requires: -1
+  prefabs:
+  - {fileID: 3090373180469979036, guid: 6e91321cc7bc54160b3688b669630aab, type: 3}
+  - {fileID: 4215531936399606345, guid: 1c9f98114da0c4d829d618e4645df95b, type: 3}
+  icon: {fileID: 2800000, guid: 36346d6034d1142ca840c17267626648, type: 3}
+  visualRadius: 1.2
+  visualHeight: 7.3
