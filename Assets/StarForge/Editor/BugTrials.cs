@@ -2832,7 +2832,7 @@ namespace StarForge.EditorTools
             bool outlying = Outlying, hullSet = false;
             Vector2 homeSpot = world.NearestReachable(foundry.pos, foundry.pos);
             float nearestMiner = -1f;
-            int armyNearMost = 0; float mechDiedAt = -1f;
+            int armyNearMost = 0, armyAtOursMost = 0; float mechDiedAt = -1f;
             float reach = mech.mech != null ? mech.mech.MaxRange : 25f;
             var known = new HashSet<Unit>();
             int diggers0 = 0;
@@ -2853,6 +2853,8 @@ namespace StarForge.EditorTools
             // What its actions went on in the window, by the step that asked (the evaluation line's
             // tally is the whole match's), and how often 5b could have run at all.
             var spent0 = BudgetTally(aiC, "spentBy"); var refused0 = BudgetTally(aiC, "refusedBy");
+            int waves0 = aiC != null ? aiC.Dbg.waves : 0, away0 = aiC != null ? aiC.Dbg.mechWindows : 0, hurt0 = aiC != null ? aiC.Dbg.hurtWindows : 0;
+            var waveTexts = new List<string>();
             int seenSeconds = 0, lowBudgetSeconds = 0;
             if (walk) world.CmdMechMove(mech, at);
             while (world.time - t0 < (hunting ? 180f : 120f) && world.winner < 0)
@@ -2913,6 +2915,10 @@ namespace StarForge.EditorTools
                         foreach (var u in world.UnitsNear(mech.pos, 35f))
                             if (Unit.Live(u) && u.team == 1 && !u.def.building && u.Type != UnitType.Worker) near++;
                         armyNearMost = Mathf.Max(armyNearMost, near);
+                        int atOurs = 0;
+                        foreach (var u in world.UnitsNear(map.StartPos(0), 40f))
+                            if (Unit.Live(u) && u.team == 1 && !u.def.building && u.Type != UnitType.Worker) atOurs++;
+                        armyAtOursMost = Mathf.Max(armyAtOursMost, atOurs);
                     }
                 }
                 bool sample = world.time - t0 >= nextSample;
@@ -2930,6 +2936,7 @@ namespace StarForge.EditorTools
                     if (sample && u.order == Order.Idle) idleSeconds++;
                 }
                 if (sample) { inReach += n; inReachMost = Mathf.Max(inReachMost, n); }
+                if (aiC != null && aiC.Dbg.waves > waves0 + waveTexts.Count && waveTexts.Count < 6) waveTexts.Add($"{world.time - t0:0}s {aiC.Dbg.wave}");
                 if (sample && aiC != null)
                 {
                     var sn = aiC.Perception.Snap;
@@ -2953,11 +2960,12 @@ namespace StarForge.EditorTools
             string economy = $"; idle Digger-seconds {idleSeconds}, ore mined {world.factions[1].oreMined - mined0}";
             string orders = economy + (aiC != null ? $"; step 5b cleared {aiC.Dbg.diggersCleared - cleared0} and moved {aiC.Dbg.diggersMoved - moved0} Diggers, {aiC.Budget.denied - denied0} actions refused for the APM cap" +
                                                      $"; their Mech seen in the last 4 s at {seenSeconds} of {samples} samples, budget under 2 at {lowBudgetSeconds}" +
+                                                     $"; waves started {aiC.Dbg.waves - waves0} (their Mech away {aiC.Dbg.mechWindows - away0}, hurt {aiC.Dbg.hurtWindows - hurt0}){(waveTexts.Count > 0 ? ": " + string.Join(" | ", waveTexts) : "")}" +
                                                      $"; actions in the window: spent {TallyDelta(aiC, "spentBy", spent0)}; refused {TallyDelta(aiC, "refusedBy", refused0)}" : "");
             string lineNote = line2 != null ? $"; mining at the second line at the end {MinersBy(line2)}" : "";
             if (outlying)
                 lineNote += (wayTower != null ? $"; {lostToTower} Diggers lost in the Sentinel's reach, {sentHome.Count} sent home from far out" : "") + $"; our Mech put down {(at - outlyingLine.pos).magnitude:0} m from that line's Foundry, the nearest of its Diggers {nearestMiner:0} m off, reach {reach:0} m" +
-                            $"; at that line {lostAtLine} Diggers lost, the AI's army within 35 m of our Mech {armyNearMost} at most, our Mech {mechEnd}" +
+                            $"; at that line {lostAtLine} Diggers lost, the AI's army within 35 m of our Mech {armyNearMost} at most (within 40 m of our base, held standing, {armyAtOursMost}), our Mech {mechEnd}" +
                             (rich ? "; the AI's ore held at 2,500 or more" : "") +
                             (hunting ? $"; our Mech hunting on its own (no bay), travelled {travelled:0} m, Diggers lost anywhere {diggersLost}" : "") +
                             (movedTo.Count > 0 ? $"; moved off the line {movedTo.Count}: sent {moveSentDist / movedTo.Count:0} m on average to ore {moveNodeFromMech / movedTo.Count:0} m from our Mech, the straight way passing it at {moveWayNearestSum / movedTo.Count:0} m on average ({moveWayNearest:0} at the nearest); of them lost on the way {movedDiedOnWay}, at that ore {movedDiedAtNode}, back at the line {movedDiedBack}" : "; moved off the line 0");
