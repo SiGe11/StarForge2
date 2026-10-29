@@ -10,7 +10,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -52,7 +52,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -78,7 +78,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -119,7 +119,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -161,7 +161,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -202,7 +202,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -244,7 +244,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -286,7 +286,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -303,7 +303,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -344,7 +344,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -362,7 +362,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -403,7 +403,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -444,7 +444,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -485,7 +485,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
@@ -526,7 +526,7 @@ Library: /Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/
 --generate-link-xml=Temp/burst.link.xml
 --temp-folder=/Users/sige/starforge/Temp/Burst
 --emit-version-symbol=True
---key-folder=/Applications/Unity/Hub/Editor/6000.6.5f1/PlaybackEngines/MacStandaloneSupport
+--key-folder=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/MacStandaloneSupport
 --decode-folder=/Users/sige/starforge/Library/Burst
 --output=/Users/sige/starforge/Temp/BurstOutput/StarForge2.app/Contents/Plugins/lib_burst_generated
 --pdb-search-paths=Temp/ManagedSymbols/
