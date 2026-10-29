@@ -19,6 +19,8 @@ namespace StarForge.Sim
         Skitter, Spitter, Razorwing, Airfield, Armory, Biolab,
         // Anti-armour rocket infantry (Garrison), a walking mini-mech (Workshop), the Biolab's armoured beast.
         Rocketeer, Ironclad, Gorehorn,
+        // The Workshop's Mech-killer: one in the field a side, after the Armory's programme.
+        MechHunter,
         Count
     }
 
@@ -28,7 +30,7 @@ namespace StarForge.Sim
     /// <summary>How a unit's gun works (GameWorld.Fire). Auto is the original units', chosen
     /// by their type as before.</summary>
     public enum WeaponKind { Auto = 0, Rifle, Mortar, Flamer, Sniper, Cannon, Flak, Rockets, Needle, Claws, Acid, Glaive,
-                             Bazooka, Battery, Gore }
+                             Bazooka, Battery, Gore, Lance }
 
     public enum Order { Idle = 0, Move, AttackMove, Attack, Harvest, Return, Build, Hold }
 
@@ -60,6 +62,8 @@ namespace StarForge.Sim
         [Tooltip("Too close to fire at (a mortar).")] public float minRange;
         [Tooltip("Damage multipliers by what is hit (light, heavy, structure, aircraft).")]
         public float vsLight = 1f, vsHeavy = 1f, vsStructure = 1f, vsAir = 1f;
+        [Tooltip("Damage multiplier against Mechs and Ironclads, on top of the class's (the Mech-Hunter's lance).")]
+        public float vsMech = 1f;
         [Tooltip("Further enemies a hit leaps on to, each at a third of the last (none of the roster uses it now).")] public int bounces;
         [Tooltip("Chance a hit sets the plants there alight (the Scorcher).")] public float ignite;
 
@@ -71,6 +75,8 @@ namespace StarForge.Sim
         [Tooltip("Seconds to cut a load.")] public float harvestTime = 1.6f;
         [Tooltip("Armoured: takes a Mech's anti-armour weapons' damage (tanks, the Hauler).")] public bool heavyArmour;
         public bool flying;
+        [Tooltip("A plane, not a hovering craft: always flying forward, turning wide, firing as it passes (the Swift).")]
+        public bool fixedWing;
         [Tooltip("Height it flies at, metres.")] public float altitude;
         [Tooltip("A creature from the Biolab: it bleeds rather than burns, and never deserts.")] public bool organic;
 
@@ -107,6 +113,8 @@ namespace StarForge.Sim
         public bool Walks => IsMobile && !flying;
         /// <summary>The worker counts (Diggers, Haulers, Prospectors): what keeps a side's economy.</summary>
         public bool Worker => harvester;
+        /// <summary>A Mech or the Ironclad (the mini-mech): what a gun's <see cref="vsMech"/> applies to.</summary>
+        public bool MechLike => type == UnitType.Mech || type == UnitType.Ironclad;
     }
 
     public static class Defs
@@ -170,6 +178,12 @@ namespace StarForge.Sim
         public static readonly UnitType[] Buildable =
             { UnitType.Bunkhouse, UnitType.Garrison, UnitType.Workshop, UnitType.Sentinel, UnitType.Foundry, UnitType.MechBay,
               UnitType.Armory, UnitType.Airfield, UnitType.Biolab };
+        /// <summary>The Digger's two build cards (StarCraft's basic and advanced structures): the
+        /// economy and the core army, and the tech.</summary>
+        public static readonly UnitType[] BasicBuildings =
+            { UnitType.Foundry, UnitType.Bunkhouse, UnitType.Garrison, UnitType.Sentinel, UnitType.Workshop };
+        public static readonly UnitType[] AdvancedBuildings =
+            { UnitType.Armory, UnitType.Airfield, UnitType.Biolab, UnitType.MechBay };
 
         /// <summary>A worker type: mines ore (Digger, Hauler, Prospector).</summary>
         public static bool IsWorkerType(UnitType t) => t >= 0 && t < UnitType.Count && Get(t) != null && Get(t).harvester;

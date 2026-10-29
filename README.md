@@ -61,14 +61,17 @@ rebuilt from the **StarForge** menu; **StarForge ▸ Build All** runs every step
 | **Select** | Click · drag a box · double-click selects that type on screen · `Shift` adds · `F2` whole army |
 | **Groups** | `Ctrl`/`Cmd`+`1`–`0` assign · `1`–`0` recall (double-tap to centre) |
 | **Orders** | Right-click: move / attack / mine / rally · `R` attack-move · `C` stop · `H` hold |
-| **Build** | Digger selected: `B` Bunkhouse · `G` Garrison · `V` Workshop · `N` Sentinel · `F` Foundry · `Y` Mech Bay · `U` Armory · `L` Airfield · `O` Biolab |
-| **Train** | Foundry `U` Digger, `J` Hauler, `K` Prospector · Garrison `T` Trooper, `K` Skimmer, `F` Scorcher, `M` Thumper, `N` Marksman, `B` Rocketeer · Workshop `M` Mauler, `L` Lancer, `F` Aegis, `T` Ironclad · Airfield `G` Kestrel, `F` Swift · Biolab `Z` Skitter, `T` Spitter, `V` Razorwing, `G` Gorehorn · `X` cancel. With Diggers in the selection the card shows only their builds |
-| **Armory** | The Armory selected on its own: `T` Infantry Weapons · `G` Infantry Armour · `V` Vehicle Weapons · `B` Vehicle Plating · `N` Creature Venom · `M` Creature Carapace · `X` cancel |
+| **Build** | Digger selected: `B` basic structures (`F` Foundry · `B` Bunkhouse · `G` Garrison · `N` Sentinel · `V` Workshop) · `V` advanced structures (`U` Armory · `L` Airfield · `O` Biolab · `Y` Mech Bay) · `X` or `Esc` back |
+| **Train** | Foundry `U` Digger, `J` Hauler, `K` Prospector · Garrison `T` Trooper, `K` Skimmer, `F` Scorcher, `M` Thumper, `N` Marksman, `B` Rocketeer · Workshop `M` Mauler, `L` Lancer, `F` Aegis, `T` Ironclad, `K` Mech-Hunter · Airfield `G` Kestrel, `F` Swift · Biolab `Z` Skitter, `T` Spitter, `V` Razorwing, `G` Gorehorn · `X` cancel. With Diggers in the selection the card shows only their builds |
+| **Armory** | The Armory selected on its own: `T` Infantry Weapons · `G` Infantry Armour · `V` Vehicle Weapons · `B` Vehicle Plating · `N` Creature Venom · `M` Creature Carapace · `K` Mech-Hunter Programme · `X` cancel |
 | **Mech Bay** | The bay selected on its own: `V` Servo Actuators · `B` Ablative Armour · `N` Weapon Overcharge · `M` Extra Hardpoint · `K` Targeting Uplink · `X` cancel · click the Mech strip (top left) to find the Mech |
-| **Other** | `P` pause (no orders go in until you resume) · `,` `.` game speed, kept through a pause · `Esc` unwinds placement → selection → menu |
+| **Other** | `P` pause (no orders go in until you resume) · `,` `.` game speed, kept through a pause · `Esc` unwinds placement → build card → selection → menu |
 
 The command card shows every command for the current selection with its hotkey
-and ore cost; hover for supply, build time and a description.
+and ore cost; hover for supply, build time and a description. It holds twelve
+cards in four columns of three. A Digger's structures are on two cards of their own,
+as in StarCraft (basic: the economy and the core army; advanced: the tech); with all
+nine and the orders on one card the last row ran off the panel.
 
 **Testing cheat** (not shown anywhere in the game): `Ctrl`/`Cmd` + `Shift` + `M`
 during a match adds 5000 ore. A match it was used in is not folded into the AI's
@@ -90,9 +93,10 @@ memory of how you play.
 | **Aegis** | 150 | 3 | 200 | Anti-aircraft tank: flak that bursts round aircraft (2.2x against them), light work against ground targets |
 | **Ironclad** | 300 | 6 | 480 | Walking mini-mech (Workshop, needs an Armory): twin shoulder cannons against the ground, missile pods against aircraft; slow, very hard to stop |
 | **Kestrel** | 175 | 3 | 150 | Gunship (Airfield): flies over cliffs, water and woods, rockets ground targets; cannot fire at aircraft |
-| **Swift** | 125 | 2 | 110 | Interceptor (Airfield): the fastest thing in the sky, made to hunt aircraft; strafes the ground for little |
-| **Hauler** | 125 | 1 | 280 | Armoured ore carrier: slow and costly but light on supply (about 1.6 Diggers' ore for one supply), 20 ore a trip, shrugs off raids; cannot build (needs a Workshop) |
-| **Prospector** | 100 | 2 | 100 | Armed miner: 5 ore a trip, fights back at its work; a fair soldier, a poor miner; cannot build (needs a Garrison) |
+| **Swift** | 125 | 2 | 110 | Interceptor (Airfield): the fastest thing in the sky, made to hunt aircraft. A plane: it never hovers, but makes firing runs -- in along its nose, over the target, out and round for the next -- and circles where it is sent (on Hold or idle it makes runs only at what comes near that spot); strafes the ground for little |
+| **Hauler** | 125 | 1 | 280 | Armoured ore carrier (Foundry, nothing else needed): slow and costly but light on supply (about 1.6 Diggers' ore for one supply), 20 ore a trip, shrugs off raids; cannot build |
+| **Prospector** | 100 | 2 | 150 | Armed ore truck (Foundry, nothing else needed): six wheels and armour, a drill under the nose and a machine gun on the cab that fights back at its work; 5 ore a trip, a poor miner; cannot build |
+| **Mech-Hunter** | 250 | 3 | 160 | Mech killer (Workshop, needs an Armory and its Mech-Hunter Programme): a light four-wheeled vehicle under the order's flag, with a coil lance (60 a shot, 0.35x against light targets, 0.6x against armour) that does 4.2x its damage to Mechs and Ironclads (an Ironclad in two shots, a bare Mech in about seven) and little to anything else; thinly armoured and easily destroyed, and an enemy Mech shoots it first. One in the field a side at a time, and a 75 s wait after it falls |
 | **Skitter** | 35 | 1 | 45 | Bred swarmer (Biolab): cheap and very fast, bites what it reaches; cannot reach aircraft |
 | **Spitter** | 90 | 2 | 100 | Bred acid-spitter (Biolab): hops into range, hits ground and air |
 | **Razorwing** | 150 | 2 | 130 | Bred flyer (Biolab): fast raider with a scything sting; hits ground and air |
@@ -106,7 +110,7 @@ memory of how you play.
 | Workshop | 200 | 1250 | Trains Maulers (needs a Garrison) |
 | **Sentinel** *(new)* | 125 | 500 | Defensive turret (needs a Garrison) |
 | **Mech Bay** *(new)* | 100 | 1800 | Calls down the side's Mech; gun tower, self-repair, repairs the Mech, sells its upgrades. One a match, never rebuilt ([Mechs](#mechs)) |
-| **Armory** | 150 | 900 | Research: weapons (+10% damage) and armour (-10% damage taken) for infantry, vehicles and creatures, two levels each; unlocks the Thumper, the Marksman, the Ironclad and the Gorehorn (needs a Garrison) |
+| **Armory** | 150 | 900 | Research: weapons (+10% damage) and armour (-10% damage taken) for infantry, vehicles and creatures, two levels each; and the one-off Mech-Hunter Programme (200 ore, 50 s); unlocks the Thumper, the Marksman, the Ironclad and the Gorehorn (needs a Garrison) |
 | **Airfield** | 200 | 1100 | Builds the Kestrel and the Swift (needs a Workshop) |
 | **Biolab** | 175 | 1000 | Breeds Skitters, Spitters, Razorwings and Gorehorns (needs a Garrison) |
 
@@ -117,7 +121,11 @@ Mech weapon but the mortar and the flamers, and the Ironclad's missile pods; she
 bursting on the ground do not. A downed aircraft falls where it was. The Biolab's
 creatures are Quaternius's animated spider, frog, wasp and cow made monstrous in Blender
 (`Tools/blender/build_creatures.py`: fangs, tusks and horns, spined backs, armoured
-carapaces, glowing glands, all moving with their own cycles), coloured for their side;
+carapaces, glowing glands, all moving with their own cycles), coloured for their side, and
+throw themselves into a blow: the Skitter darts in to bite and springs back, the Spitter
+throws its head into the spit, the Gorehorn drives its head down and tosses its tusks
+through a sweep (a crescent drawn through its reach), the Razorwing swoops on its prey;
+a bite rakes three quick streaks across what it struck;
 they bleed rather than burn, and neither they nor aircrews ever desert. **Upgrades** from the Armory are a side's for good once
 researched; two Armories can research two lines at once, never the same one.
 
@@ -128,7 +136,7 @@ Thumpers break crowds of infantry, the Aegis and the Swift break aircraft, Skitt
 overrun tanks and the Ironclad, and the Ironclad -- the strongest single unit -- was cut
 twice until Rocketeers, Spitters and Skitters beat it. Per 100 ore spent a Digger mines
 260 ore a minute, a Hauler 171 (but 213 per supply, and it shrugs off raids), a
-Prospector 72 (it is a soldier first). In the AI evaluation (20 matches against the four
+Prospector 77 (an armed truck, a fighter first). In the AI evaluation (20 matches against the four
 scripted players, which keep to the original units) the opponent AI using the whole
 roster won all 20, lost none (17 of 20 before), trained every new type but the Aegis (the
 scripted players field no aircraft) and researched 4-5 Armory levels a match. Raided from the
@@ -150,7 +158,7 @@ for all.
 health per rank) and slowly repair once out of combat. **A soldier may earn a cape**: at
 each promotion a Trooper, Thumper, Scorcher, Marksman or Rocketeer without one has an 81%
 chance of one (so about 96% wear one by their second stripe, 99% by the third; the
-Prospector, a worker with an ore hopper on its back, does not). It hangs from the shoulders
+Prospector, an armoured ore truck, does not). It hangs from the shoulders
 under the pauldrons with the pack worn over it and falls nearly straight to the ankles in a
 few broad folds, placed differently on every soldier: woven cloth in a deep shade of the
 side's colour, edged down both sides and along the hem with an embroidered trim whose colour
@@ -508,8 +516,9 @@ as the Mauler's cannon (158-192 Hz, 41-58%), the deepest sounds in the game.
   Spitters and Marksmen against your aircraft, Lancers and Rocketeers against your
   armour, Ironclads and Gorehorns to break your line, Scorchers against massed infantry, Thumpers and Maulers against your towers, and
   gunships or Razorwings where little of yours can shoot up. It adds Haulers to its
-  ore lines once it has a Workshop, and Prospectors -- miners that fight back --
-  while you raid them.
+  ore lines from four minutes, and Prospectors -- armed ore trucks -- while you raid
+  them. Once it knows of your Mech, its bay or your Ironclads it buys the Armory's
+  Mech-Hunter Programme and keeps a Mech-Hunter in the field.
 - **It fights like a player.** It focuses fire on the weakest target that can
   shoot back and lets one that runs go rather than chase it across the map, pulls its
   army home when a fight turns against it and gathers it again before going back in,

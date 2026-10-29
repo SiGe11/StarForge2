@@ -12,7 +12,10 @@ using StarForge.World;
 namespace StarForge.View
 {
     public enum CardKind { None, Build, Train, AttackMove, Stop, Hold, CancelQueue, CancelConstruction, CancelPlacement, MechUpgrade, CancelUpgrade, Info,
-                           ArmyUpgrade, CancelResearch }
+                           ArmyUpgrade, CancelResearch, BuildMenu, MenuBack }
+
+    /// <summary>Which of the Digger's build cards is open (StarCraft's basic/advanced structures).</summary>
+    public enum BuildMenu { None, Basic, Advanced }
 
     public struct CardAction
     {
@@ -29,6 +32,7 @@ namespace StarForge.View
         public bool enabled;
         public MechUpgrade upgrade;
         public ArmyUpgrade armyUpgrade;
+        public BuildMenu menu;
     }
 
     public sealed class PlayerController : MonoBehaviour
@@ -59,6 +63,18 @@ namespace StarForge.View
         public Func<Vector2, bool> PointerOverUI;
 
         public event Action SelectionChanged;
+        /// <summary>The card changed without the selection changing (a build card opened or closed).</summary>
+        public event Action CardChanged;
+        /// <summary>The Digger's build card that is open; a new selection closes it.</summary>
+        public BuildMenu Menu { get; private set; }
+        bool pruning;
+
+        void SetMenu(BuildMenu m)
+        {
+            if (Menu == m) return;
+            Menu = m;
+            CardChanged?.Invoke();
+        }
         public event Action<Vector3, int> OrderMarker;   // 0 move, 1 attack, 2 rally, 3 build
         public event Action MenuRequested;
         public event Action InspectorToggled;
@@ -76,6 +92,8 @@ namespace StarForge.View
             if (world == null) world = FindAnyObjectByType<GameWorld>();
             if (rig == null) rig = FindAnyObjectByType<RTSCamera>();
             for (int i = 0; i < groups.Length; i++) groups[i] = new List<Unit>();
+            // A new selection closes an open build card; a dead unit pruned from it does not.
+            SelectionChanged += () => { if (!pruning) Menu = BuildMenu.None; };
         }
 
         void Start()
@@ -103,7 +121,7 @@ namespace StarForge.View
             Selection.RemoveAll(u => !Unit.Live(u) || (u.team != team && !u.visibleToPlayer && !u.def.building));
             // A soldier who deserts leaves a group selection (one alone stays, to be looked at).
             if (Selection.Count > 1) Selection.RemoveAll(u => u.deserted);
-            if (Selection.Count != before) SelectionChanged?.Invoke();
+            if (Selection.Count != before) { pruning = true; SelectionChanged?.Invoke(); pruning = false; }
 
             Vector2 mp = mouse.position.ReadValue();
             bool overUI = PointerOverUI != null && PointerOverUI(mp);
@@ -166,6 +184,7 @@ namespace StarForge.View
                 // Esc unwinds one step at a time; only with nothing left does it open the menu.
                 if (PlacingType != UnitType.None) PlacingType = UnitType.None;
                 else if (AttackMoveArmed) AttackMoveArmed = false;
+                else if (Menu != BuildMenu.None) SetMenu(BuildMenu.None);
                 else if (Selection.Count > 0) { Selection.Clear(); SelectionChanged?.Invoke(); }
                 else MenuRequested?.Invoke();
                 return;
@@ -397,7 +416,7 @@ namespace StarForge.View
             if (world.CmdBuild(new List<Unit> { builder }, PlacingType, gp))
             {
                 OrderMarker?.Invoke(world.Map.Ground(gp), 3);
-                if (!keepPlacing) PlacingType = UnitType.None;
+                if (!keepPlacing) { PlacingType = UnitType.None; SetMenu(BuildMenu.None); }
             }
         }
 
@@ -443,6 +462,18 @@ namespace StarForge.View
                 }
             }
 
+            // An open build card is the whole card: the group's structures and the way back. The nine
+            // structures and three orders together ran past the slots the card can show.
+            if (anyWorker && Menu != BuildMenu.None)
+            {
+                foreach (var t in Menu == BuildMenu.Basic ? Defs.BasicBuildings : Defs.AdvancedBuildings)
+                    into.Add(BuildAction(t, F));
+                into.Add(new CardAction { kind = CardKind.MenuBack, hotkey = 'X', title = "Back", body = "Back to the Digger's orders (Esc also goes back).",
+                                          glyph = "↩", enabled = true });
+                return;
+            }
+            if (!anyWorker && Menu != BuildMenu.None) Menu = BuildMenu.None;
+
             if (anyMobile)
             {
                 into.Add(new CardAction { kind = CardKind.AttackMove, hotkey = 'R', title = "Attack-move", body = "Move, engaging every enemy met on the way.", glyph = "⚔", enabled = true });
@@ -450,21 +481,12 @@ namespace StarForge.View
                 into.Add(new CardAction { kind = CardKind.Hold, hotkey = 'H', title = "Hold position", body = "Fire at anything in range, never chase.", glyph = "⛨", enabled = true });
             }
             if (anyWorker)
-                foreach (var t in Defs.Buildable)
-                {
-                    var d = Defs.Get(t);
-                    bool reqOk = d.requires == UnitType.None || world.HasComplete(team, d.requires);
-                    string req = reqOk ? "" : $"\nRequires a {Defs.Get(d.requires).displayName}.";
-                    string supply = d.supplyGive > 0 ? $" · +{d.supplyGive} supply" : "";
-                    bool once = t == UnitType.MechBay && F.bayPlaced;
-                    if (once) req += F.bayLost ? "\nYour Mech Bay was destroyed; it can never be raised again." : "\nYou have raised your Mech Bay: there is only ever one.";
-                    into.Add(new CardAction
-                    {
-                        kind = CardKind.Build, type = t, hotkey = d.hotkey, title = "Build " + d.displayName,
-                        body = d.blurb + req, cost = d.cost, time = d.buildTime, icon = d.icon, enabled = reqOk && F.ore >= d.cost && !once,
-                        glyph = supply
-                    });
-                }
+            {
+                into.Add(new CardAction { kind = CardKind.BuildMenu, menu = BuildMenu.Basic, hotkey = 'B', title = "Basic structures", glyph = "▣", enabled = true,
+                    body = "Foundry, Bunkhouse, Garrison, Sentinel and Workshop: the economy and the core army." });
+                into.Add(new CardAction { kind = CardKind.BuildMenu, menu = BuildMenu.Advanced, hotkey = 'V', title = "Advanced structures", glyph = "◈", enabled = true,
+                    body = "Armory, Airfield, Biolab and Mech Bay: research, aircraft, creatures and your Mech." });
+            }
             // The bay's card only for the bay (with its Mech): with Diggers as well, their
             // six builds and the bay's five upgrades and cancel ran past the card's twelve
             // slots, and the last ones were hidden but still answered their hotkeys.
@@ -501,13 +523,16 @@ namespace StarForge.View
                     if (d == null || d.producer != structureType) continue;
                     bool supplyOk = F.supplyUsed + d.supplyCost <= Mathf.Min(F.supplyCap, GameWorld.MaxSupply);
                     bool reqOk = d.requires == UnitType.None || world.HasComplete(team, d.requires);
+                    // The Mech-Hunter: the Armory's programme, one at a time, a wait after it falls.
+                    string barred = d.type == UnitType.MechHunter && reqOk ? world.HunterBarred(team) : null;
                     into.Add(new CardAction
                     {
                         kind = CardKind.Train, type = d.type, hotkey = d.hotkey, title = "Train " + d.displayName,
                         body = d.blurb + (reqOk ? "" : $"\nRequires a {Defs.Get(d.requires).displayName}.") +
+                               (barred == null ? "" : $"\n{barred}.") +
                                (supplyOk ? "" : "\nNot enough supply — build a Bunkhouse."),
                         cost = d.cost, supply = d.supplyCost, time = d.buildTime, icon = d.icon,
-                        enabled = F.ore >= d.cost && supplyOk && reqOk
+                        enabled = F.ore >= d.cost && supplyOk && reqOk && barred == null
                     });
                 }
                 if (anyQueue)
@@ -516,6 +541,23 @@ namespace StarForge.View
             // Not beside the Diggers' twelve: a hidden thirteenth would still answer X.
             if (anyIncomplete && !anyWorker)
                 into.Add(new CardAction { kind = CardKind.CancelConstruction, hotkey = 'X', title = "Cancel construction", body = "Refunds 75% of the cost.", glyph = "✕", enabled = true });
+        }
+
+        /// <summary>A structure on a build card: its requirement, and the Mech Bay's one-a-match rule.</summary>
+        CardAction BuildAction(UnitType t, Faction F)
+        {
+            var d = Defs.Get(t);
+            bool reqOk = d.requires == UnitType.None || world.HasComplete(team, d.requires);
+            string req = reqOk ? "" : $"\nRequires a {Defs.Get(d.requires).displayName}.";
+            string supply = d.supplyGive > 0 ? $" · +{d.supplyGive} supply" : "";
+            bool once = t == UnitType.MechBay && F.bayPlaced;
+            if (once) req += F.bayLost ? "\nYour Mech Bay was destroyed; it can never be raised again." : "\nYou have raised your Mech Bay: there is only ever one.";
+            return new CardAction
+            {
+                kind = CardKind.Build, type = t, hotkey = d.hotkey, title = "Build " + d.displayName,
+                body = d.blurb + req, cost = d.cost, time = d.buildTime, icon = d.icon, enabled = reqOk && F.ore >= d.cost && !once,
+                glyph = supply
+            };
         }
 
         /// <summary>The Mech Bay's card: the Mech's upgrades, one level at a time.</summary>
@@ -568,13 +610,15 @@ namespace StarForge.View
                 int cost = world.ArmyUpgradeCost(team, up);
                 var at = world.ResearchingAt(team, up);
                 string state = cost < 0 ? "\nComplete." : at != null ? $"\nResearching: {at.researchLeft:0}s left." : free == null ? "\nThe Armory is busy." : "";
+                // A one-off (the Mech-Hunter Programme) has no levels to number.
+                bool once = info.Levels == 1;
                 into.Add(new CardAction
                 {
                     kind = CardKind.ArmyUpgrade, armyUpgrade = up, hotkey = info.hotkey,
-                    title = cost < 0 ? $"{info.name} (complete)" : $"{info.name} {MechParts.Roman(lvl + 1)}",
-                    body = info.blurb + state + $"\nLevel {lvl} of {info.Levels}.",
+                    title = cost < 0 ? $"{info.name} (complete)" : once ? info.name : $"{info.name} {MechParts.Roman(lvl + 1)}",
+                    body = info.blurb + state + (once ? "" : $"\nLevel {lvl} of {info.Levels}."),
                     cost = Mathf.Max(0, cost), time = cost < 0 ? 0f : info.time[lvl],
-                    glyph = (info.armour ? "⛨" : "✹") + (lvl > 0 ? new string('·', lvl) : ""),
+                    glyph = once ? "◎" : (info.armour ? "⛨" : "✹") + (lvl > 0 ? new string('·', lvl) : ""),
                     enabled = cost >= 0 && at == null && free != null && F.ore >= cost
                 });
             }
@@ -593,6 +637,12 @@ namespace StarForge.View
 
         public void Execute(CardAction c)
         {
+            // Opening and closing a build card gives no order: allowed while paused.
+            if (c.kind == CardKind.BuildMenu || c.kind == CardKind.MenuBack)
+            {
+                if (CanCommand) SetMenu(c.kind == CardKind.BuildMenu ? c.menu : BuildMenu.None);
+                return;
+            }
             if (!CanCommand || !InPlay) return;
             var own = new List<Unit>(OwnSelection());
             switch (c.kind)

@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 20
   displayName: Hauler
-  blurb: Armoured ore carrier. Slow and costly, but brings in 20 ore a trip and shrugs off raids. Cannot build. Requires a Workshop.
+  blurb: Armoured ore carrier. Slow and costly, but brings in 20 ore a trip and shrugs off raids. Cannot build.
   building: 0
   neutral: 0
   radius: 1.25
@@ -35,6 +35,7 @@ MonoBehaviour:
   vsHeavy: 1
   vsStructure: 1
   vsAir: 1
+  vsMech: 1
   bounces: 0
   ignite: 0
   upgradeClass: 2
@@ -44,6 +45,7 @@ MonoBehaviour:
   harvestTime: 2.6
   heavyArmour: 1
   flying: 0
+  fixedWing: 0
   altitude: 0
   organic: 0
   buildTime: 24
@@ -52,7 +54,7 @@ MonoBehaviour:
   supplyGive: 0
   hotkey: 74
   producer: 4
-  requires: 6
+  requires: -1
   prefabs:
   - {fileID: 8562904178346553100, guid: ea03fd33583a64a4783511040de22da1, type: 3}
   - {fileID: 6054585514122860084, guid: 5f40e21acf7904f38800515dbbdca2e7, type: 3}

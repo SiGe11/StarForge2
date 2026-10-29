@@ -15,6 +15,8 @@ Regenerate models (Blender 5.x, headless), then re-run Build step 2:
 - writes `SF_<NAME>_CHUNKS.fbx` for structures → `Debris_*` prefabs for `DebrisBurst`;
 - gives flora `SF_<NAME>_LOD1.fbx` (drawn beyond `VegetationRenderer.lodDistance`); leaf cards and canopy clusters carry custom normals pointing out of the crown (`sf_model.set_normal_hint`, applied in `export_fbx.apply_normal_hints`).
 
+**Never leave two faces flush**: a part laid on another's face, or ending in its plane, z-fights and shimmers as the camera moves (the Armory's door light sat in the door's face; its ridge stripe ended in the gables' planes): stand it a centimetre or two proud, or stop it short.
+
 **Nested groups do not survive FBX export.** With `bake_space_transform` the writer mangles a grandchild's transform (the Digger's `Arm/Cutter` came in turned 270° and metres out of place). `export_fbx.export_groups` writes every group as a direct child of the root (`Arm/Cutter` → `Cutter` beside `Arm`), and the game chains them again, each keeping where it stands (`UnitView.Bind` for the cutter, `MechView.RigLegs` for thigh > shin > foot).
 
 ## Scanned plants (`bake_scanned_flora.py -- <KIND>`)

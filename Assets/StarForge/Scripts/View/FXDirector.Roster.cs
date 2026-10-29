@@ -58,7 +58,8 @@ namespace StarForge.View
                     // Bites: a scatter of grit off what it struck; the Gorehorn's tusks throw up the ground.
                     Vector3 at = e.pos + fwd * 0.5f;
                     bool beast = e.type == UnitType.Gorehorn;
-                    for (int i = 0; i < (beast ? 10 : 3); i++)
+                    if (e.end.sqrMagnitude > 0f) Slash(e.end, fwd, beast);
+                    for (int i = 0; i < (beast ? 10 : 6); i++)
                         Emit(sparks, at, Random.insideUnitSphere * (beast ? 6f : 3f) + Vector3.up, 0.1f, Random.Range(0.1f, 0.2f), new Color(0.9f, 0.85f, 0.7f));
                     if (beast)
                     {
@@ -83,6 +84,38 @@ namespace StarForge.View
                 case GameWorld.ProjGlaive:
                     Emit(glow, e.pos, fwd * 2f, 1.0f, 0.12f, GlaiveColor * 0.5f);
                     break;
+            }
+        }
+
+        /// <summary>A blow dealt at once, drawn where it lands: a bite rakes three quick streaks across
+        /// what it struck; the tusks sweep a crescent through the beast's reach, low over the ground.</summary>
+        void Slash(Vector3 at, Vector3 fwd, bool beast)
+        {
+            fwd.y = 0f;
+            if (fwd.sqrMagnitude < 1e-4f) return;
+            fwd.Normalize();
+            Vector3 side = new Vector3(fwd.z, 0f, -fwd.x);
+            Color core = new Color(2.6f, 2.2f, 1.7f), halo = new Color(0.55f, 0.3f, 0.22f);
+            if (!beast)
+            {
+                // Raked from one shoulder down to the other side, a little different each bite.
+                float lean = Random.Range(0.35f, 0.75f) * (Random.value < 0.5f ? -1f : 1f);
+                Vector3 d = (side * lean + Vector3.up).normalized * 0.42f;
+                for (int k = -1; k <= 1; k++)
+                {
+                    Vector3 c = at - fwd * 0.25f + side * (0.14f * k) + Vector3.up * (0.04f * k);
+                    beams.Add(new Beam { from = c - d, to = c + d, born = Time.time, life = 0.14f, width = 0.07f, core = core, halo = halo });
+                }
+                return;
+            }
+            Vector3 centre = at - fwd * 1.4f;
+            Vector3 prev = default;
+            for (int i = 0; i <= 8; i++)
+            {
+                float a = Mathf.Lerp(-1.15f, 1.15f, i / 8f);
+                Vector3 q = centre + (fwd * Mathf.Cos(a) + side * Mathf.Sin(a)) * 2.1f + Vector3.up * (0.25f + 0.35f * (1f - Mathf.Abs(a)));
+                if (i > 0) beams.Add(new Beam { from = prev, to = q, born = Time.time, life = 0.18f, width = 0.16f, core = core, halo = halo });
+                prev = q;
             }
         }
 

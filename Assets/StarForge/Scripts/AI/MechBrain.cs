@@ -560,7 +560,8 @@ namespace StarForge.AI
             // What it can do to a Mech: armour-piercing guns more, flak and anti-infantry guns less;
             // nothing at all from a gun that only reaches aircraft.
             if (!e.def.hitsGround) return 0f;
-            return e.def.damage * e.def.vsHeavy * (1f + 0.15f * e.rank) / Mathf.Max(0.1f, e.def.cooldown);
+            // A plane fires only on its passes, about a quarter of the time.
+            return e.def.damage * e.def.vsHeavy * e.def.vsMech * (1f + 0.15f * e.rank) / Mathf.Max(0.1f, e.def.cooldown) * (e.def.fixedWing ? 0.25f : 1f);
         }
 
         static float Toughness(Unit e) => e.mech != null ? e.mech.EffectiveHp : Mathf.Max(1f, e.hp);

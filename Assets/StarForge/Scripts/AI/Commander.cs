@@ -776,15 +776,15 @@ namespace StarForge.AI
                 }
             }
 
-            // 4b. The heavy workers: Haulers once a Workshop stands (a taste for them, or Diggers
-            //     being lost to raids), Prospectors -- miners that fight back -- while its workers are
-            //     being raided.
+            // 4b. The heavy workers, from the Foundry with nothing else needed: Haulers from four
+            //     minutes (a taste for them, or Diggers being lost to raids), Prospectors -- armed
+            //     trucks that mine -- while its workers are being raided.
             if (issued < MaxPerPass && !saving && s.workers >= 8 && !MapMinedOut())
             {
                 bool raided = w.time - lastWorkerHitAt < 90f;
-                int wantHaulers = s.workshops == 0 || w.time < 240f ? 0
+                int wantHaulers = w.time < 240f ? 0
                                 : Mathf.Min(4, s.foundries * (Personality.haulerTaste > 0.5f || raided ? 2 : 1));
-                int wantProspectors = s.garrisons == 0 || w.time < 200f ? 0 : raided ? 3 : Personality.haulerTaste > 0.75f ? 1 : 0;
+                int wantProspectors = w.time < 200f ? 0 : raided ? 3 : Personality.haulerTaste > 0.75f ? 1 : 0;
                 UnitType pick = UnitType.None;
                 if (s.own[(int)UnitType.Hauler] + s.queuedType[(int)UnitType.Hauler] < wantHaulers) pick = UnitType.Hauler;
                 else if (s.own[(int)UnitType.Prospector] + s.queuedType[(int)UnitType.Prospector] < wantProspectors) pick = UnitType.Prospector;
@@ -1329,7 +1329,11 @@ namespace StarForge.AI
             return Weighted((UnitType.Mauler, 1f + (s.eSentinels > 0 ? 0.8f : 0f) + 0.3f * light),
                             (UnitType.Lancer, Few(s, UnitType.Lancer, 0.3f + 1.6f * heavy)),
                             (UnitType.Aegis, air > 0.05f ? Few(s, UnitType.Aegis, 0.2f + 3f * air) : 0f),
-                            (UnitType.Ironclad, s.own[(int)UnitType.Armory] > 0 ? Few(s, UnitType.Ironclad, 0.25f + 0.8f * air + 0.5f * heavy) : 0f));
+                            (UnitType.Ironclad, s.own[(int)UnitType.Armory] > 0 ? Few(s, UnitType.Ironclad, 0.25f + 0.8f * air + 0.5f * heavy) : 0f),
+                            // The Mech-Hunter against a Mech or Ironclads it knows of, only while one may be
+                            // trained (a refused pick would idle the Workshop's pass).
+                            (UnitType.MechHunter, s.own[(int)UnitType.Armory] > 0 && w.HunterBarred(team) == null
+                                ? (s.eMech || s.eMechBay ? 1.4f : 0f) + 0.5f * Mathf.Min(4, s.seen[(int)UnitType.Ironclad]) : 0f));
         }
 
         /// <summary>The Airfield's: gunships, more where little of theirs shoots up; interceptors
@@ -1364,6 +1368,18 @@ namespace StarForge.AI
             if (armory == null) return false;
             int spare = F.ore - (int)Mathf.Lerp(450f, 200f, Personality.researchTaste);
             if (spare <= 0) return false;
+            // The Mech-Hunter Programme first, once it knows of a Mech (or its bay) or Ironclads of theirs.
+            var hunt = ArmyUpgrade.MechHunterProgramme;
+            if ((s.eMech || s.eMechBay || s.seen[(int)UnitType.Ironclad] > 0) && w.ArmyUpgradeCost(team, hunt) is int hc &&
+                hc >= 0 && hc <= spare && w.ResearchingAt(team, hunt) == null)
+            {
+                if (!Pay(2, "Research")) return false;
+                Budget.Note(w.time);
+                lastSelHash = -1f;
+                if (!w.CmdArmoryResearch(armory, hunt)) return false;
+                Dbg.researchBought++;
+                return true;
+            }
             float inf = 0f, veh = 0f, bio = 0f;
             for (int i = 0; i < (int)UnitType.Count; i++)
             {
@@ -1990,7 +2006,8 @@ namespace StarForge.AI
                 guard = w.NearestReachable(home, Influence.SafestNear(w.NearestReachable(home, guard), 14f));
                 bool anyIdle = false;
                 foreach (var h in main)
-                    if (h.order == Order.Idle && h.Dist(guard) > 14f) { anyIdle = true; break; }
+                    // A plane circles its spot, now and then past 14 m: called back only well outside its circle.
+                    if (h.order == Order.Idle && h.Dist(guard) > (h.def.fixedWing ? 30f : 14f)) { anyIdle = true; break; }
                 if ((anyIdle || WorthReissuing(guard, rally, 16f)) && Issue(main, 1, guard, null)) rally = guard;
             }
         }
@@ -2099,7 +2116,7 @@ namespace StarForge.AI
                 else
                 {
                     bool idle = false;
-                    foreach (var h in main) if (h.order == Order.Idle && h.Dist(stagePoint) > 13f) { idle = true; break; }
+                    foreach (var h in main) if (h.order == Order.Idle && h.Dist(stagePoint) > (h.def.fixedWing ? 30f : 13f)) { idle = true; break; }
                     if ((idle || WorthReissuing(stagePoint, rally, 10f)) && Issue(main, 1, stagePoint, null)) rally = stagePoint;
                     return;
                 }

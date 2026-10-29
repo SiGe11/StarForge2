@@ -384,6 +384,7 @@ namespace StarForge.World
                 if (e.def.building) score += e.def.Armed ? 8f : 30f;     // units first, towers before barracks
                 else if (!e.def.Armed) score += 10f;                     // Diggers after soldiers
                 if (e.Type == UnitType.Mech) score -= 25f;               // the enemy Mech above all
+                else if (e.def.vsMech > 2f) score -= 22f;                // then what is built to kill it (the Mech-Hunter)
                 // Finish what is nearly dead.
                 score -= (1f - Mathf.Clamp01(e.hp / Mathf.Max(1f, e.MaxHp))) * 12f;
                 if (p.antiGroup)

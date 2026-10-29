@@ -592,7 +592,9 @@
     "SENTINEL_HEAD_Y": 1.4,
     "LANCER_TURRET_Y": 1.18,
     "AEGIS_TURRET_Y": 1.3,
-    "IRONCLAD_TORSO_Y": 2.3
+    "IRONCLAD_TORSO_Y": 2.3,
+    "PROSPECTOR_TURRET_Y": 1.5,
+    "MECHHUNTER_TURRET_Y": 0.92
   },
   "THUMPER": {
     "radius": 1.07,
@@ -704,47 +706,33 @@
     "lod1_triangles": 0
   },
   "PROSPECTOR": {
-    "radius": 1.06,
-    "height": 2.003,
-    "triangles": 2932,
+    "radius": 2.07,
+    "height": 1.72,
+    "triangles": 1772,
     "materials": [
+      "rubber",
+      "steel",
+      "armor_dark",
       "dark",
       "armor",
-      "armor_dark",
-      "team",
-      "steel",
-      "shadowed",
       "armor_lit",
-      "glow_warm",
       "glow_cyan",
+      "team",
+      "glow_amber",
       "ore_glow",
-      "crystal"
+      "crystal",
+      "rust"
     ],
     "groups": {
-      "LegR": [
-        0.27,
-        0.8,
-        0.0
-      ],
-      "LegL": [
-        -0.27,
-        0.8,
-        0.0
-      ],
-      "Gun": [
-        0.3,
-        1.14,
-        0.1
+      "Cutter": [
+        0.0,
+        0.56,
+        1.6
       ],
       "Load": [
         0.0,
-        1.44,
-        -0.48
-      ],
-      "Cutter": [
-        -0.47,
-        1.0,
-        0.34
+        1.58,
+        -0.62
       ]
     },
     "chunks": 0,
@@ -1050,6 +1038,73 @@
         0.0,
         0.85,
         0.4
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "PROSPECTOR_TURRET": {
+    "radius": 0.901,
+    "height": 0.46,
+    "triangles": 264,
+    "materials": [
+      "armor",
+      "armor_dark",
+      "dark",
+      "steel",
+      "team"
+    ],
+    "groups": {
+      "Barrel": [
+        0.0,
+        0.26,
+        0.1
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "MECHHUNTER_HULL": {
+    "radius": 1.66,
+    "height": 3.22,
+    "triangles": 1024,
+    "materials": [
+      "rubber",
+      "steel",
+      "team",
+      "armor_dark",
+      "armor_lit",
+      "dark",
+      "glow_amber",
+      "glow_warm"
+    ],
+    "groups": {
+      "Banner": [
+        -0.46,
+        3.0,
+        -1.1
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
+  },
+  "MECHHUNTER_TURRET": {
+    "radius": 3.082,
+    "height": 0.68,
+    "triangles": 676,
+    "materials": [
+      "armor",
+      "armor_dark",
+      "team",
+      "dark",
+      "glow_cyan",
+      "steel"
+    ],
+    "groups": {
+      "Barrel": [
+        0.0,
+        0.4,
+        0.1
       ]
     },
     "chunks": 0,

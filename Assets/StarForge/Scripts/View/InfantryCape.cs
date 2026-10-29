@@ -32,7 +32,9 @@ namespace StarForge.View
         const float Reach = 3f;                  // the hem rests ~1.4 from the shoulders: only NaN/Inf gets past this
         // Body space (the model faces +Z, 2 units tall): the shoulder line it hangs from, where
         // it comes out from under the pack, and the hem.
-        const float ShoulderY = 1.50f, ShoulderZ = -0.20f, HalfTop = 0.52f;
+        // Behind the back plate by 5-6 cm where it shows beside the pack (the plate lies at -0.21..-0.24):
+        // at -0.20..-0.26 it wove in and out of the plate, and the seam shimmered.
+        const float ShoulderY = 1.50f, ShoulderZ = -0.30f, HalfTop = 0.52f, UnderPackZ = -0.31f;
         const float FreeY = 1.02f, HemY = 0.22f, HalfHem = 0.78f;
         const float EdgeHold = 0.5f;             // how much less an edge particle may swing than the middle
         const float Trim = 0.13f, HemTrim = 0.12f;   // the edge trims' share of the half-width; the hem trim's height
@@ -91,8 +93,10 @@ namespace StarForge.View
         bool shown = true, frozen, gaveUp, simulating, wanted;
         float focusDistance, lean, leanVel, nextCheck, crumple;
         int hem;   // the particle the give-up check reads: the lowest at rest (welded particles keep no documented order)
-        Quaternion restRot;
-        Vector3 restPos;
+        // The skirt's bone: everything below the pack line hangs from it, so the rigid lean turns the
+        // skirt alone and never pushes the held part above into the soldier's back.
+        Transform skirt;
+        static readonly Vector3 Pivot = new Vector3(0f, FreeY - ShoulderY, UnderPackZ - ShoulderZ);
         /// <summary>Times this cape went from cloth to rest and back (for trials: flicker).</summary>
         public int Switches { get; private set; }
 
@@ -159,11 +163,18 @@ namespace StarForge.View
             this.team = team;
             this.rank = rank;
             this.id = id;
-            restRot = transform.localRotation;
-            restPos = transform.localPosition;
+            skirt = new GameObject("Skirt").transform;
+            skirt.SetParent(transform, false);
+            skirt.localPosition = Pivot;
             mesh = CapeMesh(backZ, team, rank, id);
+            mesh.bindposes = new[] { Matrix4x4.identity, Matrix4x4.Translate(-Pivot) };
             smr = gameObject.AddComponent<SkinnedMeshRenderer>();
+            smr.bones = new[] { transform, skirt };
+            smr.rootBone = transform;
             smr.sharedMesh = mesh;
+            // Room for the swing: bounds that only held the hung cape let one swung out past them be
+            // culled at the screen's edge.
+            smr.localBounds = new Bounds(mesh.bounds.center, mesh.bounds.size + new Vector3(0.8f, 0.6f, 1.4f));
             smr.sharedMaterial = capeMat;
             smr.shadowCastingMode = ShadowCastingMode.Off;   // Particles/Simple Lit has no shadow pass
             smr.updateWhenOffscreen = false;
@@ -245,6 +256,14 @@ namespace StarForge.View
 
             if (simulating)
             {
+                // Taken up from a leaning rest pose, the skirt's bone eases back to hanging, and the
+                // cloth with it (switched straight to hanging, every cape jumped at each change).
+                if (lean != 0f)
+                {
+                    lean *= Mathf.Exp(-Mathf.Min(Time.deltaTime, MaxStep) / 0.25f);
+                    if (Mathf.Abs(lean) < 0.2f) lean = 0f;
+                    Lean(lean);
+                }
                 Vector2 wind = StarForge.World.Wind.At(Time.time);
                 float gust = 0.8f + 0.35f * Mathf.PerlinNoise(Time.time * 0.9f, id * 0.37f);
                 float flutter = 1f + 4f * wind.magnitude;
@@ -266,8 +285,8 @@ namespace StarForge.View
                 return;
             }
             // At rest: the skirt swings back with the soldier's pace on a damped spring, about where
-            // it comes out from under the pack (about the shoulders the stretch under the pack went
-            // back with it, through the pack's back).
+            // it comes out from under the pack, on its own bone (about the shoulders the stretch under
+            // the pack went back out through it; the whole cape turned, its top went into his back).
             float pace = Mathf.Max(0f, Vector3.Dot(velocity, forward));
             float target = Mathf.Clamp(pace * 5f, 0f, MaxLean);
             float dt = Mathf.Min(Time.deltaTime, MaxStep);
@@ -276,14 +295,8 @@ namespace StarForge.View
             Lean(lean);
         }
 
-        /// <summary>Turn the whole cape about the line under the pack: +X takes the hem back.</summary>
-        void Lean(float degrees)
-        {
-            var pivot = new Vector3(0f, FreeY - ShoulderY, -0.26f - ShoulderZ);
-            var r = Quaternion.Euler(degrees, 0f, 0f);
-            transform.localRotation = restRot * r;
-            transform.localPosition = restPos + restRot * (pivot - r * pivot);
-        }
+        /// <summary>Turn the skirt about the line under the pack: +X takes the hem back.</summary>
+        void Lean(float degrees) => skirt.localRotation = Quaternion.Euler(degrees, 0f, 0f);
 
         void SetCloth(bool on)
         {
@@ -292,12 +305,39 @@ namespace StarForge.View
             Switches++;
             if (on)
             {
-                lean = leanVel = 0f;
-                Lean(0f);
+                // From the pose it hangs in: the cloth starts on the leaning bone, which then eases back.
+                leanVel = 0f;
                 cloth.enabled = true;
                 cloth.ClearTransformMotion();
             }
-            else cloth.enabled = false;
+            else
+            {
+                // The rigid cape takes up the swing the cloth had, so the change does not show.
+                lean = LeanOfCloth();
+                leanVel = 0f;
+                Lean(lean);
+                cloth.enabled = false;
+            }
+        }
+
+        /// <summary>How far back the cloth's hem hangs now, as the skirt's lean that would put it
+        /// there (degrees; 0 for a bad cloth). Reads the cloth back (allocates): only at a change.</summary>
+        float LeanOfCloth()
+        {
+            var v = cloth.vertices;
+            var rest = RestParticles;
+            if (rest == null || v.Length != rest.Length) return 0f;
+            float back = 0f;
+            int n = 0;
+            for (int i = 0; i < v.Length; i++)
+            {
+                if (rest[i].y > HemY - ShoulderY + 0.3f) continue;   // the hem's rows
+                back += rest[i].z - v[i].z;
+                n++;
+            }
+            if (n == 0 || float.IsNaN(back) || float.IsInfinity(back)) return 0f;
+            float deg = Mathf.Atan2(back / n, FreeY - HemY) * Mathf.Rad2Deg;
+            return Mathf.Clamp(deg, -10f, MaxLean * 1.5f);
         }
 
         /// <summary>Once a frame: which capes may be cloth -- shown, near the camera's focus, at most
@@ -356,9 +396,9 @@ namespace StarForge.View
         static float MiddleZ(float y, float backZ)
         {
             float off = Mathf.Clamp(-0.49f - backZ, 0f, 0.3f) * 0.4f;
-            if (y >= FreeY) return Mathf.Lerp(ShoulderZ, -0.26f, Mathf.InverseLerp(ShoulderY, FreeY, y));
+            if (y >= FreeY) return Mathf.Lerp(ShoulderZ, UnderPackZ, Mathf.InverseLerp(ShoulderY, FreeY, y));
             float f = 1f - Mathf.InverseLerp(FreeY, HemY, y);
-            return -0.26f - off - (0.44f + off) * (1f - f * f * f);
+            return UnderPackZ - off - (0.44f + off) * (1f - f * f * f);
         }
 
         /// <summary>A few broad folds across the back, -1..1 (a ridge at 1), placed by the unit so no
@@ -396,11 +436,13 @@ namespace StarForge.View
                 downs[r] = down;
                 float half = Mathf.Lerp(HalfTop, HalfHem, Mathf.Pow(down, 0.8f));
                 float mid = MiddleZ(by, backZ);
-                float depth = 0.012f + 0.12f * Mathf.Pow(down, 1.3f);
+                float depth = 0.12f * Mathf.Pow(down, 1.3f);
                 for (int c = 0; c < Cols; c++)
                 {
                     float s = c == 0 ? -1f : c == Cols - 1 ? 1f : Mathf.Lerp(-1f + Trim, 1f - Trim, (c - 1) / (Cols - 3f));
-                    float wrap = s * s * (0.06f + 0.18f * down);
+                    // None at the shoulders, growing toward the hem: wrapped forward up there, the
+                    // edges met the back plate.
+                    float wrap = s * s * 0.24f * down * down;
                     grid[r * Cols + c] = new Vector3(s * half, by - ShoulderY, mid + wrap - Fold(s, id) * depth - ShoulderZ);
                 }
             }
@@ -478,6 +520,15 @@ namespace StarForge.View
             m.SetUVs(0, uvs);
             m.colors = Colours(team, rank);
             m.SetTriangles(tris, 0);
+            // Above the pack line on the cape's own bone (0), below it on the skirt's (1), blended over a row.
+            float freeDown = (ShoulderY - FreeY) / (ShoulderY - HemY);
+            var weights = new BoneWeight[verts.Count];
+            for (int i = 0; i < weights.Length; i++)
+            {
+                float w = Mathf.Clamp01((down01[i] - freeDown) / 0.1f);
+                weights[i] = new BoneWeight { boneIndex0 = 1, weight0 = w, boneIndex1 = 0, weight1 = 1f - w };
+            }
+            m.boneWeights = weights;
             m.RecalculateBounds();
             return m;
         }

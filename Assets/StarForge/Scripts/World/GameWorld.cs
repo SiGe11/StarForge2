@@ -50,6 +50,8 @@ namespace StarForge.World
         // ---- the Armory (GameWorld.Roster): weapons and armour by class, two levels each
         public readonly int[] armyUpgrades = new int[(int)ArmyUpgrade.Count];
         public int armyUpgradeOreSpent;
+        /// <summary>When this side may train its next Mech-Hunter (the wait after one fell).</summary>
+        public float hunterReadyAt;
     }
 
     public enum GameEventKind
@@ -485,6 +487,7 @@ namespace StarForge.World
                 }
             }
             if (u.team < 2) MechBookkeeping(u);
+            if (d.type == UnitType.MechHunter && u.team < 2) factions[u.team].hunterReadyAt = time + HunterWait;
             u.BeginDeath();
             float scale = d.type == UnitType.Mech ? 3.4f : d.building ? 2.6f : (d.type == UnitType.Mauler || d.heavyArmour ? 1.5f : 1f);
             // A wrecked structure or vehicle blasts what stands round it; infantry do not.
@@ -1462,6 +1465,11 @@ namespace StarForge.World
             if (D.producer != building.Type) return Refuse(team, $"{building.def.displayName} cannot train that");
             if (D.requires != UnitType.None && !HasComplete(team, D.requires))
                 return Refuse(team, $"Requires a {Defs.Get(D.requires).displayName}");
+            if (what == UnitType.MechHunter)
+            {
+                string why = HunterBarred(team);
+                if (why != null) return Refuse(team, why);
+            }
             if (factions[team].ore < D.cost) return Refuse(team, "Not enough ore");
             int cap = Mathf.Min(factions[team].supplyCap, MaxSupply);
             if (factions[team].supplyUsed + D.supplyCost > cap) return Refuse(team, "Not enough supply — build a Bunkhouse");

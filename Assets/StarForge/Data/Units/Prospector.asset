@@ -14,13 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 21
   displayName: Prospector
-  blurb: Armed miner. Mines (5 ore a trip) and fights back at its work; a fair soldier, a poor miner. Cannot build. Requires a Garrison.
+  blurb: Armed ore truck. Mines (5 ore a trip) and its roof gun fights back at its work; armoured, but a poor miner. Cannot build.
   building: 0
   neutral: 0
-  radius: 0.65
-  hp: 100
-  speed: 6
-  turnRate: 8
+  radius: 1
+  hp: 150
+  speed: 5.6
+  turnRate: 3.5
   range: 15
   damage: 8
   cooldown: 0.75
@@ -35,15 +35,17 @@ MonoBehaviour:
   vsHeavy: 1
   vsStructure: 1
   vsAir: 1
+  vsMech: 1
   bounces: 0
   ignite: 0
-  upgradeClass: 1
+  upgradeClass: 2
   harvester: 1
   builder: 0
   carry: 5
   harvestTime: 1.9
-  heavyArmour: 0
+  heavyArmour: 1
   flying: 0
+  fixedWing: 0
   altitude: 0
   organic: 0
   buildTime: 18
@@ -52,10 +54,10 @@ MonoBehaviour:
   supplyGive: 0
   hotkey: 75
   producer: 4
-  requires: 5
+  requires: -1
   prefabs:
   - {fileID: 5016420704807254259, guid: 3ab3b5a5ada2743be976766f7317e8ba, type: 3}
   - {fileID: 2289292151650349537, guid: 207a512bf955c4c9498b8ffc9ed09d70, type: 3}
   icon: {fileID: 2800000, guid: 7912b8fb83f3343f6a7e5981586c6455, type: 3}
-  visualRadius: 1.04
-  visualHeight: 2.003
+  visualRadius: 1.6
+  visualHeight: 1.96

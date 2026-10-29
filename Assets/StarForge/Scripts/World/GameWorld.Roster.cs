@@ -14,7 +14,8 @@ using static StarForge.SFMath;
 namespace StarForge.World
 {
     /// <summary>The Armory's research lines: weapons and armour for each class.</summary>
-    public enum ArmyUpgrade { InfantryWeapons = 0, InfantryArmour, VehicleWeapons, VehiclePlating, CreatureWeapons, CreatureCarapace, Count }
+    public enum ArmyUpgrade { InfantryWeapons = 0, InfantryArmour, VehicleWeapons, VehiclePlating, CreatureWeapons, CreatureCarapace,
+                              MechHunterProgramme, Count }
 
     public struct ArmyUpgradeInfo
     {
@@ -115,7 +116,32 @@ namespace StarForge.World
                 blurb = "+10% damage a level for the Biolab's creatures." },
             new ArmyUpgradeInfo { name = "Creature Carapace", hotkey = 'M', forClass = UnitClass.Creature, armour = true, cost = new[] { 125, 200 }, time = new[] { 45f, 60f },
                 blurb = "The Biolab's creatures take 10% less damage a level." },
+            // A one-off unlock, not a level of anything: the Workshop's Mech-Hunter.
+            new ArmyUpgradeInfo { name = "Mech-Hunter Programme", hotkey = 'K', forClass = UnitClass.None, cost = new[] { 200 }, time = new[] { 50f },
+                blurb = "Lets the Workshop build the Mech-Hunter, a light vehicle whose coil lance tears through Mechs and Ironclads. " +
+                        "One in the field at a time, and a wait after it falls." },
         };
+
+        /// <summary>Seconds a side waits to train another Mech-Hunter after one falls.</summary>
+        public const float HunterWait = 75f;
+
+        /// <summary>Why this side cannot train a Mech-Hunter now (null: it can): the Armory's programme
+        /// not done, one already in the field or on order at any Workshop, or the wait after one fell.</summary>
+        public string HunterBarred(int team)
+        {
+            if (team < 0 || team > 1) return "No";
+            var F = factions[team];
+            if (F.armyUpgrades[(int)ArmyUpgrade.MechHunterProgramme] < 1) return "Needs the Armory's Mech-Hunter Programme";
+            if (time < F.hunterReadyAt) return $"Next Mech-Hunter ready in {Mathf.CeilToInt(F.hunterReadyAt - time)}s";
+            foreach (var u in units)
+            {
+                if (u == null || u.dying || u.team != team) continue;
+                if (u.Type == UnitType.MechHunter && !u.deserted) return "Only one Mech-Hunter in the field at a time";
+                if (u.def.building)
+                    foreach (var q in u.queue) if (q == UnitType.MechHunter) return "A Mech-Hunter is already on order";
+            }
+            return null;
+        }
 
         public static ArmyUpgradeInfo ArmyUpgradeOf(ArmyUpgrade up) => armyUpgradeInfo[(int)up];
 
@@ -197,7 +223,7 @@ namespace StarForge.World
             Raise(new GameEvent
             {
                 kind = GameEventKind.ArmyUpgradeComplete, unit = a, type = UnitType.Armory, team = a.team, pos = a.Ground,
-                index = (int)up, scale = lvl, text = $"{info.name} {MechParts.Roman(lvl)} researched"
+                index = (int)up, scale = lvl, text = info.Levels == 1 ? $"{info.name} researched" : $"{info.name} {MechParts.Roman(lvl)} researched"
             });
         }
 
@@ -206,13 +232,13 @@ namespace StarForge.World
         {
             float ang = s.HasTurret ? s.turretYaw : s.yaw;
             Vector3 fwd = new Vector3(Mathf.Sin(ang), 0f, Mathf.Cos(ang));
-            return s.Ground + Vector3.up * (up + (s.def.flying ? s.def.altitude : 0f)) + fwd * forward;
+            return s.Ground + Vector3.up * (up + (s.def.flying ? s.def.altitude - s.dip : 0f)) + fwd * forward;
         }
 
         /// <summary>The damage multiplier of a definition's gun on what it hits.</summary>
         static float HitMul(UnitDef D, Unit t) =>
             (t.def.building ? D.vsStructure : t.def.flying ? D.vsAir : t.def.Heavy ? D.vsHeavy : D.vsLight) *
-            (t.def.harvester && !t.def.Heavy ? D.bonusVsWorkers : 1f);
+            (t.def.harvester && !t.def.Heavy ? D.bonusVsWorkers : 1f) * (t.def.MechLike ? D.vsMech : 1f);
 
         Projectile Round(Unit s, Unit t, int kind, Vector3 muzzle, float speed)
         {
@@ -239,8 +265,10 @@ namespace StarForge.World
             return p;
         }
 
-        void RaiseFire(Unit s, Vector3 muzzle, Vector3 dir, int kind) =>
-            Raise(new GameEvent { kind = GameEventKind.Fire, unit = s, type = s.Type, team = s.team, pos = muzzle, dir = dir, projectileKind = kind });
+        /// <summary>A shot leaving its gun; <paramref name="end"/> is where a blow dealt at once lands
+        /// (claws, tusks), for the view to draw it there.</summary>
+        void RaiseFire(Unit s, Vector3 muzzle, Vector3 dir, int kind, Vector3 end = default) =>
+            Raise(new GameEvent { kind = GameEventKind.Fire, unit = s, type = s.Type, team = s.team, pos = muzzle, dir = dir, projectileKind = kind, end = end });
 
         void FireRoster(Unit s, Unit t)
         {
@@ -250,7 +278,9 @@ namespace StarForge.World
             {
                 case WeaponKind.Rifle:
                 {
-                    Vector3 m = Muzzle(s, 1.2f, 0.7f);
+                    // The Prospector's is a machine gun on its cab roof.
+                    bool truck = s.Type == UnitType.Prospector;
+                    Vector3 m = Muzzle(s, truck ? 1.76f : 1.2f, truck ? 1.0f : 0.7f);
                     Round(s, t, 0, m, 115f);
                     RaiseFire(s, m, (aim - m).normalized, 0);
                     break;
@@ -307,6 +337,17 @@ namespace StarForge.World
                     RaiseFire(s, m, (aim - m).normalized, ProjSniper);
                     break;
                 }
+                case WeaponKind.Lance:
+                {
+                    // The Mech-Hunter's coil lance: the slug arrives at once (the Mech railgun's beam
+                    // is drawn), its weight on Mechs and Ironclads (vsMech).
+                    Vector3 m = Muzzle(s, 1.32f, 3.1f);
+                    float dmg = D.damage * (1f + 0.15f * s.rank) * WeaponMul(s);
+                    Damage(t, dmg * HitMul(D, t), s.pos, s);
+                    Raise(new GameEvent { kind = GameEventKind.Beam, unit = s, type = s.Type, team = s.team, pos = m, end = aim,
+                                          projectileKind = (int)MechWeapon.Railgun, scale = 0.7f });
+                    break;
+                }
                 case WeaponKind.Cannon:
                 {
                     Vector3 m = Muzzle(s, 1.55f, 2.7f);
@@ -355,7 +396,7 @@ namespace StarForge.World
                     // In the bite's reach the blow lands at once.
                     float dmg = D.damage * (1f + 0.15f * s.rank) * WeaponMul(s) * HitMul(D, t);
                     Vector3 m = Muzzle(s, 0.5f, s.def.radius);
-                    RaiseFire(s, m, (aim - m).normalized, ProjClaw);
+                    RaiseFire(s, m, (aim - m).normalized, ProjClaw, aim);
                     Damage(t, dmg, s.pos, s);
                     break;
                 }
@@ -412,7 +453,7 @@ namespace StarForge.World
                     // stands on the ground round it.
                     float dmg = D.damage * (1f + 0.15f * s.rank) * WeaponMul(s);
                     Vector3 m = Muzzle(s, 1.2f, s.def.radius + 0.6f);
-                    RaiseFire(s, m, (aim - m).normalized, ProjClaw);
+                    RaiseFire(s, m, (aim - m).normalized, ProjClaw, aim);
                     Vector2 at = t.pos;
                     EnemiesNear(s, D.range + D.splash + 3f, flameScratch);
                     foreach (var e in flameScratch)

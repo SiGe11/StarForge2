@@ -27,6 +27,8 @@ namespace StarForge.View
     {
         struct Beam { public Vector3 from, to; public float born, life, width; public Color core, halo; public bool trail; }
         readonly List<Beam> beams = new List<Beam>(64);
+        /// <summary>For trials: beams being drawn now.</summary>
+        public int BeamCount => beams.Count;
         static readonly string[] Stacks = { "StackR", "StackL" }, Jets = { "JetFR", "JetFL", "JetBR", "JetBL" };
         struct Beacon { public Vector3 at; public float born, until; public int team; }
         readonly List<Beacon> beacons = new List<Beacon>(2);

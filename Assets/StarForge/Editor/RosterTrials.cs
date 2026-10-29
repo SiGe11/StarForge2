@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 using StarForge.AI;
 using StarForge.Sim;
 using StarForge.View;
@@ -44,7 +45,10 @@ namespace StarForge.EditorTools
 
         public static string Smoke() => Start<RosterSmoke>("smoke");
         public static string SmokeReport() => Report<RosterSmoke>();
-        public static string Duels() => Start<RosterDuels>("duels");
+        public static string Duels() { RosterDuels.Focus = null; return Start<RosterDuels>("duels"); }
+        /// <summary>The duels of the units changed last: the Swift (now a plane) and the Prospector (now an
+        /// armoured truck), each against every fighting type.</summary>
+        public static string DuelsChanged() { RosterDuels.Focus = new[] { UnitType.Swift, UnitType.Prospector }; return Start<RosterDuels>("duels"); }
         public static string DuelReport() => Report<RosterDuels>();
         /// <summary>Hits on an aircraft by speed: each anti-air gun on Hold, 12 m from a hovering Kestrel
         /// (its hull topped up every frame), 12 s at 1x and again at 8x: damage per shot, which must not
@@ -191,6 +195,28 @@ namespace StarForge.EditorTools
                 Object.DestroyImmediate(mat);
             }
         }
+        /// <summary>The Mech-Hunter (play mode, ~2 min): refused before the Armory's programme, researched,
+        /// one on order and one in the field at a time, its flag's cloth, its lance on an Ironclad and on a
+        /// bare Mech (shots to kill, it topped up meanwhile), a fair fight -- one Mech-Hunter and four Troopers
+        /// against a bare Mech -- and the wait after it falls.</summary>
+        public static string Hunter() => Start<RosterHunter>("hunter");
+        public static string HunterReport() => Report<RosterHunter>();
+        /// <summary>The Swift as a plane (play mode): against a hovering Kestrel and a Trooper, its slowest
+        /// speed, its runs, shots and the kills; then, nothing left, how it circles where it was.</summary>
+        public static string Plane() => Start<RosterPlane>("plane");
+        public static string PlaneReport() => Report<RosterPlane>();
+        /// <summary>The Digger's two build cards and every production card against the HUD's twelve slots,
+        /// and the HUD's own slot layout: rows and columns, all inside the panel.</summary>
+        public static string BuildMenu() => Start<RosterBuildMenu>("build menu");
+        public static string BuildMenuReport() => Report<RosterBuildMenu>();
+        /// <summary>Photographs of each Biolab creature's blow (Temp/strike_<Type>.png, four frames from the
+        /// strike on) and the body's furthest throw forward, up and its head's pitch.</summary>
+        public static string StrikeLook() => Start<RosterStrikeLook>("strike look");
+        public static string StrikeLookReport() => Report<RosterStrikeLook>();
+        /// <summary>The Prospector's roof gun while it mines: an enemy Trooper set down behind it in reach;
+        /// at every shot, how far the turret points off the Trooper.</summary>
+        public static string TruckGun() => Start<RosterTruckGun>("truck gun");
+        public static string TruckGunReport() => Report<RosterTruckGun>();
         public static string Economy() => Start<RosterEconomy>("economy");
         public static string EconomyReport() => Report<RosterEconomy>();
         /// <summary>An AI-vs-AI match (both sides the Commander, memory off) at 8x for <see cref="RosterAIvsAI.Seconds"/>:
@@ -354,6 +380,9 @@ namespace StarForge.EditorTools
 
     public sealed class RosterDuels : BugTrial
     {
+        /// <summary>Only the pairs with one of these in them (null: every pair); set by the entry points.</summary>
+        public static UnitType[] Focus;
+
         public static int Budget = 600;
         public static float Cap = 80f;
 
@@ -366,6 +395,7 @@ namespace StarForge.EditorTools
             var F = RosterTrials.Fighters;
             int n = F.Length;
             var score = new float[n, n];   // A's share of what was left, -1..1
+            var fought = new bool[n, n];
             var lines = new StringBuilder();
             var rng = new System.Random(2024);
             using (var errors = new RosterTrials.ErrorCount())
@@ -374,7 +404,9 @@ namespace StarForge.EditorTools
                 for (int i = 0; i < n; i++)
                     for (int j = i + 1; j < n; j++)
                     {
-                        report = $"fight {++fights} of {n * (n - 1) / 2}: {F[i]} vs {F[j]}";
+                        if (Focus != null && System.Array.IndexOf(Focus, F[i]) < 0 && System.Array.IndexOf(Focus, F[j]) < 0) continue;
+                        fought[i, j] = fought[j, i] = true;
+                        report = $"fight {++fights}: {F[i]} vs {F[j]}";
                         if (!FindField(rng, out var b, out var d)) continue;
                         var a = Army(F[i], 0, b - d * 15f);
                         var c = Army(F[j], 1, b + d * 15f);
@@ -406,7 +438,7 @@ namespace StarForge.EditorTools
                     int w = 0, l = 0, e = 0; float net = 0f;
                     for (int j = 0; j < n; j++)
                     {
-                        if (i == j) continue;
+                        if (i == j || !fought[i, j]) continue;
                         net += score[i, j];
                         if (score[i, j] > 0.05f) w++; else if (score[i, j] < -0.05f) l++; else e++;
                     }
@@ -748,6 +780,404 @@ namespace StarForge.EditorTools
 
         public override string ToString() =>
             $"{samples} cape-frames; furthest any particle came in past its rest {intrude:0.000} (model units), hem lowest {lowest:0.00} m above the ground, furthest from the collar {far:0.00}; inside the soldier (legs as 0.15 capsules, the waist) {inside} of {checkedVerts} particle-frames ({inLeg} leg, {inWaist} waist; by quarter down {byRow[0]}/{byRow[1]}/{byRow[2]}/{byRow[3]}, {atEdge} at the edges), deepest {deepest:0.000}{worstAt}";
+    }
+
+    public sealed class RosterHunter : BugTrial
+    {
+        IEnumerator Start()
+        {
+            yield return EnsureMatch();
+            if (!Ready) { report = "no match running"; yield break; }
+            HoldStatics();
+            var sb = new StringBuilder();
+            var F = world.factions[0];
+            int oreWas = F.ore, programmeWas = F.armyUpgrades[(int)ArmyUpgrade.MechHunterProgramme];
+            float readyWas = F.hunterReadyAt;
+            var made = new List<Unit>();
+            using (var errors = new RosterTrials.ErrorCount())
+            {
+                if (!FindField(new System.Random(11), out var b, out var d)) { report = "no field"; ReleaseStatics(); yield break; }
+                Vector2 side = new Vector2(-d.y, d.x);
+                F.ore += 5000;
+                F.armyUpgrades[(int)ArmyUpgrade.MechHunterProgramme] = 0;
+                F.hunterReadyAt = 0f;
+                var armory = Put(UnitType.Armory, 0, world.NearestWalkable(b + side * 16f - d * 10f, 4f));
+                var shop = Put(UnitType.Workshop, 0, world.NearestWalkable(b - side * 16f - d * 10f, 4f));
+                yield return null;
+                bool early = world.CmdTrain(shop, UnitType.MechHunter);
+                sb.AppendLine($"before the programme: train {(early ? "ACCEPTED" : "refused")} ({world.HunterBarred(0)})");
+                bool started = world.CmdArmoryResearch(armory, ArmyUpgrade.MechHunterProgramme);
+                Time.timeScale = 8f;
+                float t0 = world.time;
+                while (world.ArmyUpgradeCost(0, ArmyUpgrade.MechHunterProgramme) >= 0 && world.time - t0 < 120f) yield return null;
+                sb.AppendLine($"programme started {started}, researched in {world.time - t0:0} s");
+                bool first = world.CmdTrain(shop, UnitType.MechHunter);
+                bool second = world.CmdTrain(shop, UnitType.MechHunter);
+                sb.AppendLine($"train one {first}; a second while it is on order {(second ? "ACCEPTED" : "refused")} ({world.HunterBarred(0)})");
+                Unit hunter = null;
+                t0 = world.time;
+                while (hunter == null && world.time - t0 < 80f)
+                {
+                    foreach (var u in world.units) if (Unit.Live(u) && u.team == 0 && u.Type == UnitType.MechHunter) hunter = u;
+                    yield return null;
+                }
+                Time.timeScale = 3f;
+                if (hunter == null) { report = sb + "no Mech-Hunter came out"; ReleaseStatics(); yield break; }
+                made.Add(hunter);
+                bool third = world.CmdTrain(shop, UnitType.MechHunter);
+                sb.AppendLine($"out after {world.time - t0:0} s; another while it is in the field {(third ? "ACCEPTED" : "refused")} ({world.HunterBarred(0)})");
+                yield return Wait(1f);
+                var cloth = hunter.GetComponentInChildren<Cloth>(true);
+                sb.AppendLine($"its flag: cloth {(cloth != null ? (cloth.gameObject.activeInHierarchy ? "on show" : "made, not running") : "MISSING")}");
+
+                // The lance, the Mech-Hunter kept alive: shots to kill an Ironclad, then a bare Mech.
+                int shots = 0;
+                // The lance is drawn as a beam (the railgun's), not a Fire event.
+                ListenWhileHeld(e => { if ((e.kind == GameEventKind.Fire || e.kind == GameEventKind.Beam) && e.unit == hunter) shots++; });
+                foreach (var foe in new[] { "Ironclad", "Mech" })
+                {
+                    var at = world.NearestReachable(b, b + d * 18f);
+                    hunter.agent.Warp(world.Map.Ground(b));
+                    hunter.CachePosition();
+                    Unit target = foe == "Mech" ? world.TrialMech(1, MechParts.Generate(777u), at, Mathf.PI, false)
+                                                : Put(UnitType.Ironclad, 1, at);
+                    made.Add(target);
+                    float full = target.mech != null ? target.mech.EffectiveHp : target.hp;
+                    world.CmdHold(new List<Unit> { target });
+                    world.CmdAttack(new List<Unit> { hunter }, target);
+                    shots = 0;
+                    int beamsSeen = 0;
+                    t0 = world.time;
+                    while (Unit.Live(target) && world.time - t0 < 60f)
+                    {
+                        hunter.hp = hunter.MaxHp;
+                        if (FXDirector.Current != null) beamsSeen = Mathf.Max(beamsSeen, FXDirector.Current.BeamCount);
+                        yield return null;
+                    }
+                    sb.AppendLine($"{foe} ({full:0} effective hp): {(Unit.Live(target) ? "STILL STANDING" : "down")} after {shots} shots, {world.time - t0:0.0} s; railgun beams drawn at once, most {beamsSeen}");
+                    if (Unit.Live(target)) world.Damage(target, 1e6f, target.pos, null);
+                    yield return Wait(2f);
+                }
+                ListenWhileHeld(null);
+
+                // A fair fight: the Mech-Hunter and four Troopers against a bare Mech, nobody kept alive.
+                {
+                    var at = world.NearestReachable(b, b + d * 30f);
+                    var mech = world.TrialMech(1, MechParts.Generate(777u), at, Mathf.PI, false);
+                    made.Add(mech);
+                    var squad = new List<Unit> { hunter };
+                    for (int i = 0; i < 4; i++) squad.Add(Put(UnitType.Trooper, 0, world.NearestReachable(b, b - d * 3f + side * (i - 1.5f) * 2f)));
+                    world.CmdAttack(squad, mech);
+                    float hunterDied = -1f, squadHp = 0f;
+                    foreach (var u in squad) squadHp += u.hp;
+                    int mechShots = 0;
+                    ListenWhileHeld(e => { if ((e.kind == GameEventKind.Fire || e.kind == GameEventKind.Beam) && e.unit == mech) mechShots++; });
+                    t0 = world.time;
+                    while (Unit.Live(mech) && squad.Exists(Unit.Live) && world.time - t0 < 90f)
+                    {
+                        if (hunterDied < 0f && !Unit.Live(hunter)) hunterDied = world.time - t0;
+                        yield return null;
+                    }
+                    ListenWhileHeld(null);
+                    float hpLeft = 0f;
+                    foreach (var u in squad) if (Unit.Live(u)) hpLeft += u.hp;
+                    sb.AppendLine($"  the Mech ({mech.mech?.design}) fired {mechShots} times, took {squadHp - hpLeft:0} of the squad's {squadHp:0} hp");
+                    int alive = squad.FindAll(Unit.Live).Count;
+                    sb.AppendLine($"fair fight, a Mech-Hunter and 4 Troopers (450 ore) against a bare Mech: Mech {(Unit.Live(mech) ? "STANDING at " + (mech.hp / mech.MaxHp * 100f).ToString("0") + "%" : "down")} " +
+                                  $"after {world.time - t0:0} s, {alive} of 5 left, the Mech-Hunter {(hunterDied >= 0f ? $"lost at {hunterDied:0} s" : Unit.Live(hunter) ? "alive" : "lost")}");
+                    if (Unit.Live(mech)) world.Damage(mech, 1e6f, mech.pos, null);
+                }
+                if (Unit.Live(hunter)) world.Damage(hunter, 1e6f, hunter.pos, null);
+                yield return null;
+                sb.AppendLine($"after it fell: train {(world.CmdTrain(shop, UnitType.MechHunter) ? "ACCEPTED" : "refused")} ({world.HunterBarred(0)})");
+                Time.timeScale = 8f;
+                t0 = world.time;
+                while (world.HunterBarred(0) != null && world.time - t0 < 120f) yield return null;
+                Time.timeScale = 3f;
+                sb.AppendLine($"allowed again {world.time - t0:0} s after it fell (wait {GameWorld.HunterWait:0} s)");
+                sb.Append($"errors {errors.count}" + (errors.first != null ? " first: " + errors.first.Split('\n')[0] : ""));
+            }
+            foreach (var u in made) if (Unit.Live(u)) world.Damage(u, 1e6f, u.pos, null);
+            foreach (var u in world.units) if (Unit.Live(u) && u.team == 0 && u.Type == UnitType.MechHunter) world.Damage(u, 1e6f, u.pos, null);
+            ClearSpawned();
+            F.ore = oreWas;
+            F.armyUpgrades[(int)ArmyUpgrade.MechHunterProgramme] = programmeWas;
+            F.hunterReadyAt = readyWas;
+            ReleaseStatics();
+            report = sb.ToString();
+        }
+    }
+
+    public sealed class RosterPlane : BugTrial
+    {
+        IEnumerator Start()
+        {
+            yield return EnsureMatch();
+            if (!Ready) { report = "no match running"; yield break; }
+            HoldStatics();
+            Time.timeScale = 2f;
+            var sb = new StringBuilder();
+            using (var errors = new RosterTrials.ErrorCount())
+            {
+                if (!FindField(new System.Random(5), out var b, out var d)) { report = "no field"; ReleaseStatics(); yield break; }
+                var swift = Put(UnitType.Swift, 0, b - d * 30f);
+                var kestrel = Put(UnitType.Kestrel, 1, b + d * 10f);
+                var rifle = Put(UnitType.Trooper, 1, world.NearestReachable(b, b + d * 14f + new Vector2(-d.y, d.x) * 6f));
+                world.CmdHold(new List<Unit> { kestrel, rifle });
+                yield return null;
+                int shots = 0, runs = 0;
+                float slowest = 99f, lowest = 99f, firstKill = -1f;
+                bool wasOut = false;
+                ListenWhileHeld(e => { if (e.kind == GameEventKind.Fire && e.unit == swift) shots++; });
+                world.CmdMove(new List<Unit> { swift }, b, true);
+                float t0 = world.time;
+                while ((Unit.Live(kestrel) || Unit.Live(rifle)) && Unit.Live(swift) && world.time - t0 < 60f)
+                {
+                    kestrel.cooldown = rifle.cooldown = 1f;   // they do not shoot back: the runs are what is measured
+                    slowest = Mathf.Min(slowest, swift.Velocity.magnitude);
+                    lowest = Mathf.Min(lowest, swift.def.altitude - swift.dip);
+                    if (swift.runOut > 0f && !wasOut) runs++;
+                    wasOut = swift.runOut > 0f;
+                    if (firstKill < 0f && (!Unit.Live(kestrel) || !Unit.Live(rifle))) firstKill = world.time - t0;
+                    yield return null;
+                }
+                ListenWhileHeld(null);
+                sb.AppendLine($"against a hovering Kestrel and a Trooper (neither firing): slowest {slowest:0.0} m/s (top {swift.def.speed:0.0}), {runs} runs, {shots} shots, " +
+                              $"first kill {firstKill:0.0} s, both down {(Unit.Live(kestrel) || Unit.Live(rifle) ? "NO" : "yes")} at {world.time - t0:0.0} s, lowest {lowest:0.0} m up (cruise {swift.def.altitude:0.0})");
+                // Nothing left: it circles where it was sent.
+                world.CmdMove(new List<Unit> { swift }, b + d * 12f, false);
+                yield return Wait(8f);
+                Vector2 c = b + d * 12f;
+                float rMin = 99f, rMax = 0f, vMin = 99f;
+                t0 = world.time;
+                while (world.time - t0 < 10f)
+                {
+                    float r = (swift.pos - c).magnitude;
+                    rMin = Mathf.Min(rMin, r); rMax = Mathf.Max(rMax, r);
+                    vMin = Mathf.Min(vMin, swift.Velocity.magnitude);
+                    yield return null;
+                }
+                sb.AppendLine($"circling where sent: {rMin:0.0}-{rMax:0.0} m from it, slowest {vMin:0.0} m/s, order {swift.order}");
+                // On Hold, then idle: an enemy walks past 28 m off; the plane stays over its spot.
+                Vector2 side2 = new Vector2(-d.y, d.x);
+                foreach (bool hold in new[] { true, false })
+                {
+                    if (hold) world.CmdHold(new List<Unit> { swift }); else world.CmdStop(new List<Unit> { swift });
+                    var walker = Put(UnitType.Trooper, 1, world.NearestReachable(b, c + d * 28f - side2 * 30f));
+                    walker.cooldown = 99f;
+                    world.CmdMove(new List<Unit> { walker }, world.NearestReachable(b, c + d * 28f + side2 * 30f), false);
+                    float far = 0f;
+                    t0 = world.time;
+                    while (world.time - t0 < 16f && Unit.Live(walker)) { walker.cooldown = 99f; far = Mathf.Max(far, (swift.pos - c).magnitude); yield return null; }
+                    sb.AppendLine($"{(hold ? "on Hold" : "idle")}, an enemy walking past 28 m off: furthest {far:0.0} m from its spot (circle {swift.def.speed / swift.def.turnRate * 1.25f:0.0}), order {swift.order}");
+                    if (Unit.Live(walker)) world.Damage(walker, 1e6f, walker.pos, null);
+                    yield return Wait(1f);
+                }
+                sb.Append($"errors {errors.count}" + (errors.first != null ? " first: " + errors.first.Split('\n')[0] : ""));
+            }
+            ClearSpawned();
+            ReleaseStatics();
+            report = sb.ToString();
+        }
+    }
+
+    public sealed class RosterBuildMenu : BugTrial
+    {
+        IEnumerator Start()
+        {
+            yield return EnsureMatch();
+            if (!Ready) { report = "no match running"; yield break; }
+            var pc = Object.FindAnyObjectByType<PlayerController>();
+            var sb = new StringBuilder();
+            Unit digger = null;
+            foreach (var u in world.units) if (Unit.Live(u) && u.team == pc.team && u.Type == UnitType.Worker) { digger = u; break; }
+            if (digger == null) { report = "no Digger"; yield break; }
+            var cards = new List<CardAction>();
+            string Line(List<CardAction> l) { var s = new StringBuilder(); foreach (var c in l) s.Append($" [{c.hotkey}]{c.title}"); return s.ToString(); }
+            pc.SelectOnly(digger);
+            pc.BuildCard(cards);
+            sb.AppendLine($"Digger: {cards.Count} cards:{Line(cards)}");
+            foreach (var menu in new[] { BuildMenu.Basic, BuildMenu.Advanced })
+            {
+                pc.Execute(new CardAction { kind = CardKind.BuildMenu, menu = menu });
+                pc.BuildCard(cards);
+                sb.AppendLine($"{menu}: {cards.Count} cards:{Line(cards)}");
+                pc.Execute(new CardAction { kind = CardKind.MenuBack });
+            }
+            pc.Execute(new CardAction { kind = CardKind.BuildMenu, menu = BuildMenu.Advanced });
+            pc.SelectOnly(digger);
+            pc.BuildCard(cards);
+            sb.AppendLine($"a new selection closes it: {cards.Count} cards (menu {pc.Menu})");
+            // A Workshop with soldiers: orders and its trains on one card, every hotkey once.
+            var shop = world.Spawn(UnitType.Workshop, pc.team, world.NearestWalkable(digger.pos + new Vector2(12f, 0f), 6f), true);
+            var rifle = world.Spawn(UnitType.Trooper, pc.team, world.NearestWalkable(digger.pos + new Vector2(0f, 6f), 4f), true);
+            pc.Selection.Clear(); pc.Selection.Add(shop); pc.Selection.Add(rifle);
+            pc.BuildCard(cards);
+            var keys = new HashSet<char>(); var dup = new StringBuilder();
+            foreach (var c in cards) if (c.hotkey != '\0' && !keys.Add(c.hotkey)) dup.Append(c.hotkey);
+            sb.AppendLine($"Workshop + a Trooper: {cards.Count} cards:{Line(cards)}; hotkeys twice: {(dup.Length == 0 ? "none" : dup.ToString())}");
+            pc.Selection.Clear();
+            shop.BeginDeath(); world.Damage(rifle, 1e6f, rifle.pos, null);
+            // Every production card against the twelve slots.
+            var most = new StringBuilder();
+            foreach (var t in new[] { UnitType.Foundry, UnitType.Garrison, UnitType.Workshop, UnitType.Airfield, UnitType.Biolab })
+            {
+                int n = 1;   // cancel
+                for (int i = 0; i < (int)UnitType.Count; i++) { var dd = Defs.Get((UnitType)i); if (dd != null && dd.producer == t) n++; }
+                most.Append($" {t} {n}");
+            }
+            most.Append($" Armory {(int)ArmyUpgrade.Count + 1} MechBay {(int)MechUpgrade.Count + 1}");
+            sb.AppendLine($"production cards with cancel (12 slots):{most}");
+            // The HUD's own slots, laid out with the Digger's card up.
+            yield return null; yield return null;
+            var doc = Object.FindAnyObjectByType<UnityEngine.UIElements.UIDocument>();
+            var panel = doc != null ? doc.rootVisualElement.Q("commandCard") : null;
+            if (panel != null)
+            {
+                var rows = new HashSet<int>();
+                var cols = new HashSet<int>();
+                int inside = 0, all = 0;
+                foreach (var ch in panel.Children())
+                {
+                    all++;
+                    rows.Add(Mathf.RoundToInt(ch.layout.y)); cols.Add(Mathf.RoundToInt(ch.layout.x));
+                    if (ch.layout.xMax <= panel.layout.width + 0.5f && ch.layout.yMax <= panel.layout.height + 0.5f) inside++;
+                }
+                sb.AppendLine($"HUD card {panel.layout.width:0}x{panel.layout.height:0}: {all} slots in {cols.Count} columns and {rows.Count} rows, {inside} inside the panel");
+            }
+            pc.Selection.Clear();
+            report = sb.ToString() + "errors 0";
+        }
+    }
+
+    public sealed class RosterStrikeLook : BugTrial
+    {
+        IEnumerator Start()
+        {
+            yield return EnsureMatch();
+            if (!Ready) { report = "no match running"; yield break; }
+            HoldStatics();
+            Time.timeScale = 1f;
+            var sb = new StringBuilder();
+            using (var errors = new RosterTrials.ErrorCount())
+            {
+                if (!FindField(new System.Random(3), out var b, out var d)) { report = "no field"; ReleaseStatics(); yield break; }
+                var rig = Object.FindAnyObjectByType<RTSCamera>();
+                foreach (var type in new[] { UnitType.Skitter, UnitType.Spitter, UnitType.Gorehorn, UnitType.Razorwing })
+                {
+                    var D = Defs.Get(type);
+                    var foe = Put(UnitType.Trooper, 1, world.NearestReachable(b, b + d * 4f));
+                    foe.cooldown = 99f;
+                    var beast = Put(type, 0, world.NearestReachable(b, b + d * (4f - Mathf.Max(1.2f, D.range * 0.8f) - D.radius)));
+                    if (rig != null) rig.JumpTo(beast.pos);
+                    world.CmdAttack(new List<Unit> { beast }, foe);
+                    bool struck = false;
+                    ListenWhileHeld(e => { if (e.kind == GameEventKind.Fire && e.unit == beast) struck = true; });
+                    float t0 = world.time;
+                    while (!struck && world.time - t0 < 10f) { foe.hp = foe.MaxHp; foe.cooldown = 99f; yield return null; }
+                    ListenWhileHeld(null);
+                    var body = beast.view != null ? beast.view.body : null;
+                    var frames = new Texture2D[4];
+                    float maxFwd = 0f, maxUp = 0f, maxPitch = 0f, minPitch = 0f;
+                    float baseY = body != null ? body.localPosition.y : 0f, baseZ = body != null ? body.localPosition.z : 0f;
+                    for (int k = 0; k < 4; k++)
+                    {
+                        float until = Time.time + (k == 0 ? 0.05f : 0.12f);
+                        while (Time.time < until)
+                        {
+                            foe.hp = foe.MaxHp; foe.cooldown = 99f;
+                            if (body != null)
+                            {
+                                maxFwd = Mathf.Max(maxFwd, body.localPosition.z - baseZ);
+                                maxUp = Mathf.Max(maxUp, Mathf.Abs(body.localPosition.y - baseY));
+                                float p = Mathf.DeltaAngle(0f, body.localEulerAngles.x);
+                                maxPitch = Mathf.Max(maxPitch, p); minPitch = Mathf.Min(minPitch, p);
+                            }
+                            yield return null;
+                        }
+                        yield return new WaitForEndOfFrame();
+                        frames[k] = Render(beast, foe);
+                    }
+                    var sheet = new Texture2D(480 * 4, 360, TextureFormat.RGB24, false);
+                    for (int k = 0; k < 4; k++) { sheet.SetPixels(480 * k, 0, 480, 360, frames[k].GetPixels()); Object.Destroy(frames[k]); }
+                    sheet.Apply();
+                    System.IO.File.WriteAllBytes($"Temp/strike_{type}.png", sheet.EncodeToPNG());
+                    Object.Destroy(sheet);
+                    sb.AppendLine($"{type}: struck {struck}; body thrown forward {maxFwd:0.00} m, up/down {maxUp:0.00} m, head {minPitch:0}..{maxPitch:0} degrees");
+                    ClearSpawned();
+                    yield return Wait(0.5f);
+                }
+                sb.Append($"errors {errors.count}" + (errors.first != null ? " first: " + errors.first.Split('\n')[0] : ""));
+            }
+            ClearSpawned();
+            ReleaseStatics();
+            report = sb.ToString();
+        }
+
+        static Texture2D Render(Unit beast, Unit foe)
+        {
+            var go = new GameObject("StrikeCam");
+            var cam = go.AddComponent<Camera>();
+            Vector3 a = beast.transform.position, f = foe.transform.position, mid = (a + f) * 0.5f + Vector3.up * 0.8f;
+            Vector3 across = Vector3.Cross(f - a, Vector3.up).normalized;
+            go.transform.position = mid + across * 5.5f + Vector3.up * 2.2f;
+            go.transform.LookAt(mid);
+            cam.fieldOfView = 40f;
+            var rt = new RenderTexture(480, 360, 24);
+            cam.targetTexture = rt;
+            cam.Render();
+            RenderTexture.active = rt;
+            var tex = new Texture2D(480, 360, TextureFormat.RGB24, false);
+            tex.ReadPixels(new Rect(0, 0, 480, 360), 0, 0);
+            tex.Apply();
+            RenderTexture.active = null;
+            cam.targetTexture = null;
+            Object.Destroy(rt); Object.Destroy(go);
+            return tex;
+        }
+    }
+
+    public sealed class RosterTruckGun : BugTrial
+    {
+        IEnumerator Start()
+        {
+            yield return EnsureMatch();
+            if (!Ready) { report = "no match running"; yield break; }
+            HoldStatics();
+            var sb = new StringBuilder();
+            using (var errors = new RosterTrials.ErrorCount())
+            {
+                Unit ore = null, home = null;
+                foreach (var u in world.units)
+                    if (Unit.Live(u) && u.team == 0 && u.Type == UnitType.Foundry && u.Complete) { home = u; break; }
+                if (home != null)
+                    foreach (var u in world.units)
+                        if (Unit.Live(u) && u.Type == UnitType.Ore && u.oreLeft > 0 && (ore == null || u.Dist(home) < ore.Dist(home))) ore = u;
+                if (ore == null || home == null) { report = "no ore or Foundry"; ReleaseStatics(); yield break; }
+                var truck = Put(UnitType.Prospector, 0, world.NearestReachable(home.pos, ore.pos + (home.pos - ore.pos).normalized * 4f));
+                world.CmdHarvest(new List<Unit> { truck }, ore);
+                yield return Wait(4f);
+                Vector2 back = -new Vector2(Mathf.Sin(truck.yaw), Mathf.Cos(truck.yaw));
+                var foe = Put(UnitType.Trooper, 1, world.NearestReachable(truck.pos, truck.pos + back * 10f));
+                world.CmdHold(new List<Unit> { foe });
+                int shots = 0; float worst = 0f, sum = 0f;
+                ListenWhileHeld(e =>
+                {
+                    if (e.kind != GameEventKind.Fire || e.unit != truck || !Unit.Live(foe)) return;
+                    float want = Mathf.Atan2(foe.pos.x - truck.pos.x, foe.pos.y - truck.pos.y);
+                    float off = Mathf.Abs(Mathf.DeltaAngle(truck.turretYaw * Mathf.Rad2Deg, want * Mathf.Rad2Deg));
+                    shots++; sum += off; worst = Mathf.Max(worst, off);
+                });
+                float t0 = world.time;
+                while (world.time - t0 < 20f && Unit.Live(foe) && Unit.Live(truck)) { truck.hp = truck.MaxHp; yield return null; }
+                ListenWhileHeld(null);
+                sb.AppendLine($"mining ({truck.order}) with a Trooper behind it: {shots} shots, turret off the Trooper {(shots > 0 ? sum / shots : 0f):0.0} degrees on average, {worst:0.0} at most; the Trooper {(Unit.Live(foe) ? "standing" : "down")}");
+                sb.Append($"errors {errors.count}" + (errors.first != null ? " first: " + errors.first.Split('\n')[0] : ""));
+            }
+            ClearSpawned();
+            ReleaseStatics();
+            report = sb.ToString();
+        }
     }
 
     public sealed class RosterCapeCloth : BugTrial

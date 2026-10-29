@@ -563,7 +563,9 @@
 }
 
 .command-card {
-    width: 290px;
+    /* Four 70 px slots a row and the padding: at 290 only three fitted, and a twelve-card
+       card ran a row past the panel. */
+    width: 296px;
     height: 230px;
     flex-direction: row;
     flex-wrap: wrap;

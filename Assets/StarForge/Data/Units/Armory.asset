@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 26
   displayName: Armory
-  blurb: 'Upgrade works: weapons and armour for infantry, vehicles and creatures, two levels each. Unlocks the Thumper, the Marksman, the Ironclad and the Gorehorn. Requires a Garrison.'
+  blurb: 'Upgrade works: weapons and armour for infantry, vehicles and creatures, two levels each, and the Mech-Hunter Programme. Unlocks the Thumper, the Marksman, the Ironclad and the Gorehorn. Requires a Garrison.'
   building: 1
   neutral: 0
   radius: 3.6
@@ -35,6 +35,7 @@ MonoBehaviour:
   vsHeavy: 1
   vsStructure: 1
   vsAir: 1
+  vsMech: 1
   bounces: 0
   ignite: 0
   upgradeClass: 0
@@ -44,6 +45,7 @@ MonoBehaviour:
   harvestTime: 1.6
   heavyArmour: 0
   flying: 0
+  fixedWing: 0
   altitude: 0
   organic: 0
   buildTime: 30

@@ -621,7 +621,9 @@ namespace StarForge.View
                     break;
                 case GameEventKind.Beam:
                     if (!Seen(e.pos) && !Seen(e.end)) return;
-                    if (e.type != UnitType.Mech) RosterFlame(e);
+                    // The Scorcher's jet is a flame; the Mech's guns and the Mech-Hunter's lance (the railgun's
+                    // beam) are drawn as the Mech's.
+                    if (e.type != UnitType.Mech && e.type != UnitType.MechHunter) RosterFlame(e);
                     else MechBeam(e);
                     break;
                 case GameEventKind.MechInbound:

@@ -195,6 +195,7 @@ namespace StarForge.UI
             if (player != null)
             {
                 player.SelectionChanged += MarkSelectionDirty;
+                player.CardChanged += MarkSelectionDirty;
                 player.MenuRequested += OnMenuRequested;
                 player.InspectorToggled += ToggleInspector;
                 player.PointerOverUI = PointerOverUI;
@@ -213,6 +214,7 @@ namespace StarForge.UI
             if (player != null)
             {
                 player.SelectionChanged -= MarkSelectionDirty;
+                player.CardChanged -= MarkSelectionDirty;
                 player.MenuRequested -= OnMenuRequested;
                 player.InspectorToggled -= ToggleInspector;
             }
@@ -1182,8 +1184,8 @@ namespace StarForge.UI
             "Camera   WASD / arrows / screen edge pan · Q E rotate · wheel zoom · middle-drag · Space centre\n" +
             "Select   click · drag box · double-click type · Shift add · Ctrl+1-0 group · 1-0 recall · F2 army\n" +
             "Orders   right-click move/attack/mine · R attack-move · C stop · H hold\n" +
-            "Build    Digger: B bunkhouse · G garrison · V workshop · N sentinel · F foundry · Y mech bay\n" +
-            "Train    Foundry U · Garrison T K · Workshop M · X cancel\n" +
+            "Build    Digger: B basic (F foundry · B bunkhouse · G garrison · N sentinel · V workshop) · V advanced (U armory · L airfield · O biolab · Y mech bay) · X/Esc back\n" +
+            "Train    Foundry U J K · Garrison T K F M N B · Workshop M L F T K · X cancel\n" +
             "Mech     Mech Bay: V servos · B armour · N weapons · M hardpoint · K targeting · click the Mech strip to find it\n" +
             "Other    P pause · , . game speed · Esc menu";
 
@@ -1216,7 +1218,8 @@ namespace StarForge.UI
             "Spitters and Marksmen against your aircraft, Lancers and Rocketeers against your armour, Ironclads and Gorehorns to break " +
             "your line, Scorchers against massed infantry, " +
             "Thumpers and Maulers against your towers, and gunships or Razorwings where little of yours can shoot up. It adds " +
-            "Haulers to its ore lines once it has a Workshop, and Prospectors -- miners that fight back -- while you raid them.\n\n" +
+            "Haulers to its ore lines from four minutes, and Prospectors -- armed ore trucks -- while you raid them. Once it knows of " +
+            "your Mech, its bay or your Ironclads it buys the Armory's Mech-Hunter Programme and keeps a Mech-Hunter in the field.\n\n" +
             "It has a Mech too. It raises a Mech Bay early, buys its Mech upgrades from spare ore -- guns and hardpoints when it " +
             "means to attack, armour when it means to hold -- and goes for your Mech Bay while your Mech has not yet landed. " +
             "Its Mech is not under its command any more than yours is under yours: it listens to what its Mech tells it and " +

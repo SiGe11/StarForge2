@@ -35,6 +35,7 @@ MonoBehaviour:
   vsHeavy: 0.4
   vsStructure: 0.3
   vsAir: 2.2
+  vsMech: 1
   bounces: 0
   ignite: 0
   upgradeClass: 2
@@ -44,6 +45,7 @@ MonoBehaviour:
   harvestTime: 1.6
   heavyArmour: 1
   flying: 0
+  fixedWing: 0
   altitude: 0
   organic: 0
   buildTime: 24

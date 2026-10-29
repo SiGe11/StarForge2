@@ -64,6 +64,13 @@ namespace StarForge.World
         // A soldier's cape (InfantryCape), earned at a promotion: whether this unit can wear
         // one, how far back its torso and pack reach, and the last rank looked at.
         InfantryCape cape;
+        // The Mech-Hunter's flag: cloth (the Mech's standard's), the rigid one while cloth cannot run.
+        Transform banner;
+        MechBannerCloth bannerCloth;
+        float prevDip, divePitch;
+        // A creature's blow: seconds since it struck (-1 none), for the body's lunge, gore or swoop.
+        float strikeT = -1f;
+        int bannerResets;
         bool capeable;
         float capeBackZ;
         int seenRank;
@@ -82,6 +89,64 @@ namespace StarForge.World
         const float BuildOff = 100000f;
 
         public Unit Unit => unit;
+
+        /// <summary>A creature's body over its blow, <paramref name="s"/> seconds after it struck: how far
+        /// forward and up it is thrown (metres), its head down (+) or tossed up (-), and the tusks' sweep
+        /// (degrees). The bite darts in and back; the spit throws the head; the tusks drive down and toss
+        /// up through a sweep; the flyer swoops down at its prey and climbs away.</summary>
+        static void Strike(WeaponKind w, float s, out float fwd, out float up, out float pitch, out float yaw)
+        {
+            fwd = up = pitch = yaw = 0f;
+            float Peak(float p, float at) => p < at ? p / at : 1f - Mathf.SmoothStep(0f, 1f, (p - at) / (1f - at));
+            switch (w)
+            {
+                case WeaponKind.Claws:
+                {
+                    float p = Mathf.Clamp01(s / 0.40f), k = Peak(p, 0.2f);
+                    fwd = 0.55f * k;
+                    up = 0.18f * Mathf.Sin(Mathf.PI * Mathf.Clamp01(p / 0.35f));
+                    pitch = 18f * k;
+                    break;
+                }
+                case WeaponKind.Acid:
+                {
+                    float p = Mathf.Clamp01(s / 0.50f), k = Peak(p, 0.18f);
+                    fwd = 0.25f * k;
+                    pitch = 14f * k - 10f * (1f - p) * (p < 0.18f ? 1f - p / 0.18f : 0f);
+                    break;
+                }
+                case WeaponKind.Gore:
+                {
+                    float p = Mathf.Clamp01(s / 0.70f);
+                    fwd = 0.9f * Peak(p, 0.15f);
+                    float down = Peak(p, 0.12f), toss = p < 0.12f ? 0f : Mathf.Sin(Mathf.PI * Mathf.Clamp01((p - 0.12f) / 0.5f));
+                    pitch = 16f * down * (p < 0.2f ? 1f : 0f) - 16f * toss;
+                    up = 0.15f * toss;
+                    yaw = 18f * Mathf.Sin(Mathf.PI * 2f * Mathf.Clamp01((p - 0.08f) / 0.4f)) * (1f - p);
+                    break;
+                }
+                case WeaponKind.Glaive:
+                {
+                    float p = Mathf.Clamp01(s / 0.60f), arc = Mathf.Sin(Mathf.PI * p);
+                    fwd = 0.9f * arc;
+                    up = -1.3f * arc;
+                    pitch = 26f * Mathf.Sin(Mathf.PI * Mathf.Clamp01(p * 1.25f));
+                    break;
+                }
+            }
+        }
+
+        void CollectRenderers()
+        {
+            renderers = GetComponentsInChildren<Renderer>(true);
+            // Each renderer's height above the model origin, so the construction
+            // line (in object space) lines up across a turret or a raised head.
+            rendererBaseY = new float[renderers.Length];
+            for (int i = 0; i < renderers.Length; i++)
+                rendererBaseY[i] = transform.InverseTransformPoint(renderers[i].transform.position).y;
+        }
+
+        void OnDestroy() { if (bannerCloth != null) bannerCloth.Destroy(); }
 
         public void Bind(Unit u)
         {
@@ -115,6 +180,7 @@ namespace StarForge.World
                     case "Crystals": crystals = t; crystalsRest = t.localScale; break;
                     case "RotorL": rotorL = t; break;
                     case "RotorR": rotorR = t; break;
+                    case "Banner": banner = t; break;
                 }
             }
             anim = GetComponentInChildren<Animation>(true);
@@ -135,9 +201,13 @@ namespace StarForge.World
                 if (clipMove == null) clipMove = clipJump;
                 else if (clipAttack == null) clipAttack = clipJump;
                 if (clipIdle == null) clipIdle = clipMove;
-                if (clipAttack != null) { anim[clipAttack].wrapMode = WrapMode.Once; anim[clipAttack].layer = 1; }
+                // A quick, sharp strike: at the clip's own pace the blow looked like a nod.
+                if (clipAttack != null) { anim[clipAttack].wrapMode = WrapMode.Once; anim[clipAttack].layer = 1; anim[clipAttack].speed = 1.4f; }
                 if (clipMove != null) anim.Play(clipMove);
             }
+            // Made before the fog's renderer list is final, so it hides with the unit.
+            if (banner != null && bannerCloth == null && (bannerCloth = MechBannerCloth.Make(banner, u.team, u.id)) != null)
+                CollectRenderers();
             capeable = body != null && InfantryCape.Eligible(u.def);
             if (capeable)
             {
@@ -184,6 +254,8 @@ namespace StarForge.World
             {
                 handedOff = true;
                 if (cape != null) cape.Freeze();
+                // The wreck keeps the rigid flag: the cloth would go on swinging on a dead hull.
+                if (bannerCloth != null) { bannerCloth.Destroy(); bannerCloth = null; if (banner != null) banner.gameObject.SetActive(true); }
                 if (shown && body != null)
                 {
                     if (unit.def.organic) CreatureCorpse.Create(unit, body, anim, clipDeath);
@@ -205,6 +277,7 @@ namespace StarForge.World
             {
                 shown = visible;
                 foreach (var r in renderers) if (r != null) r.enabled = visible;
+                if (visible && bannerCloth != null) bannerCloth.Resume();
             }
             if (capeable)
             {
@@ -222,13 +295,21 @@ namespace StarForge.World
             if (!visible) return;
 
             float t = Time.time, dt = Time.deltaTime;
+            if (bannerCloth != null)
+            {
+                bool onShow = bannerCloth.Tick(Wind.At(t));
+                // A cloth rebuilt after going bad has new renderers for the fog to hide.
+                if (bannerCloth.Resets != bannerResets) { bannerResets = bannerCloth.Resets; CollectRenderers(); }
+                if (banner.gameObject.activeSelf == onShow) banner.gameObject.SetActive(!onShow);
+            }
             // The turret is a child of the body, so it takes its yaw locally and
             // rides whatever the hull does under it (the recoil rock below).
             if (turret != null)
                 turret.localRotation = Quaternion.Euler(0f, (unit.turretYaw - unit.yaw) * Mathf.Rad2Deg, 0f);
 
             // Unit resets its cooldown when it fires.
-            if (unit.cooldown > prevCooldown + 0.05f) { recoil = 1f; recoilT = 0f; }
+            if (unit.cooldown > prevCooldown + 0.05f) { recoil = 1f; recoilT = 0f; if (unit.def.organic) strikeT = 0f; }
+            if (strikeT >= 0f && (strikeT += dt) > 0.8f) strikeT = -1f;
             prevCooldown = unit.cooldown;
             recoil = Mathf.MoveTowards(recoil, 0f, dt * 4.5f);
             if (recoilT >= 0f)
@@ -253,7 +334,8 @@ namespace StarForge.World
                     // Aloft, bobbing on the air, never lower over a crest than its height over
                     // the ground a little ahead (the simulation flies it at a fixed height over
                     // whatever is under it).
-                    y += hoverHeight + Mathf.Sin(t * 1.7f + unit.id) * 0.18f;
+                    // A plane dives a little on its runs (Unit.dip, which the simulation aims at too).
+                    y += hoverHeight - unit.dip + Mathf.Sin(t * 1.7f + unit.id) * 0.18f;
                     // Over the lake its height is over the water, not the bed (GameWorld.AirPoint).
                     y = Mathf.Max(y, bodyBaseY + hoverHeight + unit.World.Map.waterLevel - transform.position.y);
                     var ahead = unit.pos + new Vector2(Mathf.Sin(unit.yaw), Mathf.Cos(unit.yaw)) * 3f;
@@ -299,6 +381,16 @@ namespace StarForge.World
                     z = bodyBaseZ - 0.16f * Mathf.Max(0f, rock) - 0.06f * bump;
                     y += 0.09f * pushLean;
                 }
+                // A creature throws its body into the blow (Strike): forward, up, its head down or tossed.
+                float sPitch = 0f, sYaw = 0f;
+                if (unit.def.organic)
+                {
+                    float sFwd = 0f, sUp = 0f;
+                    if (strikeT >= 0f) Strike(unit.def.weapon, strikeT, out sFwd, out sUp, out sPitch, out sYaw);
+                    z = bodyBaseZ + sFwd;
+                    y += sUp;
+                    if (!unit.def.flying) body.localRotation = Quaternion.Euler(sPitch, sYaw, 0f);
+                }
                 body.localPosition = new Vector3(lp.x, y, z);
 
                 if (unit.Type == UnitType.Skimmer)
@@ -321,7 +413,15 @@ namespace StarForge.World
                     prevYaw = unit.yaw;
                     bank = Mathf.Lerp(bank, Mathf.Clamp(-turnRate * 0.35f - lv.x * 2f, -35f, 35f), 1f - Mathf.Exp(-dt * 5f));
                     float pitch = Mathf.Clamp(lv.z * 0.9f, -6f, 10f);
-                    body.localRotation = Quaternion.Euler(pitch, 0f, bank);
+                    // Nose down into a dive, up as it climbs out.
+                    if (unit.def.fixedWing)
+                    {
+                        float climb = (prevDip - unit.dip) / Mathf.Max(dt, 1e-4f);
+                        prevDip = unit.dip;
+                        divePitch = Mathf.Lerp(divePitch, Mathf.Clamp(-climb * 14f, -16f, 16f), 1f - Mathf.Exp(-dt * 6f));
+                        pitch = divePitch + 4f;
+                    }
+                    body.localRotation = Quaternion.Euler(pitch + sPitch, 0f, bank);
                 }
             }
 

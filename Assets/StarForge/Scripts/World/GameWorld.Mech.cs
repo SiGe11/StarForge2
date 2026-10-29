@@ -37,7 +37,7 @@ namespace StarForge.World
         public static Vector3 AirPoint(Unit t)
         {
             var g = t.Ground;
-            g.y = Mathf.Max(g.y, t.World.Map.waterLevel) + t.def.altitude;
+            g.y = Mathf.Max(g.y, t.World.Map.waterLevel) + t.def.altitude - t.dip;
             return g;
         }
 

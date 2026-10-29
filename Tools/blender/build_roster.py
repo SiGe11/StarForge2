@@ -9,7 +9,8 @@ and palette, movable parts as Model.group (UnitView animates them by name).
     THUMPER        mortar infantry: a Trooper's frame, tube over the shoulder
     SCORCHER       flame infantry: fuel tanks on the back, a lance with a pilot light
     MARKSMAN       sniper: long rifle and scope, a slimmer pack, a cowl
-    PROSPECTOR     armed miner: a Trooper's frame, a drill on the left arm, an ore hopper
+    PROSPECTOR     armed ore truck: six wheels, a cab, a drill under the nose, a hopper
+    PROSPECTOR_TURRET  its machine gun on the cab roof (Barrel kicks back)
     LANCER_HULL    low, fast tank destroyer on tracks
     LANCER_TURRET  a flat turret with one very long gun
     AEGIS_HULL     anti-aircraft tank: a boxy hull on six wheels
@@ -20,6 +21,8 @@ and palette, movable parts as Model.group (UnitView animates them by name).
     ROCKETEER      anti-armour infantry: a long rocket launcher level on the shoulder
     IRONCLAD_LEGS  the mini-mech's legs and pelvis (LegL/LegR swing)
     IRONCLAD_TORSO its turning upper half: twin shoulder cannons, missile pods
+    MECHHUNTER_HULL    light four-wheeled chassis, thin armour, a flag on a pole (Banner)
+    MECHHUNTER_TURRET  an open mount with a long coil lance for killing Mechs (Barrel)
     ARMORY         upgrade works: forge hall, chimney, weapon racks
     AIRFIELD       landing pads, a tower and a hangar
     BIOLAB         glass vats round a domed hall, the creatures' cradle
@@ -48,6 +51,8 @@ _DROPPED = []
 LANCER_TURRET_Y = 1.18
 AEGIS_TURRET_Y = 1.30
 IRONCLAD_TORSO_Y = 2.30
+PROSPECTOR_TURRET_Y = 1.50
+MECHHUNTER_TURRET_Y = 0.92
 
 
 def turn(bm, angle, axis, pivot=(0, 0, 0)):
@@ -155,32 +160,64 @@ def build_marksman():
 
 
 def build_prospector():
-    """Prospector: a miner in powered armour -- the rifle kept, a drill on the left arm
-    that spins as it cuts, an ore hopper on the back that glows with the load."""
-    m = B.build_trooper()
-    m.mesh_id = MESH_BASE + 3
-    m.name = 'PROSPECTOR'
+    """Prospector: an armed ore truck -- six wheels under an armoured body, a cab at the
+    front with a mining drill under its nose that spins as it cuts (group Cutter), a
+    hopper behind whose glass glows with the load (group Load), and a machine-gun
+    turret on the cab roof (PROSPECTOR_TURRET, mounted at PROSPECTOR_TURRET_Y)."""
+    m = Model(MESH_BASE + 3, 'PROSPECTOR')
+    for side in (1, -1):
+        for zc in (-0.95, -0.05, 0.85):
+            # cyl() grows along +x from its base: centre each wheel on x = +-0.80.
+            m.add(cyl((0.80 * side - 0.13, 0.36, zc), 0.36, 0.36, 0.26, 12, 'rubber', axis='x', bevel_w=0.03))
+            m.add(cyl((0.93 * side - (0.03 if side < 0 else 0.0), 0.36, zc), 0.17, 0.17, 0.03, 8, 'steel', axis='x', bevel_w=0.0))
+        # Mudguards over the wheels.
+        m.add(frustum((0.80 * side, 0.80, -0.05), (0.17, 0.06, 1.42), top=(1.15, 0.95), shift=(0.03 * side, 0.0),
+                      mat='armor_dark', bevel_w=0.03))
+    m.add(frustum((0, 0.60, -0.05), (0.66, 0.18, 1.38), top=(1.0, 1.0), mat='dark', bevel_w=0.04))
+    # Cab: an armoured box with a sloped glacis and a slit of glass.
+    cab = frustum((0, 1.12, 0.78), (0.70, 0.36, 0.55), top=(0.86, 0.72), shift=(0.0, -0.10), mat='armor', bevel_w=0.05)
+    roof = face_plate(cab, 'y', 1)
+    if roof:
+        inset(cab, roof, 0.08, -0.02, 'armor_lit')
+    m.add(cab)
+    m.add(frustum((0, 1.27, 1.27), (0.52, 0.07, 0.05), top=(0.9, 1.0), mat='glow_cyan', bevel_w=0.0))
+    for side in (1, -1):
+        m.add(box((0.665 * side, 1.08, 0.78), (0.03, 0.17, 0.38), 'team', bevel_w=0.012))
+        m.add(box((0.48 * side, 0.82, 1.36), (0.09, 0.06, 0.04), 'glow_amber', bevel_w=0.0))
+    # The drill under the nose: a toothed cone on its own axis (z), spun by UnitView.
+    m.add(box((0, 0.56, 1.40), (0.30, 0.17, 0.12), 'armor_dark', bevel_w=0.03))
+    m.group('Cutter', (0.0, 0.56, 1.60))
+    m.add(cyl((0, 0.56, 1.52), 0.22, 0.03, 0.55, 10, 'steel', axis='z', bevel_w=0.0))
+    for k in range(4):
+        a = 2.0 * math.pi * k / 4
+        m.add(box((math.cos(a) * 0.15, 0.56 + math.sin(a) * 0.15, 1.66), (0.03, 0.03, 0.14), 'dark', bevel_w=0.0))
     m.group('')
-    # Hopper on the back, its glass showing the load.
-    hop = frustum((0, 1.20, -0.48), (0.26, 0.24, 0.16), top=(1.15, 1.1), mat='armor_dark', bevel_w=0.03)
-    m.add(hop)
-    m.add(box((0, 1.36, -0.66), (0.18, 0.10, 0.02), 'ore_glow', bevel_w=0.0))
-    m.group('Load', (0.0, 1.44, -0.48))
-    m.add(box((0, 1.47, -0.48), (0.20, 0.05, 0.12), 'crystal', bevel_w=0.02))
+    # The hopper: flared and armoured, ore glass down each side, the heap on top.
+    m.add(frustum((0, 1.18, -0.62), (0.74, 0.40, 0.78), top=(1.10, 1.06), mat='armor_dark', bevel_w=0.04))
+    for side in (1, -1):
+        m.add(box((0.79 * side, 1.18, -0.62), (0.035, 0.14, 0.52), 'ore_glow', bevel_w=0.0))
+        m.add(box((0.80 * side, 0.95, -0.62), (0.035, 0.05, 0.70), 'team', bevel_w=0.01))
+    m.group('Load', (0.0, 1.58, -0.62))
+    m.add(frustum((0, 1.63, -0.62), (0.64, 0.08, 0.68), top=(0.55, 0.6), mat='crystal', bevel_w=0.02))
     m.group('')
-    # Hazard stripes in team colour round the hopper.
-    m.add(box((0, 1.00, -0.48), (0.28, 0.035, 0.18), 'team', bevel_w=0.01))
-    # Drill on the left forearm.
-    m.add(box((-0.47, 1.00, 0.18), (0.10, 0.10, 0.14), 'armor_dark', bevel_w=0.02))
-    m.group('Cutter', (-0.47, 1.00, 0.34))
-    drill = cyl((-0.47, 1.00, 0.30), 0.085, 0.01, 0.36, 8, 'steel', axis='z', bevel_w=0.0)
-    m.add(drill)
-    for k in range(3):
-        a = 2.0 * math.pi * k / 3
-        m.add(box((-0.47 + math.cos(a) * 0.06, 1.00 + math.sin(a) * 0.06, 0.40), (0.015, 0.015, 0.08), 'dark', bevel_w=0.0))
+    m.add(tube((-0.52, 1.10, 0.20), 0.07, 0.05, 0.62, 8, 'dark', axis='y'))
+    m.add(box((0.40, 0.74, -1.47), (0.22, 0.12, 0.05), 'rust', bevel_w=0.02))
+    m.add(cyl((0, 1.48, 0.70), 0.30, 0.30, 0.05, 10, 'dark', bevel_w=0.01))
+    return m
+
+
+def build_prospector_turret():
+    """The Prospector's roof gun: a small shielded ring mount with a machine gun that
+    kicks back (group Barrel) when it fires."""
+    m = Model(MESH_BASE + 17, 'PROSPECTOR_TURRET')
+    m.add(cyl((0, 0.0, 0), 0.28, 0.24, 0.16, 10, 'armor', bevel_w=0.02))
+    m.add(frustum((0, 0.30, 0.20), (0.24, 0.16, 0.04), top=(0.8, 1.0), mat='armor_dark', bevel_w=0.015))
+    m.group('Barrel', (0.0, 0.26, 0.10))
+    m.add(box((0, 0.26, 0.02), (0.07, 0.07, 0.16), 'dark', bevel_w=0.01))
+    m.add(cyl((0, 0.26, 0.16), 0.035, 0.03, 0.70, 8, 'steel', axis='z', bevel_w=0.0))
+    m.add(cyl((0, 0.26, 0.82), 0.05, 0.05, 0.08, 8, 'dark', axis='z', bevel_w=0.0))
     m.group('')
-    # A lamp on the helmet.
-    m.add(box((0.10, 1.86, 0.10), (0.03, 0.03, 0.03), 'glow_warm', bevel_w=0.0))
+    m.add(box((0.16, 0.20, -0.12), (0.06, 0.08, 0.08), 'team', bevel_w=0.01))
     return m
 
 
@@ -376,6 +413,59 @@ def build_swift():
     return m
 
 
+# ---------------------------------------------------------------- the Mech-Hunter
+def build_mechhunter_hull():
+    """Mech-Hunter hull: a light, quick chassis on four big wheels with thin plating -- it
+    is not meant to take a hit -- and the order's flag on a pole at the back (group Banner,
+    pivot at the crossbar, as the Mech's standard: UnitView hangs cloth there)."""
+    m = Model(MESH_BASE + 18, 'MECHHUNTER_HULL')
+    for side in (1, -1):
+        for zc in (-0.92, 0.92):
+            m.add(cyl((0.86 * side - 0.15, 0.42, zc), 0.42, 0.42, 0.30, 12, 'rubber', axis='x', bevel_w=0.03))
+            m.add(cyl((1.01 * side - (0.03 if side < 0 else 0.0), 0.42, zc), 0.19, 0.19, 0.03, 8, 'steel', axis='x', bevel_w=0.0))
+        # Open frame rails between the wheels: you can see through it.
+        m.add(box((0.62 * side, 0.70, 0.0), (0.05, 0.05, 1.20), 'steel', bevel_w=0.0))
+        m.add(box((0.66 * side, 0.88, 0.05), (0.03, 0.10, 0.70), 'team', bevel_w=0.01))
+    m.add(frustum((0, 0.62, 0.0), (0.56, 0.14, 1.25), top=(0.95, 0.92), mat='armor_dark', bevel_w=0.03))
+    m.add(frustum((0, 0.80, 1.05), (0.50, 0.08, 0.32), top=(0.85, 0.6), shift=(0.0, -0.12), mat='armor_lit', bevel_w=0.02))
+    m.add(box((0, 0.84, -0.80), (0.40, 0.10, 0.36), 'dark', bevel_w=0.02))
+    m.add(box((0.36, 0.72, 1.32), (0.07, 0.05, 0.03), 'glow_amber', bevel_w=0.0))
+    m.add(box((-0.36, 0.72, 1.32), (0.07, 0.05, 0.03), 'glow_amber', bevel_w=0.0))
+    m.add(cyl((0, 0.76, 0.0), 0.44, 0.44, 0.12, 12, 'dark', bevel_w=0.01))
+    # The flag: a pole off the back corner, the standard hanging from its crossbar.
+    bx, bz = -0.46, -1.10
+    m.add(cyl((bx, 0.84, bz), 0.035, 0.03, 2.30, 8, 'steel', bevel_w=0.0))
+    m.add(box((bx, 3.17, bz), (0.05, 0.05, 0.05), 'glow_amber', bevel_w=0.0))
+    m.group('Banner', (bx, 3.00, bz))
+    m.add(box((bx, 3.00, bz), (0.34, 0.025, 0.025), 'dark', bevel_w=0.0))
+    m.add(box((bx, 2.42, bz - 0.01), (0.30, 0.56, 0.018), 'team', bevel_w=0.008))
+    m.add(box((bx, 1.84, bz - 0.01), (0.30, 0.04, 0.02), 'dark', bevel_w=0.0))
+    em = box((bx, 2.50, bz - 0.035), (0.11, 0.11, 0.012), 'glow_warm', bevel_w=0.0)
+    B.rot(em, math.radians(45), 'Z', (bx, 2.50, bz - 0.035))
+    m.add(em)
+    m.group('')
+    return m
+
+
+def build_mechhunter_turret():
+    """Mech-Hunter turret: an open mount behind a shield plate, carrying a lance far longer
+    than the vehicle needs -- a coil gun for punching through a Mech's armour -- its coils
+    lit (group Barrel kicks back)."""
+    m = Model(MESH_BASE + 19, 'MECHHUNTER_TURRET')
+    m.add(cyl((0, 0.0, 0), 0.40, 0.34, 0.18, 10, 'armor', bevel_w=0.02))
+    m.add(frustum((0, 0.42, 0.34), (0.42, 0.26, 0.04), top=(0.85, 1.0), mat='armor_dark', bevel_w=0.015))
+    m.add(box((0.30, 0.34, -0.24), (0.12, 0.14, 0.18), 'team', bevel_w=0.015))
+    m.group('Barrel', (0.0, 0.40, 0.10))
+    m.add(box((0, 0.40, -0.10), (0.16, 0.14, 0.34), 'dark', bevel_w=0.02))
+    m.add(box((0, 0.40, -0.30), (0.10, 0.08, 0.10), 'glow_cyan', bevel_w=0.0))
+    m.add(cyl((0, 0.40, 0.24), 0.08, 0.07, 2.70, 10, 'steel', axis='z', bevel_w=0.0))
+    for k, zc in enumerate((0.70, 1.30, 1.90)):
+        m.add(tube((0, 0.40, zc), 0.15, 0.09, 0.10, 10, 'glow_cyan', axis='z'))
+    m.add(cyl((0, 0.40, 2.90), 0.12, 0.12, 0.18, 10, 'dark', axis='z', bevel_w=0.01))
+    m.group('')
+    return m
+
+
 # ---------------------------------------------------------------- structures
 def build_armory():
     """Armory: a forge hall with a pitched roof, a tall chimney with a glowing throat,
@@ -389,10 +479,12 @@ def build_armory():
     m.add(hall)
     roof = frustum((0, 2.62, 0.2), (2.55, 0.30, 2.25), top=(0.15, 1.0), mat='armor_dark', bevel_w=0.05)
     m.add(roof)
-    m.add(box((0, 2.92, 0.2), (0.12, 0.05, 2.25), 'team', bevel_w=0.015))
+    # The ridge stripe stops short of the gables (run to them, its ends lay in their planes).
+    m.add(box((0, 2.92, 0.2), (0.12, 0.05, 2.18), 'team', bevel_w=0.015))
     # Great door, lit from inside.
     m.add(box((0, 1.05, 2.33), (1.10, 0.95, 0.06), 'shadowed', bevel_w=0.02))
-    m.add(box((0, 0.35, 2.36), (1.00, 0.15, 0.03), 'glow_warm', bevel_w=0.0))
+    # The light under it stands proud of the door (flush with it, the two faces z-fought).
+    m.add(box((0, 0.35, 2.41), (1.00, 0.15, 0.03), 'glow_warm', bevel_w=0.0))
     # Chimney.
     m.add(cyl((-1.70, 0.30, -1.70), 0.62, 0.48, 4.20, 10, 'armor_dark', bevel_w=0.05))
     m.add(cyl((-1.70, 4.50, -1.70), 0.52, 0.52, 0.20, 10, 'dark', bevel_w=0.03))
@@ -546,6 +638,7 @@ ROSTER_BUILDERS = [
     build_hauler, build_kestrel, build_swift,
     build_armory, build_airfield, build_biolab,
     build_rocketeer, build_ironclad_legs, build_ironclad_torso,
+    build_prospector_turret, build_mechhunter_hull, build_mechhunter_turret,
 ]
 ROSTER_CHUNKED = {'ARMORY': 8, 'AIRFIELD': 10, 'BIOLAB': 9}
 
@@ -584,6 +677,8 @@ def main():
     mounts['LANCER_TURRET_Y'] = LANCER_TURRET_Y
     mounts['AEGIS_TURRET_Y'] = AEGIS_TURRET_Y
     mounts['IRONCLAD_TORSO_Y'] = IRONCLAD_TORSO_Y
+    mounts['PROSPECTOR_TURRET_Y'] = PROSPECTOR_TURRET_Y
+    mounts['MECHHUNTER_TURRET_Y'] = MECHHUNTER_TURRET_Y
     with open(meta_path, 'w') as fh:
         json.dump(meta, fh, indent=2)
     print('exported %d roster models to %s' % (len(models), out_dir))

@@ -82,6 +82,14 @@ namespace StarForge.World
         /// and how fast it is moving over the ground.</summary>
         [System.NonSerialized] public Vector2 flyGoal, flyVel;
         [System.NonSerialized] public bool flyHasGoal;
+        /// <summary>A plane's (fixedWing) run at its target: seconds it still holds its heading past the
+        /// target before coming round, where it circles with nowhere to go, and how far below its
+        /// cruise height it has dived on the way in (metres; AirPoint, its muzzle and the view take it).</summary>
+        [System.NonSerialized] public float runOut, dip;
+        [System.NonSerialized] public Vector2 loiterAt;
+        const float RunOut = 1.0f, Dive = 1.6f;
+        /// <summary>How wide a plane circles: a little over its turning circle.</summary>
+        float PlaneCircle => Speed / Mathf.Max(0.3f, TurnRate) * 1.25f;
         /// <summary>Shots fired by a gun with more than one barrel (the Ironclad's shoulders take turns).</summary>
         [System.NonSerialized] public int volleys;
 
@@ -108,7 +116,8 @@ namespace StarForge.World
         public Vector3 Ground => world.Map.Ground(pos);
         public bool HasTurret => def.type == UnitType.Mauler || def.type == UnitType.Sentinel ||
                                  def.type == UnitType.Mech || def.type == UnitType.MechBay ||
-                                 def.type == UnitType.Lancer || def.type == UnitType.Aegis || def.type == UnitType.Ironclad;
+                                 def.type == UnitType.Lancer || def.type == UnitType.Aegis || def.type == UnitType.Ironclad ||
+                                 def.type == UnitType.Prospector || def.type == UnitType.MechHunter;
         public bool Moving => def.flying ? flyHasGoal || flyVel.sqrMagnitude > 0.25f
                             : agent != null && agent.enabled && agent.isOnNavMesh && (agent.pathPending || agent.hasPath);
         /// <summary>How fast it is going over the ground (an aircraft's own, else the agent's).</summary>
@@ -132,6 +141,8 @@ namespace StarForge.World
             researchLine = -1;
             flyHasGoal = false;
             flyVel = Vector2.zero;
+            runOut = dip = 0f;
+            loiterAt = pos;
             if (d.type != UnitType.Ore) oreLeft = 0;
             else if (oreLeft <= 0) oreLeft = NodeCapacity;
             view = GetComponent<UnitView>();
@@ -217,7 +228,14 @@ namespace StarForge.World
 
         public void Halt()
         {
-            if (def.flying) { flyHasGoal = false; return; }
+            if (def.flying)
+            {
+                // A plane already circling keeps its spot (taken from where it is on the circle, or on a
+                // run, the spot walked off with every Hold or Stop); one stopped on its way circles there.
+                if (!def.fixedWing || flyHasGoal || (pos - loiterAt).magnitude > PlaneCircle * 2f) loiterAt = pos;
+                flyHasGoal = false;
+                return;
+            }
             if (agent != null && agent.enabled && agent.isOnNavMesh) agent.ResetPath();
         }
 
@@ -276,7 +294,7 @@ namespace StarForge.World
 
             // Close on the target for attack orders and for attack-move once a
             // target is acquired, or a unit that spots a distant enemy stands still.
-            if ((order == Order.Attack || order == Order.AttackMove) && Live(target))
+            if ((order == Order.Attack || order == Order.AttackMove) && Live(target) && !def.fixedWing)
             {
                 float d = Dist(target) - target.def.radius;
                 if (d > def.range * 0.92f && (repathTimer -= dt) <= 0f)
@@ -291,12 +309,13 @@ namespace StarForge.World
                 MoveTo(orderPos);
                 repathTimer = 1.2f;
             }
-            if ((order == Order.Move || order == Order.AttackMove) && target == null && Arrived() && Dist(orderPos) < 4f)
+            if ((order == Order.Move || order == Order.AttackMove) && target == null && Arrived() && Dist(orderPos) < (def.fixedWing ? PlaneCircle + 3f : 4f))
                 order = Order.Idle;
             if (order == Order.Move && !Moving) KeepGoing(dt);
             else if (agent != null && agent.enabled && agent.isOnNavMesh && agent.hasPath) pathRetries = 0;
 
-            if (def.flying) TickFlight(dt);
+            if (def.fixedWing) TickPlane(dt);
+            else if (def.flying) TickFlight(dt);
             else UpdateFacing(dt);
         }
 
@@ -325,6 +344,69 @@ namespace StarForge.World
                 yaw = ApproachAngle(yaw, Mathf.Atan2(flyVel.x, flyVel.y), TurnRate * dt);
                 bob += speed * dt * 1.2f;
             }
+            turretYaw = yaw;
+            transform.rotation = Quaternion.Euler(0f, yaw * Mathf.Rad2Deg, 0f);
+        }
+
+        /// <summary>A plane (fixedWing): it never stops. It flies its heading at full speed, turning no
+        /// faster than its turn rate; sent somewhere, it circles there; with a target it makes runs at
+        /// it -- in, firing along the nose while the target bears (AimAndFire), over it and on for a
+        /// moment, then round for the next -- diving a little on the way in.</summary>
+        void TickPlane(float dt)
+        {
+            float speed = Speed, circle = PlaneCircle;
+            bool attacking = Live(target) && !target.Untargetable && GameWorld.CanHit(this, target);
+            // Idle or holding it stays over where it was put: runs only at what comes within its reach
+            // of the circle (free, it followed a scout across the map, and circled wherever its last
+            // target died).
+            bool leashed = order == Order.Idle || order == Order.Hold;
+            if (attacking && leashed && (target.pos - loiterAt).magnitude > def.range + circle) attacking = false;
+            if (!attacking && order == Order.AttackMove && Dist(orderPos) > circle + 3f)
+            {
+                flyGoal = world.ClampToMap(orderPos);
+                flyHasGoal = true;
+            }
+            Vector2 heading = new Vector2(Mathf.Sin(yaw), Mathf.Cos(yaw));
+            Vector2 steer;
+            bool inbound = false;
+            if (attacking)
+            {
+                Vector2 to = target.pos - pos;
+                float d = to.magnitude;
+                if (runOut > 0f) { runOut -= dt; steer = pos + heading * 10f; }
+                else
+                {
+                    steer = target.pos;
+                    inbound = d < def.range * 2f;
+                    // Over it, or gone past it: on out for a moment, then round for the next run.
+                    if (d < 3f + target.def.radius || (d < def.range && Vector2.Dot(heading, to) < 0f)) runOut = RunOut;
+                }
+                if (!leashed) loiterAt = target.pos;
+            }
+            else if (flyHasGoal)
+            {
+                steer = flyGoal;
+                if ((flyGoal - pos).magnitude < circle + 2f) { flyHasGoal = false; loiterAt = flyGoal; }
+            }
+            else
+            {
+                // Circling: aim a little further round the ring about where it was sent.
+                Vector2 r = pos - loiterAt;
+                float a = (r.sqrMagnitude < 0.01f ? yaw : Mathf.Atan2(r.x, r.y)) + 0.7f;
+                steer = loiterAt + new Vector2(Mathf.Sin(a), Mathf.Cos(a)) * circle;
+            }
+            // Never out over the map's edge: near it, head for the middle.
+            float m = world.MapSize, edge = 12f;
+            if (pos.x < edge || pos.y < edge || pos.x > m - edge || pos.y > m - edge)
+                steer = Vector2.Lerp(steer, new Vector2(m, m) * 0.5f, 0.6f);
+            yaw = ApproachAngle(yaw, Mathf.Atan2(steer.x - pos.x, steer.y - pos.y), TurnRate * dt);
+            heading = new Vector2(Mathf.Sin(yaw), Mathf.Cos(yaw));
+            flyVel = heading * speed + world.AirSeparation(this) * speed * 0.3f;
+            Vector2 np = world.ClampToMap(pos + flyVel * dt);
+            transform.position = world.Map.Ground(np);
+            pos = np;
+            dip = Mathf.MoveTowards(dip, inbound ? Dive : 0f, dt * (inbound ? 1.2f : 0.8f));
+            bob += speed * dt * 1.2f;
             turretYaw = yaw;
             transform.rotation = Quaternion.Euler(0f, yaw * Mathf.Rad2Deg, 0f);
         }
@@ -396,7 +478,8 @@ namespace StarForge.World
                 bob += speed * dt * 3.2f;
                 // Tracks cannot strafe: a Mauler slows until it has turned to face
                 // where it is going, instead of sliding sideways like a hovercraft.
-                if (Type == UnitType.Mauler || Type == UnitType.Lancer || Type == UnitType.Aegis || Type == UnitType.Hauler || Type == UnitType.Ironclad)
+                if (Type == UnitType.Mauler || Type == UnitType.Lancer || Type == UnitType.Aegis || Type == UnitType.Hauler || Type == UnitType.Ironclad ||
+                    Type == UnitType.Prospector || Type == UnitType.MechHunter)
                     pace = Lerp(0.3f, 1f, Saturate(Mathf.Cos(WrapAngle(want - yaw))));
                 // Nor can legs, much: a walking Mech turns before it goes; a grav
                 // skirt slides whichever way it likes.
@@ -438,7 +521,8 @@ namespace StarForge.World
                 if (!Live(target) || target.team == team || Dist(target) - target.def.radius > def.range || !GameWorld.CanHit(this, target))
                     target = world.NearestEnemyInReach(this, def.range, false);
                 targetOrdered = false;
-                if (target != null && cooldown <= 0f && Dist(target) - target.def.radius >= def.minRange) Fire();
+                // Turned onto the target first: the Prospector's roof gun is a turret.
+                if (target != null && Dist(target) - target.def.radius >= def.minRange) AimAndFire(dt);
                 return;
             }
             if (!Live(target) || target.team == team)
@@ -479,7 +563,8 @@ namespace StarForge.World
                 else return;
             }
             if (!AimAndFire(dt)) return;
-            if (order == Order.Attack || order == Order.AttackMove) Halt();
+            // A plane does not stop to shoot: it makes its runs (TickPlane).
+            if ((order == Order.Attack || order == Order.AttackMove) && !def.fixedWing) Halt();
         }
 
         /// <summary>Turn onto the target and fire when it bears: false if it is out of reach.</summary>
@@ -493,6 +578,11 @@ namespace StarForge.World
                 float turn = Type == UnitType.Mauler || Type == UnitType.Lancer ? 2.6f : Type == UnitType.Aegis ? 4f : def.turnRate;
                 turretYaw = ApproachAngle(turretYaw, want, turn * dt);
                 if (Mathf.Abs(WrapAngle(want - turretYaw)) < 0.10f && cooldown <= 0f) Fire();
+            }
+            else if (def.fixedWing)
+            {
+                // A plane fires along its nose as it passes: it does not turn on the spot to aim.
+                if (Mathf.Abs(WrapAngle(want - yaw)) < 0.35f && cooldown <= 0f) Fire();
             }
             else
             {

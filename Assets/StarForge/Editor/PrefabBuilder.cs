@@ -84,9 +84,9 @@ namespace StarForge.EditorTools
                 Def(UnitType.Swift,     "Swift",      false, false, 1.00f, 110, 12.5f, 4.5f, 14f, 12, 0.60f, 0f,   34, 22, 125, 2, 0, 'F',
                     "Interceptor. The fastest thing in the sky, made to hunt aircraft; strafes the ground for little."),
                 Def(UnitType.Hauler,    "Hauler",     false, false, 1.25f, 280, 4.6f,  3.0f,  0f,  0, 0f,    0f,   20, 24, 125, 1, 0, 'J',
-                    "Armoured ore carrier. Slow and costly, but brings in 20 ore a trip and shrugs off raids. Cannot build. Requires a Workshop."),
-                Def(UnitType.Prospector,"Prospector", false, false, 0.65f, 100, 6.0f,  8.0f, 15f,  8, 0.75f, 0f,   26, 18, 100, 2, 0, 'K',
-                    "Armed miner. Mines (5 ore a trip) and fights back at its work; a fair soldier, a poor miner. Cannot build. Requires a Garrison."),
+                    "Armoured ore carrier. Slow and costly, but brings in 20 ore a trip and shrugs off raids. Cannot build."),
+                Def(UnitType.Prospector,"Prospector", false, false, 1.00f, 150, 5.6f,  3.5f, 15f,  8, 0.75f, 0f,   26, 18, 100, 2, 0, 'K',
+                    "Armed ore truck. Mines (5 ore a trip) and its roof gun fights back at its work; armoured, but a poor miner. Cannot build."),
                 Def(UnitType.Skitter,   "Skitter",    false, false, 0.50f,  45, 8.6f, 12.0f, 1.8f, 6, 0.45f, 0f,   22,  9,  35, 1, 0, 'Z',
                     "Bred swarmer. Cheap, very fast, bites what it reaches; strong in a pack, nothing alone. Cannot reach aircraft."),
                 Def(UnitType.Spitter,   "Spitter",    false, false, 0.75f, 100, 5.4f,  8.0f, 15f, 12, 0.90f, 0f,   28, 18,  90, 2, 0, 'T',
@@ -100,11 +100,14 @@ namespace StarForge.EditorTools
                 Def(UnitType.Gorehorn,  "Gorehorn",   false, false, 1.40f, 520, 5.0f,  4.0f, 2.2f, 32, 1.30f, 2.4f, 24, 32, 275, 5, 0, 'G',
                     "Bred armoured beast. Charges in and sweeps its tusks through everything round what it strikes; cannot reach aircraft. Requires an Armory."),
                 Def(UnitType.Armory,    "Armory",     true,  false, 3.6f,  900, 0, 0, 0, 0, 0, 0, 24, 30, 150, 0, 0, 'U',
-                    "Upgrade works: weapons and armour for infantry, vehicles and creatures, two levels each. Unlocks the Thumper, the Marksman, the Ironclad and the Gorehorn. Requires a Garrison."),
+                    "Upgrade works: weapons and armour for infantry, vehicles and creatures, two levels each, and the Mech-Hunter Programme. Unlocks the Thumper, the Marksman, the Ironclad and the Gorehorn. Requires a Garrison."),
                 Def(UnitType.Airfield,  "Airfield",   true,  false, 5.0f, 1100, 0, 0, 0, 0, 0, 0, 28, 40, 200, 0, 0, 'L',
                     "Builds the Kestrel gunship and the Swift interceptor. Requires a Workshop."),
                 Def(UnitType.Biolab,    "Biolab",     true,  false, 4.2f, 1000, 0, 0, 0, 0, 0, 0, 26, 35, 175, 0, 0, 'O',
                     "Breeds Skitters, Spitters, Razorwings and Gorehorns. Requires a Garrison."),
+                Def(UnitType.MechHunter,"Mech-Hunter",false, false, 1.10f, 160, 5.4f,  3.0f, 26f, 60, 3.20f, 0f,   30, 32, 250, 3, 0, 'K',
+                    "Mech killer. A coil lance that tears through Mechs and Ironclads; little use against anything else, and thinly armoured. " +
+                    "One in the field at a time, and a wait after it falls. Requires an Armory and its Mech-Hunter Programme."),
             };
             Find(defs, UnitType.Worker).producer = UnitType.Foundry;
             Find(defs, UnitType.Trooper).producer = UnitType.Garrison;
@@ -159,9 +162,10 @@ namespace StarForge.EditorTools
             R(UnitType.Lancer,    d => { d.producer = UnitType.Workshop; d.weapon = WeaponKind.Cannon; d.hitsAir = false; d.heavyArmour = true; d.upgradeClass = UnitClass.Vehicle; });
             R(UnitType.Aegis,     d => { d.producer = UnitType.Workshop; d.weapon = WeaponKind.Flak; d.hitsAir = true; d.heavyArmour = true; d.upgradeClass = UnitClass.Vehicle; });
             R(UnitType.Kestrel,   d => { d.producer = UnitType.Airfield; d.weapon = WeaponKind.Rockets; d.hitsAir = false; d.flying = true; d.upgradeClass = UnitClass.Vehicle; });
-            R(UnitType.Swift,     d => { d.producer = UnitType.Airfield; d.weapon = WeaponKind.Needle; d.hitsAir = true; d.flying = true; d.upgradeClass = UnitClass.Vehicle; });
-            R(UnitType.Hauler,    d => { d.producer = UnitType.Foundry; d.requires = UnitType.Workshop; d.harvester = true; d.heavyArmour = true; d.hitsAir = false; d.upgradeClass = UnitClass.Vehicle; });
-            R(UnitType.Prospector,d => { d.producer = UnitType.Foundry; d.requires = UnitType.Garrison; d.harvester = true; d.weapon = WeaponKind.Rifle; d.hitsAir = true; d.upgradeClass = UnitClass.Infantry; });
+            R(UnitType.Swift,     d => { d.producer = UnitType.Airfield; d.weapon = WeaponKind.Needle; d.hitsAir = true; d.flying = true; d.fixedWing = true; d.upgradeClass = UnitClass.Vehicle; });
+            R(UnitType.Hauler,    d => { d.producer = UnitType.Foundry; d.requires = UnitType.None; d.harvester = true; d.heavyArmour = true; d.hitsAir = false; d.upgradeClass = UnitClass.Vehicle; });
+            // An armoured truck (a vehicle, not infantry), from the Foundry with nothing else needed.
+            R(UnitType.Prospector,d => { d.producer = UnitType.Foundry; d.requires = UnitType.None; d.harvester = true; d.weapon = WeaponKind.Rifle; d.hitsAir = true; d.heavyArmour = true; d.upgradeClass = UnitClass.Vehicle; });
             R(UnitType.Skitter,   d => { d.producer = UnitType.Biolab; d.weapon = WeaponKind.Claws; d.hitsAir = false; d.organic = true; d.upgradeClass = UnitClass.Creature; });
             R(UnitType.Spitter,   d => { d.producer = UnitType.Biolab; d.weapon = WeaponKind.Acid; d.hitsAir = true; d.organic = true; d.upgradeClass = UnitClass.Creature; });
             R(UnitType.Razorwing, d => { d.producer = UnitType.Biolab; d.weapon = WeaponKind.Glaive; d.hitsAir = true; d.flying = true; d.organic = true; d.upgradeClass = UnitClass.Creature; });
@@ -171,6 +175,8 @@ namespace StarForge.EditorTools
             R(UnitType.Armory,    d => { d.requires = UnitType.Garrison; });
             R(UnitType.Airfield,  d => { d.requires = UnitType.Workshop; });
             R(UnitType.Biolab,    d => { d.requires = UnitType.Garrison; });
+            // Light and thinly armoured on purpose: easily destroyed.
+            R(UnitType.MechHunter,d => { d.producer = UnitType.Workshop; d.requires = UnitType.Armory; d.weapon = WeaponKind.Lance; d.hitsAir = false; d.heavyArmour = false; d.upgradeClass = UnitClass.Vehicle; });
         }
 
         /// <summary>The wider roster's numbers beyond Def's columns, written only into an asset this
@@ -192,6 +198,7 @@ namespace StarForge.EditorTools
             T(UnitType.Rocketeer, d => { d.vsLight = 0.45f; d.vsHeavy = 1.6f; d.vsStructure = 1.1f; });
             T(UnitType.Ironclad,  d => { d.vsAir = 1.6f; d.vsLight = 0.7f; d.vsHeavy = 1.2f; });
             T(UnitType.Gorehorn,  d => { d.vsStructure = 0.8f; });
+            T(UnitType.MechHunter,d => { d.vsLight = 0.35f; d.vsHeavy = 0.6f; d.vsStructure = 0.3f; d.vsMech = 7f; });
         }
 
         /// <summary>Where the bay's gun tower head sits (Tools/blender/build_mechs.py writes
@@ -247,6 +254,7 @@ namespace StarForge.EditorTools
                 case UnitType.Biolab: return "BIOLAB";
                 case UnitType.Rocketeer: return "ROCKETEER";
                 case UnitType.Ironclad: return "IRONCLAD_LEGS";
+                case UnitType.MechHunter: return "MECHHUNTER_HULL";
                 // Animals from the Biolab: Quaternius models (CreatureBody), not a Blender build.
                 case UnitType.Skitter: case UnitType.Spitter: case UnitType.Razorwing: case UnitType.Gorehorn: return null;
                 default: return "SCAN_BOULDER_A";   // MapBuilder makes the other scanned variants
@@ -270,6 +278,7 @@ namespace StarForge.EditorTools
             if (d.type == UnitType.Lancer) d.visualHeight = LancerTurretY + ModelFactory.Meta("LANCER_TURRET").height;
             if (d.type == UnitType.Aegis) d.visualHeight = AegisTurretY + ModelFactory.Meta("AEGIS_TURRET").height;
             if (d.type == UnitType.Ironclad) d.visualHeight = IroncladTorsoY + ModelFactory.Meta("IRONCLAD_TORSO").height;
+            if (d.type == UnitType.Prospector) d.visualHeight = ProspectorTurretY + ModelFactory.Meta("PROSPECTOR_TURRET").height;
             // Health bars and markers ride with the model, up in the air for an aircraft.
             if (d.flying) d.visualHeight = meta.height + d.altitude;
 
@@ -292,12 +301,14 @@ namespace StarForge.EditorTools
                     turret.localPosition = new Vector3(0f, 1.40f, 0f);
                     ModelFactory.Create(d.type == UnitType.Mauler ? "MAULER_TURRET" : "SENTINEL_HEAD", team, turret);
                 }
-                string top = d.type == UnitType.Lancer ? "LANCER_TURRET" : d.type == UnitType.Aegis ? "AEGIS_TURRET" : d.type == UnitType.Ironclad ? "IRONCLAD_TORSO" : null;
+                string top = d.type == UnitType.Lancer ? "LANCER_TURRET" : d.type == UnitType.Aegis ? "AEGIS_TURRET" : d.type == UnitType.Ironclad ? "IRONCLAD_TORSO"
+                           : d.type == UnitType.Prospector ? "PROSPECTOR_TURRET" : d.type == UnitType.MechHunter ? "MECHHUNTER_TURRET" : null;
                 if (top != null && ModelFactory.LoadSource(top) != null)
                 {
                     turret = new GameObject("Turret").transform;
                     turret.SetParent(body, false);
-                    turret.localPosition = new Vector3(0f, d.type == UnitType.Lancer ? LancerTurretY : d.type == UnitType.Aegis ? AegisTurretY : IroncladTorsoY, 0f);
+                    turret.localPosition = new Vector3(0f, d.type == UnitType.Lancer ? LancerTurretY : d.type == UnitType.Aegis ? AegisTurretY
+                        : d.type == UnitType.Prospector ? ProspectorTurretY : d.type == UnitType.MechHunter ? MechHunterTurretY : IroncladTorsoY, 0f);
                     ModelFactory.Create(top, team, turret);
                 }
                 if (d.type == UnitType.MechBay)
@@ -362,7 +373,7 @@ namespace StarForge.EditorTools
         }
 
         // Where the new tanks' turrets sit on their hulls (Tools/blender/build_roster.py).
-        const float LancerTurretY = 1.18f, AegisTurretY = 1.30f, IroncladTorsoY = 2.30f;
+        const float LancerTurretY = 1.18f, AegisTurretY = 1.30f, IroncladTorsoY = 2.30f, ProspectorTurretY = 1.50f, MechHunterTurretY = 0.92f;
 
         /// <summary>A Biolab creature's model: the Quaternius file (Art/Fauna/, imported with its
         /// legacy clips), its length in metres, how tall it stands, which way its head runs in
