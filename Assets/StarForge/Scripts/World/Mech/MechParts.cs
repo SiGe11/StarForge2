@@ -6,8 +6,9 @@
 // and at most one utility module. Every part costs points; every design spends the
 // same Budget, and whatever a design cannot spend on a part is turned into armour
 // (SparePointHp), so no draw is simply weaker than another -- only different. The
-// numbers are the balance sheet: a design is meant to stand up to twenty-odd Maulers
-// or thirty-odd Troopers in a straight fight (AgentPlay.MechDuel measures it).
+// numbers are the balance sheet: a bare design is meant to fall to six or seven Maulers
+// coming at it from out of range (MechDuel measures it); HullScale and GunScale size the
+// whole Mech to that.
 //
 // Two more weapons are drawn for each design and held in reserve: the Mech Bay's
 // Extra Hardpoint upgrade mounts them, in order, on the frame's auxiliary mounts.
@@ -172,6 +173,16 @@ namespace StarForge.World
     public static class MechParts
     {
         public const int Budget = 100;
+
+        /// <summary>The whole Mech cut to an army's measure: every frame's hull (and with it the
+        /// shield, the nanites and the bay's quiet repair) and every gun's damage are multiplied by
+        /// these. At 1 a bare Mech took 21 Maulers or 40 Troopers to break (twelve designs,
+        /// MechDuel) -- 3,000 ore of tanks against a 100-ore bay -- and a match came down to the
+        /// two Mechs. Damage is cut harder than hull: it still takes a beating like a war machine
+        /// but no longer erases a squad in seconds, and a fight between the two Mechs lasts long
+        /// enough for the armies round them to tip it.</summary>
+        public const float HullScale = 0.55f, GunScale = 0.28f;
+
         /// <summary>Hit points a point left unspent buys, as a share of the frame's.</summary>
         public const float SparePointHp = 0.018f;
 
@@ -256,7 +267,7 @@ namespace StarForge.World
         {
             new UtilityPart { id = MechUtility.None, name = "none", points = 0, blurb = "" },
             new UtilityPart { id = MechUtility.Shield, name = "Shield Projector", points = 12,
-                blurb = "A 600-point energy shield that recharges out of the fight." },
+                blurb = $"A {ShieldCapacity:0}-point energy shield that recharges out of the fight." },
             new UtilityPart { id = MechUtility.Nanites, name = "Repair Nanites", points = 9,
                 blurb = "Mends the hull as it fights, faster once it is out of it." },
             new UtilityPart { id = MechUtility.Reactive, name = "Reactive Armour", points = 8,
@@ -271,8 +282,9 @@ namespace StarForge.World
         public static UtilityPart Utility(MechUtility id) => utilities[(int)id];
 
         // ------------------------------------------------------------ shield and repair
-        public const float ShieldCapacity = 600f, ShieldRegen = 45f, ShieldDelay = 5f;
-        public const float NaniteRepairCombat = 3f, NaniteRepair = 12f, NaniteDelay = 6f;
+        // Sized with the hull, so a shield or the nanites are the same share of it as before.
+        public const float ShieldCapacity = 600f * HullScale, ShieldRegen = 45f * HullScale, ShieldDelay = 5f;
+        public const float NaniteRepairCombat = 3f * HullScale, NaniteRepair = 12f * HullScale, NaniteDelay = 6f;
         public const float ReactiveSplash = 0.6f, ReactiveDirect = 0.92f;
 
         // ------------------------------------------------------------ upgrades

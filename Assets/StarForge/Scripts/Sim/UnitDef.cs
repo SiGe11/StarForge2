@@ -136,8 +136,10 @@ namespace StarForge.Sim
                 case UnitType.Mauler: return 150f;
                 case UnitType.Skimmer: return 75f;
                 case UnitType.Worker: return 50f;
-                // As much army as twenty-odd Maulers (MechParts' balance), and valued so.
-                case UnitType.Mech: return 3200f;
+                // As much army as the six or seven Maulers that kill a bare one (MechDuel, twelve
+                // designs: 6.3), and valued so; 3,200 when it took twenty-one. Everything that
+                // weighs a Mech as army reads this, so a balance round moves one number.
+                case UnitType.Mech: return 950f;
             }
             if (t < 0 || t >= UnitType.Count) return 0f;
             var d = Get(t);
@@ -154,9 +156,10 @@ namespace StarForge.Sim
                 case UnitType.Skimmer: return 1.2f;
                 case UnitType.Sentinel: return 2.5f;
                 case UnitType.MechBay: return 4f;
-                // About twenty-odd Maulers' worth (MechParts' balance): the influence map
-                // should make an army think twice about walking into one.
-                case UnitType.Mech: return 60f;
+                // About the 6.3 Maulers' worth that kills a bare one (60, twenty Maulers, before
+                // MechParts.HullScale/GunScale): the influence map should make an army think
+                // twice about walking into one, not walk round it as round a fortress.
+                case UnitType.Mech: return 19f;
             }
             // The wider roster by its cost against a Trooper's (1 for 50 ore), workers as before.
             if (t < 0 || t >= UnitType.Count) return 0.25f;

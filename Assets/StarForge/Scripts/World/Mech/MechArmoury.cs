@@ -48,7 +48,7 @@ namespace StarForge.World
                 if (u == null || u.dying || u.team == team || u.team > 1) continue;
                 switch (u.Type)
                 {
-                    case UnitType.Mech: t.mech += 3200f; t.enemyMech = true; break;
+                    case UnitType.Mech: t.mech += Defs.ArmyValue(UnitType.Mech); t.enemyMech = true; break;
                     case UnitType.Mauler: t.heavy += u.def.cost; break;
                     case UnitType.Trooper: case UnitType.Skimmer: t.light += u.def.cost; break;
                     case UnitType.Worker: t.light += u.def.cost * 0.4f; break;
@@ -65,7 +65,8 @@ namespace StarForge.World
             if (team < 2)
             {
                 var foe = w.factions[1 - team];
-                if (!t.enemyMech && Unit.Live(foe.bay) && !foe.mechDropped && !foe.mechLost) { t.mech += 1800f; t.enemyMech = true; }
+                // (Weighed at a little over half a Mech's army worth: 1,800 of 3,200 before the scale round.)
+                if (!t.enemyMech && Unit.Live(foe.bay) && !foe.mechDropped && !foe.mechLost) { t.mech += 0.56f * Defs.ArmyValue(UnitType.Mech); t.enemyMech = true; }
             }
             return t;
         }
@@ -142,8 +143,10 @@ namespace StarForge.World
             var frame = d.Frame;
             var loco = d.Loco;
             float armour = Mathf.Clamp(frame.armour + loco.armour, 0f, 0.5f);
+            // In the hull before MechParts.HullScale (the shield is sized with it), so the
+            // weights between hull and utility are what they were.
             float hp = frame.hp * loco.hpMul * (1f + d.spare * MechParts.SparePointHp) / (1f - armour);
-            if (d.utility == MechUtility.Shield) hp += MechParts.ShieldCapacity * 1.5f;
+            if (d.utility == MechUtility.Shield) hp += MechParts.ShieldCapacity / MechParts.HullScale * 1.5f;
             else if (d.utility == MechUtility.Nanites) hp += 300f;
             else if (d.utility == MechUtility.Reactive) hp += 250f;
             float score = offense * Mathf.Pow(hp / 2000f, 0.5f);

@@ -3,7 +3,7 @@
 A real-time strategy game against an adaptive opponent that scouts, reads your
 play style, changes its plan to counter it — and remembers you between matches.
 Each side may also raise one **Mech Bay**, which calls down a **Mech** from orbit: a
-war machine worth twenty-odd tanks, assembled from a random draw of parts, with a mind of
+war machine worth half a dozen tanks, assembled from a random draw of parts, with a mind of
 its own — an ally that fights for you by its own judgement and tells you what it sees
 ([Mechs](#mechs)).
 
@@ -236,7 +236,8 @@ Inspector; rebuilding prefabs keeps your values.
 
 Each side may raise one **Mech Bay** (Digger, `Y`; 100 ore, no prerequisites). Two
 minutes after it stands, a **Mech** comes down from orbit beside it on its retro-rockets:
-a seven-to-nine-metre war machine worth a whole army. Each side gets **one Mech and one
+a seven-to-nine-metre war machine worth a company of tanks -- enough to turn a fight, not to
+win the war alone. Each side gets **one Mech and one
 Mech Bay a match**: a bay that falls is never rebuilt, and a Mech that falls is never
 replaced. Destroy the enemy's bay before its Mech lands and it never comes. A bay
 called off before it stands does not count, and nor does a site shot down before any
@@ -346,7 +347,12 @@ first and the Mech that came down there finished them. On a lake shore 66 m from
 three of five while it sat in the gantry being shot from 45 m). In a corner, a wood and far out
 on a flank the bay stood and the Mech lived. A bay dropped into their base at four minutes with
 its Mech landing beside it at once fell 20-176 s later; a tower of ours put up inside their ring
-of buildings as well lasted 7-62 s. The opponent won 10 of 16 such runs within the seven minutes
+of buildings as well lasted 7-62 s. Since the Mech was cut down (Balance, below), a finished bay
+dropped 44-66 m outside their base at 30 s holds: their Mech used to break it at 196-311 s, and
+now neither it nor their army can, while their Diggers stand clear of its gun and their economy
+stalls (cutting the bay's hull, repair and gun too did not change that, so the bay was left as it
+was: the answer belongs to the opponent AI). A bay a Digger tries to raise there is still shot
+down before it stands. The opponent won 10 of 16 such runs within the seven minutes
 and was behind at the end of two. How it answers a Mech among its own buildings (straight away
 with what it has, or only with an army big enough to beat the Mech) hardly ever comes up: its
 towers have shot the intruder down before the choice arises. No run raised an exception.
@@ -357,15 +363,16 @@ towers have shot the intruder down before the choice arises. No run raised an ex
   theirs ("Battle-damaged: firing 22% slower"). A Mech at a fifth of its hull used to fight as
   hard as a fresh one, so nothing an army did counted until the last shot.
 - **The bay mends slowly.** A Mech back at 38% needs about a minute in the gantry to be whole
-  (22 hull a second, 6 while it is being shot at; it was 50 and 15, and what an army had cost
-  it was gone in twenty seconds).
+  (12 hull a second, under 2 while it is being shot at; on the hull before the cut below that
+  was 22 and 6, and before that 50 and 15, when what an army had cost it was gone in twenty
+  seconds).
 - **Upgrades are steps, not leaps.** Ablative Armour and Weapon Overcharge give 5% a level, the
   Extra Hardpoint mounts one more gun, not two, and the Targeting Uplink adds 6% range, not 12
   (out-ranging a crowd of rifles by that much was worth more than any other upgrade against
   them). With every upgrade bought -- which the opponent does by mid-match -- a Mech used to
   take 2.4 times the tanks and well over twice the rifles a bare one did.
 
-Measured with the duel below on six designs, each fight on a freshly loaded map (fought one
+Measured with the duel below on six designs, before the cut described under Balance, each fight on a freshly loaded map (fought one
 after another on one site, the burnt grass, craters and felled trees of the earlier fights
 skewed the later ones), against the old rules in the same session: a fully upgraded Mech now
 takes **26 Maulers or 61 Troopers** on average to break (19-35 / 39-98 by design), where it took
@@ -382,14 +389,35 @@ a second a step; at a played frame rate the rotary cannon gets its full 11 round
 tenth more than the duel saw (a gun fires at most once a step), and the flamer its full ten,
 about a sixth more than it managed in play before the fix (the duels already saw ten).
 
-**Balance.** A bare Mech is meant to be worth roughly 20-25 Maulers or 30-40 Troopers in a
-straight fight, and that is measured, not guessed: `MechTrials`' duel (Editor/MechTrials.cs)
-stands a Mech with no upgrades on a flat, open corridor of the default map and sends N
-Maulers or N Troopers at it, fought to the end, bisecting for the smallest N that kills it.
-Over twelve drawn designs the break-even is **21 Maulers** on average (20.7: 16.8 for the
-first six, lighter designs, 24.5 for the other six, mostly heavy frames) and **40 Troopers**
-(36.8 and 43), each fight on a freshly loaded map, on the rules above that make an army count
-(before them, fought one after another on one site: 21 and 36). In that earlier run the Flame
+**Balance.** A bare Mech is meant to fall to six or seven Maulers that come at it from out of
+its reach, or to about ten Troopers. A Mech Bay costs 100 ore, and a Mech that took twenty-one
+Maulers -- 3,150 ore of tanks -- decided matches on its own while the armies round it looked
+on. So the whole Mech was cut to an army's measure (`MechParts.HullScale` 0.55 and `GunScale`
+0.28): every frame's hull, and with it the shield, the nanites and the gantry's quiet repair, to 55%,
+and every gun's damage to 28%. Damage was cut harder than hull: it still takes a beating like
+a war machine but no longer erases a squad in seconds, and a fight between the two Mechs lasts
+long enough for the armies round them to tip it. That is measured, not guessed: `MechTrials`'
+duel (Editor/MechTrials.cs) stands a Mech with no upgrades on a flat, open corridor of the
+default map and sends N Maulers or N Troopers at it from 55 m, beyond the reach of most of its
+guns, fought to the end, bisecting for the smallest N that kills it, each fight on a freshly
+loaded map. Over twelve drawn designs that is **6.3 Maulers** on average (4-8 by design: a
+light frame on legs or a grav skirt falls to four or five, a heavy frame on tracks to eight; a
+second pass gave 6.4) and **10.2 Troopers** (7-13; bisected to two, so up to one high). It took two passes: hull 45% and damage 24%
+was a little too weak (5.0 Maulers), 55% and 32% a little too strong (7.2). Every upgrade at
+its top (2,600 ore) takes six designs from 5.2 to 8.2 Maulers (1.59x) and from 9.2 to 16.3
+Troopers (1.78x): three tanks or seven rifles more, only about a sixth of what that ore buys of
+either. In matches the armies now decide: in two AI evaluations on the cut (20 matches each
+against the four scripted players) the AI won 19 of 20 both times and lost none (the
+twentieth both times the macro player's hardest seed, which ran to the time cap with the
+scripted side's army gone), the Mechs made 0-34 kills a match where they had made 40-159,
+the scripted side's Mech fell in 15 and 18 of the 20, and most of the macro player's games
+ended at 9-11 minutes instead of running to the cap with its Mech holding its bay.
+
+Before that cut a bare Mech was tuned to be worth 20-25 Maulers or 30-40 Troopers: over twelve
+designs **21 Maulers** (20.7: 16.8 for the first six, lighter designs, 24.5 for the other six,
+mostly heavy frames) and **40 Troopers** (36.8 and 43), each fight on a freshly loaded map, on
+the rules above that make an army count (before them, fought one after another on one site:
+21 and 36). In that earlier run the Flame
 Tower's designs took 29-45 Troopers. Adding it reshuffled what the generator draws, and the first survey after it found
 the arm flamer overtuned against a crowd: every design above 45 Troopers carried it, one at
 86 (a heavy frame on a grav skirt with the flamer, a rotary cannon and two launchers), so it

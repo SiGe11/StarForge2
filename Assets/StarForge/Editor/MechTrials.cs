@@ -385,7 +385,7 @@ namespace StarForge.EditorTools
     /// <summary>The balance sheet's check: a Mech (no AI of its own: it stands and
     /// shoots) against N Maulers or N Troopers that attack-move onto it on open ground,
     /// fought to the end. For each design it looks for the smallest N that beats the
-    /// Mech (a bisection), for both unit types. Aim: 20-25 Maulers, 30-40 Troopers.</summary>
+    /// Mech (a bisection), for both unit types. Aim: a bare Mech falls to 6-7 Maulers.</summary>
     public sealed class MechDuel : UnityEngine.MonoBehaviour
     {
         public readonly System.Text.StringBuilder log = new System.Text.StringBuilder();
@@ -412,10 +412,10 @@ namespace StarForge.EditorTools
         /// <summary>Every entry point below sets every switch: a duel replaced by another
         /// does not reset them (the new one is current by then), and one wrapper that left
         /// <see cref="Fresh"/> or the old balance alone once ran its numbers on the last run's.</summary>
-        static string Launch(int upgrades, uint[] seeds, bool fresh = false, bool legacy = false, int probeN = 0)
+        static string Launch(int upgrades, uint[] seeds, bool fresh = false, bool legacy = false, int probeN = 0, bool maulersOnly = false)
         {
             if (!UnityEditor.EditorApplication.isPlaying) return "not playing";
-            Upgrades = upgrades; Seeds = seeds; Fresh = fresh; ProbeN = probeN;
+            Upgrades = upgrades; Seeds = seeds; Fresh = fresh; ProbeN = probeN; MaulersOnly = maulersOnly;
             StarForge.World.MechCore.LegacyBalance = legacy;
             return Run();
         }
@@ -440,6 +440,13 @@ namespace StarForge.EditorTools
         public static string RunBaseFreshNew() => Launch(0, FirstSix, fresh: true);
         /// <summary>The other six designs, bare, on the new rules: with RunBaseFreshNew, all twelve.</summary>
         public static string RunBaseFreshNewLastSix() => Launch(0, LastSix, fresh: true);
+        /// <summary>All twelve designs, bare, a fresh map per fight: the balance target's number
+        /// (the mean of the smallest group that kills it). <see cref="MaulersOnly"/> halves a
+        /// tuning pass.</summary>
+        public static string RunBaseFreshAll() => Launch(0, AllSeeds, fresh: true);
+        public static string RunBaseFreshAllMaulers() => Launch(0, AllSeeds, fresh: true, maulersOnly: true);
+        public static string RunFullFreshMaulers() => Launch(3, FirstSix, fresh: true, maulersOnly: true);
+        public static bool MaulersOnly;
         /// <summary>One fight per design, logged every ten seconds: how many of the enemy are
         /// alive, have the Mech in reach and are firing on it, and the Mech's hull -- to tell a
         /// crowd that cannot get at the Mech from one that cannot hurt it.</summary>
@@ -474,6 +481,7 @@ namespace StarForge.EditorTools
             StarForge.World.MechCore.LegacyBalance = false;
             Fresh = false;
             ProbeN = 0;
+            MaulersOnly = false;
             done = true;
         }
 
@@ -544,7 +552,7 @@ namespace StarForge.EditorTools
                 float score = -(hi - lo);
                 if (score > bestScore) { bestScore = score; site = p; }
             }
-            log.AppendLine($"site {site} relief {-bestScore:0.0} m, upgrades {Upgrades}, {Seeds.Length} designs{(ProbeN > 0 ? $", probe of {ProbeN}" : "")}, {(Fresh ? "a fresh map per fight" : "one site")}, " +
+            log.AppendLine($"site {site} relief {-bestScore:0.0} m, upgrades {Upgrades}, {Seeds.Length} designs{(ProbeN > 0 ? $", probe of {ProbeN}" : "")}{(MaulersOnly ? ", Maulers only" : "")}, {(Fresh ? "a fresh map per fight" : "one site")}, " +
                            $"{(StarForge.World.MechCore.LegacyBalance ? "the old balance" : "the new balance")}");
             UnityEngine.Time.timeScale = 6f;
 
@@ -563,27 +571,39 @@ namespace StarForge.EditorTools
                 yield break;
             }
 
+            var sums = new System.Collections.Generic.Dictionary<StarForge.Sim.UnitType, (int sum, int n, int open)>();
             foreach (var seed in Seeds)
             {
                 var design = StarForge.World.MechParts.Generate(seed);
                 log.AppendLine($"{design}");
-                foreach (var type in new[] { StarForge.Sim.UnitType.Mauler, StarForge.Sim.UnitType.Trooper })
+                foreach (var type in MaulersOnly ? new[] { StarForge.Sim.UnitType.Mauler } : new[] { StarForge.Sim.UnitType.Mauler, StarForge.Sim.UnitType.Trooper })
                 {
-                    int lo = type == StarForge.Sim.UnitType.Mauler ? 6 : 10, hi = type == StarForge.Sim.UnitType.Mauler ? 60 : 110;
+                    // lo: a group the Mech beats, hi: one that kills it (assumed at the start).
+                    // Maulers to the unit: the target is six or seven, so one more is a seventh.
+                    bool tanks = type == StarForge.Sim.UnitType.Mauler;
+                    int lo = tanks ? 1 : 2, hi = tanks ? 20 : 48, top = hi;
+                    bool hiSeen = false;
                     string trace = "";
                     // Bisection on N: the smallest group that kills the Mech.
-                    while (hi - lo > (type == StarForge.Sim.UnitType.Mauler ? 2 : 3))
+                    while (hi - lo > (tanks ? 1 : 2))
                     {
                         int n = (lo + hi) / 2;
                         bool mechWon = false; float left = 0f, secs = 0f; int killed = 0;
                         yield return Fight(design, type, n, (w, l, s, k) => { mechWon = w; left = l; secs = s; killed = k; });
                         if (failed) { Finish(); yield break; }
-                        trace += $" {n}:{(mechWon ? $"M({left * 100f:0}%)" : $"U({killed})")}";
-                        if (mechWon) lo = n; else hi = n;
+                        trace += $" {n}:{(mechWon ? $"M({left * 100f:0}%)" : $"U({killed}, {secs:0}s)")}";
+                        if (mechWon) lo = n; else { hi = n; hiSeen = true; }
                     }
-                    log.AppendLine($"   vs {type}: break-even ~{(lo + hi) / 2} ({trace.Trim()})");
+                    // Read hi, the smallest group seen to kill it: the midpoint of a one-wide
+                    // bracket floors to the largest the Mech beat.
+                    bool open = !hiSeen && hi == top;
+                    log.AppendLine($"   vs {type}: killed by {hi}{(open ? "+ (never reached)" : "")} ({trace.Trim()})");
+                    sums.TryGetValue(type, out var t);
+                    sums[type] = (t.sum + hi, t.n + 1, t.open + (open ? 1 : 0));
                 }
             }
+            foreach (var kv in sums)
+                log.AppendLine($"mean group that kills it, {kv.Key}: {kv.Value.sum / (float)kv.Value.n:0.0} over {kv.Value.n} designs{(kv.Value.open > 0 ? $" ({kv.Value.open} never reached)" : "")}");
             Finish();
         }
 
@@ -983,7 +1003,8 @@ namespace StarForge.EditorTools
                 ("infantry", 2400f, 300f, 1500f, 0f),
                 ("armour", 300f, 2400f, 1500f, 0f),
                 ("balanced", 1200f, 1200f, 1500f, 0f),
-                ("enemy Mech", 900f, 900f, 1500f, 3200f),
+                // An enemy Mech as MechArmoury.Read weighs one (its army worth; 3,200 before the scale round).
+                ("enemy Mech", 900f, 900f, 1500f, StarForge.Sim.Defs.ArmyValue(StarForge.Sim.UnitType.Mech)),
             };
             int n = 200;
             foreach (var mix in mixes)
@@ -1325,6 +1346,10 @@ namespace StarForge.EditorTools
         }
 
         public static string RunAll() => Launch(-1);
+        /// <summary>The forward bays a Mech guards (44 m out, a lake shore 66 m out): where the
+        /// home-defence gate decides how big an army goes at a Mech and a bay's gun together.</summary>
+        public static string RunJustOutside() => Launch(1);
+        public static string RunLakeShore() => Launch(3);
         /// <summary>The Digger-built case alone, with the Commander answering a structure
         /// going up in its base (<c>On</c>) or leaving it to the rule for finished ones.</summary>
         public static string RunDiggerOn() => Launch(6);

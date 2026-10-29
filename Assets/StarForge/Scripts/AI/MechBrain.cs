@@ -1069,7 +1069,9 @@ namespace StarForge.AI
             if (best == null) return false;
             target = best.pos;
             float mechPower = m.mech.EffectiveHp * m.mech.Dps(true) * 0.001f;
-            float us = myArmy + mechPower * 0.5f, them = theirArmy + (w.MechOf(1 - team) != null ? 2500f : 0f);
+            // Their Mech at about five Maulers' worth (six or seven kill a bare one in the duels;
+            // 2,500 when it took twenty-one).
+            float us = myArmy + mechPower * 0.5f, them = theirArmy + (w.MechOf(1 - team) != null ? 750f : 0f);
             bool away = theirs != null && (theirs.Value - Foe).magnitude > 70f;
             if (away && us > them * 0.5f)
             {

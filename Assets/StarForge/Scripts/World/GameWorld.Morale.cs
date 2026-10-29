@@ -194,7 +194,8 @@ namespace StarForge.World
             if (u.mech != null && u.team < 2) morale[u.team].mechLostAt = time;
             if (u.team > 1 || u.deserted || byOwnSide) return;
             var d = u.def;
-            float v = u.mech != null ? 1500f : d.building ? Mathf.Max(100f, d.cost) : Defs.ArmyValue(d.type);
+            // A Mech's loss at half its army worth (1,500 when that was 3,200).
+            float v = u.mech != null ? 0.5f * Defs.ArmyValue(UnitType.Mech) : d.building ? Mathf.Max(100f, d.cost) : Defs.ArmyValue(d.type);
             if (v <= 0f) return;
             losses.Add(new Loss { t = time, team = u.team, pos = u.pos, value = v, army = d.IsArmy });
         }
@@ -287,7 +288,7 @@ namespace StarForge.World
             foreach (var u in UnitsNear(at, 32f))
             {
                 if (u.dying || u.team > 1 || u.Untargetable || u.deserted) continue;
-                float v = u.mech != null ? 1500f * (0.5f + 0.5f * Saturate(u.hp / Mathf.Max(1f, u.MaxHp)))
+                float v = u.mech != null ? 0.5f * Defs.ArmyValue(UnitType.Mech) * (0.5f + 0.5f * Saturate(u.hp / Mathf.Max(1f, u.MaxHp)))
                         : u.def.building ? (u.def.Armed ? 250f : 0f) : Defs.ArmyValue(u.Type);
                 if (u.def.harvester) v = 0f;
                 if (u.team == t)

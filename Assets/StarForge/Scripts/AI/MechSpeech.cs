@@ -1011,7 +1011,7 @@ namespace StarForge.AI
         /// <summary>What a unit is worth to its side, for the balance and the losses.</summary>
         static float Worth(UnitType t, UnitDef d)
         {
-            if (t == UnitType.Mech) return 1500f;
+            if (t == UnitType.Mech) return 0.5f * Defs.ArmyValue(UnitType.Mech);   // 1,500 when that was 3,200
             if (d.building) return Mathf.Max(100f, d.cost);
             if (t == UnitType.Worker || d.harvester) return d.harvester && t != UnitType.Worker ? d.cost : 50f;
             return Defs.ArmyValue(t);
@@ -1034,7 +1034,7 @@ namespace StarForge.AI
                     // A Mech by its hull, but never under half: walking back to its bay to be
                     // mended should not read as its side losing.
                     if (!u.mech.Landed) continue;
-                    float v = 1500f * (0.5f + 0.5f * Saturate(u.hp / Mathf.Max(1f, u.MaxHp)));
+                    float v = 0.5f * Defs.ArmyValue(UnitType.Mech) * (0.5f + 0.5f * Saturate(u.hp / Mathf.Max(1f, u.MaxHp)));
                     if (mine) om += v; else tm += v;
                 }
                 else if (u.def.building)
@@ -1085,7 +1085,7 @@ namespace StarForge.AI
                 foreach (var st in structs)
                 {
                     float r = 35f + st.def.radius;
-                    if ((st.pos - p).sqrMagnitude < r * r) { assault += u.mech != null ? 1500f : Defs.ArmyValue(u.Type); break; }
+                    if ((st.pos - p).sqrMagnitude < r * r) { assault += u.mech != null ? 0.5f * Defs.ArmyValue(UnitType.Mech) : Defs.ArmyValue(u.Type); break; }
                 }
             }
             cues = Cue.None;

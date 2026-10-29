@@ -48,14 +48,16 @@ namespace StarForge.World
         /// <summary>How close to its Mech Bay it stands to be repaired, beyond both radii.</summary>
         public const float RepairReach = 6f;
         /// <summary>Hull a second in the gantry once it is left alone: a Mech back at 38%
-        /// needs about a minute to be whole. At 50 it was back in twenty seconds, and what
-        /// an army had cost it was gone before the next wave was built -- a player's
-        /// attack on a Mech counted for nothing unless it finished the job.</summary>
-        public const float BayRepairRate = 22f;
+        /// needs about a minute to be whole. At 50 (of the hull before HullScale) it was back in
+        /// twenty seconds, and what an army had cost it was gone before the next wave was built
+        /// -- a player's attack on a Mech counted for nothing unless it finished the job.</summary>
+        public const float BayRepairRate = 22f * MechParts.HullScale;
         /// <summary>The gantry's rate while the Mech is being shot at: its crews work in
         /// the lulls. At 15 under fire a Mech fighting beside its bay was all but
-        /// unkillable, and matches between two of them never ended.</summary>
-        public const float BayRepairUnderFire = 6f, RepairQuiet = 4f;
+        /// unkillable, and matches between two of them never ended. Sized with the guns, not
+        /// the hull: it holds the share of an enemy Mech's fire it always had (with the damage
+        /// cut harder than the hull, a hull-sized rate would have mended twice that share).</summary>
+        public const float BayRepairUnderFire = 6f * MechParts.GunScale, RepairQuiet = 4f;
 
         [System.NonSerialized] public MechDesign design;
         [System.NonSerialized] public readonly List<MechGun> guns = new List<MechGun>(7);
@@ -96,7 +98,7 @@ namespace StarForge.World
             get
             {
                 if (design == null) return unit != null ? unit.def.hp : 3000f;
-                return design.Frame.hp * design.Loco.hpMul * (1f + design.spare * MechParts.SparePointHp)
+                return design.Frame.hp * MechParts.HullScale * design.Loco.hpMul * (1f + design.spare * MechParts.SparePointHp)
                        * (1f + HullPerLevel * Level(MechUpgrade.Armour));
             }
         }
@@ -107,7 +109,8 @@ namespace StarForge.World
 
         public float Speed => design == null ? 4.5f : design.Loco.speed * (1f + 0.15f * Level(MechUpgrade.Servos));
         public float TurnRate => design == null ? 2f : design.Loco.turnRate * (1f + 0.15f * Level(MechUpgrade.Servos));
-        public float DamageMul => 1f + GunsPerLevel * Level(MechUpgrade.Weapons);
+        /// <summary>What every shot's table damage is multiplied by: the scale, and Weapon Overcharge.</summary>
+        public float DamageMul => MechParts.GunScale * (1f + GunsPerLevel * Level(MechUpgrade.Weapons));
 
         /// <summary>How far battle damage has worn its guns down: 0 above 60% hull, 1 at 15%
         /// and below, where every gun reloads <see cref="BatteredSlow"/> longer. A Mech at a

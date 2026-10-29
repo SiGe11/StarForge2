@@ -64,7 +64,8 @@ namespace StarForge.AI
             // Build against the Mech it has seen: one made to kill infantry (flame, rotary
             // cannon, missiles) is met with armour; one made to kill armour (lasers, the
             // railgun, the mortar) with a swarm of rifles -- the cheapest answer to a Mech
-            // there is (35 Troopers bring one down for 1,750 ore; it takes 21 Maulers, 3,150).
+            // there is (about ten Troopers bring a bare one down, some 500 ore; it takes six or seven
+            // Maulers, about 950).
             if (snap.eMech && snap.eMechDesignKnown)
             {
                 float lean = (snap.eMechAntiLight - 0.5f) * 2f;   // -1 anti-armour .. +1 anti-infantry
@@ -84,13 +85,15 @@ namespace StarForge.AI
         }
 
         /// <summary>The army it takes to break their Mech (with its own Mech's help if that is fit):
-        /// by the trials, 35 Troopers (1,750) bring down one built to kill armour and 21 Maulers
-        /// (3,150) one built to burn infantry -- what it builds leans that way once it has seen the
+        /// by the trials (twelve bare designs, MechDuel), 9 Troopers (450) bring down one built to
+        /// kill armour -- under the 10.2 mean the infantry-killers raise -- and 6.3 Maulers (950)
+        /// one built to burn infantry -- what it builds leans that way once it has seen the
         /// guns (Plan) -- scaled by the health it was last seen with (a health bar is there for
-        /// anyone to read), and roughly halved when its own Mech, fit, goes in too.</summary>
+        /// anyone to read), and roughly halved when its own Mech, fit, goes in too. (1,750-3,150
+        /// before MechParts.HullScale/GunScale, when a bare Mech took 35-40 Troopers or 21 Maulers.)</summary>
         float MechNeed(Snapshot s)
         {
-            float worth = Mathf.Lerp(1750f, 3150f, s.eMechDesignKnown ? s.eMechAntiLight : 0.5f);
+            float worth = Mathf.Lerp(450f, 950f, s.eMechDesignKnown ? s.eMechAntiLight : 0.5f);
             return worth * Mathf.Lerp(0.3f, 1f, s.eMechHpFrac) * (s.mechAlive && s.mechHpFrac > 0.6f ? 0.55f : 1f);
         }
 
