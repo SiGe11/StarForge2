@@ -1229,7 +1229,8 @@ namespace StarForge.UI
             "Mech once it has seen its guns -- tanks against one made to burn infantry, a swarm of rifles against one made to kill " +
             "armour -- strikes your base when your Mech is out in the field far from home, going for your Mech Bay then, and " +
             "gathers its attacks on its own Mech so they go in together. A Mech Bay or a tower raised beside its base it treats as " +
-            "an attack: it goes for one still going up with whatever it has, clears a finished one once it has the army to, and " +
+            "an attack: it goes for one still going up with whatever it has, clears a finished one once it has the army to take the gun " +
+            "and whatever stands guard by it, and " +
             "keeps its Diggers off ore its gun covers.\n\n" +
             "It remembers you. Between matches it keeps a record of how you tend to play and which of its plans worked against " +
             "you, and each new match starts from that. It still scouts every game, so if you change how you play, it will notice.";

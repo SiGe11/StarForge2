@@ -312,16 +312,17 @@ works when the Mech or the bay falls is refunded:
 
 | Upgrade | Levels (ore) | Effect |
 |---|---|---|
-| Servo Actuators `V` | 2 (150, 250) | +15% speed and turning a level |
-| Ablative Armour `B` | 3 (175, 275, 375) | +5% hull and 2% less damage taken a level (plates appear on the Mech) |
-| Weapon Overcharge `N` | 3 (175, 275, 375) | +5% damage a level |
-| Extra Hardpoint `M` | 1 (350) | Mounts one more weapon on an empty or auxiliary mount (the tooltip says which) |
-| Targeting Uplink `K` | 1 (200) | +6% range, +10 m sight (a dish appears on its back) |
+| Servo Actuators `V` | 2 (50, 90) | +15% speed and turning a level |
+| Ablative Armour `B` | 3 (60, 95, 130) | +5% hull and 2% less damage taken a level (plates appear on the Mech) |
+| Weapon Overcharge `N` | 3 (60, 95, 130) | +5% damage a level |
+| Extra Hardpoint `M` | 1 (120) | Mounts one more weapon on an empty or auxiliary mount (the tooltip says which) |
+| Targeting Uplink `K` | 1 (70) | +6% range, +10 m sight (a dish appears on its back) |
 
 **Where you raise it** is up to you -- anywhere a Digger can build, the enemy's base included --
 and both AIs treat a bay in a strange place as the gamble it is. The opponent goes for a bay (or
 a Sentinel) going up beside its base with whatever army it has, and for a finished one once its
-army can take the gun on, rather than feeding it a few rifles at a time; meanwhile it moves its
+army can take on the gun and whatever stands guard beside it, rather than feeding it a few rifles
+at a time; meanwhile it moves its
 Diggers to ore the gun cannot reach, and avoids expanding under it. Your Mech gets the same
 respect: Diggers it is seen among are moved to ore out of its reach, or sent home when there is
 none (straight away from it when it, or a tower or bay of yours, stands in the way); none is
@@ -348,11 +349,12 @@ three of five while it sat in the gantry being shot from 45 m). In a corner, a w
 on a flank the bay stood and the Mech lived. A bay dropped into their base at four minutes with
 its Mech landing beside it at once fell 20-176 s later; a tower of ours put up inside their ring
 of buildings as well lasted 7-62 s. Since the Mech was cut down (Balance, below), a finished bay
-dropped 44-66 m outside their base at 30 s holds: their Mech used to break it at 196-311 s, and
-now neither it nor their army can, while their Diggers stand clear of its gun and their economy
-stalls (cutting the bay's hull, repair and gun too did not change that, so the bay was left as it
-was: the answer belongs to the opponent AI). A bay a Digger tries to raise there is still shot
-down before it stands. The opponent won 10 of 16 such runs within the seven minutes
+dropped 44-66 m outside their base at 30 s usually holds: their Mech used to break it at 196-311 s.
+At first the opponent sent its whole army at anything near that bay and fed it away a handful at
+a time; it now leaves what stands guard beside a bay or tower at the edge of its base alone until
+its army can take all of it (anything that comes into the base itself it meets at once), and no
+longer loses those matches outright. A bay a Digger
+tries to raise there is still shot down before it stands. The opponent won 10 of 16 such runs within the seven minutes
 and was behind at the end of two. How it answers a Mech among its own buildings (straight away
 with what it has, or only with an army big enough to beat the Mech) hardly ever comes up: its
 towers have shot the intruder down before the choice arises. No run raised an exception.
@@ -404,9 +406,10 @@ loaded map. Over twelve drawn designs that is **6.3 Maulers** on average (4-8 by
 light frame on legs or a grav skirt falls to four or five, a heavy frame on tracks to eight; a
 second pass gave 6.4) and **10.2 Troopers** (7-13; bisected to two, so up to one high). It took two passes: hull 45% and damage 24%
 was a little too weak (5.0 Maulers), 55% and 32% a little too strong (7.2). Every upgrade at
-its top (2,600 ore) takes six designs from 5.2 to 8.2 Maulers (1.59x) and from 9.2 to 16.3
-Troopers (1.78x): three tanks or seven rifles more, only about a sixth of what that ore buys of
-either. In matches the armies now decide: in two AI evaluations on the cut (20 matches each
+its top takes six designs from 5.2 to 8.2 Maulers (1.59x) and from 9.2 to 16.3 Troopers
+(1.78x): three tanks or seven rifles more. At the old prices (2,600 ore) that was a sixth of
+what the ore buys of either, so the upgrades were repriced with the Mech: all of them now cost
+900, about twice what they add, as before the cut. In matches the armies now decide: in two AI evaluations on the cut (20 matches each
 against the four scripted players) the AI won 19 of 20 both times and lost none (the
 twentieth both times the macro player's hardest seed, which ran to the time cap with the
 scripted side's army gone), the Mechs made 0-34 kills a match where they had made 40-159,
@@ -552,7 +555,8 @@ as the Mauler's cannon (158-192 Hz, 41-58%), the deepest sounds in the game.
   your Mech Bay then (it is what would mend your Mech), and gathers its attacks on its
   own Mech so that they go in together. A Mech Bay or a tower raised beside its base it
   treats as an attack: it goes for one still going up with whatever it has, clears a
-  finished one once it has the army to, and keeps its Diggers off ore its gun covers
+  finished one once it has the army to take the gun and whatever stands guard by it, and
+  keeps its Diggers off ore its gun covers
   (and out from under it, if they stopped there with a load when their Foundry fell).
 - **It remembers you.** Between matches it keeps a record of how you tend to play
   and which of its plans worked against you, and each new match starts from that.

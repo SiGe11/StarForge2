@@ -297,17 +297,21 @@ namespace StarForge.World
             public char hotkey;
         }
 
+        // Priced with the Mech they improve: every upgrade at its top takes a bare Mech from 5.2 to
+        // 8.2 Maulers (MechDuel, six designs), three tanks' worth, so all of them cost 900 -- about
+        // twice what they add, as before the scale round, when 2,600 bought nine tanks' worth. Left at
+        // 2,600 they bought a sixth of their price.
         static readonly UpgradeInfo[] upgrades =
         {
-            new UpgradeInfo { name = "Servo Actuators", levels = 2, cost = new[] { 150, 250 }, time = new[] { 30f, 40f }, hotkey = 'V',
+            new UpgradeInfo { name = "Servo Actuators", levels = 2, cost = new[] { 50, 90 }, time = new[] { 30f, 40f }, hotkey = 'V',
                 blurb = "+15% speed and turning a level." },
-            new UpgradeInfo { name = "Ablative Armour", levels = 3, cost = new[] { 175, 275, 375 }, time = new[] { 35f, 45f, 55f }, hotkey = 'B',
+            new UpgradeInfo { name = "Ablative Armour", levels = 3, cost = new[] { 60, 95, 130 }, time = new[] { 35f, 45f, 55f }, hotkey = 'B',
                 blurb = "+5% hull and 2% less damage taken a level." },
-            new UpgradeInfo { name = "Weapon Overcharge", levels = 3, cost = new[] { 175, 275, 375 }, time = new[] { 35f, 45f, 55f }, hotkey = 'N',
+            new UpgradeInfo { name = "Weapon Overcharge", levels = 3, cost = new[] { 60, 95, 130 }, time = new[] { 35f, 45f, 55f }, hotkey = 'N',
                 blurb = "+5% damage from every weapon a level." },
-            new UpgradeInfo { name = "Extra Hardpoint", levels = 1, cost = new[] { 350 }, time = new[] { 45f }, hotkey = 'M',
+            new UpgradeInfo { name = "Extra Hardpoint", levels = 1, cost = new[] { 120 }, time = new[] { 45f }, hotkey = 'M',
                 blurb = "Mounts one more weapon on an empty or auxiliary hardpoint." },
-            new UpgradeInfo { name = "Targeting Uplink", levels = 1, cost = new[] { 200 }, time = new[] { 35f }, hotkey = 'K',
+            new UpgradeInfo { name = "Targeting Uplink", levels = 1, cost = new[] { 70 }, time = new[] { 35f }, hotkey = 'K',
                 blurb = "+6% range and +10 m sight for every weapon." },
         };
 

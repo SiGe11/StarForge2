@@ -1523,10 +1523,19 @@ namespace StarForge.EditorTools
                 string lastWhy = null; float lastHp = 0f; UnityEngine.Vector2 lastPos = default;
                 int exceptionsBefore = ExceptionCount();
                 float lastT = world.time;
+                // A single case also logs the match every 20 s: armies, their Diggers at work, the
+                // bay, both Mechs -- to tell an economy starved from an army fed.
+                var timeline = new System.Collections.Generic.List<string>();
+                float nextSample = world.time + 20f;
                 while (world.time < placedAt + 420f && world.winner < 0 && ReferenceEquals(StarForge.World.GameWorld.Instance, world))
                 {
                     yield return null;
                     float dt = world.time - lastT; lastT = world.time;
+                    if (Only >= 0 && world.time >= nextSample)
+                    {
+                        nextSample += 20f;
+                        timeline.Add(Sample(world, bay, placedAt));
+                    }
                     if (completeAt < 0f && StarForge.World.Unit.Live(bay) && bay.Complete) { completeAt = world.time; theirArmyAtFinish = ArmyOf(world, 1); }
                     if (digger != null)
                     {
@@ -1607,6 +1616,7 @@ namespace StarForge.EditorTools
                                $"; repair trips {repairTrips} ({repairsInEnemyReach} to a bay within 60 m of their base); strayed up to {maxDistFromBay:0} m from its bay"));
                 log.AppendLine($"   its time: {string.Join(", ", top)}");
                 if (mechDiedAt >= 0f) log.AppendLine($"   before it fell: {string.Join(" | ", trail)}");
+                if (timeline.Count > 0) log.AppendLine($"   timeline: {string.Join(" | ", timeline)}");
                 if (ai1 != null && ai1.Dbg.guns.Length > 0)
                     log.AppendLine($"   their Diggers: {ai1.Dbg.guns}; moved to safe ore {ai1.Dbg.diggersMoved}, stood clear {ai1.Dbg.diggersCleared}");
                 if (c >= 8 && ai1 != null)
@@ -1619,6 +1629,28 @@ namespace StarForge.EditorTools
             StarForge.AI.Commander.MechGateInBase = false;
             report = (failed ? "FAILED\n" : "done\n") + log;
             finished = true;
+        }
+
+        /// <summary>One line of a single case's timeline: armies, their Diggers (mining or carrying --
+        /// one holding a load with no Foundry left reads as carrying -- / all), their ore, the bay's
+        /// hull, and each Mech's hull and what it is doing.</summary>
+        static string Sample(StarForge.World.GameWorld world, StarForge.World.Unit bay, float placedAt)
+        {
+            int diggers = 0, working = 0;
+            foreach (var u in world.units)
+                if (u != null && !u.dying && u.team == 1 && u.def.harvester)
+                {
+                    diggers++;
+                    if (u.order == StarForge.Sim.Order.Harvest || u.order == StarForge.Sim.Order.Return) working++;
+                }
+            string Mech(int t)
+            {
+                var m = world.MechOf(t);
+                if (m == null || !m.mech.Landed) return "-";
+                return $"{100f * m.hp / UnityEngine.Mathf.Max(1f, m.MaxHp):0}% {m.mech.intent}";
+            }
+            return $"{world.time - placedAt:0}s army {ArmyOf(world, 0):0}/{ArmyOf(world, 1):0} their Diggers {working}/{diggers} ore {world.factions[1].ore} " +
+                   $"bay {(StarForge.World.Unit.Live(bay) ? bay.hp.ToString("0") : "down")} Mechs {Mech(0)} / {Mech(1)}";
         }
 
         static float ArmyOf(StarForge.World.GameWorld world, int team)
