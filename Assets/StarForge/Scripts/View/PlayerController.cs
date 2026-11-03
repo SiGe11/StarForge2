@@ -33,6 +33,8 @@ namespace StarForge.View
         public MechUpgrade upgrade;
         public ArmyUpgrade armyUpgrade;
         public BuildMenu menu;
+        /// <summary>Shown where the cost goes, for a card that costs nothing.</summary>
+        public string caption;
     }
 
     public sealed class PlayerController : MonoBehaviour
@@ -223,8 +225,9 @@ namespace StarForge.View
                 }
             }
 
-            // Testing cheat, documented only in the README: Ctrl (or Cmd) + Shift + M.
-            if (ctrl && shift && kb.mKey.wasPressedThisFrame) world.CheatOre(team, 5000);
+            // Testing cheat, documented only in the README: Ctrl (or Cmd) + Shift + M (GameWorld.Cheat).
+            // Not while watching AI against AI: it would mark a side nobody is playing.
+            if (ctrl && shift && kb.mKey.wasPressedThisFrame && !MatchSettings.spectate) world.Cheat(team);
 
             // The card's hotkeys act only on a key pressed this frame: built every frame to look,
             // the card cost 200-500 B of garbage a frame (BugTrials.CardAlloc).
@@ -482,9 +485,10 @@ namespace StarForge.View
             }
             if (anyWorker)
             {
-                into.Add(new CardAction { kind = CardKind.BuildMenu, menu = BuildMenu.Basic, hotkey = 'B', title = "Basic structures", glyph = "▣", enabled = true,
+                // A structure's own icon fills the slot like every other card (a glyph came out a few pixels across).
+                into.Add(new CardAction { kind = CardKind.BuildMenu, menu = BuildMenu.Basic, hotkey = 'B', title = "Basic structures", icon = Defs.Get(UnitType.Garrison).icon, caption = "BASIC", enabled = true,
                     body = "Foundry, Bunkhouse, Garrison, Sentinel and Workshop: the economy and the core army." });
-                into.Add(new CardAction { kind = CardKind.BuildMenu, menu = BuildMenu.Advanced, hotkey = 'V', title = "Advanced structures", glyph = "◈", enabled = true,
+                into.Add(new CardAction { kind = CardKind.BuildMenu, menu = BuildMenu.Advanced, hotkey = 'V', title = "Advanced structures", icon = Defs.Get(UnitType.Armory).icon, caption = "ADV", enabled = true,
                     body = "Armory, Airfield, Biolab and Mech Bay: research, aircraft, creatures and your Mech." });
             }
             // The bay's card only for the bay (with its Mech): with Diggers as well, their
@@ -521,7 +525,7 @@ namespace StarForge.View
                 {
                     var d = Defs.Get((UnitType)i);
                     if (d == null || d.producer != structureType) continue;
-                    bool supplyOk = F.supplyUsed + d.supplyCost <= Mathf.Min(F.supplyCap, GameWorld.MaxSupply);
+                    bool supplyOk = F.supplyUsed + d.supplyCost <= world.SupplyCap(team);
                     bool reqOk = d.requires == UnitType.None || world.HasComplete(team, d.requires);
                     // The Mech-Hunter: the Armory's programme, one at a time, a wait after it falls.
                     string barred = d.type == UnitType.MechHunter && reqOk ? world.HunterBarred(team) : null;

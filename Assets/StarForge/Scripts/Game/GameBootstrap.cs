@@ -163,7 +163,7 @@ namespace StarForge.Game
         void EndMatch()
         {
             // Spectated games are not the player's style, so they teach nothing;
-            // nor does a match played with the ore cheat.
+            // nor does a match played with the cheat, however it ended.
             if (!MatchSettings.spectate && !world.cheated) AI.EndMatch(world.winner == 1);
             SetState(MatchState.Ended);
             Time.timeScale = 1f;

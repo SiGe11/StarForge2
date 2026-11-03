@@ -334,7 +334,7 @@ namespace StarForge.World
                 {
                     Vector3 m = Muzzle(s, 1.25f, 1.1f);
                     Round(s, t, ProjSniper, m, 260f);
-                    RaiseFire(s, m, (aim - m).normalized, ProjSniper);
+                    RaiseFire(s, m, (aim - m).normalized, ProjSniper, aim);
                     break;
                 }
                 case WeaponKind.Lance:
@@ -411,7 +411,7 @@ namespace StarForge.World
                 {
                     // A rocket off the shoulder: straight, quick, a small burst where it strikes.
                     Vector3 m = Muzzle(s, 1.66f, 1.0f);
-                    Round(s, t, ProjRocket, m, 60f);
+                    Round(s, t, ProjRocket, m, 42f);
                     RaiseFire(s, m, (aim - m).normalized, ProjRocket);
                     break;
                 }

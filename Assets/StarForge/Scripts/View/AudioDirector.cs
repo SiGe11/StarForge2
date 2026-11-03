@@ -229,6 +229,10 @@ namespace StarForge.View
                         case MechWeapon.Railgun: PlayAt(e.pos, bank.mechRailgun, 1f, 0.3f, cannon); PlayAt(e.end, bank.hitMetal, 0.3f, 0.1f); break;
                     }
                     break;
+                case GameEventKind.AnimalBite:
+                    if (!Seen(e.pos)) return;
+                    PlayAt(e.pos, bank.stomp, 0.3f, 0.2f);
+                    break;
                 case GameEventKind.MechInbound:
                     if (e.team != me && !Seen(e.pos)) return;
                     // The roar and the retro-rockets, timed so the braking burns come just

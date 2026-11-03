@@ -148,5 +148,6 @@
       </ui:VisualElement>
     </ui:VisualElement>
 
+    <ui:Label name="cheatLabel" class="cheat-label" text="CHEAT MODE" picking-mode="Ignore" />
   </ui:VisualElement>
 </ui:UXML>

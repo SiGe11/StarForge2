@@ -46,6 +46,11 @@ namespace StarForge.World
         // A Mauler shouldering a tree: how far its nose is up, and the jolt as it meets the trunk.
         float pushLean, bumpT = -1f, prevPush;
 
+        /// <summary>A working cutter's turn in degrees a second. At 900 its eight teeth passed 20
+        /// times a second, a third of a tooth a frame, and strobed (RosterTrials.DiggerFlicker, which sets it for its A/B).</summary>
+        public static float CutterSpin = CutterSpinUsual;
+        public const float CutterSpinUsual = 300f;
+
         Transform legL, legR, gun, arm, cutter, drum, barrel, head, trolley, load, crystals, rotorL, rotorR;
         // A Biolab creature's animal model (Quaternius, legacy clips): what it plays moving,
         // standing, striking and dying.
@@ -495,7 +500,7 @@ namespace StarForge.World
             }
             if (cutter != null)
             {
-                cutterAngle += dt * Mathf.Lerp(40f, 900f, armDip);
+                cutterAngle += dt * Mathf.Lerp(40f, CutterSpin, armDip);
                 cutter.localRotation = cutterRest * Quaternion.Euler(0f, 0f, cutterAngle);
             }
             if (drum != null)

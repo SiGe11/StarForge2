@@ -1,8 +1,8 @@
 // Fauna.cs — the animals that live on the battlefield: wolf packs and foxes on the
 // ground, flocks of songbirds feeding in the open, and eagles overhead.
 //
-// Pure scenery: nothing here is part of the simulation, nothing targets an
-// animal and no animal blocks or steers a unit. The models are Quaternius's
+// Scenery, but for a cheater's reckoning (below): nothing here is part of the simulation,
+// nothing targets an animal and no animal blocks or steers a unit. The models are Quaternius's
 // animated low-poly animals (CC0; Tools/pack_fauna.py), built into prefabs by
 // SceneAssembler, and play their own walk, idle and flight cycles.
 //
@@ -24,6 +24,10 @@
 // while the danger lasts. Flyers hold a steady height over the highest ground
 // beneath their whole circle, changing it slowly, so they do not bob up and
 // down over every terrace.
+//
+// A cheater's reckoning (World/GameWorld.Cheat) is the one time they matter: every animal
+// is enlisted where it stands, and from then on is drawn where the simulation has it,
+// running or flying at what it was sent for, in sight of the player or not.
 //
 // Fairness: an animal is shown only where the player can see, and a group takes
 // fright at a danger only if the player could see that danger too -- or if the
@@ -80,6 +84,9 @@ namespace StarForge.View
             public Vector3 at, landAt;
             public Vector2 slot, hopFrom, hopTo;
             public float launchAt, nextAct, hopT = 1f, beatUntil, foldUntil, lift, pitch;
+            // A cheater's reckoning.
+            public Avenger avenger;
+            public float flyY, moveSpeed;
         }
 
         sealed class Group
@@ -321,6 +328,8 @@ namespace StarForge.View
 
         void OnEvent(GameEvent e)
         {
+            if (e.kind == GameEventKind.Reckoning) { Enlist(); return; }
+            if (world.Reckoning) return;    // past being frightened
             float reach;
             float life = 40f;
             if (e.kind == GameEventKind.Impact) reach = 28f + e.scale * 6f;
@@ -411,6 +420,7 @@ namespace StarForge.View
         void Update()
         {
             float dt = Mathf.Min(Time.deltaTime, 0.1f);
+            if (world != null && world.Reckoning) { Hunt(dt); return; }
             if (Time.time >= nextScan) { nextScan = Time.time + 0.3f; Scan(); }
             foreach (var g in groups)
             {
@@ -552,6 +562,77 @@ namespace StarForge.View
                 Place(a, p, Quaternion.Euler(0f, a.yaw, -a.bank));
                 Animate(a, sp, speed);
             }
+        }
+
+        // ------------------------------------------------------------ the reckoning
+        const float HuntScale = 1.35f;      // bigger than they were, and the colour of it
+        static readonly Color HuntTint = new Color(0.62f, 0.09f, 0.07f);
+        static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+
+        void Enlist()
+        {
+            var tint = new MaterialPropertyBlock();
+            tint.SetColor(BaseColorId, HuntTint);
+            foreach (var g in groups)
+                foreach (var a in g.members)
+                {
+                    // A wolf outruns a Digger, or one could run for ever; a flyer is quick enough as it is.
+                    a.avenger = world.Enlist(a.pos, g.sp.flies, g.sp.runSpeed * (g.sp.flies ? 1f : 1.4f));
+                    a.flyY = a.t.position.y;
+                    a.t.localScale *= HuntScale;
+                    a.shown = true;
+                    foreach (var r in a.renderers) { r.enabled = true; r.SetPropertyBlock(tint); }
+                    if (a.anim != null && g.sp.move != null)
+                    {
+                        a.anim.cullingType = AnimationCullingType.AlwaysAnimate;
+                        a.anim.CrossFade(g.sp.move.name, 0.1f);
+                    }
+                }
+        }
+
+        void Hunt(float dt)
+        {
+            foreach (var g in groups)
+                foreach (var a in g.members)
+                {
+                    var h = a.avenger;
+                    if (h == null) continue;
+                    a.pos = h.pos;
+                    float yaw = Mathf.Atan2(h.heading.x, h.heading.y) * Mathf.Rad2Deg;
+                    a.yaw = Mathf.MoveTowardsAngle(a.yaw, yaw, dt * 540f);
+                    // A lunge into each bite: down and forward, and back.
+                    float s = Mathf.Clamp01((world.time - h.bitAt) / 0.3f);
+                    float lunge = s < 1f ? Mathf.Sin(s * Mathf.PI) : 0f;
+                    Vector3 fwd = new Vector3(h.heading.x, 0f, h.heading.y);
+                    a.moveSpeed = Mathf.MoveTowards(a.moveSpeed, h.moving ? h.speed : 0f, dt * 30f);
+                    Vector3 at;
+                    Quaternion rot;
+                    if (h.flies)
+                    {
+                        // High on the way, down onto what it came for.
+                        float ground = map.HeightAt(a.pos);
+                        float want = ground + 7f;
+                        if (h.target != null && (h.target.pos - a.pos).magnitude < h.target.def.radius + 12f)
+                            want = h.target.def.flying ? GameWorld.AimPoint(h.target).y : ground + 1.4f + h.target.def.visualHeight * 0.4f;
+                        a.flyY = Mathf.MoveTowards(a.flyY, want, dt * 16f);
+                        at = new Vector3(a.pos.x, a.flyY, a.pos.y);
+                        rot = Quaternion.Euler(lunge * 35f, a.yaw, 0f);
+                    }
+                    else
+                    {
+                        at = map.Ground(a.pos);
+                        rot = Quaternion.FromToRotation(Vector3.up, Vector3.Slerp(Vector3.up, map.NormalAt(a.pos), 0.5f)) * Quaternion.Euler(lunge * 22f, a.yaw, 0f);
+                    }
+                    a.t.SetPositionAndRotation(at + fwd * (lunge * 0.8f), rot);
+                    if (a.anim != null && g.sp.move != null)
+                    {
+                        bool flap = h.flies || a.moveSpeed > 0.5f;
+                        if (flap && !a.anim.IsPlaying(g.sp.move.name)) a.anim.CrossFade(g.sp.move.name, 0.1f);
+                        else if (!flap && g.sp.idle != null && !a.anim.IsPlaying(g.sp.idle.name)) a.anim.CrossFade(g.sp.idle.name, 0.2f);
+                        var st = a.anim[g.sp.move.name];
+                        if (st != null) st.speed = g.sp.perches ? g.sp.flapRate * 1.2f : Mathf.Clamp(a.moveSpeed / Mathf.Max(0.1f, g.sp.moveClipSpeed), 0.3f, 3.2f);
+                    }
+                }
         }
 
         // ------------------------------------------------------------ songbirds

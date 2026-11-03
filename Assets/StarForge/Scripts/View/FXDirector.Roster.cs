@@ -1,8 +1,10 @@
 // FXDirector.Roster.cs — the wider roster's effects: muzzles and strikes for the
-// infantry mortar, the sniper rifle, the tank destroyer's cannon, acid, claws and the
-// glaive that leaps; the infantry flamer's jet; how a creature goes down. The flak,
+// infantry mortar (the Mech's, a man's size), the sniper rifle, the bazooka, the tank
+// destroyer's cannon, acid, claws and the glaive that leaps; the infantry flamer's
+// jet; an avenging animal's bite; how a creature goes down. The flak,
 // the interceptor's gun and the gunship's rockets borrow the Mech's autocannon and
 // missile effects (projectile kinds 4 and 5), sized by the event.
+using System.Collections.Generic;
 using UnityEngine;
 using StarForge.Sim;
 using StarForge.World;
@@ -20,20 +22,20 @@ namespace StarForge.View
             switch (e.projectileKind)
             {
                 case GameWorld.ProjLob:
-                    // A thump and a ring of smoke round the tube's mouth.
-                    AddFlare(e.pos, fwd, 1.6f, 1.1f, new Color(3.6f, 2.0f, 0.7f), 0.08f);
-                    Emit(glow, e.pos, fwd, 1.8f, 0.1f, new Color(1f, 0.62f, 0.3f));
-                    for (int i = 0; i < 4; i++)
-                        Emit(trail, e.pos + fwd * 0.3f, fwd * Random.Range(1.5f, 4f) + Random.insideUnitSphere * 0.8f,
-                             Random.Range(0.9f, 1.4f), Random.Range(1.2f, 1.8f), new Color(0.8f, 0.77f, 0.73f, 0.4f), Random.Range(0f, 360f));
-                    Flash(e.pos, new Color(1f, 0.6f, 0.3f), 4f, 9f, 0.1f);
-                    PressureWave(e.pos, 0.15f, 10f, Vector3.zero, 0f);
+                    // The Mech's mortar, a man's size.
+                    MortarSlam(e.pos, fwd, ThumperScale);
                     break;
                 case GameWorld.ProjSniper:
-                    // A sharp white crack and a puff that hangs at the muzzle.
-                    AddFlare(e.pos, fwd, 1.8f, 0.5f, new Color(4.5f, 4.2f, 3.6f), 0.05f);
-                    Emit(trail, e.pos + fwd * 0.2f, fwd * 1.2f + Vector3.up * 0.2f, 0.7f, 1.4f, new Color(0.82f, 0.8f, 0.78f, 0.3f), Random.Range(0f, 360f));
-                    Flash(e.pos, new Color(1f, 0.9f, 0.7f), 3f, 7f, 0.06f);
+                    // A sharp white crack, a puff that hangs at the muzzle and a line of the round's
+                    // heat across the air (the Mech's railgun, thin and brief).
+                    AddFlare(e.pos, fwd, 2.4f, 0.6f, new Color(4.5f, 4.2f, 3.6f), 0.06f);
+                    Emit(trail, e.pos + fwd * 0.2f, fwd * 1.2f + Vector3.up * 0.2f, 0.8f, 1.6f, new Color(0.82f, 0.8f, 0.78f, 0.4f), Random.Range(0f, 360f));
+                    Flash(e.pos, new Color(1f, 0.9f, 0.7f), 4f, 9f, 0.07f);
+                    if (e.end.sqrMagnitude > 0f)
+                    {
+                        beams.Add(new Beam { from = e.pos, to = e.end, born = Time.time, life = 0.1f, width = 0.14f, core = new Color(4.6f, 4.3f, 3.7f), halo = new Color(0.5f, 0.45f, 0.35f) });
+                        beams.Add(new Beam { from = e.pos, to = e.end, born = Time.time, life = 0.7f, width = 0.05f, core = new Color(0.5f, 0.52f, 0.58f), halo = Color.clear, trail = true });
+                    }
                     break;
                 case GameWorld.ProjAP:
                     // Lighter than the Mauler's gun, sharper: a long flash and a cone of smoke.
@@ -73,14 +75,25 @@ namespace StarForge.View
                     break;
                 }
                 case GameWorld.ProjRocket:
-                    // A rocket leaving the tube: a flash forward, the backblast thrown out behind.
-                    AddFlare(e.pos, fwd, 1.6f, 0.8f, new Color(4f, 2.6f, 1.0f), 0.08f);
-                    AddFlare(e.pos - fwd * 1.6f, -fwd, 2.4f, 1.3f, new Color(3.2f, 1.8f, 0.7f), 0.10f);
-                    for (int i = 0; i < 5; i++)
-                        Emit(trail, e.pos - fwd * Random.Range(1.4f, 2.6f), -fwd * Random.Range(3f, 7f) + Random.insideUnitSphere * 1.2f,
-                             Random.Range(1.0f, 1.6f), Random.Range(1.0f, 1.6f), new Color(0.8f, 0.77f, 0.73f, 0.45f), Random.Range(0f, 360f));
-                    Flash(e.pos, new Color(1f, 0.65f, 0.3f), 4f, 9f, 0.08f);
+                {
+                    // A rocket leaving the tube: a flash forward, the backblast thrown out behind
+                    // in flame and smoke, and the dust it kicks off the ground.
+                    AddFlare(e.pos, fwd, 2.4f, 1.1f, new Color(4.2f, 2.7f, 1.0f), 0.1f);
+                    AddFlare(e.pos, fwd, 1.1f, 0.7f, new Color(5f, 4.3f, 3f), 0.06f);
+                    AddFlare(e.pos - fwd * 1.6f, -fwd, 3.6f, 1.8f, new Color(3.6f, 2.0f, 0.7f), 0.13f);
+                    Emit(glow, e.pos - fwd * 1.2f, -fwd * 2f, 3.2f, 0.14f, new Color(1f, 0.6f, 0.28f));
+                    for (int i = 0; i < 6; i++)
+                        Emit(trail, e.pos - fwd * Random.Range(1.4f, 2.8f), -fwd * Random.Range(3f, 9f) + Random.insideUnitSphere * 1.4f,
+                             Random.Range(1.4f, 2.2f), Random.Range(0.9f, 1.4f), new Color(0.8f, 0.77f, 0.73f, 0.55f), Random.Range(0f, 360f));
+                    Vector3 behind = world.Map.Ground(new Vector2(e.pos.x - fwd.x * 2.4f, e.pos.z - fwd.z * 2.4f));
+                    for (int i = 0; i < 3; i++)
+                        Emit(trail, behind + Random.insideUnitSphere * 0.6f + Vector3.up * 0.3f, Random.insideUnitSphere * 1.6f + Vector3.up * 0.8f - fwd * 2f,
+                             Random.Range(1.3f, 2.1f), Random.Range(1.0f, 1.6f), new Color(0.58f, 0.51f, 0.42f, 0.4f), Random.Range(0f, 360f));
+                    Flash(e.pos, new Color(1f, 0.65f, 0.3f), 7f, 13f, 0.12f);
+                    PressureWave(e.pos - fwd, 0.22f, 14f, -fwd, 0.7f);
+                    ShakeFrom(e.pos, 0.03f);
                     break;
+                }
                 case GameWorld.ProjGlaive:
                     Emit(glow, e.pos, fwd * 2f, 1.0f, 0.12f, GlaiveColor * 0.5f);
                     break;
@@ -124,11 +137,14 @@ namespace StarForge.View
             switch (e.projectileKind)
             {
                 case GameWorld.ProjLob:
-                    Explosion(e.pos, 1.15f, false, pressure: 0.7f);
-                    ShakeFrom(e.pos, 0.06f);
+                    Explosion(e.pos, 2.2f * ThumperScale * 1.15f, false, pressure: 1.3f * ThumperScale);
+                    ShakeFrom(e.pos, 0.2f * ThumperScale);
                     break;
                 case GameWorld.ProjRocket:
-                    Explosion(e.pos, 0.9f, false, pressure: 0.6f);
+                    Explosion(e.pos, 1.3f, false, pressure: 0.85f);
+                    for (int i = 0; i < 10; i++)
+                        Emit(sparks, e.pos, Random.insideUnitSphere * 10f + Vector3.up * 4f, 0.16f, Random.Range(0.25f, 0.5f), new Color(1f, 0.72f, 0.35f));
+                    ShakeFrom(e.pos, 0.07f);
                     break;
                 case GameWorld.ProjSniper:
                     ImpactSparks(e.pos, e.team, 3);
@@ -159,28 +175,99 @@ namespace StarForge.View
             }
         }
 
-        /// <summary>The Scorcher's jet: the Mech flamer's tongues, a man's size.</summary>
+        /// <summary>The Thumper's mortar against the Mech's (MortarSlam, MechImpact): what is left of it
+        /// once it is a man's size.</summary>
+        const float ThumperScale = 0.62f;
+
+        /// <summary>A Scorcher firing: its gun ticks every 0.3 s, and one tick's worth of tongues left a
+        /// few sparse flames pulsing three times a second, where the Mech's ticks every 0.1 s. So a tick
+        /// holds the jet open and <see cref="FlameJets"/> feeds it every frame.</summary>
+        struct FlameJet
+        {
+            public Unit unit;
+            public Vector3 from, to;
+            public float until, tongues, billows, core, licks, embers;
+        }
+
+        readonly List<FlameJet> flameJets = new List<FlameJet>(16);
+
         void RosterFlame(GameEvent e)
         {
-            Vector3 from = e.pos, to = e.end;
-            Vector3 d = to - from;
+            float hold = e.unit != null ? Mathf.Max(0.2f, e.unit.def.cooldown * 1.3f) : 0.35f;
+            for (int i = 0; i < flameJets.Count; i++)
+            {
+                if (flameJets[i].unit != e.unit) continue;
+                var j = flameJets[i];
+                j.from = e.pos;
+                j.to = e.end;
+                j.until = Time.time + hold;
+                flameJets[i] = j;
+                return;
+            }
+            flameJets.Add(new FlameJet { unit = e.unit, from = e.pos, to = e.end, until = Time.time + hold });
+        }
+
+        void FlameJets(float dt)
+        {
+            for (int i = flameJets.Count - 1; i >= 0; i--)
+            {
+                var j = flameJets[i];
+                if (Time.time > j.until || (j.unit != null && !Unit.Live(j.unit))) { flameJets.RemoveAt(i); continue; }
+                if (Seen(j.from) || Seen(j.to)) FeedJet(ref j, dt);
+                flameJets[i] = j;
+            }
+        }
+
+        /// <summary>The Mech flamer's look, a man's size and running every frame: tongues thrown along the
+        /// line, thin at the nozzle and swelling toward the target, rolling fire down its length, a hot core,
+        /// and flames, embers and smoke standing up off whatever it is on.</summary>
+        void FeedJet(ref FlameJet j, float dt)
+        {
+            Vector3 d = j.to - j.from;
             float len = d.magnitude;
             if (len < 0.1f) return;
             Vector3 dir = d / len;
-            Vector3 v = dir * Mathf.Clamp(len * 2.2f, 6f, 14f);
-            for (int i = 0; i < 2; i++)
+            float v = Mathf.Clamp(len * 1.7f, 6f, 12f);
+            dt = Mathf.Min(dt, 0.1f);    // a long frame's worth, no more
+
+            for (j.tongues += dt * 56f; j.tongues >= 1f; j.tongues -= 1f)
             {
-                float w = Random.Range(0.5f, 0.8f);
-                EmitFlame(flames, from + dir * Random.Range(0.1f, 0.6f) + Random.insideUnitSphere * 0.08f,
-                          v * Random.Range(0.8f, 1.05f) + Random.insideUnitSphere * 1.0f + Vector3.up * 0.5f, w, w * 1.3f, Random.Range(0.4f, 0.55f), Color.white);
+                float u = Random.value;
+                float w = Mathf.Lerp(1.0f, 2.6f, u) * Random.Range(0.85f, 1.15f);
+                EmitFlame(flames, j.from + dir * (len * u * 0.72f) + Random.insideUnitSphere * (0.05f + 0.22f * u) + Vector3.up * (0.25f * w),
+                          dir * v * Random.Range(0.85f, 1.05f) + Random.insideUnitSphere * (0.5f + 1.3f * u) + Vector3.up * 0.7f,
+                          w, w * 1.3f, Mathf.Clamp(len * (1f - u * 0.72f) / v, 0.26f, 0.5f) * Random.Range(0.9f, 1.15f), Color.white);
             }
-            if (Random.value < 0.4f)
-                EmitFlame(flames, to + Random.insideUnitSphere * 0.6f + Vector3.up * 0.2f, Vector3.up * Random.Range(0.8f, 1.5f), 0.8f, 1.4f, Random.Range(0.4f, 0.6f), Color.white);
-            Emit(glow, from, dir * 1.5f, 1.2f, 0.08f, new Color(1f, 0.55f, 0.2f));
-            if (Random.value < 0.2f)
-                Emit(smoke, to + Vector3.up * 0.8f, Vector3.up * Random.Range(1f, 2f), Random.Range(1.0f, 1.6f), Random.Range(1.6f, 2.4f),
-                     new Color(0.24f, 0.22f, 0.2f, 0.4f), Random.Range(0f, 360f));
-            if (Random.value < 0.2f) Flash(Vector3.Lerp(from, to, 0.5f), new Color(1f, 0.55f, 0.2f), 3.5f, 8f, 0.1f);
+            for (j.billows += dt * 16f; j.billows >= 1f; j.billows -= 1f)
+            {
+                float u = Random.Range(0.05f, 0.8f);
+                Emit(fire, j.from + dir * (len * u) - Vector3.up * 0.3f, dir * v * 0.45f + Random.insideUnitSphere * 0.7f,
+                     Mathf.Lerp(0.6f, 1.35f, u) * Random.Range(0.9f, 1.1f), Random.Range(0.32f, 0.46f), new Color(1f, 0.8f, 0.6f), Random.Range(0f, 360f));
+            }
+            for (j.core += dt * 26f; j.core >= 1f; j.core -= 1f)
+                beams.Add(new Beam { from = j.from, to = j.from + dir * (len * Random.Range(0.45f, 0.85f)), born = Time.time, life = 0.05f,
+                                     width = Random.Range(0.16f, 0.3f), core = new Color(3.4f, 1.9f, 0.6f), halo = new Color(0.9f, 0.34f, 0.08f) });
+            for (j.licks += dt * 15f; j.licks >= 1f; j.licks -= 1f)
+                EmitFlame(flames, j.to - dir * 0.6f + Random.insideUnitSphere * 0.55f + Vector3.up * 0.2f, Vector3.up * Random.Range(0.8f, 2f) + dir * 0.5f,
+                          1.1f, 1.9f, Random.Range(0.35f, 0.55f), Color.white);
+            for (j.embers += dt * 12f; j.embers >= 1f; j.embers -= 1f)
+                Emit(sparks, j.to + Random.insideUnitSphere * 0.5f, Random.insideUnitSphere * 2.5f + Vector3.up * 3f + dir * 2f, 0.1f, Random.Range(0.3f, 0.6f), new Color(1f, 0.6f, 0.25f));
+            if (Random.value < dt * 12f) Emit(glow, j.from, dir * 1.5f, 1.6f, 0.1f, new Color(1f, 0.55f, 0.2f));
+            if (Random.value < dt * 2.5f)
+                Emit(smoke, j.to + Vector3.up * 0.9f, Vector3.up * Random.Range(1.2f, 2.2f), Random.Range(1.1f, 1.7f), Random.Range(1.8f, 2.6f),
+                     new Color(0.24f, 0.22f, 0.2f, 0.45f), Random.Range(0f, 360f));
+            if (Random.value < dt * 5f) Flash(Vector3.Lerp(j.from, j.to, 0.5f), new Color(1f, 0.55f, 0.2f), 4f, 9f, 0.1f);
+            // Few: scars share one list of 96 with the shells', and a line of Scorchers would turn it over.
+            if (Random.value < dt * 0.2f) GroundScar(j.to, 0.55f);
+        }
+
+        /// <summary>An animal's teeth in one of a cheater's (GameWorld.Cheat): the Skitter's rake and a burst of grit.</summary>
+        void AnimalBite(GameEvent e)
+        {
+            Slash(e.pos, e.dir, false);
+            for (int i = 0; i < 8; i++)
+                Emit(sparks, e.pos, Random.insideUnitSphere * 4f + Vector3.up * 1.5f, 0.11f, Random.Range(0.12f, 0.25f), new Color(1f, 0.35f, 0.25f));
+            Emit(glow, e.pos, Vector3.zero, 1.8f, 0.1f, new Color(1f, 0.25f, 0.15f));
         }
 
         /// <summary>A Biolab creature going down: no fire, a burst of ichor and a little dust.</summary>

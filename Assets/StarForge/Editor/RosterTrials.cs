@@ -49,6 +49,8 @@ namespace StarForge.EditorTools
         /// <summary>The duels of the units changed last: the Swift (now a plane) and the Prospector (now an
         /// armoured truck), each against every fighting type.</summary>
         public static string DuelsChanged() { RosterDuels.Focus = new[] { UnitType.Swift, UnitType.Prospector }; return Start<RosterDuels>("duels"); }
+        /// <summary>The Rocketeer against every fighting type, since its rocket went from 60 to 42 m/s.</summary>
+        public static string DuelsRocketeer() { RosterDuels.Focus = new[] { UnitType.Rocketeer }; return Start<RosterDuels>("duels"); }
         public static string DuelReport() => Report<RosterDuels>();
         /// <summary>Hits on an aircraft by speed: each anti-air gun on Hold, 12 m from a hovering Kestrel
         /// (its hull topped up every frame), 12 s at 1x and again at 8x: damage per shot, which must not
@@ -213,6 +215,17 @@ namespace StarForge.EditorTools
         /// strike on) and the body's furthest throw forward, up and its head's pitch.</summary>
         public static string StrikeLook() => Start<RosterStrikeLook>("strike look");
         public static string StrikeLookReport() => Report<RosterStrikeLook>();
+        /// <summary>Flicker on a Digger: pixels whose brightness keeps reversing under a very slow pan
+        /// (`Temp/digger_flicker_*.png`), parked and mining, at each cutter speed.</summary>
+        public static string DiggerFlicker() => Start<RosterDiggerFlicker>("digger flicker");
+        public static string DiggerFlickerReport() => Report<RosterDiggerFlicker>();
+        /// <summary>Photographs each infantry gun against the Mech's (`Temp/shot_*.png`), and the Digger's card.</summary>
+        public static string ShotLook() => Start<RosterShotLook>("shot look");
+        public static string ShotLookReport() => Report<RosterShotLook>();
+        /// <summary>What the guns' effects cost: a staged fight of Scorchers, Rocketeers and Thumpers firing
+        /// on the camera, at the Editor's own frame rate. Peak particles and frame times, quiet and firing.</summary>
+        public static string ShotBudget() => Start<RosterShotBudget>("shot budget");
+        public static string ShotBudgetReport() => Report<RosterShotBudget>();
         /// <summary>The Prospector's roof gun while it mines: an enemy Trooper set down behind it in reach;
         /// at every shot, how far the turret points off the Trooper.</summary>
         public static string TruckGun() => Start<RosterTruckGun>("truck gun");
@@ -1134,6 +1147,345 @@ namespace StarForge.EditorTools
             cam.targetTexture = null;
             Object.Destroy(rt); Object.Destroy(go);
             return tex;
+        }
+    }
+
+    /// <summary>Holds a game camera nearly still on a Digger and counts the pixels that keep
+    /// reversing: a lit model under a slow pan brightens or darkens one way, so a pixel flipping
+    /// back and forth is fighting faces or a spinning part strobing. Frames are fixed at 1/60 s.</summary>
+    public sealed class RosterDiggerFlicker : BugTrial
+    {
+        const int W = 1280, H = 720, Frames = 60;
+
+        IEnumerator Start()
+        {
+            yield return EnsureMatch();
+            if (!Ready) { report = "no match running"; yield break; }
+            HoldStatics();
+            Time.timeScale = 1f;
+            var sb = new StringBuilder();
+            using (var errors = new RosterTrials.ErrorCount())
+            {
+                Unit ore = null, home = null;
+                foreach (var u in world.units)
+                    if (Unit.Live(u) && u.team == 0 && u.Type == UnitType.Foundry && u.Complete) { home = u; break; }
+                if (home != null)
+                    foreach (var u in world.units)
+                        if (Unit.Live(u) && u.Type == UnitType.Ore && u.oreLeft > 0 && (ore == null || u.Dist(home) < ore.Dist(home))) ore = u;
+                if (ore == null || !FindField(new System.Random(5), out var b, out var d)) { report = "no ore or field"; ReleaseStatics(); yield break; }
+
+                var parked = Put(UnitType.Worker, 0, b);
+                world.CmdHold(new List<Unit> { parked });
+                yield return Wait(1f);
+                Time.captureFramerate = 60;
+                foreach (float dist in new[] { 28f, 72f })
+                    yield return Measure(parked, dist, $"parked_{dist:0}", null, sb);
+                Time.captureFramerate = 0;
+                ClearSpawned();
+
+                var dig = Put(UnitType.Worker, 0, world.NearestReachable(home.pos, ore.pos + (home.pos - ore.pos).normalized * 4f));
+                world.CmdHarvest(new List<Unit> { dig }, ore);
+                float t0 = world.time;
+                while (!dig.working && world.time - t0 < 20f) yield return null;
+                yield return Wait(1f);
+                sb.AppendLine($"mining: working {dig.working}");
+                Time.captureFramerate = 60;
+                foreach (float spin in new[] { 0f, 300f, 900f })
+                    foreach (float dist in new[] { 28f, 72f })
+                    {
+                        UnitView.CutterSpin = spin;
+                        yield return Measure(dig, dist, $"mining_{spin:0}_{dist:0}", () => { dig.harvestTimer = 0f; dig.hp = dig.MaxHp; }, sb);
+                    }
+                Time.captureFramerate = 0;
+                sb.Append($"errors {errors.count}" + (errors.first != null ? " first: " + errors.first.Split('\n')[0] : ""));
+            }
+            UnitView.CutterSpin = UnitView.CutterSpinUsual;
+            ClearSpawned();
+            ReleaseStatics();
+            report = sb.ToString();
+        }
+
+        void OnDisable()
+        {
+            Time.captureFramerate = 0;
+            UnitView.CutterSpin = UnitView.CutterSpinUsual;
+        }
+
+        IEnumerator Measure(Unit u, float dist, string label, System.Action keep, StringBuilder sb)
+        {
+            var rig = Object.FindAnyObjectByType<RTSCamera>();
+            var go = new GameObject("FlickerCam");
+            var cam = go.AddComponent<Camera>();
+            cam.fieldOfView = rig.cam.fieldOfView;
+            cam.nearClipPlane = rig.cam.nearClipPlane;
+            cam.farClipPlane = rig.cam.farClipPlane;
+            Vector3 at = u.transform.position + Vector3.up;
+            // From ahead of it and a little to one side, at the game camera's pitch: the front is the question.
+            float pitch = Mathf.Asin(Mathf.Clamp(-rig.cam.transform.forward.y, -1f, 1f));
+            Vector3 flat = Quaternion.AngleAxis(150f, Vector3.up) * u.transform.forward;
+            Vector3 view = (flat * Mathf.Cos(pitch) + Vector3.down * Mathf.Sin(pitch)).normalized;
+            Vector3 right = Vector3.Cross(Vector3.up, view).normalized;
+            // The unit alone on black: grass and ground stir on their own.
+            const int Layer = 30;
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = Color.black;
+            cam.cullingMask = 1 << Layer;
+            var layers = new List<(GameObject go, int layer)>();
+            foreach (var r in u.GetComponentsInChildren<Renderer>(true)) { layers.Add((r.gameObject, r.gameObject.layer)); r.gameObject.layer = Layer; }
+            var rt = new RenderTexture(W, H, 32);
+            cam.targetTexture = rt;
+            var tex = new Texture2D(W, H, TextureFormat.RGB24, false);
+            // A third of a pixel a frame at this distance.
+            float pixel = 2f * dist * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / H;
+            var last = new float[W * H];
+            var sign = new sbyte[W * H];
+            var flips = new int[W * H];
+            var first = new Color32[0];
+            for (int f = 0; f <= Frames; f++)
+            {
+                keep?.Invoke();
+                yield return new WaitForEndOfFrame();
+                go.transform.position = at - view * dist + right * pixel * 0.33f * f;
+                go.transform.rotation = Quaternion.LookRotation(view, Vector3.up);
+                cam.Render();
+                RenderTexture.active = rt;
+                tex.ReadPixels(new Rect(0, 0, W, H), 0, 0);
+                RenderTexture.active = null;
+                var px = tex.GetPixels32();
+                if (f == 0) first = px;
+                for (int i = 0; i < px.Length; i++)
+                {
+                    float l = 0.3f * px[i].r + 0.59f * px[i].g + 0.11f * px[i].b;
+                    if (f > 0)
+                    {
+                        float del = l - last[i];
+                        if (Mathf.Abs(del) > 12f)
+                        {
+                            sbyte s = (sbyte)(del > 0f ? 1 : -1);
+                            if (sign[i] != 0 && sign[i] != s) flips[i]++;
+                            sign[i] = s;
+                        }
+                    }
+                    last[i] = l;
+                }
+            }
+            // The unit's own square on the screen; the front (cutter side) and the rest told apart.
+            Vector3 c = cam.WorldToScreenPoint(u.transform.position + Vector3.up * 0.8f);
+            Vector3 front = cam.WorldToScreenPoint(u.transform.position + u.transform.forward * 1.1f + Vector3.up * 0.5f);
+            float reach = 3f / pixel, frontReach = 0.9f / pixel;
+            int vib = 0, strobe = 0, vibFront = 0;
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    float dx = x - c.x, dy = y - c.y;
+                    if (dx * dx + dy * dy > reach * reach) continue;
+                    int n = flips[y * W + x];
+                    if (n < 6) continue;
+                    vib++;
+                    if (n >= 15) strobe++;
+                    float fx = x - front.x, fy = y - front.y;
+                    if (fx * fx + fy * fy < frontReach * frontReach) vibFront++;
+                }
+            sb.AppendLine($"{label}: {vib} px vibrating ({vibFront} at the front), {strobe} strobing");
+            foreach (var (g, layer) in layers) if (g != null) g.layer = layer;
+            // The frame and the heat of it, side by side and cropped to the unit.
+            int cropR = Mathf.Min(220, Mathf.RoundToInt(reach));
+            int side = cropR * 2;
+            var sheet = new Texture2D(side * 2, side, TextureFormat.RGB24, false);
+            for (int y = 0; y < side; y++)
+                for (int x = 0; x < side; x++)
+                {
+                    int sx = Mathf.Clamp((int)c.x - cropR + x, 0, W - 1), sy = Mathf.Clamp((int)c.y - cropR + y, 0, H - 1);
+                    sheet.SetPixel(x, y, first[sy * W + sx]);
+                    float heat = Mathf.Clamp01(flips[sy * W + sx] / 20f);
+                    sheet.SetPixel(side + x, y, new Color(heat, heat * 0.4f, 0f));
+                }
+            sheet.Apply();
+            System.IO.File.WriteAllBytes($"Temp/digger_flicker_{label}.png", sheet.EncodeToPNG());
+            cam.targetTexture = null;
+            Object.Destroy(sheet); Object.Destroy(rt); Object.Destroy(tex); Object.Destroy(go);
+        }
+    }
+
+    /// <summary>One of each infantry gun firing at a held target, framed by the game's camera, and the
+    /// Mech's flamer and mortar raised as events on the same ground to compare (`Temp/shot_*.png`);
+    /// then a Digger's card. Screenshots, since the streaks draw late and camera renders miss them.</summary>
+    public sealed class RosterShotLook : BugTrial
+    {
+        Unit keepFoe;
+
+        IEnumerator Start()
+        {
+            yield return EnsureMatch();
+            if (!Ready) { report = "no match running"; yield break; }
+            HoldStatics();
+            Time.timeScale = 1f;
+            var sb = new StringBuilder();
+            using (var errors = new RosterTrials.ErrorCount())
+            {
+                // Past the opening's camera move, on ground no crown hangs over: a tree in the frame hides it all.
+                while (world.time < 4f) yield return null;
+                Vector2 b = default, d = default;
+                var pick = new System.Random(3);
+                for (int tries = 0; tries < 60; tries++)
+                {
+                    if (!FindField(pick, out b, out d)) continue;
+                    bool clear = true;
+                    for (int k = -3; k <= 3 && clear; k++)
+                        for (int side = -1; side <= 1 && clear; side++)
+                            if (world.Plants != null && world.Plants.UnderCrown(b + d * (k * 4f) + new Vector2(-d.y, d.x) * (side * 8f), 3f)) clear = false;
+                    if (clear) break;
+                }
+                var rig = Object.FindAnyObjectByType<RTSCamera>();
+                rig.ZoomTo(30f);
+                foreach (var (type, range) in new[] { (UnitType.Scorcher, 4.5f), (UnitType.Thumper, 18f), (UnitType.Rocketeer, 14f), (UnitType.Marksman, 12f), (UnitType.Trooper, 10f) })
+                {
+                    var foe = Put(type == UnitType.Rocketeer ? UnitType.Mauler : UnitType.Trooper, 1, world.NearestReachable(b, b + d * 6f));
+                    var gun = Put(type, 0, world.NearestReachable(b, b + d * (6f - range)));
+                    keepFoe = foe;
+                    rig.JumpTo((foe.pos + gun.pos) * 0.5f);
+                    // Held off until the camera is there.
+                    gun.cooldown = 1.2f;
+                    bool fired = false, hit = false;
+                    ListenWhileHeld(e =>
+                    {
+                        if ((e.kind == GameEventKind.Fire || e.kind == GameEventKind.Beam) && e.unit == gun) fired = true;
+                        if (e.kind == GameEventKind.Impact && fired) hit = true;
+                    });
+                    world.CmdAttack(new List<Unit> { gun }, foe);
+                    float t0 = world.time;
+                    while (!fired && world.time - t0 < 12f) { Keep(); yield return null; }
+                    yield return Snap(type.ToString(), 0);
+                    yield return Hold(0.18f);
+                    yield return Snap(type.ToString(), 1);
+                    t0 = world.time;
+                    while (!hit && world.time - t0 < 3f) { Keep(); yield return null; }
+                    yield return Snap(type.ToString(), 2);
+                    yield return Hold(0.35f);
+                    yield return Snap(type.ToString(), 3);
+                    ListenWhileHeld(null);
+                    sb.AppendLine($"{type}: fired {fired}, hit {hit}; foe live {Unit.Live(foe)}, {gun.order} {(gun.target != null ? gun.target.Type.ToString() : "no target")}, {gun.Dist(foe):0} m off, cooldown {gun.cooldown:0.0}");
+                    ClearSpawned();
+                    keepFoe = null;
+                    yield return Wait(1.5f);
+                }
+
+                // The Mech's flamer and mortar, the same distance off.
+                Vector2 at = world.NearestReachable(b, b + d * 3f);
+                Put(UnitType.Trooper, 0, at);     // eyes on the ground: an effect the player cannot see is not drawn
+                rig.JumpTo(at);
+                yield return Wait(2f);
+                Vector3 from = map.Ground(at) + Vector3.up * 3f;
+                Vector3 to = map.Ground(at + d * 12f) + Vector3.up * 0.5f;
+                for (int i = 0; i < 12; i++)
+                {
+                    world.Raise(new GameEvent { kind = GameEventKind.Beam, type = UnitType.Mech, team = 0, pos = from, end = to, projectileKind = (int)MechWeapon.Flamer });
+                    float until = Time.time + 0.1f;
+                    while (Time.time < until) yield return null;
+                }
+                yield return Snap("MechFlamer", 0);
+                yield return Wait(1.5f);
+                world.Raise(new GameEvent { kind = GameEventKind.Fire, type = UnitType.Mech, team = 0, pos = from, dir = Vector3.up, projectileKind = 6 });
+                yield return Snap("MechMortar", 0);
+                yield return Wait(1.5f);
+                world.Raise(new GameEvent { kind = GameEventKind.Impact, type = UnitType.Mech, team = 0, pos = to, dir = Vector3.down, projectileKind = 6, scale = 1f });
+                yield return Snap("MechMortar", 1);
+                yield return Hold(0.35f);
+                yield return Snap("MechMortar", 2);
+                yield return Wait(1.5f);
+
+                // A Digger's card, for the size of what is on it.
+                var player = Object.FindAnyObjectByType<PlayerController>();
+                var dig = Put(UnitType.Worker, 0, world.NearestReachable(b, at + d * 3f));
+                player.SelectOnly(dig);
+                yield return Wait(0.5f);
+                yield return Snap("card", 0);
+                sb.Append($"errors {errors.count}" + (errors.first != null ? " first: " + errors.first.Split('\n')[0] : ""));
+            }
+            ClearSpawned();
+            ReleaseStatics();
+            report = sb.ToString();
+        }
+
+        void Keep() { if (Unit.Live(keepFoe)) { keepFoe.hp = keepFoe.MaxHp; keepFoe.cooldown = 99f; } }
+
+        IEnumerator Hold(float seconds)
+        {
+            float until = Time.time + seconds;
+            while (Time.time < until) { Keep(); yield return null; }
+        }
+
+        static IEnumerator Snap(string name, int k)
+        {
+            ScreenCapture.CaptureScreenshot($"Temp/shot_{name}_{k}.png", 2);
+            yield return null;
+            yield return null;
+        }
+    }
+
+    public sealed class RosterShotBudget : BugTrial
+    {
+        IEnumerator Start()
+        {
+            yield return EnsureMatch();
+            if (!Ready) { report = "no match running"; yield break; }
+            HoldStatics();
+            Time.timeScale = 1f;
+            var sb = new StringBuilder();
+            using (var errors = new RosterTrials.ErrorCount())
+            {
+                var fx = Object.FindAnyObjectByType<FXDirector>();
+                var rig = Object.FindAnyObjectByType<RTSCamera>();
+                if (!FindField(new System.Random(9), out var b, out var d)) { report = "no field"; ReleaseStatics(); yield break; }
+                Vector2 side = new Vector2(-d.y, d.x);
+                var foes = new List<Unit>();
+                var guns = new List<Unit>();
+                for (int i = 0; i < 26; i++)
+                    foes.Add(Put(i % 6 == 5 ? UnitType.Mauler : UnitType.Trooper, 1, world.NearestWalkable(b + d * (6f + (i % 3) * 2f) + side * ((i - 13) * 1.6f), 6f)));
+                for (int i = 0; i < 26; i++)
+                {
+                    var t = i < 10 ? UnitType.Scorcher : i < 20 ? UnitType.Rocketeer : UnitType.Thumper;
+                    float off = t == UnitType.Scorcher ? 2f : t == UnitType.Rocketeer ? -6f : -11f;
+                    guns.Add(Put(t, 0, world.NearestWalkable(b + d * off + side * ((i % 10 - 4.5f) * 2.2f), 6f)));
+                    guns[i].cooldown = 99f;
+                }
+                rig.JumpTo(b);
+                rig.ZoomTo(40f);
+                void Keep()
+                {
+                    foreach (var f in foes) if (Unit.Live(f)) { f.hp = f.MaxHp; f.cooldown = 99f; }
+                    foreach (var g in guns) if (Unit.Live(g)) g.hp = g.MaxHp;
+                }
+                (float mean, float worst) quiet = default, firing = default;
+                int peak = 0;
+                string peakLine = "";
+                IEnumerator Sample(float seconds, bool loud, System.Action<float, float> done)
+                {
+                    float until = Time.unscaledTime + seconds, sum = 0f, worst = 0f;
+                    int n = 0;
+                    while (Time.unscaledTime < until)
+                    {
+                        Keep();
+                        if (!loud) foreach (var g in guns) if (Unit.Live(g)) g.cooldown = 99f;
+                        if (fx != null && fx.GunParticleCount > peak) { peak = fx.GunParticleCount; peakLine = fx.GunParticles(); }
+                        float ms = Time.unscaledDeltaTime * 1000f;
+                        sum += ms; worst = Mathf.Max(worst, ms); n++;
+                        yield return null;
+                    }
+                    done(sum / Mathf.Max(1, n), worst);
+                }
+                yield return Sample(6f, false, (m, w) => quiet = (m, w));
+                peak = 0;
+                foreach (var g in guns) if (Unit.Live(g)) { g.cooldown = 0f; g.order = Order.Hold; }
+                world.CmdMove(guns, b + d * 8f, true);
+                yield return Sample(20f, true, (m, w) => firing = (m, w));
+                sb.AppendLine($"10 Scorchers, 10 Rocketeers, 6 Thumpers firing on the camera for 20 s: peak {peak} particles ({peakLine})");
+                sb.AppendLine($"frame ms in the Editor: quiet {quiet.mean:0.0} mean, {quiet.worst:0.0} worst; firing {firing.mean:0.0} mean, {firing.worst:0.0} worst");
+                sb.Append($"errors {errors.count}" + (errors.first != null ? " first: " + errors.first.Split('\n')[0] : ""));
+            }
+            ClearSpawned();
+            ReleaseStatics();
+            report = sb.ToString();
         }
     }
 

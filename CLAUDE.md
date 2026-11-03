@@ -50,7 +50,7 @@ The Editor is normally open on this project: drive it through the Unity MCP tool
 | `StarForge/Debug/Check Map Blocking` | Samples the NavMesh under scenery, boulders, trunks (in play also ore, structures); reports what a ground unit could walk through (`MapChecks.Report`) |
 
 **Any fps number, benchmark, flicker/shimmer burst, gallery set or AI evaluation: invoke the `measure-performance` skill first** (commands, pre-run checklist, flags; baselines and reasons in `Assets/StarForge/Scripts/Game/CLAUDE.md`). The essentials: measure on the built player with `-sfplay`, never from editor captures; compare averages in alternating pairs; record `pmset -g batt`; a locked screen caps the player at 20 fps. Benchmark and evaluation use fixed seed 1000. Fallback if the skill is not listed: `.claude/skills/measure-performance/SKILL.md`; core command `Builds/StarForge.app/Contents/MacOS/StarForge -sfbench 420 -sfplay -sfbenchout /tmp/starforge_bench.txt`.
-Testing cheat: `Ctrl`/`Cmd`+`Shift`+`M` (+5000 ore, marks `GameWorld.cheated`). **WASD pans the camera**, so command hotkeys must not use W, A, S or D.
+Testing cheat: `Ctrl`/`Cmd`+`Shift`+`M` (+5000 ore, +100 supply, toggles 5x training, marks `GameWorld.cheated`; **winning with it is taken away**: `World/GameWorld.Cheat.cs`. Trials wanting only ore call `CheatOre`). **WASD pans the camera**, so command hotkeys must not use W, A, S or D.
 
 ## Cross-cutting rules
 

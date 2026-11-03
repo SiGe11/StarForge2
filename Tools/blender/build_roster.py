@@ -643,6 +643,9 @@ ROSTER_BUILDERS = [
 ROSTER_CHUNKED = {'ARMORY': 8, 'AIRFIELD': 10, 'BIOLAB': 9}
 
 
+ORIGINALS_BY_NAME = [B.build_worker]
+
+
 def main():
     import export_fbx as X
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
@@ -651,7 +654,8 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
-    models = [fn() for fn in ROSTER_BUILDERS]
+    # Asked for by name, the original models this file can rewrite on their own.
+    models = [fn() for fn in ROSTER_BUILDERS + (ORIGINALS_BY_NAME if only else [])]
     if only:
         models = [m for m in models if m.name in only]
     meta_path = os.path.join(out_dir, 'models.json')

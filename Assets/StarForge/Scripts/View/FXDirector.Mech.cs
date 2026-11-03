@@ -29,6 +29,9 @@ namespace StarForge.View
         readonly List<Beam> beams = new List<Beam>(64);
         /// <summary>For trials: beams being drawn now.</summary>
         public int BeamCount => beams.Count;
+        /// <summary>For trials: particles alive now in the systems the guns draw on.</summary>
+        public string GunParticles() => $"trail {trail.particleCount}, flames {flames.particleCount}, fire {fire.particleCount}, smoke {smoke.particleCount}, sparks {sparks.particleCount}";
+        public int GunParticleCount => trail.particleCount + flames.particleCount + fire.particleCount + smoke.particleCount + sparks.particleCount;
         static readonly string[] Stacks = { "StackR", "StackL" }, Jets = { "JetFR", "JetFL", "JetBR", "JetBL" };
         struct Beacon { public Vector3 at; public float born, until; public int team; }
         readonly List<Beacon> beacons = new List<Beacon>(2);
@@ -204,24 +207,30 @@ namespace StarForge.View
                              Random.Range(1.2f, 2.0f), Random.Range(1.6f, 2.6f), new Color(0.82f, 0.8f, 0.77f, 0.45f), Random.Range(0f, 360f));
                     break;
                 case 6:   // mortar: a heavy slam, a ring of smoke round the mount, the ground shoved
-                    AddFlare(e.pos, fwd, 4.2f, 2.8f, new Color(3.8f, 2.1f, 0.7f), 0.12f);
-                    AddFlare(e.pos, fwd, 2.0f, 1.8f, new Color(5f, 4.3f, 3f), 0.08f);
-                    Emit(glow, e.pos + fwd, fwd * 2f, 5.5f, 0.18f, new Color(1f, 0.6f, 0.28f));
-                    for (int i = 0; i < 8; i++)
-                        Emit(trail, e.pos + fwd * Random.Range(0.3f, 1.5f), fwd * Random.Range(3f, 9f) + Random.insideUnitSphere * 1.5f,
-                             Random.Range(2.2f, 3.4f), Random.Range(2.2f, 3.4f), new Color(0.8f, 0.77f, 0.73f, 0.55f), Random.Range(0f, 360f));
-                    for (int i = 0; i < 10; i++)
-                    {
-                        float a = i / 10f * Mathf.PI * 2f;
-                        var d = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                        Emit(trail, e.pos - Vector3.up * 0.4f + d * 0.5f, d * Random.Range(2.5f, 4.5f), Random.Range(1.4f, 2.2f), Random.Range(1.2f, 1.8f),
-                             new Color(0.8f, 0.77f, 0.73f, 0.35f), Random.Range(0f, 360f));
-                    }
-                    Flash(e.pos, new Color(1f, 0.6f, 0.28f), 12f, 20f, 0.2f);
-                    PressureWave(e.pos, 0.6f, 30f, Vector3.zero, 0f);
-                    ShakeFrom(e.pos, 0.12f);
+                    MortarSlam(e.pos, fwd, 1f);
                     break;
             }
+        }
+
+        /// <summary>A mortar leaving its tube, the Mech's at 1 and the Thumper's the same a man's size.</summary>
+        void MortarSlam(Vector3 at, Vector3 fwd, float k)
+        {
+            AddFlare(at, fwd, 4.2f * k, 2.8f * k, new Color(3.8f, 2.1f, 0.7f), 0.12f);
+            AddFlare(at, fwd, 2.0f * k, 1.8f * k, new Color(5f, 4.3f, 3f), 0.08f);
+            Emit(glow, at + fwd * k, fwd * 2f * k, 5.5f * k, 0.18f, new Color(1f, 0.6f, 0.28f));
+            for (int i = 0; i < 8; i++)
+                Emit(trail, at + fwd * Random.Range(0.3f, 1.5f) * k, (fwd * Random.Range(3f, 9f) + Random.insideUnitSphere * 1.5f) * k,
+                     Random.Range(2.2f, 3.4f) * k, Random.Range(2.2f, 3.4f), new Color(0.8f, 0.77f, 0.73f, 0.55f), Random.Range(0f, 360f));
+            for (int i = 0; i < 10; i++)
+            {
+                float a = i / 10f * Mathf.PI * 2f;
+                var d = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                Emit(trail, at - Vector3.up * 0.4f * k + d * 0.5f * k, d * Random.Range(2.5f, 4.5f) * k, Random.Range(1.4f, 2.2f) * k, Random.Range(1.2f, 1.8f),
+                     new Color(0.8f, 0.77f, 0.73f, 0.35f), Random.Range(0f, 360f));
+            }
+            Flash(at, new Color(1f, 0.6f, 0.28f), 12f * k, 20f * k, 0.2f);
+            PressureWave(at, 0.6f * k, 30f * k, Vector3.zero, 0f);
+            ShakeFrom(at, 0.12f * k);
         }
 
         /// <summary>A hitscan shot from a Mech: the beam, tracer or jet from muzzle to mark.</summary>
@@ -575,12 +584,29 @@ namespace StarForge.View
 
             // Missiles in flight: a bright motor and a twisting trail of smoke.
             missileGone.Clear();
-            foreach (var kv in missileTrail) if (!kv.Key.alive || kv.Key.kind != 5) missileGone.Add(kv.Key);
+            foreach (var kv in missileTrail) if (!kv.Key.alive || (kv.Key.kind != 5 && kv.Key.kind != GameWorld.ProjRocket)) missileGone.Add(kv.Key);
             foreach (var p in missileGone) missileTrail.Remove(p);
             foreach (var p in world.projectiles)
             {
-                if (p.kind != 5 || !Seen(p.pos)) continue;
+                bool rocket = p.kind == GameWorld.ProjRocket;
+                if ((p.kind != 5 && !rocket) || !Seen(p.pos)) continue;
                 if (!missileTrail.TryGetValue(p, out var last)) { missileTrail[p] = p.pos; continue; }
+                // A bazooka's rocket is one round, in the air under half a second: thick and close-set.
+                if (rocket)
+                {
+                    float run = (p.pos - last).magnitude;
+                    if (run < 0.7f) continue;
+                    int puffs = Mathf.Min(4, Mathf.FloorToInt(run / 0.7f));
+                    for (int i = 1; i <= puffs; i++)
+                    {
+                        Vector3 q = Vector3.Lerp(last, p.pos, i / (float)puffs);
+                        Emit(trail, q + Random.insideUnitSphere * 0.08f, Random.insideUnitSphere * 0.35f + Vector3.up * 0.3f + wind * 0.4f,
+                             Random.Range(1.0f, 1.5f), Random.Range(0.9f, 1.4f), new Color(0.86f, 0.84f, 0.82f, 0.8f), Random.Range(0f, 360f));
+                    }
+                    Emit(glow, p.pos, Vector3.zero, 2.2f, 0.08f, new Color(1f, 0.6f, 0.25f));
+                    missileTrail[p] = p.pos;
+                    continue;
+                }
                 // A puff every 1.5 m, two a frame at most, gone in a second or so: a salvo is eight
                 // missiles, and at a puff every 0.9 m lasting two seconds a Mech firing two racks
                 // kept several hundred soft smoke puffs alive and cost the frame its refresh.

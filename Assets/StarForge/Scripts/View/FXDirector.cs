@@ -626,6 +626,9 @@ namespace StarForge.View
                     if (e.type != UnitType.Mech && e.type != UnitType.MechHunter) RosterFlame(e);
                     else MechBeam(e);
                     break;
+                case GameEventKind.AnimalBite:
+                    if (Seen(e.pos)) AnimalBite(e);
+                    break;
                 case GameEventKind.MechInbound:
                     if (e.team == (player != null ? player.team : 0) || Seen(e.pos) || MatchSettings.spectate) MechInbound(e);
                     break;
@@ -2207,6 +2210,7 @@ namespace StarForge.View
                               new Vector3(w2.x, 0f, w2.y));
                 Wrecks(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,
                        new Vector3(w2.x, 0f, w2.y));
+                FlameJets(dt);
                 MechEffects(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,
                             new Vector3(w2.x, 0f, w2.y));
                 WeatherEffects(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,
@@ -2293,7 +2297,7 @@ namespace StarForge.View
             // path, so it reads as a continuous arc whatever the frame rate.
             foreach (var p in world.projectiles)
             {
-                if (p.kind != 1 && p.kind != 6 && p.kind != GameWorld.ProjLob && p.kind != GameWorld.ProjRocket) continue;
+                if (p.kind != 1 && p.kind != 6 && p.kind != GameWorld.ProjLob) continue;
                 if (!trailState.TryGetValue(p, out var st) || p.age < st.age)
                     st = (p.prevPos, p.age);
                 Vector3 seg = p.pos - st.last;
@@ -2492,12 +2496,12 @@ namespace StarForge.View
                     case 6: streak = Mathf.Clamp(len * 1.2f, 1.4f, 3f); width = 0.55f; c = new Color(3.6f, 2.2f, 0.9f); halo = new Color(1f, 0.45f, 0.12f); break;
                     // The wider roster's (FXDirector.Roster): a mortar bomb, a sniper's round, an
                     // armour-piercing slug, a glob of acid, a spinning glaive.
-                    case GameWorld.ProjLob: streak = Mathf.Clamp(len * 1.2f, 0.9f, 2f); width = 0.32f; c = new Color(3.2f, 2.0f, 0.8f); halo = new Color(0.8f, 0.4f, 0.12f); break;
+                    case GameWorld.ProjLob: streak = Mathf.Clamp(len * 1.2f, 1.1f, 2.4f); width = 0.42f; c = new Color(3.2f, 2.0f, 0.8f); halo = new Color(0.8f, 0.4f, 0.12f); break;
                     case GameWorld.ProjSniper: streak = Mathf.Clamp(len * 1.6f, 3f, 7f); width = 0.07f; c = new Color(4f, 3.8f, 3.2f); halo = Color.clear; break;
                     case GameWorld.ProjAP: streak = Mathf.Clamp(len * 1.4f, 2f, 5f); width = 0.24f; c = new Color(3.6f, 2.6f, 1.2f); halo = new Color(0.8f, 0.45f, 0.15f); break;
                     case GameWorld.ProjAcid: streak = 0.9f; width = 0.32f; c = AcidColor; halo = AcidColor * 0.25f; break;
                     case GameWorld.ProjGlaive: streak = 1.2f; width = 0.3f; c = GlaiveColor; halo = GlaiveColor * 0.25f; break;
-                    case GameWorld.ProjRocket: streak = 1.1f; width = 0.3f; c = new Color(5f, 3.2f, 1.3f); halo = new Color(1.1f, 0.5f, 0.15f); break;
+                    case GameWorld.ProjRocket: streak = 1.7f; width = 0.38f; c = new Color(5f, 3.2f, 1.3f); halo = new Color(1.1f, 0.5f, 0.15f); break;
                     default: streak = Mathf.Min(len * 1.5f, 3.5f); width = 0.12f; c = p.team == 0 ? new Color(0.9f, 1.8f, 2.6f) : new Color(2.6f, 1.2f, 0.5f); halo = Color.clear; break;
                 }
                 AddStreak(p.pos, dir, streak, width, c, 1f);

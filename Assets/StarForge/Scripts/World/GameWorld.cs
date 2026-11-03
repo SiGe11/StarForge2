@@ -25,6 +25,14 @@ namespace StarForge.World
         /// burst on the ground short of it or where it used to be.</summary>
         public int shellHits, shellMisses;
 
+        // ---- the testing cheat (GameWorld.Cheat)
+        /// <summary>This side used it: its win will be taken away.</summary>
+        public bool cheater;
+        /// <summary>Its training runs at CheatTrainRate; the cheat's key turns this off and on.</summary>
+        public bool fastTrain;
+        /// <summary>Supply the cheat gave, over and above the ceiling.</summary>
+        public int cheatSupply;
+
         // ---- the Mech (one a side, a match; see GameWorld's Mech Bay section)
         /// <summary>A Mech Bay has been placed: no second one, ever (unless the first was
         /// cancelled before it was finished).</summary>
@@ -76,7 +84,11 @@ namespace StarForge.World
         /// how many, <c>text</c> who ("3 Troopers are"), <c>pos</c> the fight, <c>end</c> the camp.</summary>
         Desertion,
         /// <summary>An Armory upgrade finished: <c>index</c> the ArmyUpgrade, <c>scale</c> its level, <c>text</c> the alert.</summary>
-        ArmyUpgradeComplete
+        ArmyUpgradeComplete,
+        /// <summary>A cheater's win was taken away: the animals come for <c>team</c> (GameWorld.Cheat).</summary>
+        Reckoning,
+        /// <summary>An animal bit one of the cheater's: <c>pos</c> where, <c>dir</c> the way it struck.</summary>
+        AnimalBite
     }
 
     /// <summary>What a Mech's AI tells its side (MechBrain).</summary>
@@ -136,6 +148,8 @@ namespace StarForge.World
     {
         public const int VIS = 64;
         public const int MaxSupply = 200;
+        /// <summary>What a side can train up to: its Bunkhouses' worth to the ceiling, and what the cheat gave on top.</summary>
+        public int SupplyCap(int team) => Mathf.Min(factions[team].supplyCap, MaxSupply) + factions[team].cheatSupply;
         const int GRID = 32;
 
         public static GameWorld Instance { get; private set; }
@@ -305,6 +319,10 @@ namespace StarForge.World
             nextFireCheck = 0f;
             time = 0f;
             winner = -1;
+            cheated = false;
+            matchSeed = seed;
+            ReckoningTeam = -1;
+            avengers.Clear();
             running = true;
             gridCell = MapSize / GRID;
             foreach (var u in FindObjectsByType<Unit>())
@@ -519,8 +537,8 @@ namespace StarForge.World
             Raise(new GameEvent { kind = GameEventKind.Death, unit = node, type = node.Type, team = 2, pos = node.Ground + Vector3.up, scale = 0.7f });
         }
 
-        /// <summary>The testing cheat: ore from nowhere. A match it was used in does
-        /// not teach the AI's memory about the player.</summary>
+        /// <summary>Ore from nowhere, for trials (the player's key is <see cref="Cheat"/>). A match
+        /// it was used in does not teach the AI's memory about the player.</summary>
         public void CheatOre(int team, int amount)
         {
             factions[team].ore += amount;
@@ -629,19 +647,22 @@ namespace StarForge.World
                 if (p.t > 4f) pings.RemoveAt(i); else pings[i] = p;
             }
 
+            if (Reckoning) TickReckoning(dt);
             if (winner < 0)
             {
                 int a0 = 0, a1 = 0;
                 foreach (var u in units)
                 {
-                    if (u.dying || u.team > 1) continue;
+                    // A Digger gone over to the camp (only the cheat's reckoning takes one) builds no more.
+                    if (u.dying || u.team > 1 || u.deserted) continue;
                     if (u.def.building || u.def.builder) { if (u.team == 0) a0++; else a1++; }
                 }
                 // Both sides' last structure and Digger gone in the same moment is a draw
                 // (2): left at -1, the match never ended.
-                if (a0 == 0 && a1 == 0) winner = 2;
-                else if (a0 == 0) winner = 1;
-                else if (a1 == 0) winner = 0;
+                if (Reckoning) { if ((ReckoningTeam == 0 ? a0 : a1) == 0) winner = 1 - ReckoningTeam; }
+                else if (a0 == 0 && a1 == 0) winner = 2;
+                else if (a0 == 0) { if (factions[1].cheater) BeginReckoning(1); else winner = 1; }
+                else if (a1 == 0) { if (factions[0].cheater) BeginReckoning(0); else winner = 0; }
             }
 
             float beforeTicked = (float)simWatch.Elapsed.TotalMilliseconds;
@@ -1471,7 +1492,7 @@ namespace StarForge.World
                 if (why != null) return Refuse(team, why);
             }
             if (factions[team].ore < D.cost) return Refuse(team, "Not enough ore");
-            int cap = Mathf.Min(factions[team].supplyCap, MaxSupply);
+            int cap = SupplyCap(team);
             if (factions[team].supplyUsed + D.supplyCost > cap) return Refuse(team, "Not enough supply — build a Bunkhouse");
             if (building.queue.Count >= 5) return Refuse(team, "Production queue is full");
             factions[team].ore -= D.cost;

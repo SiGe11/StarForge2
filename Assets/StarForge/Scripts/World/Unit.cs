@@ -852,7 +852,7 @@ namespace StarForge.World
         void UpdateProduction(float dt)
         {
             if (queue.Count == 0) return;
-            queueTimer -= dt;
+            queueTimer -= dt * world.TrainRate(team);
             if (queueTimer > 0f) return;
 
             var what = queue[0];

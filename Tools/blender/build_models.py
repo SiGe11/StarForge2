@@ -97,13 +97,17 @@ def panel(bm, axis, sign, thickness, depth, mat=None, max_deg=42.0):
 
 
 # ---------------------------------------------------------------- track unit
-def track_unit(m, x, wheel_r, wheel_n, half_len, y_axle, width, tread=True):
+def track_unit(m, x, wheel_r, wheel_n, half_len, y_axle, width, tread=True, seat_inside=False):
     """One side's running gear: a bevelled track shoe, road wheels, a toothed
     drive sprocket at the back and a smooth idler at the front.
 
     The originals drew tracks as a single dark box. Distinguishing sprocket
     from idler from road wheel is what makes a tracked vehicle read as tracked
-    rather than as a box on a plinth."""
+    rather than as a box on a plinth.
+
+    seat_inside keeps sprocket and idler clear inside the band's end arcs. On a
+    small crawler the seating below laid their facets within millimetres of the
+    band's, in steel against dark, at the very front of the vehicle."""
     # The running gear defines where the vehicle meets the ground, so the
     # bottom of the track loop is pinned to y=0. Geometry below the origin
     # sinks into the terrain, and on a slope it clips through it.
@@ -150,19 +154,29 @@ def track_unit(m, x, wheel_r, wheel_n, half_len, y_axle, width, tread=True):
     # inflates the ring under every one of these units.
     spr_r = wheel_r * 1.25
     spr_z = half_len - spr_r * 1.04
-    spr = cyl((x, y_axle + wheel_r * 0.30, -spr_z), spr_r, spr_r, width * 0.7, 10,
+    spr_y = y_axle + wheel_r * 0.30
+    if seat_inside:
+        spr_r = outer_r - 0.07
+        spr_z = half_len - outer_r
+        spr_y = y_axle
+    spr = cyl((x, spr_y, -spr_z), spr_r, spr_r, width * 0.7, 10,
               'steel', axis='x', bevel_w=0.025)
     xform(spr, Matrix.Translation(Vector((-width * 0.35, 0, 0))))
     m.add_mirrored(spr)
     for k in range(6):
         a = 2.0 * math.pi * k / 6
-        tooth = box((x, y_axle + wheel_r * 0.30 + math.sin(a) * spr_r * 1.02,
+        tooth = box((x, spr_y + math.sin(a) * spr_r * 1.02,
                      -spr_z + math.cos(a) * spr_r * 1.02),
                     (width * 0.32, 0.04, 0.04), 'dark', bevel_w=0.0)
         m.add_mirrored(tooth)
 
     idl_r = wheel_r * 1.1
-    idl = cyl((x, y_axle + wheel_r * 0.26, half_len - idl_r * 1.04),
+    idl_z = half_len - idl_r * 1.04
+    idl_y = y_axle + wheel_r * 0.26
+    if seat_inside:
+        idl_z = half_len - outer_r
+        idl_y = y_axle + (outer_r - idl_r - 0.03)
+    idl = cyl((x, idl_y, idl_z),
               idl_r, idl_r, width * 0.7, 10, 'steel', axis='x', bevel_w=0.025)
     xform(idl, Matrix.Translation(Vector((-width * 0.35, 0, 0))))
     m.add_mirrored(idl)
@@ -180,7 +194,7 @@ def build_worker():
     detail added to it, which is a box.
     """
     m = Model(MESH_WORKER, 'WORKER')
-    track_unit(m, 0.60, 0.22, 4, 0.80, 0.26, 0.32)
+    track_unit(m, 0.60, 0.22, 4, 0.80, 0.26, 0.32, seat_inside=True)
 
     # Track shrouds, flared outward at the top so the stance widens upward and
     # the vehicle stops reading as a rectangular prism.
@@ -277,8 +291,10 @@ def build_worker():
     m.add(upper)
     m.add(cyl((0.34, 0.66, 0.84), 0.12, 0.12, 0.20, 8, 'dark', axis='x',
               bevel_w=0.022))
-    fore = box((0.34, 0.55, 1.00), (0.085, 0.085, 0.22), 'steel', bevel_w=0.025)
-    rot(fore, math.radians(-26), 'X', (0.34, 0.66, 0.84))
+    # Down from the elbow to the back of the cutter's disc, and no further: it used
+    # to rise past the disc's rim, where the spinning teeth ran through its tip.
+    fore = box((0.34, 0.66, 0.84 + 0.178), (0.085, 0.085, 0.178), 'steel', bevel_w=0.025)
+    rot(fore, math.radians(38), 'X', (0.34, 0.66, 0.84))
     m.add(fore)
     # Hydraulic ram alongside the arm, a cheap read of "this thing moves".
     m.add(cyl((0.50, 0.92, 0.48), 0.045, 0.045, 0.34, 6, 'steel', axis='z',

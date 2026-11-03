@@ -91,6 +91,8 @@ namespace StarForge.UI
         readonly Label[] cardHotkeys = new Label[CardSlots];
         readonly Label[] cardCosts = new Label[CardSlots];
         readonly Label[] cardGlyphs = new Label[CardSlots];
+        Label cheatLabel;
+        bool cheatShown, cheatDoom, cheatLit = true;
         readonly List<CardAction> cards = new List<CardAction>(CardSlots);
         int hoveredCard = -1;
 
@@ -166,6 +168,8 @@ namespace StarForge.UI
             mechStripText = root.Q<Label>("mechStripText");
             mechHull = root.Q<BarElement>("mechHull");
             mechShield = root.Q<BarElement>("mechShield");
+            cheatLabel = root.Q<Label>("cheatLabel");
+            SetDisplay(cheatLabel, false);
             // The strip is a button of sorts: a click finds the Mech (or its bay).
             mechStrip.RegisterCallback<ClickEvent>(_ => FocusMech());
 
@@ -375,12 +379,13 @@ namespace StarForge.UI
         {
             if (bootstrap == null || world == null) return;
             var state = bootstrap.State;
+            if (state != MatchState.Menu) UpdateCheatLabel();
             if (state != MatchState.Playing && state != MatchState.Paused) return;
             float dt = Time.unscaledDeltaTime;
 
             var F = world.factions[player != null ? player.team : 0];
             oreLabel.text = F.ore.ToString();
-            int cap = Mathf.Min(F.supplyCap, GameWorld.MaxSupply);
+            int cap = world.SupplyCap(player != null ? player.team : 0);
             supplyLabel.text = $"{F.supplyUsed} / {cap}";
             supplyLabel.EnableInClassList("resource-value--warn", F.supplyUsed >= cap);
             int t = Mathf.FloorToInt(world.time);
@@ -561,7 +566,7 @@ namespace StarForge.UI
             {
                 if (!u.Complete) return $"Under construction · {u.buildProgress * 100f:0}%";
                 if (u.team != player.team && !MatchSettings.spectate) return "";   // what it makes is not ours to see
-                if (u.queue.Count > 0) return $"Training {Defs.Get(u.queue[0]).displayName} · {u.queueTimer:0}s";
+                if (u.queue.Count > 0) return $"Training {Defs.Get(u.queue[0]).displayName} · {u.queueTimer / world.TrainRate(u.team):0}s";
                 if (u.researchLine >= 0) return $"Researching {GameWorld.ArmyUpgradeOf((ArmyUpgrade)u.researchLine).name} · {u.researchLeft:0}s";
                 if (u.def.Armed) return u.target != null ? "Engaging" : "Watching";
                 return "Idle";
@@ -621,7 +626,7 @@ namespace StarForge.UI
                 cardIcons[i].image = c.icon;
                 cardGlyphs[i].text = c.icon == null ? (c.glyph ?? "") : "";
                 cardHotkeys[i].text = c.hotkey == '\0' ? "" : c.hotkey.ToString();
-                cardCosts[i].text = c.cost > 0 ? c.cost.ToString() : "";
+                cardCosts[i].text = c.caption ?? (c.cost > 0 ? c.cost.ToString() : "");
             }
             UpdateTooltip();
         }
@@ -664,6 +669,9 @@ namespace StarForge.UI
                     break;
                 case GameEventKind.Refused when e.team == me:
                     Alert(e.text, "alert--warn");
+                    break;
+                case GameEventKind.Reckoning when e.team == me:
+                    Alert("You cheated. The animals have come for you.", "alert--warn", 10f);
                     break;
                 case GameEventKind.Notice when e.team == me:
                     Alert(e.text, "alert--good");
@@ -1007,6 +1015,12 @@ namespace StarForge.UI
                 }
                 Paint.Rect(p, c.x - r, c.y - r, r * 2f, r * 2f, col);
             }
+            // The animals coming for a cheater, fog or no fog: there is nothing left to hide.
+            foreach (var a in world.avengers)
+            {
+                var c = ToUI(a.pos);
+                Paint.Rect(p, c.x - 1.6f, c.y - 1.6f, 3.2f, 3.2f, new Color(1f, 0.1f, 0.1f));
+            }
 
             // Where the Mech last pointed: a slow amber pulse for half a minute.
             for (int i = advicePings.Count - 1; i >= 0; i--)
@@ -1129,6 +1143,21 @@ namespace StarForge.UI
                     : $"influence field: {d.backend}, {d.influenceMs:0} ms dispatch→readback");
         }
 
+        // ------------------------------------------------------------ the cheat's mark
+        /// <summary>Small and red from the first use to the end of the match; large and blinking
+        /// once the win has been taken away (GameWorld.Cheat). Touches the style only when it changes.</summary>
+        void UpdateCheatLabel()
+        {
+            if (cheatLabel == null) return;
+            bool on = world.factions[player != null ? player.team : 0].cheater;
+            if (on != cheatShown) { cheatShown = on; SetDisplay(cheatLabel, on); }
+            if (!on) return;
+            bool doom = world.Reckoning;
+            if (doom != cheatDoom) { cheatDoom = doom; cheatLabel.EnableInClassList("cheat-label--reckoning", doom); }
+            bool lit = !doom || Mathf.Repeat(Time.unscaledTime, 0.7f) < 0.42f;
+            if (lit != cheatLit) { cheatLit = lit; cheatLabel.style.opacity = lit ? 1f : 0.1f; }
+        }
+
         // ------------------------------------------------------------ end of match
         void OnMatchEnded(int winner)
         {
@@ -1146,6 +1175,7 @@ namespace StarForge.UI
             }
             int t = Mathf.FloorToInt(world.time);
             endSubtitle.text = $"{t / 60}:{t % 60:00} · opponent {bootstrap.AI.Difficulty}";
+            if (world.ReckoningTeam == me) endSubtitle.text += " · cheat mode: the animals had the last word";
 
             var F = world.factions[me];
             var E = world.factions[1 - me];
