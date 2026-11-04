@@ -211,6 +211,40 @@ namespace StarForge.EditorTools
             // builder remaps each slot to a URP material by that name.
             mi.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
             mi.materialLocation = ModelImporterMaterialLocation.InPrefab;
+            // A rigged soldier (Tools/blender/build_soldier_rig.py): its clips drive it through
+            // an Animator, with the bones' transforms optimised away (no hierarchy to update).
+            if (assetPath.EndsWith(RigSuffix))
+            {
+                mi.animationType = ModelImporterAnimationType.Generic;
+                mi.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+                mi.importAnimation = true;
+                mi.animationCompression = ModelImporterAnimationCompression.Optimal;
+                mi.optimizeGameObjects = true;
+                mi.removeConstantScaleCurves = true;   // every scale in every clip is 1
+                // Each part is bound whole to one bone.
+                mi.skinWeights = ModelImporterSkinWeights.Custom;
+                mi.maxBonesPerVertex = 1;
+            }
+        }
+
+        public const string RigSuffix = "_RIG.fbx";
+        /// <summary>The rig's clips that play round and round; the rest run once.</summary>
+        static readonly string[] RigLoops = { "Idle", "Walk", "Run", "Sneak", "CrouchWalk", "CrouchIdle", "CrouchAim", "Crawl", "ProneAim", "Aim" };
+
+        void OnPreprocessAnimation()
+        {
+            if (!assetPath.StartsWith(ModelDir) || !assetPath.EndsWith(RigSuffix)) return;
+            var mi = (ModelImporter)assetImporter;
+            var clips = mi.defaultClipAnimations;
+            foreach (var c in clips)
+            {
+                // Blender writes "armature|action".
+                int bar = c.name.LastIndexOf('|');
+                if (bar >= 0) c.name = c.name.Substring(bar + 1);
+                c.loopTime = System.Array.IndexOf(RigLoops, c.name) >= 0;
+                c.lockRootRotation = c.lockRootHeightY = c.lockRootPositionXZ = false;
+            }
+            mi.clipAnimations = clips;
         }
     }
 }

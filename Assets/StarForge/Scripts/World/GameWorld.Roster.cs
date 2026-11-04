@@ -68,6 +68,7 @@ namespace StarForge.World
                     {
                         var o = i < units.Count ? units[i] : null;
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable || !CanHit(u, o)) continue;
+                        if (Tactical && !Sees(u.team, o)) continue;
                         float d = (o.pos - u.pos).magnitude - o.def.radius;
                         if (d < min || d >= bestD) continue;
                         bestD = d; best = o;

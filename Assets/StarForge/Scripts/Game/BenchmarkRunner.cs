@@ -51,6 +51,9 @@ namespace StarForge.Game
         float burstZoom = -1f;
         bool burstBase;
         bool burstStarted, holdCamera;
+        int rigProbe = -1;
+        bool rigProbeRigid, rigProbePoses, rigProbeFollow, rigProbeFreeze;
+        SoldierRigProbe rigProbeOn;
         string galleryDir;
         bool galleryQuick;
         float start;
@@ -94,6 +97,16 @@ namespace StarForge.Game
                 else if (args[i] == "-sfgallery" && i + 1 < args.Length) { galleryDir = args[i + 1]; active = true; }
                 else if (args[i] == "-sfgalleryquick") galleryQuick = true;
                 else if (args[i] == "-sfburstbase") burstBase = true;
+                else if (args[i] == "-sfrigprobe" && i + 1 < args.Length && int.TryParse(args[i + 1], out int rp)) rigProbe = rp;
+                else if (args[i] == "-sfrigrigid") rigProbeRigid = true;
+                else if (args[i] == "-sfrigfollow") rigProbeFollow = true;
+                else if (args[i] == "-sfrigfreeze") rigProbeFreeze = true;
+                else if (args[i] == "-sflogshaders") GraphicsSettings.logWhenShaderIsCompiled = true;
+                else if (args[i] == "-sfrigposes") rigProbePoses = true;
+                else if (args[i] == "-sftactical") StarForge.Sim.TacticalRules.On = true;
+                else if (args[i] == "-sfcatchstall" && i + 1 < args.Length) StallCatcher.Start(args[i + 1]);
+                else if (args[i] == "-sfnoresident" && GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset noRd)
+                    noRd.gpuResidentDrawerMode = GPUResidentDrawerMode.Disabled;
                 else if (args[i] == "-sfburstzoom" && i + 1 < args.Length &&
                          float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float,
                              System.Globalization.CultureInfo.InvariantCulture, out float bz)) burstZoom = bz;
@@ -141,6 +154,12 @@ namespace StarForge.Game
             // A pointer resting at a screen edge would scroll the view away.
             if (active && rig != null) rig.scripted = true;
             start = Time.realtimeSinceStartup;
+            if (active && (rigProbe >= 0 || rigProbePoses) && rig != null && MapInfo.Instance != null)
+            {
+                holdCamera = !rigProbeFollow;
+                rigProbeOn = gameObject.AddComponent<SoldierRigProbe>();
+                rigProbeOn.Begin(MapInfo.Instance, rig, rigProbe, rigProbeRigid, rigProbePoses, rigProbeFollow, rigProbeFreeze);
+            }
             if (active && galleryDir != null)
             {
                 Directory.CreateDirectory(galleryDir);
@@ -151,6 +170,7 @@ namespace StarForge.Game
 
         void Update()
         {
+            StallCatcher.Beat();
             float elapsed = Time.realtimeSinceStartup - start;
             if (!holdCamera) TrackAction();
             if (elapsed < Warmup) return;
@@ -532,6 +552,9 @@ namespace StarForge.Game
             sb.AppendLine($"resolution {Screen.width}x{Screen.height}, {frames.Count} frames over {seconds:0}s after {Warmup:0}s warm-up; " +
                           $"vsync {QualitySettings.vSyncCount}, cap {(Application.targetFrameRate > 0 ? Application.targetFrameRate.ToString() : "none")}");
             sb.AppendLine($"avg {avg:0.00} ms ({1000f / Mathf.Max(0.01f, avg):0.0} fps) · p50 {P(0.5f):0.00} · p95 {P(0.95f):0.00} · p99 {P(0.99f):0.00} · worst {P(1f):0.00} ms");
+            if (rigProbeOn != null) sb.AppendLine(rigProbeOn.Report());
+            if (world != null && world.Tactical)
+                sb.AppendLine($"tactical: {world.ShotsFired} rounds, {world.ShotsHit} struck; sight rules {world.SightMs / Mathf.Max(1, frames.Count):0.000} ms a frame, shots' lines {world.LinesMs / Mathf.Max(1, frames.Count):0.000}");
             sb.AppendLine($"peak entities {maxEntities} · peak projectiles {maxProjectiles} · lowest render scale {minScale:0.00}, average {(scaleFrames > 0 ? scaleSum / scaleFrames : 1.0):0.00}" +
                           (mechFrames.Count > 0 ? $" ({mechScaleSum / mechFrames.Count:0.00} with a Mech in view)" : "") +
                           $" · shadows {(GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset ua ? ua.shadowDistance : 0f):0} m");
@@ -589,6 +612,7 @@ namespace StarForge.Game
             string text = sb.ToString();
             Debug.Log("[Benchmark]\n" + text);
             try { File.WriteAllText(outPath, text); } catch { /* the log copy is enough */ }
+            StallCatcher.Stop();
             Application.Quit();
         }
     }

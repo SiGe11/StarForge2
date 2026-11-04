@@ -784,6 +784,8 @@ out of it.
   fox, eagle, songbird); (via itch.io) *Easy Animated Enemy Pack* and (via opengameart.org) *Farm Animals Pack*
   (the spider, frog, wasp and cow the Biolab's Skitter, Spitter, Razorwing and Gorehorn are
   made from, given horns, plates, spines and glands in Blender).
+- **KayKit** (Kay Lousberg, via itch.io): *Character Animations*, the skeleton and the motion of the
+  legs and trunk under the rigged soldier.
 - **JangaFX** (jangafx.com): the EmberGen simulations *Small Camp Fire* and *Ground
   Explosion* from their free VDB library, rendered in Blender into the fire and
   explosion flipbooks.
@@ -845,6 +847,34 @@ To regenerate the models (Blender 5.x):
 /Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
   --python Tools/blender/export_fbx.py -- Assets/StarForge/Art/Models Tools/blender/starforge_models.blend
 ```
+
+## Tactical combat (in development, off by default)
+
+Combat is being rebuilt so that soldiers fight like soldiers: the player gives the same orders, and
+units decide how to carry them out. It sits behind one switch until it is finished (`-sftactical` on
+a benchmark or test run), and with the switch off the game plays as described in the rest of this file.
+So far, for Troopers (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.md`):
+
+- **Shots can miss.** A round goes where it goes: an aim error, then the first thing on its line. A far
+  or low target is a small one, and cover works by stopping the round. Rounds never hurt their own
+  side; they fly past friends into whatever is beyond.
+- **Sight is real.** Hills, rocks, buildings and trees hide what is behind them, for both sides and the
+  AI alike. Soldiers lying down, standing still or in the woods are noticed from less far off, and a
+  gun firing gives its owner away.
+- **The pace is slower and the guns reach further:** a rifleman walks 3.5 m/s, shoots to 35 m, sees to
+  45 m and dies in three or four hits.
+- **Soldiers think for themselves.** Fire near a man makes him crouch, then pins him flat, sooner the less
+  brave he is; the timid may freeze or bolt for a few seconds. In contact he runs for cover, leans out to
+  shoot and ducks back, lies down in the open, and on an attack bounds from cover to cover. Orders come
+  first: a new one takes him out of cover at once.
+- **They have real bodies:** a rigged soldier crouching, crawling, aiming and firing, its 19 clips moving
+  the legs and trunk from KayKit's animations with the rifle in hand-defined poses, one material, so
+  200 of them cost a fight about 3 fps. A real match with thinking, rigged soldiers ran 47.9 fps.
+- **Not there yet:** on today's maps cover does not win fights by itself. Six among cover beat eight coming
+  over open ground only 2 times in 12, because boulders are too tall to fire over; low walls are to come.
+
+`Editor/TacticalTrials.cs` holds the checks; `Assets/StarForge/Scripts/World/CLAUDE.md` the rules and
+their numbers.
 
 ## MacBook Neo tuning
 

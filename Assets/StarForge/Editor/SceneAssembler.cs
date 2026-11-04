@@ -22,6 +22,7 @@ namespace StarForge.EditorTools
             RenderSetup.Build();
             SFMaterialLibrary.Build();
             PrefabBuilder.Build();
+            Debug.Log(SoldierRigBuilder.Build());
             MapBuilder.Build(MapBuilder.DefaultSeed);
             Assemble();
         }

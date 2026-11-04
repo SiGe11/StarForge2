@@ -137,6 +137,7 @@ namespace StarForge.Game
         {
             opponent = new ScriptedOpponent(world, 0, (ScriptedOpponent.Kind)kind);
             // Its own morale rolls per opponent: the five seeds alone gave every opponent the same.
+            world.ReseedCombat(MatchSettings.seed ^ ((uint)kind + 1u) * 0x9E3779B1u);
             world.ReseedMorale(MatchSettings.seed ^ ((uint)kind + 1u) * 0x9E3779B1u);
             // And its Mechs' verdicts on deserters, for the same reason.
             foreach (var b in boot.MechBrains) b?.ReseedPunish(MatchSettings.seed ^ ((uint)kind + 1u) * 0x85EBCA6Bu);

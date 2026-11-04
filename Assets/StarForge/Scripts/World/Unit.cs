@@ -10,7 +10,7 @@ using static StarForge.SFMath;
 namespace StarForge.World
 {
     [DisallowMultipleComponent]
-    public sealed class Unit : MonoBehaviour
+    public sealed partial class Unit : MonoBehaviour
     {
         public const int OrePerTrip = 8;
         public const float HarvestTime = 1.6f;
@@ -111,7 +111,7 @@ namespace StarForge.World
         public float MaxHp => mech != null ? mech.MaxHp : def.hp * (1f + 0.1f * rank);
         /// <summary>Not to be shot at: a Mech still coming down from orbit.</summary>
         public bool Untargetable => mech != null && !mech.Landed;
-        public float Speed => mech != null ? mech.Speed : def.speed;
+        public float Speed => mech != null ? mech.Speed : def.speed * soldierPace;
         public float TurnRate => mech != null ? mech.TurnRate : def.turnRate;
         public Vector3 Ground => world.Map.Ground(pos);
         public bool HasTurret => def.type == UnitType.Mauler || def.type == UnitType.Sentinel ||
@@ -297,21 +297,22 @@ namespace StarForge.World
             if ((order == Order.Attack || order == Order.AttackMove) && Live(target) && !def.fixedWing)
             {
                 float d = Dist(target) - target.def.radius;
-                if (d > def.range * 0.92f && (repathTimer -= dt) <= 0f)
+                // Under the new rules a rise or a rock in the way is as good as out of reach.
+                if ((d > def.range * 0.92f || (world.Tactical && fireBlocked)) && !SoldierBusy && (repathTimer -= dt) <= 0f)
                 {
                     // Under an aircraft that may be over water or a plateau: as near as it can get.
-                    MoveTo(target.def.flying && !def.flying ? world.NearestReachable(this, target.pos) : target.pos);
+                    MoveTo(target.def.flying && !def.flying ? world.NearestReachable(this, target.pos) : world.Tactical ? TargetGoal : target.pos);
                     repathTimer = world.Rng.Range(0.45f, 0.75f);
                 }
             }
-            if (order == Order.AttackMove && target == null && !Moving && Dist(orderPos) > 2.5f && (repathTimer -= dt) <= 0f)
+            if (order == Order.AttackMove && target == null && !Moving && Dist(orderPos) > 2.5f && !SoldierBusy && (repathTimer -= dt) <= 0f)
             {
                 MoveTo(orderPos);
                 repathTimer = 1.2f;
             }
             if ((order == Order.Move || order == Order.AttackMove) && target == null && Arrived() && Dist(orderPos) < (def.fixedWing ? PlaneCircle + 3f : 4f))
                 order = Order.Idle;
-            if (order == Order.Move && !Moving) KeepGoing(dt);
+            if (order == Order.Move && !Moving && !SoldierBusy) KeepGoing(dt);
             else if (agent != null && agent.enabled && agent.isOnNavMesh && agent.hasPath) pathRetries = 0;
 
             if (def.fixedWing) TickPlane(dt);
@@ -512,6 +513,16 @@ namespace StarForge.World
         void UpdateCombat(float dt)
         {
             if (!def.Armed || !Complete) return;
+            if (world.Tactical)
+            {
+                if (def.bodyRadius > 0f)
+                {
+                    TickSoldier(dt);
+                    // On his way to cover he runs; bolting, or frozen with fear, he does not shoot.
+                    if (mode == SoldierMode.ToCover || mode == SoldierMode.Panic) return;
+                }
+                ReviewTarget();
+            }
             // Auto-acquire unless explicitly told to move without engaging.
             bool acquires = order != Order.Move && order != Order.Harvest && order != Order.Return && order != Order.Build;
             // An armed worker (the Prospector) at its work shoots back at what comes into its
@@ -529,7 +540,7 @@ namespace StarForge.World
             {
                 target = null;
                 targetOrdered = false;
-                if (acquires) target = world.NearestEnemy(this, def.sight);
+                if (acquires) target = world.Tactical && world.time < lineOnlyUntil ? ShootableNow() : world.NearestEnemy(this, def.sight);
                 if (order == Order.Attack && target == null) order = Order.Idle;
             }
             else if (!StickyTargets && acquires && !(order == Order.Attack && targetOrdered) && Dist(target) - target.def.radius > def.range)
@@ -562,7 +573,11 @@ namespace StarForge.World
                 if (band != null) { target = band; targetOrdered = false; }
                 else return;
             }
-            if (!AimAndFire(dt)) return;
+            if (!AimAndFire(dt))
+            {
+                if (world.Tactical) FireBlocked(dt);
+                return;
+            }
             // A plane does not stop to shoot: it makes its runs (TickPlane).
             if ((order == Order.Attack || order == Order.AttackMove) && !def.fixedWing) Halt();
         }
@@ -571,7 +586,15 @@ namespace StarForge.World
         bool AimAndFire(float dt)
         {
             float d = Dist(target) - target.def.radius;
+            fireBlocked = false;
             if (d > def.range) return false;
+            // No gun fires at what its side does not know of, and a round must have a way there.
+            if (world.Tactical && (hiding || !world.Sees(team, target) || (def.shotSpread > 0f && !target.def.flying && !LineOfFireNow())))
+            {
+                fireBlocked = true;
+                return false;
+            }
+            blockedFor = 0f;
             float want = Mathf.Atan2(target.pos.x - pos.x, target.pos.y - pos.y);
             if (HasTurret)
             {
@@ -599,6 +622,7 @@ namespace StarForge.World
         {
             deserted = true;
             fleeing = true;
+            StandDown();
             order = Order.Move;
             target = null;
             harvestNode = null;
@@ -730,8 +754,10 @@ namespace StarForge.World
 
         void Fire()
         {
-            cooldown = def.cooldown;
+            // Pinned flat he gets off fewer rounds.
+            cooldown = def.cooldown * (mode == SoldierMode.Pinned ? 1.8f : 1f);
             world.Fire(this, target);
+            if (world.Tactical) world.RevealShooter(this);
         }
 
         void UpdateHarvest(float dt)

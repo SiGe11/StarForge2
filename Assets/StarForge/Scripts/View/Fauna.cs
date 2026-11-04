@@ -395,7 +395,7 @@ namespace StarForge.View
                 foreach (var u in world.units)
                 {
                     if (u == null || u.dying || u.def.neutral) continue;
-                    bool seen = MatchSettings.spectate || u.team == ViewerTeam || world.Visible(ViewerTeam, u.pos);
+                    bool seen = MatchSettings.spectate || u.team == ViewerTeam || world.Sees(ViewerTeam, u);
                     foreach (var g in groups)
                     {
                         if (g.fleeUntil > Time.time) continue;

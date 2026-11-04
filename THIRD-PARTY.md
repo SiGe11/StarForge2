@@ -85,6 +85,19 @@ and mixes two of them into the energy weapons.
 | [Impact Sounds](https://kenney.nl/assets/impact-sounds) | metal hits, rock, thuds, the wood thump in `treefall_*.wav`; the Mech's footfalls (`mech_step_*.wav`), the mortar's tube in `mech_mortar_*.wav` and the stones in `mech_land.wav` |
 | [Interface Sounds](https://kenney.nl/assets/interface-sounds) | `Audio/Sfx/ui_*.ogg` |
 
+## KayKit — CC0 1.0 (<https://www.kaylousberg.com>)
+
+Kay Lousberg's [KayKit Character Animations](https://kaylousberg.itch.io/kaykit-character-animations)
+(itch.io, free tier 1.1; its details table and its `License.txt`: CC0 1.0). `Tools/blender/build_soldier_rig.py`
+takes the Rig_Medium skeleton, moved to the Trooper's proportions, and the motion of its legs, hips, trunk and
+head; the Trooper's own model and the rifle holds are ours. The page also asks people not to resell unmodified
+copies or claim them as their own (a request beside the CC0, not a term of it; its `License.txt` is plain CC0).
+Nothing here does either: this repository holds no copy of the pack, only the clips baked onto our rig, credited here.
+
+| Pack | Becomes |
+|---|---|
+| KayKit Character Animations | `Art/Models/SF_TROOPER_RIG.fbx` (the skeleton and 17 clips) |
+
 ## Quaternius — CC0 1.0 (<https://quaternius.com>)
 
 Animated low-poly animals, via OpenGameArt and itch.io. `Tools/pack_fauna.py` copies the

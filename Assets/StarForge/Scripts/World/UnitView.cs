@@ -69,6 +69,7 @@ namespace StarForge.World
         // A soldier's cape (InfantryCape), earned at a promotion: whether this unit can wear
         // one, how far back its torso and pack reach, and the last rank looked at.
         InfantryCape cape;
+        SoldierRigView rig;
         // The Mech-Hunter's flag: cloth (the Mech's standard's), the rigid one while cloth cannot run.
         Transform banner;
         MechBannerCloth bannerCloth;
@@ -151,7 +152,11 @@ namespace StarForge.World
                 rendererBaseY[i] = transform.InverseTransformPoint(renderers[i].transform.position).y;
         }
 
-        void OnDestroy() { if (bannerCloth != null) bannerCloth.Destroy(); }
+        void OnDestroy()
+        {
+            if (bannerCloth != null) bannerCloth.Destroy();
+            if (rig != null) rig.Destroyed();
+        }
 
         public void Bind(Unit u)
         {
@@ -220,6 +225,12 @@ namespace StarForge.World
                 seenRank = u.rank;
                 if (InfantryCape.All) cape = InfantryCape.Make(body, capeBackZ, u.team, u.rank, u.id);
             }
+            // Under the new combat a soldier wears the rigged body (the rigid parts stay, hidden, for his wreck).
+            if (u.World.Tactical && u.def.bodyRadius > 0f)
+            {
+                rig = SoldierRigView.Attach(u, renderers);
+                if (rig != null) { renderers = rig.Renderers; rendererBaseY = new float[1]; }
+            }
             // The exporter writes nested groups side by side (Tools/blender/export_fbx.py):
             // the cutter rides the arm.
             if (cutter != null && arm != null && cutter.parent != arm)
@@ -261,6 +272,7 @@ namespace StarForge.World
                 if (cape != null) cape.Freeze();
                 // The wreck keeps the rigid flag: the cloth would go on swinging on a dead hull.
                 if (bannerCloth != null) { bannerCloth.Destroy(); bannerCloth = null; if (banner != null) banner.gameObject.SetActive(true); }
+                if (rig != null && rig.Die(shown)) return;
                 if (shown && body != null)
                 {
                     if (unit.def.organic) CreatureCorpse.Create(unit, body, anim, clipDeath);
@@ -286,20 +298,25 @@ namespace StarForge.World
             }
             if (capeable)
             {
-                // Each promotion a soldier without a cape has its chance of one; a further
-                // stripe re-trims the one he has. Hidden by the fog, so is the cape.
+                // Each promotion to rank 2 or above, a soldier without a cape has its chance of one;
+                // a further stripe re-trims the one he has. Hidden by the fog, so is the cape.
                 if (unit.rank > seenRank)
                 {
-                    for (int r = seenRank + 1; r <= unit.rank && cape == null; r++)
+                    for (int r = Mathf.Max(seenRank + 1, 2); r <= unit.rank && cape == null; r++)
                         if (InfantryCape.Earned(unit.id, r)) cape = InfantryCape.Make(body, capeBackZ, unit.team, unit.rank, unit.id);
                     if (cape != null) cape.SetRank(unit.rank);
                     seenRank = unit.rank;
                 }
-                if (cape != null) cape.Tick(visible, velocity, transform.forward);
+                if (cape != null)
+                {
+                    cape.WearerDown = rig != null && unit.posture != Posture.Stand;
+                    cape.Tick(visible, velocity, transform.forward);
+                }
             }
             if (!visible) return;
 
             float t = Time.time, dt = Time.deltaTime;
+            if (rig != null) rig.Tick(dt, velocity);
             if (bannerCloth != null)
             {
                 bool onShow = bannerCloth.Tick(Wind.At(t));
@@ -359,6 +376,12 @@ namespace StarForge.World
                 {
                     float ttl = unit.def.building ? 2.4f : 1.3f;
                     y -= Mathf.SmoothStep(0f, 1f, unit.deathTimer / ttl) * unit.def.visualHeight * (unit.def.building ? 1.1f : 0.7f);
+                }
+                // A cape hangs on the hidden rigid body: it goes down with the man who wears it.
+                if (rig != null)
+                {
+                    y += rig.CapeDrop;
+                    body.localRotation = Quaternion.Euler(rig.CapeLean, 0f, 0f);
                 }
                 var lp = body.localPosition;
                 float z = lp.z;
@@ -554,6 +577,7 @@ namespace StarForge.World
             float damage = unit.Complete && !unit.def.neutral ? Mathf.Clamp01((1f - unit.hp / unit.MaxHp - 0.25f) / 0.75f) : 0f;
             bool constructing = !unit.Complete && unit.def.building;
             float burn = unit.dying ? Mathf.Clamp01(unit.deathTimer / 0.8f) : 0f;
+            if (rig != null) { rig.ApplySurface(flash, damage, burn); return; }
 
             if (flash > 0.01f || damage > 0.01f || constructing || unit.dying || loadFill > 0.001f || OreGlow > 0.001f)
             {

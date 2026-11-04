@@ -24,7 +24,7 @@ namespace StarForge.EditorTools
             if (src == null) throw new FileNotFoundException($"model SF_{model}.fbx has not been imported");
             var go = Object.Instantiate(src, parent, false);
             go.name = model;
-            foreach (var r in go.GetComponentsInChildren<MeshRenderer>(true))
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
             {
                 var mats = r.sharedMaterials;
                 for (int i = 0; i < mats.Length; i++)

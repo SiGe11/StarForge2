@@ -242,6 +242,9 @@ namespace StarForge.View
 
         /// <summary>One call a frame from the soldier's UnitView: whether he is on show, his
         /// velocity in the world, and the way he faces.</summary>
+        /// <summary>The man wearing it is down (the new combat's crouch or crawl): no cloth, the rest mesh.</summary>
+        [System.NonSerialized] public bool WearerDown;
+
         public void Tick(bool visible, Vector3 velocity, Vector3 forward)
         {
             if (visible != shown)
@@ -250,7 +253,7 @@ namespace StarForge.View
                 smr.enabled = visible;
             }
             if (rankedFrame != Time.frameCount) ChooseSimulated();
-            bool sim = wanted && shown && !frozen && !gaveUp;
+            bool sim = wanted && shown && !frozen && !gaveUp && !WearerDown;
             if (sim != simulating) SetCloth(sim);
             if (!shown || frozen) return;
 

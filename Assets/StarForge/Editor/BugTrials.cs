@@ -774,6 +774,7 @@ namespace StarForge.EditorTools
         {
             holds = 0;
             Unit.StickyTargets = false;
+            TacticalRules.On = false;
             UnitView.CutterSpin = UnitView.CutterSpinUsual;
             // MoraleTrials keeps a hold count of its own: overlapping one of its trials with
             // one of these, the later release could put back a Suspended the other had set,

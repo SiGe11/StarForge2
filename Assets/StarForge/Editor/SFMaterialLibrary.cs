@@ -58,7 +58,21 @@ namespace StarForge.EditorTools
             { "glow_bio",   new Entry(0.45f, 1.00f, 0.35f, 0.20f, 0f, 0f, 2.2f) },
         };
 
-        public static bool IsTeamSlot(string slot) => Palette.TryGetValue(slot, out var e) && e.team > 0f;
+        /// <summary>The slot a model names to draw every face with one material: its colour G
+        /// says which palette slot a face is (Tools/blender/build_soldier_rig.py).</summary>
+        public const string PaletteSlot = "palette";
+
+        // sf_model.MAT_NAMES, whose indices the model writes. Flora's slots are never drawn with
+        // SF_Unit, and rock, crystal and ore glass need their own material: all four stay black here.
+        static readonly string[] PaletteOrder =
+        {
+            "armor", "armor_lit", "armor_dark", "dark", "steel", "rubber", "team", "team_dark", "rust",
+            "glow_warm", "glow_dim", "glow_cyan", "glow_amber", "crystal", "ore_glow", "rock",
+            "bark", "leaf", "needle", "shadowed", "glow_bio",
+        };
+
+        public static bool IsTeamSlot(string slot) =>
+            slot == PaletteSlot || Palette.TryGetValue(slot, out var e) && e.team > 0f;
 
         public static string PathFor(string slot, int team) =>
             IsTeamSlot(slot) ? $"{MaterialDir}/SF_{slot}_T{team}.mat" : $"{MaterialDir}/SF_{slot}.mat";
@@ -69,7 +83,7 @@ namespace StarForge.EditorTools
         {
             if (slot.StartsWith("scan_"))
                 return AssetDatabase.LoadAssetAtPath<Material>($"{MaterialDir}/SF_{slot}.mat");
-            string p = PathFor(Palette.ContainsKey(slot) ? slot : "armor", team);
+            string p = PathFor(slot == PaletteSlot || Palette.ContainsKey(slot) ? slot : "armor", team);
             return AssetDatabase.LoadAssetAtPath<Material>(p);
         }
 
@@ -120,31 +134,16 @@ namespace StarForge.EditorTools
                 string slot = kv.Key;
                 Entry e = kv.Value;
                 Texture2D det = armor, detN = armorN;
-                float detScale = 0.75f, detNormal = 0.6f, tiling = 1f;
+                float detScale = DetailScale, detNormal = DetailNormalScale, tiling = 1f;
                 if (slot == "rock") { det = cliff; detN = cliffN; detScale = 0.9f; detNormal = 1.0f; tiling = 0.6f; }
                 else if (slot == "crystal") { det = crystal; detN = null; detScale = 0.5f; }
-                else if (e.emis >= 0.5f || slot == "rubber" || slot == "dark") { det = null; detN = null; }
+                else if (!TakesPanelDetail(slot, e)) { det = null; detN = null; }
 
                 int teams = e.team > 0f ? 2 : 1;
                 for (int t = 0; t < teams; t++)
                 {
                     var m = SFEditorUtil.CreateOrLoadMaterial(PathFor(slot, t), unitShader);
-                    Color albedo = e.albedo;
-                    Color emission = Color.black;
-                    if (e.team > 0f)
-                    {
-                        albedo = Color.Lerp(e.albedo, TeamLinear[t] * (slot == "team_dark" ? 0.45f : 0.8f), 0.88f);
-                        emission = TeamLinear[t] * (slot == "team_dark" ? 0.05f : 0.16f);
-                    }
-                    // ACES rolls bright near-white colours toward white, so the
-                    // crystal glows a saturated blue rather than its pale albedo,
-                    // and glow strips sit just past the bloom threshold.
-                    if (e.emis > 0f)
-                        // Ore is a spectral teal-green under a violet rim: eerie rather
-                        // than the plain blue it was, and apart from the team colours.
-                        emission = slot == "crystal" ? new Color(0.02f, 0.62f, 0.5f) * 3.6f
-                                 : slot == "ore_glow" ? new Color(0.03f, 0.62f, 0.5f) * 8f
-                                 : e.albedo * e.emis * 1.1f;
+                    SurfaceColours(slot, e, t, out Color albedo, out Color emission);
                     SetupUnit(m, slot, albedo, e.rough, e.metal, emission, det, detN, detScale, detNormal, tiling);
                     // Ore glows from inside (SF_Unit's crystal path, which also
                     // uses the rim colour as its edge light); ore glass follows
@@ -156,9 +155,125 @@ namespace StarForge.EditorTools
                     EditorUtility.SetDirty(m);
                 }
             }
+            BuildPalette(unitShader, armor, armorN);
             BuildScanMaterials();
             AssetDatabase.SaveAssets();
             Debug.Log($"[StarForge] materials built in {MaterialDir}");
+        }
+
+        /// <summary>Each team's palette against the slot materials it stands in for, and its order against
+        /// sf_model.py. Target: 0 off, the same order.</summary>
+        public static string CheckPalette()
+        {
+            var text = File.ReadAllText("Tools/blender/sf_model.py");
+            int at = text.IndexOf("MATERIALS = {", System.StringComparison.Ordinal);
+            int end = text.IndexOf("\n}", at, System.StringComparison.Ordinal);
+            var names = new List<string>();
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(text.Substring(at, end - at), @"^\s*'(\w+)':", System.Text.RegularExpressions.RegexOptions.Multiline))
+                names.Add(m.Groups[1].Value);
+            string order = string.Join(",", names) == string.Join(",", PaletteOrder) ? "same order" : "ORDER DIFFERS";
+            var sb = new System.Text.StringBuilder($"{PaletteOrder.Length} slots, {order} as sf_model.py;");
+            for (int t = 0; t < 2; t++)
+            {
+                var tex = AssetDatabase.LoadAssetAtPath<Texture2D>($"{MaterialDir}/SF_{PaletteSlot}_T{t}.asset");
+                int off = 0, slots = 0;
+                for (int x = 0; x < PaletteOrder.Length; x++)
+                {
+                    string slot = PaletteOrder[x];
+                    if (!Palette.ContainsKey(slot) || slot == "crystal" || slot == "ore_glow" || slot == "rock") continue;
+                    var m = ForSlot(slot, t);
+                    slots++;
+                    Color r0 = tex.GetPixel(x, 0), r1 = tex.GetPixel(x, 1), r2 = tex.GetPixel(x, 2);
+                    Color b = m.GetColor("_BaseColor").linear, e = m.GetColor("_EmissionColor");
+                    bool same(float u, float v) => Mathf.Abs(u - v) < 2e-3f;
+                    if (!same(r0.r, b.r) || !same(r0.g, b.g) || !same(r0.b, b.b) || !same(r0.a, m.GetFloat("_Smoothness"))) off++;
+                    else if (!same(r1.r, e.r) || !same(r1.g, e.g) || !same(r1.b, e.b) || !same(r1.a, m.GetFloat("_Metallic"))) off++;
+                    else if (!same(r2.r, m.GetFloat("_WearAmount")) || !same(r2.g, m.GetFloat("_GrimeAmount")) || !same(r2.b, m.GetFloat("_AOStrength"))) off++;
+                    else if ((r2.a > 0.5f) != (m.GetTexture("_DetailAlbedoMap") != null)) off++;
+                }
+                sb.Append($" team {t}: {off} of {slots} slots off;");
+            }
+            return sb.ToString();
+        }
+
+        const float DetailScale = 0.75f, DetailNormalScale = 0.6f;
+
+        static bool TakesPanelDetail(string slot, Entry e) =>
+            slot != "rock" && slot != "crystal" && e.emis < 0.5f && slot != "rubber" && slot != "dark";
+
+        static void SurfaceColours(string slot, Entry e, int team, out Color albedo, out Color emission)
+        {
+            albedo = e.albedo;
+            emission = Color.black;
+            if (e.team > 0f)
+            {
+                albedo = Color.Lerp(e.albedo, TeamLinear[team] * (slot == "team_dark" ? 0.45f : 0.8f), 0.88f);
+                emission = TeamLinear[team] * (slot == "team_dark" ? 0.05f : 0.16f);
+            }
+            // ACES rolls bright near-white colours toward white, so the
+            // crystal glows a saturated blue rather than its pale albedo,
+            // and glow strips sit just past the bloom threshold.
+            if (e.emis > 0f)
+                // Ore is a spectral teal-green under a violet rim: eerie rather
+                // than the plain blue it was, and apart from the team colours.
+                emission = slot == "crystal" ? new Color(0.02f, 0.62f, 0.5f) * 3.6f
+                         : slot == "ore_glow" ? new Color(0.03f, 0.62f, 0.5f) * 8f
+                         : e.albedo * e.emis * 1.1f;
+        }
+
+        static void Weathering(string slot, out float wear, out float grime, out float ao)
+        {
+            bool painted = slot.StartsWith("armor") || slot.StartsWith("team");
+            bool glow = slot.StartsWith("glow") || slot == "crystal" || slot == "ore_glow";
+            wear = painted ? 0.7f : slot == "steel" ? 0.4f : 0f;
+            // Enough grime to ground the machine, not enough to swallow its value
+            // range: with the baked occlusion on top, heavier settings turned every
+            // hull into a silhouette.
+            grime = glow ? 0f : slot == "rock" ? 0.18f : slot == "rubber" || slot == "dark" ? 0.18f : 0.3f;
+            ao = glow ? 0.15f : 0.45f;
+        }
+
+        /// <summary>One material per team that draws a whole model in one call, a texel per slot:
+        /// each slot's own material's numbers, in rows SF_Unit reads when _UsePalette is on (what the
+        /// shader would receive from that material). Only panel detail is shared, on or off.</summary>
+        static void BuildPalette(Shader unitShader, Texture2D armor, Texture2D armorN)
+        {
+            for (int t = 0; t < 2; t++)
+            {
+                string path = $"{MaterialDir}/SF_{PaletteSlot}_T{t}.asset";
+                var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                if (tex == null || tex.width != PaletteOrder.Length)
+                {
+                    if (tex != null) AssetDatabase.DeleteAsset(path);
+                    tex = new Texture2D(PaletteOrder.Length, 3, TextureFormat.RGBAHalf, false, true);
+                    AssetDatabase.CreateAsset(tex, path);
+                }
+                tex.filterMode = FilterMode.Point;
+                tex.wrapMode = TextureWrapMode.Clamp;
+                for (int x = 0; x < PaletteOrder.Length; x++)
+                {
+                    string slot = PaletteOrder[x];
+                    bool usable = Palette.TryGetValue(slot, out Entry e) && slot != "crystal" && slot != "ore_glow" && slot != "rock";
+                    if (!usable) { for (int y = 0; y < 3; y++) tex.SetPixel(x, y, Color.clear); continue; }
+                    SurfaceColours(slot, e, t, out Color albedo, out Color emission);
+                    Weathering(slot, out float wear, out float grime, out float ao);
+                    tex.SetPixel(x, 0, new Color(albedo.r, albedo.g, albedo.b, 1f - e.rough));
+                    // An [HDR] colour reaches the shader as it was set, unconverted (SetupUnit sets .gamma).
+                    Color glow = emission.maxColorComponent > 1e-4f ? emission.gamma : Color.black;
+                    tex.SetPixel(x, 1, new Color(glow.r, glow.g, glow.b, e.metal));
+                    tex.SetPixel(x, 2, new Color(wear, grime, ao, TakesPanelDetail(slot, e) ? 1f : 0f));
+                }
+                tex.Apply(false, false);
+                EditorUtility.SetDirty(tex);
+
+                var m = SFEditorUtil.CreateOrLoadMaterial(PathFor(PaletteSlot, t), unitShader);
+                SetupUnit(m, "armor", Color.white, 0f, 0f, Color.black, armor, armorN, DetailScale, DetailNormalScale, 1f);
+                m.SetFloat("_Crystal", 0f);
+                m.SetFloat("_OreGlowMask", 0f);
+                m.SetFloat("_UsePalette", 1f);
+                m.SetTexture("_PaletteMap", tex);
+                EditorUtility.SetDirty(m);
+            }
         }
 
         static void SetupUnit(Material m, string slot, Color linearAlbedo, float rough, float metal, Color linearEmission,
@@ -179,15 +294,11 @@ namespace StarForge.EditorTools
             // maps used before.
             m.SetFloat("_DetailTiling", 0.5f * tiling);
 
-            bool painted = slot.StartsWith("armor") || slot.StartsWith("team");
-            bool glow = slot.StartsWith("glow") || slot == "crystal" || slot == "ore_glow";
-            m.SetFloat("_WearAmount", painted ? 0.7f : slot == "steel" ? 0.4f : 0f);
-            // Enough grime to ground the machine, not enough to swallow its value
-            // range: with the baked occlusion on top, heavier settings turned every
-            // hull into a silhouette.
-            m.SetFloat("_GrimeAmount", glow ? 0f : slot == "rock" ? 0.18f : slot == "rubber" || slot == "dark" ? 0.18f : 0.3f);
+            Weathering(slot, out float wear, out float grime, out float ao);
+            m.SetFloat("_WearAmount", wear);
+            m.SetFloat("_GrimeAmount", grime);
             m.SetColor("_GrimeColor", new Color(0.26f, 0.22f, 0.17f));
-            m.SetFloat("_AOStrength", glow ? 0.15f : 0.45f);
+            m.SetFloat("_AOStrength", ao);
 
             bool emissive = linearEmission.maxColorComponent > 1e-4f;
             m.SetColor("_EmissionColor", emissive ? linearEmission.gamma : Color.black);

@@ -1804,7 +1804,7 @@ namespace StarForge.AI
                 foreach (var e in w.units)
                 {
                     if (e == null || e.dying || e.team == team || e.team == 2 || !e.def.harvester || e.def.Heavy) continue;
-                    if (!w.Visible(team, e.pos)) continue;           // must actually see it
+                    if (!w.Sees(team, e)) continue;           // must actually see it
                     float d = (e.pos - hc).magnitude + 25f * Influence.Sample(1, e.pos);
                     if (d < bestD) { bestD = d; victim = e; target = e.pos; }
                 }
@@ -2349,7 +2349,7 @@ namespace StarForge.AI
             foreach (var e in w.units)
             {
                 if (e == null || e.dying || e.mech == null || e.team == team || e.Untargetable) continue;
-                if (!w.Visible(team, e.pos) || (e.pos - c).magnitude > 30f || (e == letGo && w.time < letGoUntil)) continue;
+                if (!w.Sees(team, e) || (e.pos - c).magnitude > 30f || (e == letGo && w.time < letGoUntil)) continue;
                 if (Perception.Snap.armyValue < 500f && !Perception.Snap.mechAlive) continue;
                 best = e;
                 bestScore = -1e30f;
@@ -2358,7 +2358,7 @@ namespace StarForge.AI
             {
                 if (best != null && bestScore < -1e29f) break;
                 if (e == null || e.dying || e.team == team || e.team == 2 || e.def.building) continue;
-                if (!w.Visible(team, e.pos) || (e == letGo && w.time < letGoUntil)) continue;
+                if (!w.Sees(team, e) || (e == letGo && w.time < letGoUntil)) continue;
                 float d = (e.pos - c).magnitude;
                 if (d > 28f) continue;
                 // Prefer the weakest, nearest thing that can shoot back.
@@ -2383,7 +2383,7 @@ namespace StarForge.AI
         void LetGoOfRunaway()
         {
             if (!Unit.Live(focusTarget)) return;
-            if (w.Visible(team, focusTarget.pos) && (focusTarget.pos - focusAt).magnitude < 35f) return;
+            if (w.Sees(team, focusTarget) && (focusTarget.pos - focusAt).magnitude < 35f) return;
             focusGroup.Clear();
             foreach (var h in main)
                 if (Unit.Live(h) && h.order == Order.Attack && h.target == focusTarget) focusGroup.Add(h);
@@ -2420,7 +2420,7 @@ namespace StarForge.AI
             foreach (var u in main)
             {
                 if (!Unit.Live(u) || u.def.splash <= 0f || u.shotsMissed < 3) continue;
-                if (!Unit.Live(u.target) || !w.Visible(team, u.target.pos)) continue;
+                if (!Unit.Live(u.target) || !w.Sees(team, u.target)) continue;
                 // Out of range is a different problem, and the wave logic already owns it.
                 if (u.Dist(u.target) > u.def.range + 6f) continue;
                 if (u.Moving && u.order == Order.Move) continue;      // already on its way

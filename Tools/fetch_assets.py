@@ -237,8 +237,12 @@ def fetch_plain():
 # creatures are made from. It is only on itch.io, free as "name your own price": the
 # download goes through itch's own no-payment flow (a csrf token from the purchase page,
 # a download page, then a short-lived file link), which this follows.
+# Kay Lousberg's "KayKit Character Animations" (CC0: its details table and its License.txt) comes
+# the same way: the skeleton and the legs' and trunk's motion Tools/blender/build_soldier_rig.py
+# puts under the rigged soldier.
 ITCH_PACKS = {
-    "Easy_Enemy_Pack": ("https://quaternius.itch.io/animated-easy-enemies", 1254673),
+    "Easy_Enemy_Pack": ("https://quaternius.itch.io/animated-easy-enemies", 1254673, "quaternius"),
+    "KayKit_Character_Animations": ("https://kaylousberg.itch.io/kaykit-character-animations", 15799903, "kaykit"),
 }
 
 
@@ -247,9 +251,9 @@ def fetch_itch():
     import re
     import urllib.parse
     import zipfile
-    out = os.path.join(ROOT, "Art", "Source", "quaternius")
-    os.makedirs(out, exist_ok=True)
-    for name, (page, upload) in ITCH_PACKS.items():
+    for name, (page, upload, sub) in ITCH_PACKS.items():
+        out = os.path.join(ROOT, "Art", "Source", sub)
+        os.makedirs(out, exist_ok=True)
         folder = os.path.join(out, name)
         if os.path.isdir(folder):
             continue
@@ -271,7 +275,7 @@ def fetch_itch():
             f.write(r.read())
         with zipfile.ZipFile(zpath) as z:
             z.extractall(folder)
-        print(f"  quaternius {name}  {os.path.getsize(zpath) / 1e6:.1f} MB")
+        print(f"  {sub} {name}  {os.path.getsize(zpath) / 1e6:.1f} MB")
 
 
 def fetch_kenney():

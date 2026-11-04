@@ -141,6 +141,9 @@ namespace StarForge.World
         /// <summary>A missile's curve (kind 5): from where, over what, to what it last aimed at.</summary>
         public Vector3 from, ctrl, aim;
         public float flight;
+        /// <summary>Only what the player sees of a round already decided (GameWorld.Tactical): it flies
+        /// to <see cref="aim"/> and, if <see cref="strikes"/>, sparks there. Recycle clears it.</summary>
+        public bool cosmetic, strikes;
     }
 
     [DefaultExecutionOrder(-50)]
@@ -321,6 +324,7 @@ namespace StarForge.World
             winner = -1;
             cheated = false;
             matchSeed = seed;
+            BeginTactical(seed);
             ReckoningTeam = -1;
             avengers.Clear();
             running = true;
@@ -345,6 +349,7 @@ namespace StarForge.World
             }
             BeginMorale(seed);
             RebuildGrid();
+            if (Tactical) Sight.Refresh(this, true);
             UpdateVisibility();
         }
 
@@ -382,6 +387,7 @@ namespace StarForge.World
             // The Armory's armour for its class (World/GameWorld.Roster).
             else dmg *= ArmourMul(u);
             if (dmg <= 0f) { u.lastDamagedT = time; return; }
+            if (Tactical && u.def.bodyRadius > 0f) u.Suppress(splash ? 0.5f : 0.12f);
             u.hp -= dmg;
             u.damageFlash = 1f;
             u.lastDamagedT = time;
@@ -401,7 +407,8 @@ namespace StarForge.World
                 }
             }
             // Idle defenders retaliate against whatever just hit them.
-            if (u.order == Order.Idle && !u.def.building && u.def.Armed && !u.def.Autonomous && !u.deserted)
+            // (A soldier under the new rules answers for himself, and from where he has cover.)
+            if (u.order == Order.Idle && !u.def.building && u.def.Armed && !u.def.Autonomous && !u.deserted && !(Tactical && u.def.bodyRadius > 0f))
             {
                 var t = NearestEnemy(u, u.def.sight);
                 // The nearest, not necessarily the shooter: its own pick, so it may give way.
@@ -476,6 +483,7 @@ namespace StarForge.World
         void Kill(Unit u, Vector2 from, Unit source, bool splash)
         {
             var d = u.def;
+            if (Tactical) NoteLoss(u);
             // Which way it goes down, and how hard: thrown away from a shell bursting
             // beside it (harder the closer), knocked back from whoever shot it.
             Vector2 away = u.pos - from;
@@ -621,6 +629,7 @@ namespace StarForge.World
             }
 
             UpdateProjectiles(dt);
+            if (Tactical) TickCoverLooks(dt);
             CrushBoulders(dt);
             if (Plants != null) Plants.Tick(this, dt);
             StructureFires(dt);
@@ -766,6 +775,7 @@ namespace StarForge.World
                     {
                         var o = i < units.Count ? units[i] : null;
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable || !CanHit(u, o)) continue;
+                        if (Tactical && !Sees(u.team, o)) continue;
                         if (fightsBackOnly && !FightsBack(o)) continue;
                         float within = reach + o.def.radius;
                         float d2 = (o.pos - u.pos).sqrMagnitude;
@@ -795,6 +805,7 @@ namespace StarForge.World
                     {
                         var o = i < units.Count ? units[i] : null;
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable || !CanHit(u, o)) continue;
+                        if (Tactical && !Sees(u.team, o)) continue;
                         float d = (o.pos - u.pos).sqrMagnitude;
                         if (d < bestD) { bestD = d; best = o; }
                     }
@@ -1054,6 +1065,7 @@ namespace StarForge.World
 
         void UpdateVisibility()
         {
+            if (Tactical) { UpdateSight(); return; }
             Array.Clear(vis[0], 0, vis[0].Length);
             Array.Clear(vis[1], 0, vis[1].Length);
             float cell = VisCell;
@@ -1100,6 +1112,8 @@ namespace StarForge.World
         public void Fire(Unit shooter, Unit target)
         {
             var D = shooter.def;
+            // Shots at aircraft stay real rounds: they have a flight of their own to catch.
+            if (Tactical && D.shotSpread > 0f && !target.def.flying) { FireShot(shooter, target); return; }
             if (D.weapon != WeaponKind.Auto) { FireRoster(shooter, target); return; }
             float ang = shooter.HasTurret ? shooter.turretYaw : shooter.yaw;
             Vector3 fwd = new Vector3(Mathf.Sin(ang), 0f, Mathf.Cos(ang));
@@ -1208,6 +1222,7 @@ namespace StarForge.World
                 p.prevPos = p.pos;
                 p.life -= dt;
                 p.age += dt;
+                if (p.cosmetic) { if (TracerStep(p, dt)) Recycle(k); continue; }
                 var t = p.target;
                 bool targetOk = t != null && !t.dying;
 
@@ -1339,6 +1354,8 @@ namespace StarForge.World
             p.alive = false;
             p.target = null;
             p.shooter = null;
+            p.cosmetic = false;
+            p.strikes = false;
             int last = projectiles.Count - 1;
             projectiles[index] = projectiles[last];
             projectiles.RemoveAt(last);

@@ -109,6 +109,12 @@ namespace StarForge.Sim
         /// and creatures are light; tanks, Haulers, Mechs and structures heavy.</summary>
         public bool Heavy => building || heavyArmour || type == UnitType.Mech;
         public bool Armed => range > 0f;
+
+        /// <summary>The new combat's numbers (TacticalRules): set on the copies Defs hands out while the
+        /// switch is on, 0 on the assets. A round's error in radians, or 0 for a gun that fires real
+        /// projectiles; a soldier's width to a round, or 0 for what is no soldier; what a round does to a
+        /// soldier on top of the class multipliers (TacticalRules.Apply).</summary>
+        [System.NonSerialized] public float shotSpread, bodyRadius, vsSoldier;
         /// <summary>Moves on the ground through the NavMesh (everything mobile but aircraft).</summary>
         public bool Walks => IsMobile && !flying;
         /// <summary>The worker counts (Diggers, Haulers, Prospectors): what keeps a side's economy.</summary>
@@ -120,18 +126,39 @@ namespace StarForge.Sim
     public static class Defs
     {
         static UnitDef[] table;
+        static bool tableTactical;
+
+        // The copies go when play stops, and a static table outlives them with the domain reload off.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => table = null;
 
         public static void Bind(UnitCatalog catalog)
         {
+            tableTactical = TacticalRules.On;
             table = new UnitDef[(int)UnitType.Count];
             foreach (var d in catalog.defs)
-                if (d != null && d.type >= 0 && d.type < UnitType.Count) table[(int)d.type] = d;
+            {
+                if (d == null || d.type < 0 || d.type >= UnitType.Count) continue;
+                var use = d;
+                // Copies, so the assets (and the old rules) are never touched.
+                if (tableTactical) { use = Object.Instantiate(d); use.name = d.name; TacticalRules.Apply(use); }
+                table[(int)d.type] = use;
+            }
+        }
+
+        /// <summary>A match begins: the table the switch asks for, if it is not the one in hand.</summary>
+        public static void Rebind()
+        {
+            if (table == null || tableTactical != TacticalRules.On) Bind(UnitCatalog.Load());
         }
 
         public static UnitDef Get(UnitType t)
         {
             if (table == null) Bind(UnitCatalog.Load());
-            return table[(int)t];
+            var d = table[(int)t];
+            // The copies go when play stops: edit mode after a run under the new rules.
+            if (tableTactical && d == null) { Bind(UnitCatalog.Load()); d = table[(int)t]; }
+            return d;
         }
 
         /// <summary>Worth of a unit as army, used by perception and the strategy layer: what it

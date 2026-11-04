@@ -145,6 +145,10 @@ SOURCES = [
       ("oga", "lowpoly-animated-farm-animal-pack"), ["Assets/StarForge/Art/Fauna/Creature_Gorehorn.fbx"],
       ["Farm_Animals_by_Quaternius"]),
 
+    # KayKit -- the rigged soldier's skeleton and the motion of its legs and trunk (CC0), via itch.io
+    S("KayKit Character Animations", "Kay Lousberg", CC0, "https://kaylousberg.itch.io/kaykit-character-animations",
+      ("itch", None), [M + "SF_TROOPER_RIG.fbx"], ["KayKit_Character_Animations"]),
+
     # OpenGameArt -- music (CC0)
     S("At Home (orchestral)", "wolfgang", CC0, "https://opengameart.org/content/at-home-orchestral",
       ("oga", "at-home-orchestral"), [A + "Music/music_calm_0.ogg"]),
@@ -285,10 +289,12 @@ def verify(src):
         badge = "publicdomain/zero" in page
         return (badge and said.upper().replace(" ", "") == "CC0", f"the page states {said!r}")
     if kind == "itch":
-        # The itch.io page states it in its description ("... formats and CC0 license").
+        # The itch.io page states it in its description ("... formats and CC0 license") or
+        # its details table ("Creative Commons Zero v1.0 Universal").
         page = fetch(src["url"])
         text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", page)))
-        return ("CC0 license" in text or "CC0 License" in text, "the itch.io page states 'CC0 license'")
+        return ("CC0 license" in text or "CC0 License" in text or "Creative Commons Zero v1.0 Universal" in text,
+                "the itch.io page states CC0")
     if kind == "jangafx":
         page = fetch(src["url"])
         text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", page)))
@@ -326,7 +332,7 @@ def fetched_ids():
     ids |= block("FLORA", r'"([a-z0-9_]+)":')
     ids |= block("AMBIENTCG", r'"(LeafSet\d+)"') | block("KENNEY", r'"([a-z\-]+)":')
     ids |= block("QUATERNIUS", r'"([A-Za-z0-9_\.]+)":') | block("SFX", r':\s*"([^"]+)"')
-    ids |= block("JANGAFX", r'"([A-Za-z0-9_]+)":')
+    ids |= block("JANGAFX", r'"([A-Za-z0-9_]+)":') | block("ITCH_PACKS", r'"([A-Za-z0-9_]+)":')
     ids |= {t for _, _, t in re.findall(r'\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)',
                                        re.search(r"MUSIC\s*=\s*\{(.*?)\n\}", src, re.S).group(1))}
     return ids
@@ -387,7 +393,7 @@ def main():
             print(f"  FAIL THIRD-PARTY.md does not mention {s['name']}")
             bad += 1
     readme = open(os.path.join(ROOT, "README.md")).read()
-    for who in ("Poly Haven", "ambientCG", "Kenney", "Quaternius", "JangaFX", "OpenGameArt", "Inter", "Roboto Mono"):
+    for who in ("Poly Haven", "ambientCG", "Kenney", "Quaternius", "KayKit", "JangaFX", "OpenGameArt", "Inter", "Roboto Mono"):
         if who not in readme:
             print(f"  FAIL the README credits no {who}")
             bad += 1

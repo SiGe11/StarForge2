@@ -59,6 +59,10 @@ Shader "StarForge/Unit"
         [Toggle] _Crystal("Crystal (ore) glow", Float) = 0
         [Toggle] _OreGlowMask("Emission follows the carried load", Float) = 0
         [HideInInspector] _OreGlow("Carried load, 0..1", Range(0, 1)) = 0
+        // One material for a whole model: colour G holds the palette slot of each face,
+        // and these rows hold what a slot's own material would (SFMaterialLibrary.BuildPalette).
+        [Toggle] _UsePalette("Surface from the palette", Float) = 0
+        [NoScaleOffset] _PaletteMap("Palette", 2D) = "black" {}
     }
 
     SubShader
@@ -93,6 +97,7 @@ Shader "StarForge/Unit"
             half _Crystal;
             half _OreGlowMask;
             half _OreGlow;
+            half _UsePalette;
         CBUFFER_END
         float _SF_Rain;   // how wet a shower has left everything, 0..1 (FXDirector.Weather)
         ENDHLSL
@@ -119,6 +124,7 @@ Shader "StarForge/Unit"
 
             TEXTURE2D(_DetailAlbedoMap); SAMPLER(sampler_DetailAlbedoMap);
             TEXTURE2D(_DetailNormalMap);
+            TEXTURE2D(_PaletteMap);
 
             struct Attributes
             {
@@ -179,34 +185,59 @@ Shader "StarForge/Unit"
                 w *= w; w *= w;
                 w /= max(1e-4, w.x + w.y + w.z);
 
+                half3 baseColor = _BaseColor.rgb;
+                half3 emissionColor = _EmissionColor.rgb;
+                half metallic = _Metallic;
+                half smooth = _Smoothness;
+                half wearAmount = _WearAmount;
+                half grimeAmount = _GrimeAmount;
+                half aoStrength = _AOStrength;
+                half detailWeight = 1.0;
+                if (_UsePalette > 0.5)
+                {
+                    // A branch, not a keyword: no new shader variants. A slot with no detail
+                    // reads as the flat grey an unset detail map would give it.
+                    int slot = (int)(i.color.g * 255.0 + 0.5);
+                    half4 row0 = LOAD_TEXTURE2D(_PaletteMap, int2(slot, 0));
+                    half4 row1 = LOAD_TEXTURE2D(_PaletteMap, int2(slot, 1));
+                    half4 row2 = LOAD_TEXTURE2D(_PaletteMap, int2(slot, 2));
+                    baseColor = row0.rgb;
+                    smooth = row0.a;
+                    emissionColor = row1.rgb;
+                    metallic = row1.a;
+                    wearAmount = row2.r;
+                    grimeAmount = row2.g;
+                    aoStrength = row2.b;
+                    detailWeight = row2.a;
+                }
+
                 // Triplanar panel detail in object space.
                 half3 detail = SAMPLE_TEXTURE2D(_DetailAlbedoMap, sampler_DetailAlbedoMap, tp.zy).rgb * w.x
                              + SAMPLE_TEXTURE2D(_DetailAlbedoMap, sampler_DetailAlbedoMap, tp.xz).rgb * w.y
                              + SAMPLE_TEXTURE2D(_DetailAlbedoMap, sampler_DetailAlbedoMap, tp.xy).rgb * w.z;
-                half detailLum = dot(detail, half3(0.299, 0.587, 0.114));
+                half detailLum = lerp(0.5, dot(detail, half3(0.299, 0.587, 0.114)), detailWeight);
                 // Normalise the detail multiply by the photograph's own average (its
                 // smallest mip), so it adds grain and panelling around the calibrated
                 // albedo instead of darkening it: the armour plate photograph averages
                 // far below mid-grey, and multiplying by it raw sank every hull.
                 half3 detailAvg = SAMPLE_TEXTURE2D_LOD(_DetailAlbedoMap, sampler_DetailAlbedoMap, float2(0.5, 0.5), 12).rgb;
-                half3 albedo = _BaseColor.rgb * LerpWhiteTo(detail / max(detailAvg, 0.02), _DetailAlbedoMapScale);
+                half3 albedo = baseColor * LerpWhiteTo(detail / max(detailAvg, 0.02), _DetailAlbedoMapScale * detailWeight);
 
-                half3 tnX = UnpackNormalScale(SAMPLE_TEXTURE2D(_DetailNormalMap, sampler_DetailAlbedoMap, tp.zy), _DetailNormalMapScale);
-                half3 tnY = UnpackNormalScale(SAMPLE_TEXTURE2D(_DetailNormalMap, sampler_DetailAlbedoMap, tp.xz), _DetailNormalMapScale);
-                half3 tnZ = UnpackNormalScale(SAMPLE_TEXTURE2D(_DetailNormalMap, sampler_DetailAlbedoMap, tp.xy), _DetailNormalMapScale);
+                half normalScale = _DetailNormalMapScale * detailWeight;
+                half3 tnX = UnpackNormalScale(SAMPLE_TEXTURE2D(_DetailNormalMap, sampler_DetailAlbedoMap, tp.zy), normalScale);
+                half3 tnY = UnpackNormalScale(SAMPLE_TEXTURE2D(_DetailNormalMap, sampler_DetailAlbedoMap, tp.xz), normalScale);
+                half3 tnZ = UnpackNormalScale(SAMPLE_TEXTURE2D(_DetailNormalMap, sampler_DetailAlbedoMap, tp.xy), normalScale);
                 tnX = half3(tnX.xy + nOS.zy, abs(tnX.z) * nOS.x);
                 tnY = half3(tnY.xy + nOS.xz, abs(tnY.z) * nOS.y);
                 tnZ = half3(tnZ.xy + nOS.xy, abs(tnZ.z) * nOS.z);
                 half3 n = TransformObjectToWorldNormal(normalize(tnX.zyx * w.x + tnY.xzy * w.y + tnZ.xyz * w.z));
 
-                half ao = lerp(1.0, i.color.r, _AOStrength);
-                half metallic = _Metallic;
-                half smooth = _Smoothness;
+                half ao = lerp(1.0, i.color.r, aoStrength);
 
                 // Edge wear on the bevels, kept out of cavities, chipped by the detail texture.
                 half curvature = length(fwidth(i.normalWS)) / max(length(fwidth(i.positionWS)), 1e-4);
                 half edge = saturate(curvature * _WearCurvature);
-                half wear = saturate((edge - 0.35 + (detailLum - 0.45) * 1.4) * 2.5) * _WearAmount
+                half wear = saturate((edge - 0.35 + (detailLum - 0.45) * 1.4) * 2.5) * wearAmount
                           * smoothstep(0.55, 0.85, i.color.r);
                 albedo = lerp(albedo, _WearColor.rgb * (0.7 + detailLum * 0.6), wear);
                 metallic = lerp(metallic, 0.85, wear);
@@ -218,12 +249,12 @@ Shader "StarForge/Unit"
                 // Dust climbing from the ground, dirt in the cavities.
                 half ground = 1.0 - smoothstep(0.0, _GrimeHeight, i.positionOS.y);
                 half cavity = saturate((1.0 - i.color.r) * 1.5);
-                half grime = saturate((ground * 0.8 + cavity * 0.6) * (0.6 + (0.5 - detailLum) * 1.2)) * _GrimeAmount * (1.0 - wear);
+                half grime = saturate((ground * 0.8 + cavity * 0.6) * (0.6 + (0.5 - detailLum) * 1.2)) * grimeAmount * (1.0 - wear);
                 albedo = lerp(albedo, _GrimeColor.rgb, grime);
                 smooth *= 1.0 - grime * 0.6;
 
                 half3 viewWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
-                half3 emission = _EmissionColor.rgb * lerp(1.0, _OreGlow, _OreGlowMask) + _FlashColor.rgb;
+                half3 emission = emissionColor * lerp(1.0, _OreGlow, _OreGlowMask) + _FlashColor.rgb;
 
                 if (_Crystal > 0.5)
                 {

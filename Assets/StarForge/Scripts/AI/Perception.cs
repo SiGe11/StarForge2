@@ -96,7 +96,7 @@ namespace StarForge.AI
                 if (e.dying)
                 {
                     // Their Mech going down in sight: now it is gone (Forget lets go of it).
-                    if (e.team == 1 - team && e.Type == UnitType.Mech && w.Visible(team, e.pos)) mechSeenFalling = true;
+                    if (e.team == 1 - team && e.Type == UnitType.Mech && w.Sees(team, e)) mechSeenFalling = true;
                     continue;
                 }
                 if (e.team == team)
@@ -125,8 +125,8 @@ namespace StarForge.AI
                     continue;
                 }
                 if (e.team != enemy) continue;
-                // Enemy: only if one of our units can currently see that cell.
-                if (!w.Visible(team, e.pos)) continue;
+                // Enemy: only if one of our units can currently see it.
+                if (!w.Sees(team, e)) continue;
                 // Their deserters are out of the war, as ours are (the player sees their bars in the
                 // deserter colour too): remembered, a camp 40-68 m out read as their army away from home.
                 if (e.deserted) continue;
