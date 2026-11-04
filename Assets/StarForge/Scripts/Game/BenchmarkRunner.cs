@@ -428,8 +428,9 @@ namespace StarForge.Game
             holdCamera = true;
             yield return Shot("7_battle_close", fight, 32f, 0.6f);
             yield return Shot("8_battle_mid", fight, 72f, 0.6f);
-            // A Mech, once one is down.
-            deadline = Time.realtimeSinceStartup + 300f;
+            // A Mech, once one is down: it lands MechDropDelay (seven minutes) after a bay stands,
+            // at about nine minutes in, and the gallery runs at 1x, so wait that long on top.
+            deadline = Time.realtimeSinceStartup + 300f + GameWorld.MechDropDelay;
             while (Time.realtimeSinceStartup < deadline)
             {
                 StarForge.View.MechView mv = null;

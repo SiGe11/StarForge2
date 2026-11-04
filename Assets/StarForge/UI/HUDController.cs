@@ -1302,8 +1302,9 @@ namespace StarForge.UI
             "Thumpers and Maulers against your towers, and gunships or Razorwings where little of yours can shoot up. It adds " +
             "Haulers to its ore lines from four minutes, and Prospectors -- armed ore trucks -- while you raid them. Once it knows of " +
             "your Mech, its bay or your Ironclads it buys the Armory's Mech-Hunter Programme and keeps a Mech-Hunter in the field.\n\n" +
-            "It has a Mech too. It raises a Mech Bay early, buys its Mech upgrades from spare ore -- guns and hardpoints when it " +
-            "means to attack, armour when it means to hold -- and goes for your Mech Bay while your Mech has not yet landed. " +
+            "It has a Mech too. It raises a Mech Bay early (its Mech lands seven minutes later), buys its Mech upgrades from spare " +
+            "ore once that Mech is two minutes from landing -- guns and hardpoints when it means to attack, armour when it means to hold -- " +
+            "and goes for your Mech Bay while your Mech has not yet landed. " +
             "Its Mech is not under its command any more than yours is under yours: it listens to what its Mech tells it and " +
             "sometimes acts on it -- meeting a raid its Mech saw coming, striking when its Mech says the moment has come -- and " +
             "sometimes does not. Around your Mech it keeps its army together and puts everything it has on it, and it does not " +

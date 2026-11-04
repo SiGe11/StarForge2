@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 11
   displayName: Mech Bay
-  blurb: 'Calls down your Mech two minutes after it stands: a war machine with a mind of its own, allied to you but not under your orders. One a match, never rebuilt. Guards itself with a gun tower, mends itself, repairs the Mech and sells its upgrades.'
+  blurb: 'Calls down your Mech seven minutes after it stands: a war machine with a mind of its own, allied to you but not under your orders. One a match, never rebuilt. Guards itself with a gun tower, mends itself, repairs the Mech and sells its upgrades.'
   building: 1
   neutral: 0
   radius: 4.2

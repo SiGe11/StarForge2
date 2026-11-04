@@ -288,7 +288,9 @@ namespace StarForge.AI
             pe.raidTaste = r.F01();
             pe.adviceTrust = r.Range(0.35f, 0.95f);
             // A Mech Bay is cheap and needs nothing, so every personality raises one early;
-            // how early is a matter of taste (and of the opening).
+            // how early is a matter of taste (and of the opening). The Mech lands
+            // GameWorld.MechDropDelay (seven minutes) after it stands, so an earlier bay is an
+            // earlier Mech. (Keep this one draw in its slot: every draw after it shifts otherwise.)
             pe.mechBayAt = r.Range(40f, 120f) * (pe.opening == Opening.FastExpand ? 1.3f : 1f);
             for (int i = 0; i < pe.taste.Length; i++) pe.taste[i] = r.Range(-0.12f, 0.12f);
             var r2 = new Rng(seed ^ 0x7EC4A1u);
@@ -1416,10 +1418,17 @@ namespace StarForge.AI
             return false;
         }
 
+        /// <summary>How long before its Mech lands the AI starts buying that Mech's upgrades (see BuyMechUpgrade).</summary>
+        public const float UpgradeLead = 120f;
+
         bool BuyMechUpgrade(Faction F)
         {
             var bay = w.BayOf(team);
             if (bay == null || !bay.Complete || F.researching >= 0 || F.mechLost) return false;
+            // Upgrades are no use to a Mech that is minutes from landing, and the ore is army not
+            // trained meanwhile: buy them in the last UpgradeLead seconds before the drop (the
+            // two minutes the drop once took) and after.
+            if (!F.mechDropped && w.time < F.mechDropAt - UpgradeLead) return false;
             int spare = F.ore - (w.time < 300f ? 250 : 150);
             if (spare <= 0) return false;
             var st = Selector.Current;

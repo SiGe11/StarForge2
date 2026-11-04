@@ -251,12 +251,16 @@ Inspector; rebuilding prefabs keeps your values.
 
 ## Mechs
 
-Each side may raise one **Mech Bay** (Digger, `Y`; 100 ore, no prerequisites). Two
-minutes after it stands, a **Mech** comes down from orbit beside it on its retro-rockets:
+Each side may raise one **Mech Bay** (Digger, `Y`; 100 ore, no prerequisites). Seven
+minutes after it stands (it was two until 2026-11-04), a **Mech** comes down from orbit beside it on its retro-rockets:
 a seven-to-nine-metre war machine worth a company of tanks -- enough to turn a fight, not to
 win the war alone. Each side gets **one Mech and one
 Mech Bay a match**: a bay that falls is never rebuilt, and a Mech that falls is never
-replaced. Destroy the enemy's bay before its Mech lands and it never comes. A bay
+replaced. Destroy the enemy's bay before its Mech lands and it never comes -- and with seven
+minutes to do it in, that is a real plan: until the drop the bay, with its own gun tower, is the
+one thing of theirs that matters, and the count over it ("Mech drop in 7:00") shows how long
+you have. AI against AI on the default map (seed 1000) the bays stood at 2:04 and 2:11 and the Mechs
+landed at 9:07 and 9:15. A bay
 called off before it stands does not count, and nor does a site shot down before any
 Digger started work on it: the bay may be placed again (the ore of a site shot down is
 gone). A structure's site appears as soon as it is ordered, so a bay ordered into the
@@ -353,7 +357,9 @@ it falls back to your lines. With its bay destroyed it fights on -- no repair is
 waiting gains nothing -- taking only long odds as its hull falls. It guards your base, not a bay
 far forward.
 
-`BayEdgeCases` (Editor/MechTrials.cs) checks ten cases on the default map, AI against AI. A
+`BayEdgeCases` (Editor/MechTrials.cs) checks ten cases on the default map, AI against AI (every
+number in this passage was measured with the old two-minute drop; the trial keeps it for both sides'
+bays in every case, since its 420 s runs are shorter than the game's seven minutes). A
 Digger walked into the enemy base at a minute and a half was shot as it began work, and its site
 fell within four seconds; 45 m outside, the Digger lasted 15-18 s and the bay was never finished
 (without the opponent's answer to a site it took 19-39 s, and one bay in three was finished and
@@ -553,8 +559,9 @@ as the Mauler's cannon (158-192 Hz, 41-58%), the deepest sounds in the game.
   go in, and sometimes split to hit two places at once. About half the time it keeps
   a pair of Skimmers raiding your Diggers whatever else it is doing. A plan that is not
   paying off is dropped, and a way in that you beat is not tried again soon.
-- **It has a Mech too.** It raises a Mech Bay early, buys its Mech upgrades from
-  spare ore -- guns and hardpoints when it means to attack, armour when it means to
+- **It has a Mech too.** It raises a Mech Bay early (its Mech lands seven minutes
+  later), buys its Mech upgrades from spare ore once that Mech is two minutes from
+  landing -- guns and hardpoints when it means to attack, armour when it means to
   hold -- and goes for your Mech Bay while your Mech has not yet landed. Its Mech is
   not under its command any more than yours is under yours (it fights as carefully as
   yours, with a temper of its own): it listens to the calls its Mech sends it,
@@ -1023,8 +1030,10 @@ is the machine's own cool-to-warm drift.
 
 **With the Mechs**, measured the way a match plays. The benchmark used to run uncapped with
 vsync off, which is not how anyone plays: `-sfplay` keeps vsync and the 60 cap. Over 420 s --
-long enough for both Mechs to land at about four minutes and fight, the camera following the
-heaviest action -- on the MacBook Neo, plugged in.
+long enough, with the two-minute drop it had then, for both Mechs to land at about four minutes and fight, the camera following the
+heaviest action -- on the MacBook Neo, plugged in. (Since 2026-11-04 the drop takes seven
+minutes and the Mechs land at about nine, so a 420 s run no longer has one: a run that is to
+include them for as long as before needs about 740 s, and no number in this section was measured that way.)
 
 **The frame-rate aim today.** Once 35 fps was enough (2026-11-04), *High* stopped holding about
 50 and gave the difference to resolution: it now steps down past 60% missed refreshes and tries

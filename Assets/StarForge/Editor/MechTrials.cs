@@ -1323,6 +1323,25 @@ namespace StarForge.EditorTools
                                                   "in the enemy base, its Mech already down, a tower of ours within 25 m of their base's middle" };
         /// <summary>Run only this case (-1: all).</summary>
         public static int Only = -1;
+        /// <summary>Seconds from a bay standing to its Mech landing, for both sides in every case: the game's old
+        /// two-minute drop, which every recorded case was measured with and the 420 s run can hold (the game's
+        /// own is seven minutes since 2026-11-04; the defender's Mech would land after cases 0-5 had ended).</summary>
+        const float CaseDropDelay = 120f;
+
+        /// <summary>Cuts a drop the game just set (completion + the game's delay) to completion + <see cref="CaseDropDelay"/>,
+        /// once per bay: <paramref name="pinned"/> holds the value last set for each side, so a drop already pinned
+        /// (staged directly, or cut before) is left alone. Catches a Digger-built bay (cases 6 and 7) and the
+        /// other side's own bay, which the trial never touches.</summary>
+        static void PinDrops(StarForge.World.GameWorld world, float[] pinned)
+        {
+            for (int t = 0; t < 2; t++)
+            {
+                var F = world.factions[t];
+                if (F.mechDropped || F.mechInbound || F.mechDropAt < 0f || F.mechDropAt == pinned[t]) continue;
+                F.mechDropAt -= StarForge.World.GameWorld.MechDropDelay - CaseDropDelay;
+                pinned[t] = F.mechDropAt;
+            }
+        }
         public string report = "staging";
 
         public static string Run()
@@ -1436,6 +1455,7 @@ namespace StarForge.EditorTools
                 var spot = SpotFor(world, c);
                 if (spot == null) { log.AppendLine($"case {c} ({Cases[c]}): no buildable spot found"); continue; }
                 var F0 = world.factions[0];
+                var pinnedDrop = new[] { -2f, -2f };   // what PinDrops last set for each side (see there)
                 // The side's own AI may have raised a bay already: this case replaces it.
                 if (StarForge.World.Unit.Live(F0.bay)) { world.units.Remove(F0.bay); UnityEngine.Object.Destroy(F0.bay.gameObject); }
                 StarForge.World.Unit bay, digger = null, tower = null;
@@ -1496,7 +1516,10 @@ namespace StarForge.EditorTools
                         else { tower = world.Spawn(StarForge.Sim.UnitType.Sentinel, 0, at.Value, true, 0f); towerFrom = (at.Value - home1).magnitude; }
                     }
                     // Cases 8 and 9: the Mech comes down at once, beside the bay in their base.
-                    F0.mechDropAt = world.time + (c >= 8 ? 3f : StarForge.World.GameWorld.MechDropDelay);
+                    // The others keep the two-minute drop every recorded case was measured with (the
+                    // game's own is seven minutes since 2026-11-04, longer than this trial runs).
+                    F0.mechDropAt = world.time + (c >= 8 ? 3f : CaseDropDelay);
+                    pinnedDrop[0] = F0.mechDropAt;
                 }
                 // What of theirs died round it while it stood, and when it was finished.
                 int theirWorkersLost = 0, theirArmyLost = 0;
@@ -1530,6 +1553,7 @@ namespace StarForge.EditorTools
                 while (world.time < placedAt + 420f && world.winner < 0 && ReferenceEquals(StarForge.World.GameWorld.Instance, world))
                 {
                     yield return null;
+                    PinDrops(world, pinnedDrop);
                     float dt = world.time - lastT; lastT = world.time;
                     if (Only >= 0 && world.time >= nextSample)
                     {

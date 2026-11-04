@@ -3,7 +3,7 @@
 One Mech Bay and one Mech a side, a match (README "Mechs"). Mech *AI* (MechBrain, speech, doctrine, bay edge cases): `../../AI/CLAUDE.md`.
 
 ## Rules
-- `World/GameWorld.Mech.cs`: the bay (drop timer `MechDropDelay` 120 s, self-repair, repairing the Mech, upgrades `CmdMechUpgrade`), the Mech's guns `FireMechGun`; `Faction.bay/mech/design/upgrades/researching`.
+- `World/GameWorld.Mech.cs`: the bay (drop timer `MechDropDelay` **420 s, seven minutes since 2026-11-04; it was 120 s, so every record below that dates a Mech's landing or a bay's life was measured with the two-minute drop**, self-repair, repairing the Mech, upgrades `CmdMechUpgrade`), the Mech's guns `FireMechGun`; `Faction.bay/mech/design/upgrades/researching`.
 - `MechParts.cs`: fixed parts list, the 100-point budget, `Generate(seed)`, upgrade costs — the balance sheet.
 - `MechCore.cs` (on the Mech's GameObject): stats from parts and upgrades, shield and armour in `Absorb`, every gun picks its own target.
 - `Unit.Tick` hands a Mech to `TickMech`; `Unit.Untargetable` = a Mech still coming down. Designs are drawn in `BeginMatch` from the match seed, so a seed replays.

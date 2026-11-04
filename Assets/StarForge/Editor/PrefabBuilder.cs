@@ -59,7 +59,7 @@ namespace StarForge.EditorTools
                 Def(UnitType.Ore,      "Ore Seam", false, true,  1.6f, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ' ', "Crystal ore. Diggers carry 8 per trip."),
                 Def(UnitType.Boulder,  "Boulder",  false, true,  1.1f, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ' ', ""),
                 Def(UnitType.MechBay,  "Mech Bay", true,  false, 4.2f, 1800, 0, 3.0f, 24f, 22, 0.60f, 0f, 30, 35, 100, 0, 0, 'Y',
-                    "Calls down your Mech two minutes after it stands: a war machine with a mind of its own, allied to you " +
+                    "Calls down your Mech seven minutes after it stands: a war machine with a mind of its own, allied to you " +
                     "but not under your orders. One a match, never rebuilt. Guards itself with a gun tower, mends itself, " +
                     "repairs the Mech and sells its upgrades."),
                 // The Mech's real numbers come from its parts (World/MechParts); these are

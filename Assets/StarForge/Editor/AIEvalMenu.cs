@@ -8,9 +8,10 @@ namespace StarForge.EditorTools
 {
     public static class AIEvalMenu
     {
-        // Matches run longer since the Mechs (they land at four or five minutes and hold
+        // Matches run longer since the Mechs (they landed at four or five minutes, and hold
         // a base for a long while), so the caps did too: 420 and 600 s ended every
-        // match undecided.
+        // match undecided. Since 2026-11-04 a Mech lands about nine minutes in (seven after
+        // its bay stands), so the 720 and 900 s caps leave it 3 and 6 minutes.
         [MenuItem("StarForge/Evaluate AI/Quick (1 game per opponent, 720 s)", priority = 50)]
         public static void Quick() => Run(1, 720f);
 

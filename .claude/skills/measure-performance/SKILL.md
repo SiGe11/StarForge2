@@ -15,7 +15,8 @@ Reasons, baselines and the adaptive-resolution rules: `Assets/StarForge/Scripts/
 5. Rebuild first if code changed: `Tools/editor.sh menu "StarForge/Build macOS Player (Apple silicon)"` (cached ~20 s).
 6. Runs are silent by default: the test flags below start the player muted (listener volume 0; voices and mixer still run, so numbers should compare; no muted/unmuted fps pair yet) and Editor play started through `editor.sh` is muted (root `CLAUDE.md`, "Agent runs are silent"). Add `-sfsound` / call `AgentAudio.Hear` only when the user is meant to listen.
 
-## Player benchmark (AI vs AI, seed 1000; Mechs land at ~4 min, so 420 s)
+## Player benchmark (AI vs AI, seed 1000; baselines are 420 s runs, from when Mechs landed at ~4 min)
+The Mech drop has taken seven minutes since 2026-11-04 (seed 1000: Mechs land at ~9:07 and ~9:15), so **`-sfbench 420` has no Mech in it** and its baselines' "with a Mech in view" numbers cannot be reproduced; use `-sfbench 740` (about 3 minutes of Mech, like the old runs; compare against another 740 s run) when Mechs are the point.
 ```bash
 Builds/StarForge.app/Contents/MacOS/StarForge -sfbench 420 -sfplay -sfbenchout /tmp/starforge_bench.txt
 ```

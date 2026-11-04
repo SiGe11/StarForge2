@@ -1,7 +1,7 @@
 // GameWorld.Mech.cs — the Mech Bay and the Mech: the one structure a side may raise
 // only once, the Mech it calls down, and the Mech's guns.
 //
-// A Mech Bay is cheap and needs nothing before it. Two minutes after it stands, a
+// A Mech Bay is cheap and needs nothing before it. Seven minutes after it stands, a
 // Mech drops from orbit beside it: one a side, a match, and never again once it is
 // lost. The bay guards itself with a gun tower, mends itself, repairs the Mech when
 // it comes home, and sells the upgrades that make the Mech faster, tougher,
@@ -18,8 +18,9 @@ namespace StarForge.World
 {
     public sealed partial class GameWorld
     {
-        /// <summary>Seconds from the bay standing to the Mech landing.</summary>
-        public const float MechDropDelay = 120f;
+        /// <summary>Seconds from the bay standing to the Mech landing: seven minutes (it was two until
+        /// 2026-11-04). The bay is the only thing a side has to defend or hit meanwhile.</summary>
+        public const float MechDropDelay = 420f;
         /// <summary>How long before the drop its side is warned, and the bay lights up.</summary>
         public const float MechInboundLead = 9f;
         public const float MechBayMuzzleHeight = 6.3f;
