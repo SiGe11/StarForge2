@@ -4,15 +4,7 @@
     "height": 5.05,
     "triangles": 6040,
     "materials": [
-      "armor_dark",
-      "shadowed",
-      "dark",
-      "steel",
-      "team",
-      "armor",
-      "glow_amber",
-      "glow_cyan",
-      "armor_lit"
+      "palette"
     ],
     "groups": {
       "ThighR": [
@@ -90,14 +82,7 @@
     "height": 4.49,
     "triangles": 6264,
     "materials": [
-      "armor_dark",
-      "armor",
-      "dark",
-      "glow_amber",
-      "steel",
-      "team",
-      "armor_lit",
-      "glow_cyan"
+      "palette"
     ],
     "groups": {
       "LegFR": [
@@ -215,14 +200,7 @@
     "height": 2.75,
     "triangles": 4316,
     "materials": [
-      "rubber",
-      "dark",
-      "steel",
-      "armor_dark",
-      "team",
-      "armor",
-      "armor_lit",
-      "glow_dim"
+      "palette"
     ],
     "groups": {},
     "points": {
@@ -249,14 +227,7 @@
     "height": 2.7,
     "triangles": 3268,
     "materials": [
-      "armor",
-      "armor_lit",
-      "dark",
-      "glow_cyan",
-      "team",
-      "armor_dark",
-      "steel",
-      "glow_amber"
+      "palette"
     ],
     "groups": {
       "FanFR": [
@@ -314,16 +285,7 @@
     "height": 3.122,
     "triangles": 5228,
     "materials": [
-      "dark",
-      "armor_dark",
-      "shadowed",
-      "armor",
-      "armor_lit",
-      "team",
-      "glow_cyan",
-      "glow_amber",
-      "steel",
-      "glow_warm"
+      "palette"
     ],
     "groups": {
       "Banner": [
@@ -431,16 +393,7 @@
     "height": 3.63,
     "triangles": 4928,
     "materials": [
-      "dark",
-      "armor_dark",
-      "shadowed",
-      "armor",
-      "armor_lit",
-      "team",
-      "glow_cyan",
-      "glow_amber",
-      "steel",
-      "glow_warm"
+      "palette"
     ],
     "groups": {
       "Banner": [
@@ -553,16 +506,7 @@
     "height": 4.138,
     "triangles": 5340,
     "materials": [
-      "dark",
-      "armor_dark",
-      "shadowed",
-      "armor",
-      "armor_lit",
-      "team",
-      "glow_cyan",
-      "glow_amber",
-      "steel",
-      "glow_warm"
+      "palette"
     ],
     "groups": {
       "Banner": [
@@ -680,13 +624,7 @@
     "height": 0.36,
     "triangles": 720,
     "materials": [
-      "armor_dark",
-      "armor",
-      "armor_lit",
-      "team",
-      "dark",
-      "steel",
-      "shadowed"
+      "palette"
     ],
     "groups": {
       "Barrel": [
@@ -709,11 +647,7 @@
     "height": 0.4,
     "triangles": 776,
     "materials": [
-      "armor_dark",
-      "armor",
-      "team",
-      "dark",
-      "steel"
+      "palette"
     ],
     "groups": {
       "Spin": [
@@ -736,11 +670,7 @@
     "height": 0.77,
     "triangles": 824,
     "materials": [
-      "dark",
-      "armor_dark",
-      "team",
-      "shadowed",
-      "glow_amber"
+      "palette"
     ],
     "groups": {},
     "points": {
@@ -757,10 +687,7 @@
     "height": 1.862,
     "triangles": 572,
     "materials": [
-      "armor_dark",
-      "armor",
-      "dark",
-      "team"
+      "palette"
     ],
     "groups": {
       "Tube": [
@@ -783,14 +710,7 @@
     "height": 0.36,
     "triangles": 744,
     "materials": [
-      "armor_dark",
-      "armor",
-      "armor_lit",
-      "team",
-      "steel",
-      "glow_cyan",
-      "shadowed",
-      "dark"
+      "palette"
     ],
     "groups": {},
     "points": {
@@ -807,12 +727,7 @@
     "height": 0.36,
     "triangles": 760,
     "materials": [
-      "armor_dark",
-      "rust",
-      "steel",
-      "team",
-      "dark",
-      "glow_warm"
+      "palette"
     ],
     "groups": {},
     "points": {
@@ -829,11 +744,7 @@
     "height": 0.36,
     "triangles": 804,
     "materials": [
-      "armor_dark",
-      "armor",
-      "glow_cyan",
-      "team",
-      "steel"
+      "palette"
     ],
     "groups": {
       "Barrel": [
@@ -856,14 +767,7 @@
     "height": 0.71,
     "triangles": 1228,
     "materials": [
-      "armor_dark",
-      "team",
-      "armor",
-      "armor_lit",
-      "steel",
-      "dark",
-      "glow_warm",
-      "rust"
+      "palette"
     ],
     "groups": {
       "Turret": [
@@ -886,17 +790,7 @@
     "height": 6.247,
     "triangles": 2968,
     "materials": [
-      "dark",
-      "armor_dark",
-      "team",
-      "glow_amber",
-      "steel",
-      "glow_cyan",
-      "armor",
-      "shadowed",
-      "glow_warm",
-      "armor_lit",
-      "rust"
+      "palette"
     ],
     "groups": {
       "Trolley": [
@@ -939,12 +833,7 @@
     "height": 0.83,
     "triangles": 540,
     "materials": [
-      "armor",
-      "armor_lit",
-      "team",
-      "glow_amber",
-      "steel",
-      "dark"
+      "palette"
     ],
     "groups": {
       "Barrels": [

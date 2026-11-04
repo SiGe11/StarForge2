@@ -671,7 +671,7 @@ def main():
             o.name = '%s_%s' % (model.name, o.name)
         objs[0].location.x = i * 7.0
         meta[model.name] = {'radius': round(rad, 3), 'height': round(top, 3), 'triangles': tris,
-                            'materials': slots,
+                            'materials': X.fbx_slots(slots),
                             'groups': {g: [round(c, 3) for c in p] for g, p in model.groups.items()},
                             'chunks': len(chunks), 'lod1_triangles': 0}
         meta[model.name].update(model.meta)

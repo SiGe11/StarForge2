@@ -796,7 +796,7 @@ def main():
             o.location += Vector((i * 8.0, 14.0, 0.0))
         objs[0].location.x = i * 8.0
         meta[model.name] = {'radius': round(rad, 3), 'height': round(top, 3), 'triangles': tris,
-                            'materials': slots,
+                            'materials': E.fbx_slots(slots),
                             'groups': {g: [round(c, 3) for c in p] for g, p in model.groups.items()},
                             'points': {k: list(v) for k, v in POINTS.get(model.name, {}).items()},
                             'chunks': len(chunks)}

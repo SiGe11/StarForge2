@@ -59,7 +59,8 @@ namespace StarForge.EditorTools
         };
 
         /// <summary>The slot a model names to draw every face with one material: its colour G
-        /// says which palette slot a face is (Tools/blender/build_soldier_rig.py).</summary>
+        /// says which palette slot a face is (Tools/blender/export_fbx.py merge_palette; the rigged
+        /// soldier's build_soldier_rig.py merge_materials).</summary>
         public const string PaletteSlot = "palette";
 
         // sf_model.MAT_NAMES, whose indices the model writes. Flora's slots are never drawn with

@@ -7,16 +7,19 @@ Unity-edition models in build_models_ext.py, the set dressing in build_env.py
 and the trees in build_flora.py) and replaces the old binary pack
 with one FBX per model, carrying:
 
-  * one material slot per palette entry actually used, named after the
-    palette (`armor`, `team`, `glow_cyan`, ...) so Unity can remap each slot
-    to a URP material by name;
+  * one material slot `palette` for every face SF_Unit can draw from its palette
+    texture, colour G saying which palette entry each face is (merge_palette), so
+    a renderer is one draw a pass; a slot with a path of its own (`crystal`,
+    `ore_glow`, `rock`) keeps its name and flora keeps all its slots, which Unity
+    remaps to materials by name;
   * a box-projected UV set in object space, so tiling detail textures stay
     put as a unit turns;
   * hard edges wherever faces meet at more than SMOOTH_ANGLE, and fully flat
     shading on parts marked flat (rock), exported as normals;
   * baked ambient occlusion in vertex colour R, cast against the whole model
     and the ground, which the unit shader uses for occlusion and grime, and
-    per-vertex shading data in G and B where a part sets it (sf_model.set_vdata);
+    per-vertex shading data in G and B where a part sets it (sf_model.set_vdata:
+    crystal and flora, which keep it);
   * movable part groups (Model.group) as child objects with their origin at
     the pivot: legs, gun, cutter arm, barrels, rotating heads.
 
@@ -55,6 +58,15 @@ AO_RAYS = 32
 # Structures that break apart on death, and into how many pieces.
 CHUNKED = {'FOUNDRY': 12, 'GARRISON': 10, 'WORKSHOP': 10, 'BUNKHOUSE': 7, 'SENTINEL_BASE': 6}
 
+# The one material SF_Unit draws a model's faces with, colour G naming the palette entry
+# (_UsePalette; SFMaterialLibrary.BuildPalette holds the entries' numbers by sf_model.MAT_INDEX).
+PALETTE_SLOT = 'palette'
+# These keep their own material: crystal reads colour G and B as shard data, ore glass follows
+# the load through _OreGlow, rock takes the cliff's grain.
+OWN_MATERIAL = ('crystal', 'ore_glow', 'rock')
+# Drawn with SF_Tree, which reads colour G, B and A; MapBuilder finds bark and foliage by this order.
+FLORA_SLOTS = ('bark', 'leaf', 'needle')
+
 # Game space is Unity space: +Y up, +Z forward, left-handed. Blender's FBX
 # exporter (axis_up=Y, axis_forward=-Z, baked) followed by Unity's importer
 # maps Blender (X, Y, Z) to Unity (X, Z, Y) -- measured, not assumed: an
@@ -88,6 +100,60 @@ def preview_material(name):
             bsdf.inputs['Emission Strength'].default_value = emis
     mat.diffuse_color = (r, g, b, 1.0)
     return mat
+
+
+def slot_material(slot):
+    mat = bpy.data.materials.get(slot)
+    if mat is not None:
+        return mat
+    return bpy.data.materials.new(PALETTE_SLOT) if slot == PALETTE_SLOT else preview_material(slot)
+
+
+def takes_palette(slots):
+    return not any(s in FLORA_SLOTS for s in slots) and any(s not in OWN_MATERIAL for s in slots)
+
+
+def fbx_slots(slots):
+    """The slot names a model's FBX holds, for models.json."""
+    if not takes_palette(slots):
+        return slots
+    return [PALETTE_SLOT] + [s for s in slots if s in OWN_MATERIAL]
+
+
+def merge_palette(me, slots):
+    """Moves every face SF_Unit can draw from its palette onto the one slot `palette`, with colour G
+    naming its entry, and returns the slots left on this mesh, only those it uses. Per corner, since a
+    part's faces can share a vertex and still differ in slot. Faces with a material of their own keep
+    their colour as it was (crystal reads G and B). Flora and models with nothing to move are left."""
+    if not me.polygons or not takes_palette(slots):
+        return slots
+    faces = [0] * len(me.polygons)
+    me.polygons.foreach_get('material_index', faces)
+    used = sorted(set(faces))
+    moved = {i: S.MAT_INDEX[slots[i]] / 255.0 for i in used if slots[i] not in OWN_MATERIAL}
+    kept = ([PALETTE_SLOT] if moved else []) + [slots[i] for i in used if i not in moved]
+
+    if moved:
+        col = [0.0] * (4 * len(me.vertices))
+        me.color_attributes['Col'].data.foreach_get('color', col)
+        loop_vert = [0] * len(me.loops)
+        me.loops.foreach_get('vertex_index', loop_vert)
+        out = [0.0] * (4 * len(me.loops))
+        for poly, slot in zip(me.polygons, faces):
+            index = moved.get(slot)
+            for li in range(poly.loop_start, poly.loop_start + poly.loop_total):
+                v = loop_vert[li] * 4
+                out[li * 4:li * 4 + 4] = col[v:v + 4]
+                if index is not None:
+                    out[li * 4 + 1] = index
+        me.color_attributes.new('Pal', 'FLOAT_COLOR', 'CORNER').data.foreach_set('color', out)
+        me.color_attributes.remove(me.color_attributes['Col'])
+        me.color_attributes['Pal'].name = 'Col'
+
+    remap = {i: 0 if i in moved else kept.index(slots[i]) for i in used}
+    me.polygons.foreach_set('material_index', [remap[i] for i in faces])
+    me.update()
+    return kept
 
 
 def prepare(model):
@@ -231,8 +297,10 @@ def apply_normal_hints(me, blend=0.8):
         me.attributes.remove(me.attributes[n])
 
 
-def make_object(name, parts, slots, pivot=(0.0, 0.0, 0.0), parent=None, parent_pivot=(0.0, 0.0, 0.0)):
-    """Merge `parts` into one mesh object whose origin sits at `pivot` (game space)."""
+def make_object(name, parts, slots, pivot=(0.0, 0.0, 0.0), parent=None, parent_pivot=(0.0, 0.0, 0.0), merge=False):
+    """Merge `parts` into one mesh object whose origin sits at `pivot` (game space). `merge` puts
+    its faces on the palette; without it the slots stay (build_soldier_rig.py merges on export only,
+    and its preview sheets need them)."""
     combined = bmesh.new()
     shift = Matrix.Translation(-to_blender(pivot))
     for part in parts:
@@ -245,8 +313,8 @@ def make_object(name, parts, slots, pivot=(0.0, 0.0, 0.0), parent=None, parent_p
     me = bpy.data.meshes.new(name)
     combined.to_mesh(me)
     combined.free()
-    for slot in slots:
-        me.materials.append(bpy.data.materials.get(slot) or preview_material(slot))
+    for slot in (merge_palette(me, slots) if merge else slots):
+        me.materials.append(slot_material(slot))
     apply_normal_hints(me)
     if me.color_attributes.get('Col') is not None:
         me.color_attributes.active_color = me.color_attributes['Col']
@@ -284,11 +352,11 @@ def export_groups(model, slots, out_dir):
     for part, g in zip(model.parts, model.part_groups):
         by_group.setdefault(g, []).append(part)
 
-    root, tris = make_object(model.name, by_group[''], slots)
+    root, tris = make_object(model.name, by_group[''], slots, merge=True)
     objs = [root]
     for g in sorted(k for k in by_group if k):
         leaf = g.rpartition('/')[2]
-        obj, t = make_object(leaf, by_group[g], slots, model.groups[g], root, (0.0, 0.0, 0.0))
+        obj, t = make_object(leaf, by_group[g], slots, model.groups[g], root, (0.0, 0.0, 0.0), merge=True)
         objs.append(obj)
         tris += t
     export(objs, os.path.join(out_dir, 'SF_%s.fbx' % model.name))
@@ -324,7 +392,7 @@ def export_chunks(model, slots, count, out_dir):
     for j, bucket in enumerate(b for b in buckets if b):
         m = means[buckets.index(bucket)]
         pivot = (m.x, m.z, m.y)   # Blender back to game space
-        obj, _ = make_object('Chunk%d' % j, [model.parts[i] for i in bucket], slots, pivot)
+        obj, _ = make_object('Chunk%d' % j, [model.parts[i] for i in bucket], slots, pivot, merge=True)
         objs.append(obj)
     export(objs, os.path.join(out_dir, 'SF_%s_CHUNKS.fbx' % model.name))
     return objs
@@ -346,6 +414,9 @@ def export_lod_model(lod, slots, out_dir):
 def export_lod(src, name, ratio, out_dir):
     """A decimated copy of a single-object model for distant instances:
     SF_<NAME>_LOD1.fbx, with the same slots, vertex colours and origin."""
+    if PALETTE_SLOT in src.data.materials:
+        # Decimation blends a corner's colour with its neighbours': G would name a wrong entry.
+        raise RuntimeError('%s: a palette model cannot be decimated' % name)
     tmp = src.copy()
     tmp.data = src.data.copy()
     bpy.context.scene.collection.objects.link(tmp)
@@ -404,7 +475,7 @@ def main():
         objs[0].location.x = i * 7.0
 
         meta[model.name] = {'radius': round(rad, 3), 'height': round(top, 3), 'triangles': tris,
-                            'materials': slots,
+                            'materials': fbx_slots(slots),
                             'groups': {g: [round(c, 3) for c in p] for g, p in model.groups.items()},
                             'chunks': len(chunks), 'lod1_triangles': lod_tris}
         meta[model.name].update(model.meta)

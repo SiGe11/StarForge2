@@ -880,6 +880,9 @@ So far, for Troopers (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
 - **They have real bodies:** a rigged soldier crouching, crawling, aiming and firing, its 19 clips moving
   the legs and trunk from KayKit's animations with the rifle in hand-defined poses, one material, so
   200 of them cost a fight about 3 fps. A real match with thinking, rigged soldiers ran 47.9 fps.
+  Every other unit and building now draws the same way, one material a part with its surfaces in a small
+  palette texture, which took 896 draws a pass down to 233 across the models and, with no visible change,
+  a benchmark match from 49.9 to 51.0 fps (48.8 to 51.4 with a Mech in view).
 - **Not there yet:** on today's maps cover does not win fights by itself. Six among cover beat eight coming
   over open ground only 2 times in 12, because boulders are too tall to fire over; low walls are to come.
 
