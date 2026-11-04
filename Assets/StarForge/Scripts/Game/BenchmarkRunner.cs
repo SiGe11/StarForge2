@@ -85,6 +85,9 @@ namespace StarForge.Game
                              System.Globalization.CultureInfo.InvariantCulture, out float at)) shotAt = at;
                 else if (args[i] == "-sfshadows" && i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float sd)) QualityController.ShadowOverride = sd;
                 else if (args[i] == "-sfminscale" && i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ms)) QualityController.MinScaleOverride = ms;
+                else if (args[i] == "-sfmisshigh" && i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float mh)) QualityController.MissHighOverride = mh;
+                else if (args[i] == "-sfmisslow" && i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ml)) QualityController.MissLowOverride = ml;
+                else if (args[i] == "-sfholdscale" && i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float hs)) holdScale = hs;
                 else if (args[i] == "-sfdensity" && i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dn)) QualityController.DensityOverride = dn;
                 else if (args[i] == "-sfquality" && i + 1 < args.Length &&
                          Enum.TryParse(args[i + 1], true, out SFQuality q)) QualityController.Override = q;
@@ -151,6 +154,14 @@ namespace StarForge.Game
                 QualitySettings.vSyncCount = 0;
                 Application.targetFrameRate = -1;
             }
+            // -sfholdscale pins the render scale (sharpness shots at a scale a series measured):
+            // the controller is switched off first, as its OnDisable puts the asset's scale back.
+            if (active && holdScale > 0f && GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset holdUrp)
+            {
+                var adaptive = FindAnyObjectByType<AdaptiveResolution>();
+                if (adaptive != null) adaptive.enabled = false;
+                holdUrp.renderScale = holdScale;
+            }
             // A pointer resting at a screen edge would scroll the view away.
             if (active && rig != null) rig.scripted = true;
             start = Time.realtimeSinceStartup;
@@ -176,6 +187,9 @@ namespace StarForge.Game
             if (elapsed < Warmup) return;
 
             frames.Add(Time.unscaledDeltaTime * 1000f);
+            int second = (int)(elapsed - Warmup);
+            while (perSecond.Count <= second) perSecond.Add(0);
+            perSecond[second]++;
             mechInView = false;
             // What the frame that just ended spent where (sampled in its LateUpdate), and
             // whether a long one had a slow simulation step, a GC or a NavMesh island build.
@@ -211,6 +225,7 @@ namespace StarForge.Game
                 foreach (var v in StarForge.View.MechView.Active)
                     if (v != null && v.Unit != null && !v.Unit.dying && v.Core != null && v.Core.Landed &&
                         (v.Unit.pos - rig.Focus).sqrMagnitude < 60f * 60f) { mechFrames.Add(Time.unscaledDeltaTime * 1000f); mechInView = true; break; }
+            if (mechInView && Time.unscaledDeltaTime > 0.040f) mechLong++;
             // Name the hitches, so a stall can be matched to what happened then.
             if (Time.unscaledDeltaTime > 0.25f)
                 Debug.Log($"[Benchmark] {Time.unscaledDeltaTime * 1000f:0} ms frame at {elapsed:0.0} s (game {(world != null ? world.time : 0f):0.0} s)");
@@ -227,6 +242,9 @@ namespace StarForge.Game
                 scaleSum += urp.renderScale;
                 scaleFrames++;
                 if (mechInView) mechScaleSum += urp.renderScale;
+                int scaleSlot = Mathf.Clamp(Mathf.RoundToInt(urp.renderScale * 100f), 0, 100);
+                scaleTime[scaleSlot] += Time.unscaledDeltaTime;
+                if (mechInView) mechScaleTime[scaleSlot] += Time.unscaledDeltaTime;
             }
             if (audioDirector != null)
             {
@@ -253,6 +271,10 @@ namespace StarForge.Game
         float lastSim, lastTicked, lastBrain;
         bool mechInView;
         double scaleSum, mechScaleSum;
+        readonly float[] scaleTime = new float[101], mechScaleTime = new float[101];
+        readonly List<int> perSecond = new List<int>(1024);
+        int mechLong;
+        float holdScale = -1f;
         int scaleFrames;
         readonly FrameTiming[] timing = new FrameTiming[1];
         readonly List<float> cpuMain = new List<float>(20000), cpuRender = new List<float>(20000), gpu = new List<float>(20000), presentWait = new List<float>(20000);
@@ -458,6 +480,7 @@ namespace StarForge.Game
                     yield return new WaitForSecondsRealtime(0.7f);
                     for (int k = 0; k < 3; k++)
                     {
+                        Debug.Log($"[Gallery] 9d_mech_fight_{k}: render scale {CurrentScale:0.00}");
                         ScreenCapture.CaptureScreenshot(Path.Combine(galleryDir, $"9d_mech_fight_{k}.png"));
                         yield return new WaitForSecondsRealtime(0.25f);
                     }
@@ -471,12 +494,66 @@ namespace StarForge.Game
             Finish();
         }
 
+        static float CurrentScale => GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset u ? u.renderScale : 0f;
+
+        /// <summary>Which aim the run had and what it did with it: under vsync the frame rate
+        /// falls toward 30 as the miss share rises, so the floor and the resolution matter as
+        /// much as the average.</summary>
+        string AimReport()
+        {
+            var ar = FindAnyObjectByType<AdaptiveResolution>();
+            var s = new StringBuilder();
+            if (holdScale > 0f) s.AppendLine($"adaptive resolution: off, render scale held at {holdScale:0.00}");
+            else if (ar != null) s.AppendLine($"adaptive resolution: missHigh {ar.missHigh:0.00}, missLow {ar.missLow:0.00} · {ar.Changes} scale changes · next climb wants {ar.RequiredClean:0} s clean" +
+                                         (QualitySettings.vSyncCount == 0 ? " (vsync off: the length rule ran, not these)" : ""));
+            string Shares(float[] t)
+            {
+                float total = 0f;
+                foreach (var x in t) total += x;
+                var line = new StringBuilder();
+                for (int i = 0; i < t.Length; i++)
+                    if (total > 0f && t[i] / total >= 0.005f) line.Append(line.Length > 0 ? ", " : "").Append($"{i / 100f:0.00} {100f * t[i] / total:0}%");
+                return line.ToString();
+            }
+            s.AppendLine($"time at scale: {Shares(scaleTime)}");
+            if (mechFrames.Count > 0) s.AppendLine($"time at scale with a Mech in view: {Shares(mechScaleTime)}");
+            int hit = 0, missed = 0, more = 0;
+            var lengths = new int[45];   // whole milliseconds, the last slot all that is longer
+            foreach (var f in frames)
+            {
+                if (f <= 25f) hit++; else if (f <= 41.7f) missed++; else more++;
+                lengths[Mathf.Clamp((int)f, 0, lengths.Length - 1)]++;
+            }
+            float all = Mathf.Max(1, frames.Count);
+            // 25 ms is AdaptiveResolution's test at 60 Hz. What is timed is the time between frames
+            // on the CPU's side, which need not be whole refreshes.
+            s.AppendLine($"frames by length: 25 ms or less {100f * hit / all:0.0}%, to 41.7 ms {100f * missed / all:0.0}%, longer {100f * more / all:0.00}% ({more} frames)");
+            var histogram = new StringBuilder();
+            for (int i = 0; i < lengths.Length; i++)
+                if (lengths[i] / all >= 0.005f)
+                    histogram.Append(histogram.Length > 0 ? ", " : "").Append($"{i}{(i == lengths.Length - 1 ? "+" : "")} {100f * lengths[i] / all:0.0}%");
+            s.AppendLine($"frame lengths in whole ms: {histogram}");
+            string Worst(int window)
+            {
+                int complete = perSecond.Count - 1, sum = 0, worst = int.MaxValue;
+                for (int i = 0; i < complete; i++)
+                {
+                    sum += perSecond[i];
+                    if (i >= window) sum -= perSecond[i - window];
+                    if (i >= window - 1 && sum < worst) worst = sum;
+                }
+                return worst == int.MaxValue ? "n/a" : $"{(float)worst / window:0.0} fps";   // too short a run: not a 0, which means a stop
+            }
+            s.Append($"frame-rate floor: worst 5 s {Worst(5)}, worst 30 s {Worst(30)}");
+            return s.ToString();
+        }
+
         IEnumerator Shot(string name, Vector2 at, float dist, float settle = 2.2f)
         {
             rig.JumpTo(at);
             rig.ZoomTo(dist);
             yield return new WaitForSecondsRealtime(settle);
-            Debug.Log($"[Gallery] {name}: asked {at}, focus {rig.Focus}, camera {rig.cam.transform.position}, rigs {FindObjectsByType<RTSCamera>(FindObjectsSortMode.None).Length}");
+            Debug.Log($"[Gallery] {name}: render scale {CurrentScale:0.00}, asked {at}, focus {rig.Focus}, camera {rig.cam.transform.position}, rigs {FindObjectsByType<RTSCamera>(FindObjectsSortMode.None).Length}");
             ScreenCapture.CaptureScreenshot(Path.Combine(galleryDir, name + ".png"));
             yield return new WaitForSecondsRealtime(0.4f);
         }
@@ -558,6 +635,7 @@ namespace StarForge.Game
             sb.AppendLine($"peak entities {maxEntities} · peak projectiles {maxProjectiles} · lowest render scale {minScale:0.00}, average {(scaleFrames > 0 ? scaleSum / scaleFrames : 1.0):0.00}" +
                           (mechFrames.Count > 0 ? $" ({mechScaleSum / mechFrames.Count:0.00} with a Mech in view)" : "") +
                           $" · shadows {(GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset ua ? ua.shadowDistance : 0f):0} m");
+            sb.AppendLine(AimReport());
             sb.AppendLine($"game time {(world != null ? world.time : 0f):0}s · winner {(world != null ? world.winner : -1)}");
             sb.AppendLine($"capes: peak {maxCapes} worn, peak {maxClothCapes} as cloth at once" + (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-sfnocapes") >= 0 ? " (-sfnocapes)" : StarForge.View.InfantryCape.All ? " (-sfallcapes)" : ""));
             sb.AppendLine($"simulation p50 {Pct(simFrames, 0.5f):0.0} · p95 {Pct(simFrames, 0.95f):0.0} · p99 {Pct(simFrames, 0.99f):0.0} · max {Pct(simFrames, 1f):0.0} ms " +
@@ -585,7 +663,7 @@ namespace StarForge.Game
                 float mavg = 0f;
                 foreach (var f in mechFrames) mavg += f;
                 mavg /= mechFrames.Count;
-                sb.AppendLine($"with a Mech in view: {mechFrames.Count} frames, avg {mavg:0.00} ms ({1000f / Mathf.Max(0.01f, mavg):0.0} fps) · p95 {mechFrames[(int)(0.95f * (mechFrames.Count - 1))]:0.00} ms");
+                sb.AppendLine($"with a Mech in view: {mechFrames.Count} frames, avg {mavg:0.00} ms ({1000f / Mathf.Max(0.01f, mavg):0.0} fps) · p95 {mechFrames[(int)(0.95f * (mechFrames.Count - 1))]:0.00} ms · {mechLong} over 40 ms");
             }
             if (world != null)
                 for (int t = 0; t < 2; t++)

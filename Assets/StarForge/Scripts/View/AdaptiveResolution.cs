@@ -29,6 +29,10 @@ namespace StarForge.View
         float lastClimbT = -100f;
 
         public float Scale => scale;
+        /// <summary>For the benchmark's report: how often the resolution changed (each one
+        /// can be seen) and how long a clean spell the next climb must now wait for.</summary>
+        public int Changes { get; private set; }
+        public float RequiredClean => requiredClean;
 
         void OnEnable()
         {
@@ -81,14 +85,16 @@ namespace StarForge.View
             }
         }
 
-        // With vsync (a match always has it) a frame lasts one refresh or two: its length
+        // With vsync (a match always has it) a frame's length
         // cannot fall below 16.7 ms at 60 Hz however light the load, so the rule above
         // could never see room to climb, and one heavy fight left the picture at the
-        // floor for the rest of the match. Here the load is how often a frame misses its
-        // refresh: past missHigh (at 60 Hz, 15% missed is about 52 fps, 28% about 47) the
-        // scale comes down; after a clean spell under missLow it tries a step up, and a climb
-        // that is undone soon after makes the next one wait twice as long, as above. The
-        // preset sets both (QualityController).
+        // floor for the rest of the match. Here the load is how often a frame runs past one
+        // and a half refreshes, 25 ms at 60 Hz: past missHigh (at 60 Hz, a share m missed is 60/(1+m) fps, so 60% is 37.5
+        // and 71% is 35) the scale comes down; after a clean spell under missLow it tries a
+        // step up, and a climb that is undone soon after makes the next one wait twice as
+        // long, as above. The share settles well under missHigh (near 44% at 0.60), and the
+        // scale can climb in a fight only if missLow is above that fight's share. The preset
+        // sets both (QualityController).
         public float missHigh = 0.15f, missLow = 0.04f;
         float missRate;
 
@@ -107,7 +113,10 @@ namespace StarForge.View
                     if (Time.unscaledTime - lastClimbT < 6f) requiredClean = Mathf.Min(120f, requiredClean * 2f);
                     Set(scale - step);
                     overTime = 0f;
-                    missRate = missHigh * 0.5f;   // judge the new scale on its own frames
+                    // Judge the new scale on its own frames. On High this start, 0.30, is under
+                    // missLow, so the clean timer runs at once: a real share above missLow
+                    // crosses back in about a second, against the 4 s a climb needs.
+                    missRate = missHigh * 0.5f;
                 }
             }
             else
@@ -129,7 +138,9 @@ namespace StarForge.View
 
         void Set(float s)
         {
-            scale = Mathf.Clamp(Mathf.Round(s * 100f) / 100f, minScale, maxScale);
+            float next = Mathf.Clamp(Mathf.Round(s * 100f) / 100f, minScale, maxScale);
+            if (!Mathf.Approximately(next, scale)) Changes++;
+            scale = next;
             urp.renderScale = scale;
         }
     }

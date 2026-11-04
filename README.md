@@ -34,9 +34,10 @@ pre-cut pieces; and explosions throw lit debris that bounces off the terrain
 behind a ring that bends the picture; wolves and foxes roam the meadows, flocks of
 songbirds feed on the open ground and eagles circle overhead, all fleeing the
 fighting and the fires, and the music moves with the match. Played as a match
-actually runs -- vsync on, 60 Hz -- it holds ~50 fps on the Neo's *High* preset -- the full
-shadow distance and ground cover it had before the Mechs -- and about as much with Mechs
-fighting on screen (45 is the target).
+actually runs -- vsync on, 60 Hz -- it holds ~42 fps on the Neo's *High* preset -- the full
+shadow distance and ground cover it had before the Mechs, at a render scale of about 0.76 -- and
+about as much with Mechs fighting on screen (35 is the bar, and every frame it can spare above
+that goes into a sharper picture).
 
 ![A base on the stony dirt, Diggers at the teal ore, birches and flowering shrubs behind](docs/base.jpg)
 
@@ -882,7 +883,8 @@ So far, for Troopers (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
   200 of them cost a fight about 3 fps. A real match with thinking, rigged soldiers ran 47.9 fps.
   Every other unit and building now draws the same way, one material a part with its surfaces in a small
   palette texture, which took 896 draws a pass down to 233 across the models and, with no visible change,
-  a benchmark match from 49.9 to 51.0 fps (48.8 to 51.4 with a Mech in view).
+  a benchmark match from 49.9 to 51.0 fps (48.8 to 51.4 with a Mech in view; these and the rigged
+  numbers above were measured before *High* gave its spare frames to resolution, see Performance).
 - **Not there yet:** on today's maps cover does not win fights by itself. Six among cover beat eight coming
   over open ground only 2 times in 12, because boulders are too tall to fire over; low walls are to come.
 
@@ -901,19 +903,19 @@ their numbers.
   upscaling, and backs off exponentially after failed climbs so it cannot
   oscillate (the lesson from the original's controller). With vsync on -- as a match
   always is -- a frame is shown for one refresh or two, so it judges the load by how
-  often a frame misses its refresh (past the preset's limit -- 28% on *High*, about 47 fps,
-  15% on the others, about 52 -- it steps down; after a clean spell, it tries a step up),
-  not by frame length: a vsynced frame never measures under
+  often a frame misses its refresh (past the preset's limit -- 60% on *High*, 15% on the
+  others -- it steps down; after a clean spell under a lower share, 35% on *High*, it tries a
+  step up), not by frame length: a vsynced frame never measures under
   16.7 ms however light the load, so the old rule could never see room to climb, and one
-  heavy fight left the picture at its floor for the rest of the match.
+  heavy fight left the picture at its floor for the rest of the match. The share settles
+  well under the limit: on *High*, near 44%, about 42 fps.
 - **Three graphics presets** on the title screen, remembered between runs, each
   trading the three things that actually cost on a fanless laptop: how far
   shadows are drawn, how much ground cover is grown, and how far the adaptive
   controller may drop before it gives frames back. *High* is the measurement
   below: the 150 m of shadow and full grass it had before the Mechs, with the render
-  scale free to go down to 0.60 in the heaviest fights (it was 0.70) and let miss up to
-  ~28% of refreshes -- about 47 fps -- before it steps down: 45 is enough here, and the rest
-  goes into a sharper picture;
+  scale free to go down to 0.55 in the heaviest fights and let miss up to 60% of refreshes
+  before it steps down: 35 fps is enough here, and the rest goes into a sharper picture;
   *Balanced* shortens shadows to 95 m and thins the grass to 0.6; *Battery* also drops
   MSAA and caps the render scale. Every preset aims at one 60 Hz refresh. (For a while,
   *High* aimed at 21.5 ms -- "about 46 fps", with 160 m of shadow, full grass and a floor
@@ -1022,7 +1024,30 @@ is the machine's own cool-to-warm drift.
 **With the Mechs**, measured the way a match plays. The benchmark used to run uncapped with
 vsync off, which is not how anyone plays: `-sfplay` keeps vsync and the 60 cap. Over 420 s --
 long enough for both Mechs to land at about four minutes and fight, the camera following the
-heaviest action -- on the MacBook Neo, plugged in:
+heaviest action -- on the MacBook Neo, plugged in.
+
+**The frame-rate aim today.** Once 35 fps was enough (2026-11-04), *High* stopped holding about
+50 and gave the difference to resolution: it now steps down past 60% missed refreshes and tries
+a step up under 35%, where it was 28% and 10%. Seed 1000, Unity 6000.6.8f1, battery full, one
+build, each aim twice in mirror order:
+
+| Steps down past / climbs under | Average | Frames with a Mech in view | Render scale (with a Mech in view) | Worst 5 s | Frames over 40 ms |
+|---|---|---|---|---|---|
+| **60% / 35%, *High* today** | **41.5, 41.8 fps** | **41.3, 42.2 fps** | **0.76, 0.77 (0.72, 0.73)** | **36.4, 36.8 fps** | **39, 39** |
+| 28% / 10%, before | 51.4, 51.2 fps | 51.7, 50.6 fps | 0.63, 0.64 (0.59, 0.61) | 46.2, 45.2 fps | 40, 28 |
+| 70% / 45%, measured and not taken: its worst 5 s fell under 35 | 38.8, 39.4 fps | 40.2, 38.9 fps | 0.83, 0.80 (0.77, 0.77) | 34.6, 34.2 fps | 36, 48 |
+
+That is 1.45x the pixels for about 10 fps, in a Mech fight as in the match's average. The preset
+itself, with no aim flags: 42.0 fps, 41.8 with a Mech in view, scale 0.78 (0.74), worst 5 s 36.6;
+a 20-minute match on another seed, 41.9, 41.6, 0.78 (0.73), 37.0; in the rain, 41.7, 41.9, 0.77
+(0.72), 36.6. At 42 fps on a 60 Hz panel frames cannot all stay on screen equally long, so expect
+motion less even as well as slower. With 200
+extra rigged soldiers following the fight, one run each: 41.4 fps (41.9 with a Mech in view),
+scale 0.67 (0.62), worst 5 s 37.0, against 49.0 (46.5), 0.56 (0.55), 41.6 at the old aim, which
+had run out of resolution: there the soldiers came off the frame rate, at the new aim off the
+picture, with 0.05 of its scale to spare.
+
+**Before that**, all at or around the old aim:
 
 | | Average | Frames with a Mech in view | Render scale (average) |
 |---|---|---|---|
@@ -1033,7 +1058,7 @@ heaviest action -- on the MacBook Neo, plugged in:
 | 120 m, grass 0.85, steps down past 15% | 19.0 ms (52.6 fps) | 19.9 ms (50.1 fps) | 0.64 |
 | *Balanced* (95 m, grass 0.6), battery charging | 19.6 ms (51.1 fps) | 20.7 ms (48.4 fps) | 0.63 |
 
-The first row is the final build. Once the Mechs were fitted out for the fight at the drop,
+The first row was that round's final build. Once the Mechs were fitted out for the fight at the drop,
 the benchmark's got rotary cannons and missile racks against the armies they faced -- the
 busiest weapons there are -- and frames with a Mech in view fell to 43.4-46.0 fps at the 0.60
 floor. A missile now lays a smoke puff every 1.5 m for about a second (every 0.9 m for two,
