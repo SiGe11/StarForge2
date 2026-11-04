@@ -46,7 +46,7 @@ fighting on screen (45 is the target).
 
 ## Quick start
 
-1. Open this folder with Unity **6000.6.0f1**.
+1. Open this folder with Unity **6000.6.8f1**.
 2. Open `Assets/StarForge/Scenes/Battlefield.unity` and press Play.
 3. Pick an opponent level on the title screen and **Deploy**.
 

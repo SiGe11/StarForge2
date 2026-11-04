@@ -69,6 +69,19 @@ namespace StarForge.EditorTools
         public static string Squads() => Stage<TacticalSquadsTrial>("Squads");
         public static string SquadsReport() => Report<TacticalSquadsTrial>();
 
+        /// <summary>The next evaluation runs under the new combat (Commander not yet tuned to it: phase 8).</summary>
+        public static string EvalNewCombat() { StarForge.Game.AIEvalRunner.EvalTactical = true; return "the next evaluation runs under the new combat"; }
+
+        /// <summary>Sent under fire to a place just behind a rock: the order ends there and he stays.
+        /// Target: order Idle within 6 m of it, under 2 m moved after.</summary>
+        public static string CoverGoal() => Stage<TacticalCoverGoalTrial>("CoverGoal");
+        public static string CoverGoalReport() => Report<TacticalCoverGoalTrial>();
+
+        /// <summary>Three matches in one play session, each with a fight, by the menu's own way back.
+        /// Target: the new rules each time, squads of that match only, 0 exceptions (read the log).</summary>
+        public static string Restart() => Stage<TacticalRestartTrial>("Restart");
+        public static string RestartReport() => Report<TacticalRestartTrial>();
+
         /// <summary>Eight attack-moving over empty ground: the man ahead, the rest and what each is about.</summary>
         public static string SquadWalk() => Stage<TacticalSquadWalkTrial>("SquadWalk");
         public static string SquadWalkReport() => Report<TacticalSquadWalkTrial>();
@@ -642,6 +655,93 @@ namespace StarForge.EditorTools
             }
             report = sb.ToString();
             ReleaseStatics();
+        }
+    }
+
+    public sealed class TacticalCoverGoalTrial : TacticalTrial
+    {
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            var sb = new StringBuilder();
+            HoldStatics();
+            int rocks = 0;
+            var rng = new System.Random(91);
+            foreach (var b in new List<Boulder>(world.boulders))
+            {
+                if (rocks >= 5 || b == null || b.smashed || b.Radius < 0.9f) continue;
+                float ang0 = (float)rng.NextDouble() * 6.28f;
+                bool done = false;
+                for (float ang = ang0; ang < ang0 + 6.2f && !done; ang += 0.8f)
+                {
+                    var d = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
+                    var side = new Vector2(-d.y, d.x);
+                    var from = b.Pos + d * 25f;
+                    var goal = b.Pos - d * (b.Radius + 1.2f);
+                    var start = goal + side * 12f;
+                    if (!WalkClear(from) || !WalkClear(from + side * 3f) || !WalkClear(from - side * 3f) || !WalkClear(start) || !WalkClear(goal)) continue;
+                    if (Mathf.Abs(map.HeightAt(from) - map.HeightAt(b.Pos)) > 1.5f) continue;
+                    if (world.Sight.FirstStop(Eye(from), Eye(start), world.Plants, null) < 1f) continue;
+                    for (int r = -1; r <= 1; r++) Soldier(1, from + side * 3f * r).noMind = true;
+                    var man = Put(UnitType.Trooper, 0, start);
+                    man.hp = 1e6f;
+                    yield return Wait(1f);
+                    world.CmdMove(new List<Unit> { man }, goal, false);
+                    float t0 = world.time, endedAt = -1f, moved = 0f;
+                    Vector2 settled = default;
+                    while (world.time - t0 < 25f)
+                    {
+                        if (endedAt < 0f && man.order == Order.Idle) { endedAt = world.time - t0; settled = man.pos; }
+                        if (endedAt >= 0f) moved = Mathf.Max(moved, (man.pos - settled).magnitude);
+                        yield return null;
+                    }
+                    sb.AppendLine($"  rock {rocks}: order {man.order}, ended after {(endedAt < 0f ? "more than 25" : endedAt.ToString("0.0"))} s, {(man.pos - goal).magnitude:0.0} m from the place, {man.mode}, {moved:0.0} m moved since (target Idle, under 6 m, under 2 m)");
+                    rocks++;
+                    done = true;
+                    ClearSpawned();
+                    yield return Wait(1.5f);
+                }
+            }
+            report = sb.ToString();
+            ReleaseStatics();
+        }
+    }
+
+    public sealed class TacticalRestartTrial : TacticalTrial
+    {
+        IEnumerator Start()
+        {
+            DontDestroyOnLoad(gameObject);
+            var sb = new StringBuilder();
+            var rng = new System.Random(19);
+            for (int match = 0; match < 3; match++)
+            {
+                yield return TacticalMatch();
+                if (!Ready) { report = sb + "  no match running"; yield break; }
+                HoldStatics();
+                spawned.Clear();
+                if (FindRange(rng, 32f, out var a, out var d))
+                {
+                    var side = new Vector2(-d.y, d.x);
+                    var six = new List<Unit>(); var eight = new List<Unit>();
+                    for (int i = 0; i < 6; i++) six.Add(Put(UnitType.Trooper, 0, a + side * (i - 2.5f) * 2.5f));
+                    for (int i = 0; i < 8; i++) eight.Add(Put(UnitType.Trooper, 1, a + d * 30f + side * (i - 3.5f) * 2.5f));
+                    yield return null;
+                    world.CmdMove(eight, a, true);
+                }
+                yield return Wait(15f);
+                sb.AppendLine($"  match {match}: new rules {world.Tactical}, {world.Squads.Count} squads, {world.SquadsMade[0] + world.SquadsMade[1]} formed, {world.ShotsFired} rounds, {world.ReportsMade[0] + world.ReportsMade[1]} reports");
+                ReleaseStatics();
+                if (match == 2) break;
+                var was = world;
+                spawned.Clear();
+                StarForge.Game.GameBootstrap.Instance.ReturnToMenu();
+                float w = Time.realtimeSinceStartup;
+                while (Time.realtimeSinceStartup - w < 20f && (GameWorld.Instance == null || GameWorld.Instance == was)) yield return null;
+                yield return new WaitForSecondsRealtime(2f);
+            }
+            report = sb.ToString();
         }
     }
 
