@@ -391,7 +391,11 @@ namespace StarForge.View
                 return;
             }
             var target = Hovered;
-            world.CmdSmart(own, gp, target);
+            // Twice on the same place: hurry.
+            bool hurry = Time.unscaledTime - lastRightClickTime < 0.35f && (gp - lastRightClickAt).sqrMagnitude < 9f;
+            lastRightClickTime = Time.unscaledTime;
+            lastRightClickAt = gp;
+            world.CmdSmart(own, gp, target, hurry);
             bool attack = target != null && target.team < 2 && target.team != team;
             OrderMarker?.Invoke(target != null ? target.Ground : world.Map.Ground(gp), attack ? 1 : 0);
         }
@@ -700,6 +704,20 @@ namespace StarForge.View
             if (!Unit.Live(u)) return;
             Selection.Clear();
             Selection.Add(u);
+            SelectionChanged?.Invoke();
+        }
+
+        float lastRightClickTime = -9f;
+        Vector2 lastRightClickAt;
+
+        /// <summary>A report clicked: those who sent it, as many as are still with us.</summary>
+        public void SelectUnits(IEnumerable<Unit> men)
+        {
+            bool any = false;
+            foreach (var u in men) if (Unit.Live(u) && Mine(u)) { any = true; break; }
+            if (!any) return;   // all gone: what the player has selected stays
+            Selection.Clear();
+            foreach (var u in men) if (Unit.Live(u) && Mine(u)) Selection.Add(u);
             SelectionChanged?.Invoke();
         }
 

@@ -88,7 +88,9 @@ namespace StarForge.World
         /// <summary>A cheater's win was taken away: the animals come for <c>team</c> (GameWorld.Cheat).</summary>
         Reckoning,
         /// <summary>An animal bit one of the cheater's: <c>pos</c> where, <c>dir</c> the way it struck.</summary>
-        AnimalBite
+        AnimalBite,
+        /// <summary>A squad tells its commander how it stands: <c>text</c>, <c>pos</c>, <c>men</c>; <c>index</c> a SquadReportKind.</summary>
+        SquadReport
     }
 
     /// <summary>What a Mech's AI tells its side (MechBrain).</summary>
@@ -107,6 +109,8 @@ namespace StarForge.World
         public float speed;
         public int projectileKind;
         public string text;
+        /// <summary>SquadReport: who is speaking, for the click to select.</summary>
+        public Unit[] men;
         /// <summary>The plant, for the Plant* events (index into Vegetation.plants).</summary>
         public int index;
         /// <summary>Where a Beam ended.</summary>
@@ -629,7 +633,7 @@ namespace StarForge.World
             }
 
             UpdateProjectiles(dt);
-            if (Tactical) TickCoverLooks(dt);
+            if (Tactical) { TickCoverLooks(dt); TickSquads(); }
             CrushBoulders(dt);
             if (Plants != null) Plants.Tick(this, dt);
             StructureFires(dt);
@@ -1363,8 +1367,9 @@ namespace StarForge.World
         }
 
         // ------------------------------------------------------------ commands
-        public void CmdMove(IReadOnlyList<Unit> sel, Vector2 dest, bool attackMove)
+        public void CmdMove(IReadOnlyList<Unit> sel, Vector2 dest, bool attackMove, bool hurry = false)
         {
+            if (Tactical) SquadFromOrder(sel, dest, null);
             // Spread the destination over a ring so a group does not stack on one point.
             int n = 0;
             foreach (var u in sel) if (Unit.Live(u) && u.def.IsMobile && !u.def.Autonomous && !u.deserted) n++;
@@ -1388,19 +1393,23 @@ namespace StarForge.World
                 if (u.def.flying) goal = ClampToMap(goal);
                 else if (ReachabilityOff) { if (n > 1) goal = NearestWalkable(goal, 8f); }
                 else goal = NearestReachable(u, goal);
+                // The same order asked again does not set him walking out of his turn.
+                bool again = u.order == (attackMove ? Order.AttackMove : Order.Move) && (u.orderPos - goal).sqrMagnitude < 36f;
                 u.order = attackMove ? Order.AttackMove : Order.Move;
                 u.orderPos = goal;
                 u.target = null;
                 u.harvestNode = null;
                 u.buildTarget = null;
-                u.MoveTo(goal);
+                u.hurry = hurry;
+                if (!again || u.MayWalkNow) u.MoveTo(goal);
                 i++;
             }
         }
 
-        public void CmdAttack(IReadOnlyList<Unit> sel, Unit target)
+        public void CmdAttack(IReadOnlyList<Unit> sel, Unit target, bool hurry = false)
         {
             if (!Unit.Live(target)) return;
+            if (Tactical) SquadFromOrder(sel, target.pos, target);
             List<Unit> cannot = null;
             foreach (var u in sel)
             {
@@ -1408,13 +1417,15 @@ namespace StarForge.World
                 // A gun that cannot reach it (a tank at an aircraft) goes there on attack-move
                 // instead, and fights what it can on the way.
                 if (!CanHit(u, target)) { (cannot ??= new List<Unit>()).Add(u); continue; }
+                bool again = u.order == Order.Attack && u.target == target;
                 u.order = Order.Attack;
                 u.target = target;
                 u.targetOrdered = true;
                 u.harvestNode = null;
-                u.MoveTo(target.pos);
+                u.hurry = hurry;
+                if (!again || u.MayWalkNow) u.MoveTo(target.pos);
             }
-            if (cannot != null) CmdMove(cannot, target.pos, true);
+            if (cannot != null) CmdMove(cannot, target.pos, true, hurry);
         }
 
         public void CmdHarvest(IReadOnlyList<Unit> sel, Unit node)
@@ -1541,7 +1552,7 @@ namespace StarForge.World
         }
 
         /// <summary>Contextual right-click: attack enemies, harvest ore, otherwise move.</summary>
-        public void CmdSmart(IReadOnlyList<Unit> sel, Vector2 worldPos, Unit hovered)
+        public void CmdSmart(IReadOnlyList<Unit> sel, Vector2 worldPos, Unit hovered, bool hurry = false)
         {
             if (Unit.Live(hovered))
             {
@@ -1556,7 +1567,7 @@ namespace StarForge.World
                 if (hovered.team < 2)
                 {
                     foreach (var u in sel)
-                        if (Unit.Live(u) && u.team != hovered.team && !u.def.Autonomous && !u.deserted) { CmdAttack(sel, hovered); return; }
+                        if (Unit.Live(u) && u.team != hovered.team && !u.def.Autonomous && !u.deserted) { CmdAttack(sel, hovered, hurry); return; }
                     // Right-clicking an own structure under construction sends Diggers to help.
                     if (!hovered.Complete && hovered.def.building)
                     {
@@ -1569,7 +1580,7 @@ namespace StarForge.World
                     }
                 }
             }
-            CmdMove(sel, worldPos, false);
+            CmdMove(sel, worldPos, false, hurry);
         }
 
         bool Refuse(int team, string why)

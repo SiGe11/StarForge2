@@ -298,21 +298,25 @@ namespace StarForge.World
             {
                 float d = Dist(target) - target.def.radius;
                 // Under the new rules a rise or a rock in the way is as good as out of reach.
-                if ((d > def.range * 0.92f || (world.Tactical && fireBlocked)) && !SoldierBusy && (repathTimer -= dt) <= 0f)
+                if ((d > def.range * 0.92f || (world.Tactical && fireBlocked)) && !SoldierBusy && SquadLetsMove() && (repathTimer -= dt) <= 0f)
                 {
                     // Under an aircraft that may be over water or a plateau: as near as it can get.
-                    MoveTo(target.def.flying && !def.flying ? world.NearestReachable(this, target.pos) : world.Tactical ? TargetGoal : target.pos);
+                    MoveTo(target.def.flying && !def.flying ? world.NearestReachable(this, target.pos) : world.Tactical ? ClosingGoal : target.pos);
                     repathTimer = world.Rng.Range(0.45f, 0.75f);
                 }
             }
-            if (order == Order.AttackMove && target == null && !Moving && Dist(orderPos) > 2.5f && !SoldierBusy && (repathTimer -= dt) <= 0f)
+            if (order == Order.AttackMove && target == null && !Moving && Dist(orderPos) > 2.5f && !SoldierBusy && SquadLetsMove() && (repathTimer -= dt) <= 0f)
             {
                 MoveTo(orderPos);
                 repathTimer = 1.2f;
             }
             if ((order == Order.Move || order == Order.AttackMove) && target == null && Arrived() && Dist(orderPos) < (def.fixedWing ? PlaneCircle + 3f : 4f))
                 order = Order.Idle;
-            if (order == Order.Move && !Moving && !SoldierBusy) KeepGoing(dt);
+            if (order == Order.Move && !Moving && !SoldierBusy && SquadLetsMove())
+            {
+                if (resumeMove) { resumeMove = false; MoveTo(orderPos); }
+                else KeepGoing(dt);
+            }
             else if (agent != null && agent.enabled && agent.isOnNavMesh && agent.hasPath) pathRetries = 0;
 
             if (def.fixedWing) TickPlane(dt);
@@ -462,7 +466,8 @@ namespace StarForge.World
             if (speed > 0.25f)
             {
                 float want = Mathf.Atan2(v.x, v.z);
-                bool aiming = Live(target) && Dist(target) - target.def.radius <= def.range && !HasTurret;
+                // A soldier running for cover, or walking on with a Move, looks where he is going.
+                bool aiming = Live(target) && Dist(target) - target.def.radius <= def.range && !HasTurret && !rushing && !(order == Order.Move && Careful);
                 if (trackedMech)
                 {
                     // A tracked Mech steers for the next corner of its path, not the agent's
@@ -524,7 +529,7 @@ namespace StarForge.World
                 ReviewTarget();
             }
             // Auto-acquire unless explicitly told to move without engaging.
-            bool acquires = order != Order.Move && order != Order.Harvest && order != Order.Return && order != Order.Build;
+            bool acquires = (order != Order.Move || Careful) && order != Order.Harvest && order != Order.Return && order != Order.Build;
             // An armed worker (the Prospector) at its work shoots back at what comes into its
             // reach, and keeps working: it neither chases nor drops the load.
             if (!acquires && def.harvester && def.weapon != WeaponKind.Auto && (order == Order.Harvest || order == Order.Return))
@@ -573,6 +578,8 @@ namespace StarForge.World
                 if (band != null) { target = band; targetOrdered = false; }
                 else return;
             }
+            // On a plain Move he shoots only while stopped, and closes on nothing.
+            if (order == Order.Move && Careful) { if (!Moving && !AimAndFire(dt)) FireBlocked(dt); return; }
             if (!AimAndFire(dt))
             {
                 if (world.Tactical) FireBlocked(dt);

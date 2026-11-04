@@ -60,7 +60,7 @@ rebuilt from the **StarForge** menu; **StarForge ▸ Build All** runs every step
 | **Camera** | `W` `A` `S` `D`, arrow keys or push the pointer to a screen edge · `Q`/`E` rotate · wheel zoom · middle-drag · `Space` centre on selection |
 | **Select** | Click · drag a box · double-click selects that type on screen · `Shift` adds · `F2` whole army |
 | **Groups** | `Ctrl`/`Cmd`+`1`–`0` assign · `1`–`0` recall (double-tap to centre) |
-| **Orders** | Right-click: move / attack / mine / rally · `R` attack-move · `C` stop · `H` hold |
+| **Orders** | Right-click: move / attack / mine / rally · double right-click: hurry (new combat only) · `R` attack-move · `C` stop · `H` hold |
 | **Build** | Digger selected: `B` basic structures (`F` Foundry · `B` Bunkhouse · `G` Garrison · `N` Sentinel · `V` Workshop) · `V` advanced structures (`U` Armory · `L` Airfield · `O` Biolab · `Y` Mech Bay) · `X` or `Esc` back |
 | **Train** | Foundry `U` Digger, `J` Hauler, `K` Prospector · Garrison `T` Trooper, `K` Skimmer, `F` Scorcher, `M` Thumper, `N` Marksman, `B` Rocketeer · Workshop `M` Mauler, `L` Lancer, `F` Aegis, `T` Ironclad, `K` Mech-Hunter · Airfield `G` Kestrel, `F` Swift · Biolab `Z` Skitter, `T` Spitter, `V` Razorwing, `G` Gorehorn · `X` cancel. With Diggers in the selection the card shows only their builds |
 | **Armory** | The Armory selected on its own: `T` Infantry Weapons · `G` Infantry Armour · `V` Vehicle Weapons · `B` Vehicle Plating · `N` Creature Venom · `M` Creature Carapace · `K` Mech-Hunter Programme · `X` cancel |
@@ -851,8 +851,9 @@ To regenerate the models (Blender 5.x):
 ## Tactical combat (in development, off by default)
 
 Combat is being rebuilt so that soldiers fight like soldiers: the player gives the same orders, and
-units decide how to carry them out. It sits behind one switch until it is finished (`-sftactical` on
-a benchmark or test run), and with the switch off the game plays as described in the rest of this file.
+units decide how to carry them out. It sits behind one switch until it is finished (the "Combat" button
+on the title screen, not remembered between runs, or `-sftactical` on a benchmark or test run), and with
+the switch off the game plays as described in the rest of this file.
 So far, for Troopers (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.md`):
 
 - **Shots can miss.** A round goes where it goes: an aim error, then the first thing on its line. A far
@@ -867,6 +868,15 @@ So far, for Troopers (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
   brave he is; the timid may freeze or bolt for a few seconds. In contact he runs for cover, leans out to
   shoot and ducks back, lies down in the open, and on an attack bounds from cover to cover. Orders come
   first: a new one takes him out of cover at once.
+- **Soldiers near each other are a squad.** There is nothing to train, select or manage: men sent together
+  or standing within about 15 m act together, in eights, and leave by drifting past about 30 m. In contact
+  they take turns, half moving while the other half stops and shoots, and one half works round the flank.
+  On the way up a man goes ahead with the rest a little behind; a man alone goes crouched.
+- **A plain right-click lets them choose the approach; a double right-click means hurry.** Sent somewhere
+  plainly, a soldier in contact keeps low, bounds from cover to cover towards the place and shoots while
+  stopped. Hurried, he runs at 6 m/s and looks at nothing, and only being pinned stops him.
+- **They tell you how it is going.** "We should fall back" and "we need air support" arrive as text in the
+  comms feed, with no button to accept. Clicking one looks at them and selects them; what to do is yours.
 - **They have real bodies:** a rigged soldier crouching, crawling, aiming and firing, its 19 clips moving
   the legs and trunk from KayKit's animations with the rifle in hand-defined poses, one material, so
   200 of them cost a fight about 3 fps. A real match with thinking, rigged soldiers ran 47.9 fps.

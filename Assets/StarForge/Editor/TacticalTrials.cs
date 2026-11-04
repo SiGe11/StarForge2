@@ -62,6 +62,33 @@ namespace StarForge.EditorTools
         public static string Fight() => Stage<TacticalFightTrial>("Fight");
         public static string FightReport() => Report<TacticalFightTrial>();
 
+        /// <summary>Squads and reports. Men near each other are one squad, apart two. Eight attack-moving at six:
+        /// how often more than half of a squad in contact is moving. A hurried Move runs at 6 m/s, a plain one
+        /// walks at 3.5. Four against ten: a fall-back report; four held by a Mauler: an air-support report, and
+        /// clicking selects them. Target: at most half moving in 95% of frames; each report once.</summary>
+        public static string Squads() => Stage<TacticalSquadsTrial>("Squads");
+        public static string SquadsReport() => Report<TacticalSquadsTrial>();
+
+        /// <summary>Eight attack-moving over empty ground: the man ahead, the rest and what each is about.</summary>
+        public static string SquadWalk() => Stage<TacticalSquadWalkTrial>("SquadWalk");
+        public static string SquadWalkReport() => Report<TacticalSquadWalkTrial>();
+
+        /// <summary>At the menu: does the title's row hold the combat button, and does it switch and say so?</summary>
+        public static string TitleRow()
+        {
+            var doc = Object.FindAnyObjectByType<UnityEngine.UIElements.UIDocument>();
+            var root = doc != null ? doc.rootVisualElement : null;
+            var b = root != null ? UnityEngine.UIElements.UQueryExtensions.Q<UnityEngine.UIElements.Button>(root, "combatButton") : null;
+            var quit = root != null ? UnityEngine.UIElements.UQueryExtensions.Q<UnityEngine.UIElements.Button>(root, "quitButton") : null;
+            if (b == null || quit == null) return "no combat button";
+            string first = b.text;
+            var invoke = typeof(UnityEngine.UIElements.Clickable).GetMethod("Invoke", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            invoke?.Invoke(b.clickable, new object[] { null });
+            string on = $"{b.text} (On {TacticalRules.On})";
+            invoke?.Invoke(b.clickable, new object[] { null });
+            return $"combat {b.worldBound}, quit {quit.worldBound}, row {b.parent.worldBound}, panel {root.worldBound}; text {first} -> {on} -> {b.text} (On {TacticalRules.On})";
+        }
+
         /// <summary>Orders over his own judgement. Under fire and in cover: Move leaves it and gets there,
         /// Hold stays and shoots, the same attack-move asked again every half second stays in cover. Idle and
         /// hit, he stays idle and fights from where he is. Pinned flat, a Move is obeyed once it eases.
@@ -431,7 +458,7 @@ namespace StarForge.EditorTools
             foreach (var u in world.units) if (u != null && !u.dying && u.team < 2) alive[u.team]++;
             Time.timeScale = 1f;
             StarForge.Game.MatchSettings.spectate = false;
-            report = $"match under the new rules {world.Tactical}, {world.time:0} s, winner {world.winner}: {world.ShotsFired} rounds, {world.ShotsHit} struck ({100f * world.ShotsHit / Mathf.Max(1, world.ShotsFired):0}%), {hurt:0} under-attack alarms, units left {alive[0]} and {alive[1]}, kills {world.factions[0].killed} and {world.factions[1].killed}";
+            report = $"match under the new rules {world.Tactical}, {world.time:0} s, winner {world.winner}: {world.ShotsFired} rounds, {world.ShotsHit} struck ({100f * world.ShotsHit / Mathf.Max(1, world.ShotsFired):0}%), {hurt:0} under-attack alarms, units left {alive[0]} and {alive[1]}, kills {world.factions[0].killed} and {world.factions[1].killed}; squads now {world.Squads.Count}, {60f * (world.SquadsMade[0] + world.SquadsMade[1]) / Mathf.Max(1f, world.time):0.0} formed a minute, reports {world.ReportsMade[0]} and {world.ReportsMade[1]} ({60f * (world.ReportsMade[0] + world.ReportsMade[1]) / Mathf.Max(1f, world.time):0.0} a minute both sides, target about 2 or fewer a side)";
         }
     }
 
@@ -613,6 +640,309 @@ namespace StarForge.EditorTools
                 }
                 ClearSpawned();
             }
+            report = sb.ToString();
+            ReleaseStatics();
+        }
+    }
+
+    public sealed class TacticalSquadWalkTrial : TacticalTrial
+    {
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            var sb = new StringBuilder();
+            var rng = new System.Random(77);
+            HoldStatics();
+            for (int f = 0; f < 4; f++)
+            {
+                if (!FindRange(rng, 53f, out var w, out var wd)) break;
+                var side = new Vector2(-wd.y, wd.x);
+                var eight = new List<Unit>();
+                for (int i = 0; i < 8; i++) eight.Add(Put(UnitType.Trooper, 0, w + side * (i - 3.5f) * 2.5f));
+                yield return null;
+                world.CmdMove(eight, w + wd * 50f, true);
+                yield return Wait(8f);
+                var q = eight[0].squad;
+                sb.Append($"  field {f}, at ({w.x:0},{w.y:0}), {(q != null ? q.men.Count : 0)} in the squad, contact {q?.contact}:");
+                foreach (var u in eight)
+                    sb.Append($" [{Vector2.Dot(u.pos - w, wd):0} m {(u == q?.point ? "ahead " : "")}{u.order} {u.mode} {u.posture} {u.Velocity.magnitude:0.0} m/s{(u.target != null ? " at " + u.target.Type : "")}]");
+                sb.AppendLine();
+                ClearSpawned();
+                yield return Wait(1.5f);
+            }
+            // Sent after one enemy 38 m off, just out of reach: stops for his turn lose no one the order.
+            for (int f = 0; f < 3; f++)
+            {
+                if (!FindRange(rng, 40f, out var a, out var d)) break;
+                var side = new Vector2(-d.y, d.x);
+                var eight = new List<Unit>();
+                for (int i = 0; i < 8; i++) { var u = Put(UnitType.Trooper, 0, a + side * (i - 3.5f) * 2.5f); u.hp = 1e6f; eight.Add(u); }
+                var target = Soldier(1, a + d * 38f);
+                yield return null;
+                world.CmdAttack(eight, target);
+                int lostAt = 0, stops = 0;
+                bool[] wasMoving = new bool[8];
+                float t0 = world.time;
+                while (world.time - t0 < 20f)
+                {
+                    for (int i = 0; i < 8; i++)
+                    {
+                        bool m = eight[i].Moving;
+                        if (wasMoving[i] && !m) stops++;
+                        wasMoving[i] = m;
+                    }
+                    yield return null;
+                }
+                foreach (var u in eight) if (u.order != Order.Attack || u.target != target) lostAt++;
+                sb.AppendLine($"  sent after one 38 m off, 20 s: {lostAt} of 8 lost the order or the target (target 0), {stops} stops, nearest {NearestTo(eight, target):0.0} m, enemy hit {1e6f - target.hp:0}");
+                ClearSpawned();
+                yield return Wait(1.5f);
+            }
+            report = sb.ToString();
+            ReleaseStatics();
+        }
+
+        static float NearestTo(List<Unit> men, Unit target)
+        {
+            float best = float.MaxValue;
+            foreach (var u in men) best = Mathf.Min(best, (u.pos - target.pos).magnitude);
+            return best;
+        }
+    }
+
+    public sealed class TacticalSquadsTrial : TacticalTrial
+    {
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            var sb = new StringBuilder();
+            var rng = new System.Random(303);
+            HoldStatics();
+
+            // Forming: five together, three 50 m off.
+            if (FindRange(rng, 52f, out var a, out var d))
+            {
+                var side = new Vector2(-d.y, d.x);
+                var five = new List<Unit>(); var three = new List<Unit>();
+                for (int i = 0; i < 5; i++) five.Add(Soldier(0, a + side * (i - 2) * 2f));
+                for (int i = 0; i < 3; i++) three.Add(Soldier(0, a + d * 50f + side * (i - 1) * 2f));
+                yield return Wait(1.5f);
+                bool oneA = five.TrueForAll(u => u.squad == five[0].squad && u.squad != null);
+                bool oneB = three.TrueForAll(u => u.squad == three[0].squad && u.squad != null);
+                sb.AppendLine($"  forming: five together one squad {oneA} ({five[0].squad?.men.Count}), three apart one squad {oneB} ({three[0].squad?.men.Count}), the same squad {five[0].squad == three[0].squad} (target true, true, false)");
+                // Two sent off together leave and are their own.
+                var two = new List<Unit> { five[0], five[1] };
+                world.CmdMove(two, a - d * 20f, false);
+                yield return Wait(0.2f);
+                yield return Wait(1.5f);
+                sb.AppendLine($"  sent off, 1.7 s on: the two together {two[0].squad == two[1].squad}, {two[0].squad?.men.Count} in it; the three left behind {five[2].squad?.men.Count} (target true, 2, 3)");
+                // A whole squad and a fresh man sent together: the squad stays, with what it remembers.
+                var before = three[0].squad;
+                before.reportedAt = world.time;
+                float told = before.reportedAt;
+                var fresh = Soldier(0, a + d * 50f + side * 4f);
+                var four = new List<Unit>(three) { fresh };
+                world.CmdMove(four, a + d * 30f, false);
+                sb.AppendLine($"  a squad and a fresh man sent: the same squad {three[0].squad == before}, he in it {fresh.squad == before}, it remembers {before.reportedAt == told} (target true, true, true)");
+                ClearSpawned();
+                yield return Wait(1.5f);
+            }
+
+            // Hurry against a plain walk.
+            foreach (bool hurried in new[] { false, true })
+            {
+                if (!FindRange(rng, 32f, out var r, out var e)) break;
+                var man = Soldier(0, r);
+                yield return Wait(0.5f);
+                world.CmdMove(new List<Unit> { man }, r + e * 30f, false, hurried);
+                float t0 = world.time, top = 0f;
+                while (world.time - t0 < 12f && (man.pos - (r + e * 30f)).magnitude > 4f) { top = Mathf.Max(top, man.Velocity.magnitude); yield return null; }
+                float took = world.time - t0;
+                yield return Wait(1.5f);
+                sb.AppendLine($"  {(hurried ? "hurried" : "plain")} Move: 26 m in {took:0.0} s, top speed {top:0.0} m/s, afterwards order {man.order}, hurry {man.hurry}");
+                ClearSpawned();
+                yield return Wait(1.2f);
+            }
+
+            // The walk up: a man goes ahead, the rest close behind; a man alone goes crouched.
+            if (FindRange(rng, 53f, out var w, out var wd))
+            {
+                var side = new Vector2(-wd.y, wd.x);
+                var eight = new List<Unit>();
+                for (int i = 0; i < 8; i++) eight.Add(Put(UnitType.Trooper, 0, w + side * (i - 3.5f) * 2.5f));
+                yield return null;
+                world.CmdMove(eight, w + wd * 50f, true);
+                yield return Wait(4f);
+                var q = eight[0].squad;
+                var p = q?.point;
+                float lead = 0f, t0 = world.time;
+                var was = new Vector2[8];
+                for (int i = 0; i < 8; i++) was[i] = eight[i].pos;
+                Vector2 pointWas = p != null ? p.pos : default;
+                yield return Wait(4f);
+                float rest = 0f, restN = 0f;
+                for (int i = 0; i < 8; i++) if (eight[i] != p) { rest += (eight[i].pos - was[i]).magnitude; restN++; if (p != null) lead = Mathf.Max(lead, Vector2.Dot(p.pos - eight[i].pos, wd)); }
+                sb.AppendLine($"  the walk up: {(p != null ? (p.pos - pointWas).magnitude / (world.time - t0) : 0f):0.0} m/s the man ahead, {rest / Mathf.Max(1f, restN) / (world.time - t0):0.0} the rest, {lead:0.0} m ahead (target 3.5, 2.8)");
+                ClearSpawned();
+                yield return Wait(1.5f);
+            }
+            if (FindRange(rng, 32f, out var alone, out var aloneDir))
+            {
+                var man = Put(UnitType.Trooper, 0, alone);
+                yield return null;
+                world.CmdMove(new List<Unit> { man }, alone + aloneDir * 30f, true);
+                yield return Wait(4f);
+                sb.AppendLine($"  a man alone on an attack-move: {man.posture}, {man.Velocity.magnitude:0.0} m/s (target Crouch, 2.3)");
+                ClearSpawned();
+                yield return Wait(1.5f);
+            }
+
+            // Hurried under fire: out of cover at once; pinned he stays down until it eases.
+            for (int run = 0; run < 4; run++)
+            {
+                if (!FindRange(rng, 26f, out var a2, out var d2)) break;
+                var side = new Vector2(-d2.y, d2.x);
+                var man = Put(UnitType.Trooper, 0, a2);
+                man.hp = 1e6f;
+                for (int r = 0; r < 3; r++) Soldier(1, a2 + d2 * 25f + side * (r - 1) * 2f).noMind = true;
+                float t0 = world.time;
+                while (world.time - t0 < 12f && man.mode == SoldierMode.Free) yield return null;
+                var wasIn = man.mode;
+                world.CmdMove(new List<Unit> { man }, a2 - d2 * 25f, false, true);
+                float t1 = world.time, ran = -1f;
+                while (world.time - t1 < 10f && ran < 0f)
+                {
+                    if (man.Velocity.magnitude > 4.5f) ran = world.time - t1;
+                    yield return null;
+                }
+                sb.AppendLine($"  hurried while {wasIn}: running after {(ran < 0f ? "more than 10" : ran.ToString("0.0"))} s, suppression {man.suppression:0.00} (target: at once, or pinned until it eases)");
+                ClearSpawned();
+                yield return Wait(1.5f);
+            }
+
+            // Turns: eight sent at six on the attack, then eight sent through them on a plain Move.
+            foreach (bool attack in new[] { true, false })
+            {
+                int over = 0, frames = 0, worst = 0, turns = 0, turnsMoved = 0, there = 0, sent = 0, squadCount = 0;
+                float gained = 0f;
+                float[] wideOf = new float[2]; int[] wideCount = new int[2];
+                int shotsFrom = world.ShotsFired;
+                for (int f = 0; f < 3; f++)
+                {
+                    if (!FindRange(rng, 53f, out var c, out var e)) break;
+                    var side = new Vector2(-e.y, e.x);
+                    var six = new List<Unit>(); var eight = new List<Unit>();
+                    for (int i = 0; i < 6; i++) { var u = Put(UnitType.Trooper, 0, c + side * (i - 2.5f) * 2.5f); u.hp = 400f; six.Add(u); }
+                    for (int i = 0; i < 8; i++) { var u = Put(UnitType.Trooper, 1, c + e * 52f + side * (i - 3.5f) * 2.5f); u.hp = 400f; eight.Add(u); }
+                    yield return null;
+                    Vector2 goal = attack ? c : c - e * 2f;
+                    world.CmdMove(eight, goal, attack);
+                    var groups = new HashSet<Squad>();
+                    foreach (var u in eight) if (u.squad != null) groups.Add(u.squad);
+                    squadCount = Mathf.Max(squadCount, groups.Count);
+                    float t0 = world.time, overSince = -1f;
+                    int lastTeam = -1;
+                    bool movedThisTurn = false;
+                    float startOff = (eight[0].pos - goal).magnitude;
+                    while (world.time - t0 < 40f)
+                    {
+                        Squad q = null;
+                        foreach (var u in eight) if (Unit.Live(u) && u.squad != null) { q = u.squad; break; }
+                        if (q == null) break;
+                        if (q.contact && q.men.Count >= 2)
+                        {
+                            int moving = 0;
+                            foreach (var u in q.men) if (u.Velocity.magnitude > 0.5f) moving++;
+                            frames++;
+                            worst = Mathf.Max(worst, moving);
+                            if (moving > 0) movedThisTurn = true;
+                            // Longer than a halted man takes to brake.
+                            if (moving > q.men.Count / 2) { if (overSince < 0f) overSince = world.time; if (world.time - overSince > 0.3f) over++; }
+                            else overSince = -1f;
+                            if (lastTeam >= 0 && q.movingTeam != lastTeam)
+                            {
+                                turns++;
+                                if (movedThisTurn) turnsMoved++;
+                                movedThisTurn = false;
+                            }
+                            lastTeam = q.movingTeam;
+                        }
+                        yield return null;
+                    }
+                    foreach (var u in eight)
+                    {
+                        sent++;
+                        if (!Unit.Live(u)) continue;
+                        gained += startOff - (u.pos - goal).magnitude;
+                        if ((u.pos - goal).magnitude < 8f) there++;
+                        float wide = Mathf.Abs(Vector2.Dot(u.pos - c, side));
+                        wideOf[u.fireTeam & 1] += wide; wideCount[u.fireTeam & 1]++;
+                    }
+                    ClearSpawned();
+                    yield return Wait(1.5f);
+                }
+                sb.AppendLine($"  {(attack ? "attack-move" : "plain Move")}: {squadCount} squad(s) among the eight (target 1); {100f * over / Mathf.Max(1, frames):0.0}% of {frames} contact frames over half moving for more than 0.3 s, at most {worst}; men moved in {turnsMoved} of {turns} turns; {gained / Mathf.Max(1, sent):0} m gained a man, {there} of {sent} there after 40 s, {world.ShotsFired - shotsFrom} rounds; off the line at the end, the halves {wideOf[0] / Mathf.Max(1, wideCount[0]):0.0} and {wideOf[1] / Mathf.Max(1, wideCount[1]):0.0} m (target under 5%, moved in most turns)");
+            }
+
+            // Reports.
+            var heard = new List<string>();
+            Unit[] menHeard = null;
+            ListenWhileHeld(ev => { if (ev.kind == GameEventKind.SquadReport && ev.team == 0) { heard.Add($"{(SquadReportKind)ev.index} at {world.time:0}: {ev.text}"); menHeard = ev.men; } });
+            if (FindRange(rng, 30f, out var f1, out var g))
+            {
+                var side = new Vector2(-g.y, g.x);
+                var four = new List<Unit>();
+                for (int i = 0; i < 4; i++) { var u = Put(UnitType.Trooper, 0, f1 + side * (i - 1.5f) * 2f); four.Add(u); }
+                for (int i = 0; i < 10; i++) Soldier(1, f1 + g * 26f + side * (i - 4.5f) * 2f);
+                var player = Object.FindAnyObjectByType<StarForge.View.PlayerController>();
+                float t0 = world.time;
+                while (menHeard == null && world.time - t0 < 25f) yield return null;
+                float firstAt = world.time - t0;
+                if (menHeard != null && player != null)
+                {
+                    int picked = 0;
+                    // The way a player does it: a click on the line in the feed.
+                    var hudRoot = Object.FindAnyObjectByType<UnityEngine.UIElements.UIDocument>()?.rootVisualElement;
+                    UnityEngine.UIElements.VisualElement line = null;
+                    if (hudRoot != null)
+                        foreach (var l in UnityEngine.UIElements.UQueryExtensions.Query(hudRoot, null, "comms-line").ToList())
+                            if (UnityEngine.UIElements.UQueryExtensions.Q(l, null, "comms-hint") != null) line = l;
+                    player.Selection.Clear();
+                    if (line != null)
+                        using (var click = UnityEngine.UIElements.ClickEvent.GetPooled())
+                        {
+                            click.target = line;
+                            line.SendEvent(click);
+                        }
+                    yield return null;
+                    yield return null;
+                    int alive = 0;
+                    foreach (var u in menHeard) if (Unit.Live(u)) alive++;
+                    picked = player.Selection.Count;
+                    sb.AppendLine($"  first report after {firstAt:0.0} s; the line in the feed {(line != null ? "found" : "NOT FOUND")}; a click selects {picked}, {alive} of the {menHeard.Length} who reported are alive (target the same)");
+                    player.Selection.Clear();
+                }
+                while (world.time - t0 < 25f) yield return null;
+                sb.AppendLine($"  four against ten, 25 s: {heard.Count} reports (target 1){(heard.Count > 0 ? ": " + heard[0] : "")}");
+                ClearSpawned();
+                yield return Wait(2f);
+            }
+            heard.Clear();
+            if (FindRange(rng, 30f, out var f2, out var h))
+            {
+                var side = new Vector2(-h.y, h.x);
+                var four = new List<Unit>();
+                for (int i = 0; i < 4; i++) { var u = Soldier(0, f2 + side * (i - 1.5f) * 2f); four.Add(u); }
+                var tank = Put(UnitType.Mauler, 1, f2 + h * 26f);
+                tank.hp = 1e6f;
+                world.CmdHold(new List<Unit> { tank });
+                yield return Wait(16f);
+                sb.AppendLine($"  four held by a Mauler, 16 s: {heard.Count} reports{(heard.Count > 0 ? ": " + heard[0] : "")}");
+                ClearSpawned();
+            }
+            ListenWhileHeld(null);
             report = sb.ToString();
             ReleaseStatics();
         }

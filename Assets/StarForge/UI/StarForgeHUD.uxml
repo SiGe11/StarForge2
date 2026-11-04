@@ -104,6 +104,7 @@
           <ui:Button name="spectateButton" class="secondary-button" text="WATCH AI VS AI" />
         </ui:VisualElement>
         <ui:VisualElement class="button-row">
+          <ui:Button name="combatButton" class="link-button" text="Combat: classic" />
           <ui:Button name="controlsButton" class="link-button" text="Controls" />
           <ui:Button name="opponentButton" class="link-button" text="About the opponent" />
           <ui:Button name="resetMemoryButton" class="link-button" text="Make the AI forget me" />

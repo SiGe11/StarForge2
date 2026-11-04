@@ -47,6 +47,7 @@ namespace StarForge.World
             SightMs = LinesMs = 0;
             spotNext = 0;
             sweepNext = 0;
+            BeginSquads();
             Sight = Tactical ? new SightMap(map) : null;
         }
 
@@ -417,6 +418,7 @@ namespace StarForge.World
         void NoteLoss(Unit u)
         {
             if (u.def.bodyRadius <= 0f) return;
+            SquadLoss(u);
             soldierLosses.Add((u.pos, time, u.team));
             if (soldierLosses.Count > 48) soldierLosses.RemoveRange(0, 16);
         }
@@ -541,6 +543,10 @@ namespace StarForge.World
             mass /= seen;
             Vector3 massGun = new Vector3(mass.x, Sight.GroundAt(mass.x, mass.y) + 1.25f, mass.y);
             float Sheltered(Vector2 p) => 0.5f * (CoverShare(p, threat) + CoverShare(p, mass, massGun));
+            Vector2 pull = onward && u.order != Order.Move ? FlankPull(u, threat) : Vector2.zero;
+            // On a plain Move, onward is nearer where he was sent, not nearer the enemy.
+            bool toGoal = onward && !back && u.order == Order.Move;
+            float goalHere = toGoal ? (u.pos - u.orderPos).magnitude : 0f;
             float bestScore = float.MinValue;
             float herePlain = Sheltered(u.pos) * 4f + (CanFireFrom(u.pos, threat) ? 2f : 0f);
             void Try(Vector2 p)
@@ -555,8 +561,14 @@ namespace StarForge.World
                 // A man who can shoot from behind what shelters him is worth far more than one out of the fight.
                 float score = cover * 4f - walk / 6f;
                 if (CanFireFrom(p, threat)) score += 2f;
-                if (d > u.def.range) score -= 1.5f;
-                if (onward) score += (here - d) * 0.15f;
+                if (d > u.def.range && !toGoal) score -= 1.5f;
+                if (toGoal)
+                {
+                    float g = (p - u.orderPos).magnitude;
+                    if (g > goalHere - 1f) return;
+                    score += (goalHere - g) * 0.15f;
+                }
+                else if (onward) score += (here - d) * 0.15f + Vector2.Dot(p - u.pos, pull) * 0.25f;
                 if (back) score += (d - here) * 0.15f;
                 if (score <= bestScore || score <= herePlain + 0.3f) return;
                 if (TakenByFriend(u, p)) return;

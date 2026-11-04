@@ -26,6 +26,14 @@ namespace StarForge.World
         [System.NonSerialized] float mindAt, coverBy, coverStayUntil, nextCoverLook, panicUntil, panicRollAt;
         [System.NonSerialized] float bravery = -1f;
         [System.NonSerialized] float postureLookAt;
+        /// <summary>Who he is with (GameWorld.Squads), and which half of them he is in for taking turns.</summary>
+        [System.NonSerialized] public Squad squad;
+        [System.NonSerialized] public int fireTeam;
+        [System.NonSerialized] public int squadMark;
+        /// <summary>A Move stopped for his turn: the way goes on from here (KeepGoing would read the stop as the end).</summary>
+        [System.NonSerialized] bool resumeMove;
+        /// <summary>Double right-click: he runs, looks for no cover and only being pinned stops him.</summary>
+        [System.NonSerialized] public bool hurry;
         /// <summary>The order he last read: a new one takes him out of his cover.</summary>
         [System.NonSerialized] Order readOrder;
         [System.NonSerialized] Vector2 readOrderAt;
@@ -41,6 +49,7 @@ namespace StarForge.World
         const float RushPace = 6f / 3.5f, CrouchPace = 0.65f, CrawlPace = 0.27f;
         const float CoverReach = 12f;
         const float NewOrderFrom = 6f;
+        const float FollowPoint = 0.8f, PointLead = 12f, CoverIsThere = 6f;
 
         /// <summary>He is busy with something that takes him out of the order for now.</summary>
         bool SoldierBusy => mode != SoldierMode.Free;
@@ -76,7 +85,37 @@ namespace StarForge.World
 
         void SetPace()
         {
-            soldierPace = rushing ? RushPace : posture == Posture.Prone ? CrawlPace : posture == Posture.Crouch ? CrouchPace : 1f;
+            soldierPace = rushing || (hurry && mode == SoldierMode.Free) ? RushPace : posture == Posture.Prone ? CrawlPace : posture == Posture.Crouch ? CrouchPace : 1f;
+            // On the way with nothing in sight, a man goes ahead and the others follow a little behind,
+            // never so far that he walks out of the squad.
+            if (!rushing && !hurry && squad != null && squad.men.Count >= 3 && !squad.contact && order == Order.AttackMove &&
+                squad.point != this && Live(squad.point) && Dist(squad.point) < PointLead)
+                soldierPace *= FollowPoint;
+        }
+
+        /// <summary>Walking up or running to cover on an attack: what his squad counts as moving in contact.</summary>
+        public bool MayWalkNow => SquadLetsMove();
+        public bool IsMovingUnderOrder => !hurry && Moving && (order == Order.Attack || order == Order.AttackMove || order == Order.Move || order == Order.Idle);
+
+        /// <summary>A soldier sent somewhere chooses how he gets there; only a hurried one looks at nothing.</summary>
+        bool Careful => world.Tactical && def.bodyRadius > 0f && !noMind && !hurry;
+
+        /// <summary>In contact, half a squad moves while the other half shoots: is it his turn, with room?</summary>
+        bool SquadLetsMove()
+        {
+            var q = squad;
+            if (q == null || !q.contact || hurry) return true;
+            if (q.men.Count >= 2 && fireTeam != q.movingTeam) return false;
+            return IsMovingUnderOrder || q.moving < Mathf.Max(1, q.men.Count / 2);
+        }
+
+        /// <summary>He is walking up out of his turn: stop and shoot (not a man already running for cover).</summary>
+        public bool StopForTurn()
+        {
+            if (mode != SoldierMode.Free || !IsMovingUnderOrder) return false;
+            Halt();
+            resumeMove = order == Order.Move;
+            return true;
         }
 
         void StopLeaning()
@@ -95,7 +134,8 @@ namespace StarForge.World
             bool moved = !sameKind || !samePlace;
             readOrder = order;
             readOrderAt = orderPos;
-            if (!moved && order != Order.Move) return;
+            if (order == Order.Idle || order == Order.Hold) hurry = false;
+            if (!moved && !hurry) return;
             if (order == Order.Idle) return;
             lineOnlyUntil = moved ? 0f : lineOnlyUntil;
             if (mode != SoldierMode.ToCover && mode != SoldierMode.InCover) return;
@@ -185,9 +225,11 @@ namespace StarForge.World
                 return;
             }
 
-            // Told to go, he goes: he only stops when pinned. On Hold he keeps his ground, and his head down.
-            if (order == Order.Move) { posture = Posture.Stand; return; }
-            bool mayMove = order == Order.Attack || order == Order.AttackMove || order == Order.Idle;
+            // Told to hurry, he goes: he only stops when pinned. On Hold he keeps his ground, and his head down.
+            if (hurry) { posture = Posture.Stand; return; }
+            // In cover near where he was sent, he is there: not out into the open for the last metres.
+            if (order == Order.Move && mode == SoldierMode.InCover && Dist(orderPos) < CoverIsThere) order = Order.Idle;
+            bool mayMove = order == Order.Attack || order == Order.AttackMove || order == Order.Move || order == Order.Idle;
 
             if (threat == null || threat.def.flying)
             {
@@ -195,7 +237,8 @@ namespace StarForge.World
                 if (world.time - lastFiredAtT > 3f)
                 {
                     if (mode != SoldierMode.Free) Release();
-                    else posture = Posture.Stand;
+                    // A man on his own goes carefully; with others about, upright.
+                    else posture = order == Order.AttackMove && (squad == null || squad.men.Count == 1) ? Posture.Crouch : Posture.Stand;
                 }
                 return;
             }
@@ -209,8 +252,8 @@ namespace StarForge.World
                 if (!mayMove) return;
                 bool flanked = !world.CoversFrom(coverAt, threat);
                 bool onward = order != Order.Idle && suppression < 0.3f && world.time >= coverStayUntil &&
-                              (range > def.range * 0.75f || fireBlocked);
-                if ((flanked || onward) && world.time >= nextCoverLook) LookForCover(threat, onward, false);
+                              (order == Order.Move || range > def.range * 0.75f || fireBlocked);
+                if ((flanked || onward) && world.time >= nextCoverLook) LookForCover(threat, onward, false, flanked);
                 return;
             }
 
@@ -229,11 +272,14 @@ namespace StarForge.World
             if (hot != hiding) { hiding = hot; fireLookAt = -99f; }
             if (hiding) { posture = Posture.Crouch; StopLeaning(); return; }
             // The lines below are asked of every soldier in contact: once a second is enough to choose by.
-            if (world.time < postureLookAt) return;
+            // (Up off the ground at once when he sets off again, or he crawls the first of his turn.)
+            if (world.time < postureLookAt && !(posture == Posture.Prone && Moving && suppression < 0.25f)) return;
             postureLookAt = world.time + 1f;
             // Stopped in the open with an enemy far enough off to lie down for, he lies down: half the
             // target. Under fire he lies down wherever he is.
-            if (mode == SoldierMode.Free && world.Sees(team, threat) && (suppression > 0.25f || (!Moving && Dist(threat) > 15f)))
+            // On his way to somewhere else he keeps on, low, rather than crawl it.
+            bool flat = Moving ? suppression > 0.25f && order != Order.Move : suppression > 0.25f || Dist(threat) > 15f;
+            if (mode == SoldierMode.Free && world.Sees(team, threat) && flat)
             {
                 posture = Posture.Prone;
                 if (world.LineOfFire(this, threat)) return;
@@ -246,16 +292,24 @@ namespace StarForge.World
 
         /// <summary>Find a place out of what threatens him, and run for it. Spends one of the world's looks;
         /// with none to spare he asks again next time. Onward means nearer the enemy; back, further off.</summary>
-        void LookForCover(Unit threat, bool onward, bool back)
+        void LookForCover(Unit threat, bool onward, bool back, bool flanked = false)
         {
+            // His turn, unless what he is behind no longer covers him.
+            if (!back && !flanked && !SquadLetsMove()) return;
             if (!world.TakeCoverLook()) return;
             nextCoverLook = world.time + 2.5f;
             if (!world.FindCover(this, threat, CoverReach, onward, back, out var spot))
             {
                 // Nowhere better: an onward bound with no cover to reach ends in the open, walking up.
-                if (mode == SoldierMode.InCover && onward) { mode = SoldierMode.Free; posture = Posture.Crouch; }
+                if (mode == SoldierMode.InCover && onward)
+                {
+                    mode = SoldierMode.Free;
+                    posture = Posture.Crouch;
+                    if (order == Order.Move) MoveTo(orderPos);
+                }
                 return;
             }
+            if (squad != null) squad.moving++;
             coverAt = spot;
             hiding = false;
             StopLeaning();

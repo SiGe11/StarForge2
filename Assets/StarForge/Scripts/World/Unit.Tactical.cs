@@ -114,6 +114,17 @@ namespace StarForge.World
         /// <summary>Where a closing unit walks for its target.</summary>
         Vector2 TargetGoal => world.Sees(team, target) ? target.pos : targetSeenAt;
 
+        /// <summary>The same, for the half of a squad working round it: to one side, on ground he can reach.</summary>
+        Vector2 ClosingGoal
+        {
+            get
+            {
+                Vector2 way = world.FlankPull(this, target);
+                return way == Vector2.zero ? TargetGoal : world.NearestReachable(this, TargetGoal + way * FlankWide);
+            }
+        }
+        const float FlankWide = 12f;
+
         /// <summary>Its target is out of reach, or no round would get to it. Free to choose, it takes another
         /// a round would reach: what fights back first, and closing on something that fights back only
         /// another that does (as the old give-way rule). If the way there does not get there (a partial
@@ -131,6 +142,8 @@ namespace StarForge.World
                 if (open != null && open != target) { target = open; targetOrdered = false; fireLookAt = -99f; blockedFor = 0f; return; }
             }
             if (!closing || agent == null || !agent.enabled || !agent.isOnNavMesh) { blockedFor = 0f; return; }
+            // Stopped for his turn he gains nothing, and that says nothing about the way.
+            if (!SquadLetsMove()) { blockedFor = 0f; return; }
             // Closing asks for its path afresh every half second or so: asking says nothing either way.
             if (agent.pathPending) return;
             if (agent.pathStatus == UnityEngine.AI.NavMeshPathStatus.PathComplete) { blockedFor = 0f; return; }

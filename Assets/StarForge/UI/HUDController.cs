@@ -34,6 +34,7 @@ namespace StarForge.UI
         Label inspStrategy, inspReason, inspStats;
         Label endTitle, endSubtitle, endStats, endDossier;
         Label difficultyBlurb, memoryStatus, controlsText, qualityBlurb, opponentText;
+        Button combatButton;
         Button inspectorButton;
         Button[] segments;
         Button[] qualitySegments;
@@ -288,6 +289,8 @@ namespace StarForge.UI
 
             root.Q<Button>("playButton").clicked += () => { MatchSettings.spectate = false; bootstrap.StartMatch(); };
             root.Q<Button>("spectateButton").clicked += () => { MatchSettings.spectate = true; bootstrap.StartMatch(); };
+            combatButton = root.Q<Button>("combatButton");
+            if (combatButton != null) combatButton.clicked += () => { StarForge.Sim.TacticalRules.On = !StarForge.Sim.TacticalRules.On; RefreshTitle(); };
             root.Q<Button>("controlsButton").clicked += () =>
             {
                 opponentText.RemoveFromClassList("controls-text--visible");
@@ -330,6 +333,7 @@ namespace StarForge.UI
         {
             for (int i = 0; i < segments.Length; i++)
                 segments[i].EnableInClassList("segment--active", (int)MatchSettings.difficulty == i);
+            if (combatButton != null) combatButton.text = StarForge.Sim.TacticalRules.On ? "Combat: new" : "Combat: classic";
             switch (MatchSettings.difficulty)
             {
                 case AIDifficulty.Recruit:
@@ -713,6 +717,9 @@ namespace StarForge.UI
                 case GameEventKind.MechAdvice when e.team == me:
                     Comms(e);
                     break;
+                case GameEventKind.SquadReport when e.team == me:
+                    SquadLine(e);
+                    break;
             }
         }
 
@@ -794,6 +801,51 @@ namespace StarForge.UI
             float life = flair ? 9000 : e.advice == MechAdviceKind.Status ? 11000 : 16000;
             line.schedule.Execute(() => line.AddToClassList("comms-line--fading")).StartingIn((long)life);
             line.schedule.Execute(() => line.RemoveFromHierarchy()).StartingIn((long)life + 450);
+        }
+
+        /// <summary>A squad's report: text only. A click looks at them and selects them; what to do is the player's.</summary>
+        void SquadLine(GameEvent e)
+        {
+            bool air = e.index == (int)SquadReportKind.NeedAir;
+            var line = new VisualElement();
+            line.AddToClassList("comms-line");
+            line.AddToClassList("comms-line--" + (air ? "warning" : "regroup"));
+            line.AddToClassList("comms-line--new");
+            var head = new VisualElement { pickingMode = PickingMode.Ignore };
+            head.AddToClassList("comms-head");
+            var who = new Label("SQUAD") { pickingMode = PickingMode.Ignore };
+            who.AddToClassList("comms-who");
+            head.Add(who);
+            var tag = new Label(air ? "NEED AIR SUPPORT" : "FALL BACK?") { pickingMode = PickingMode.Ignore };
+            tag.AddToClassList("comms-tag");
+            tag.AddToClassList("comms-tag--" + (air ? "warning" : "regroup"));
+            head.Add(tag);
+            var text = new Label(e.text) { pickingMode = PickingMode.Ignore };
+            text.AddToClassList("comms-text");
+            line.Add(head);
+            line.Add(text);
+            var hint = new Label("Click to look and select them") { pickingMode = PickingMode.Ignore };
+            hint.AddToClassList("comms-hint");
+            line.Add(hint);
+            Vector2 at = new Vector2(e.pos.x, e.pos.z);
+            AdvicePing(at, air ? MechAdviceKind.Warning : MechAdviceKind.Regroup);
+            var men = e.men;
+            line.RegisterCallback<ClickEvent>(_ =>
+            {
+                rig.CenterOn(at);
+                if (player != null && men != null) player.SelectUnits(men);
+            });
+            while (commsFeed.childCount >= 3)
+            {
+                VisualElement drop = null;
+                foreach (var c in commsFeed.Children())
+                    if (c.ClassListContains("comms-line--flair")) { drop = c; break; }
+                (drop ?? commsFeed[0]).RemoveFromHierarchy();
+            }
+            commsFeed.Add(line);
+            line.schedule.Execute(() => line.RemoveFromClassList("comms-line--new")).StartingIn(30);
+            line.schedule.Execute(() => line.AddToClassList("comms-line--fading")).StartingIn(16000);
+            line.schedule.Execute(() => line.RemoveFromHierarchy()).StartingIn(16450);
         }
 
         void AdvicePing(Vector2 at, MechAdviceKind kind, bool refresh = false)
@@ -1213,7 +1265,7 @@ namespace StarForge.UI
         const string ControlsHelp =
             "Camera   WASD / arrows / screen edge pan · Q E rotate · wheel zoom · middle-drag · Space centre\n" +
             "Select   click · drag box · double-click type · Shift add · Ctrl+1-0 group · 1-0 recall · F2 army\n" +
-            "Orders   right-click move/attack/mine · R attack-move · C stop · H hold\n" +
+            "Orders   right-click move/attack/mine · double right-click hurry (new combat) · R attack-move · C stop · H hold\n" +
             "Build    Digger: B basic (F foundry · B bunkhouse · G garrison · N sentinel · V workshop) · V advanced (U armory · L airfield · O biolab · Y mech bay) · X/Esc back\n" +
             "Train    Foundry U J K · Garrison T K F M N B · Workshop M L F T K · X cancel\n" +
             "Mech     Mech Bay: V servos · B armour · N weapons · M hardpoint · K targeting · click the Mech strip to find it\n" +

@@ -252,6 +252,10 @@ namespace StarForge.View
                     if (!e.repeat && bank.mechRadio != null && bank.mechRadio.Length > 0)
                         PlayUI(bank.mechRadio[Random.Range(0, bank.mechRadio.Length)], e.advice == MechAdviceKind.Morale ? 0.2f : 0.5f, 1f);
                     break;
+                case GameEventKind.SquadReport when e.team == me:
+                    if (bank.mechRadio != null && bank.mechRadio.Length > 0)
+                        PlayUI(bank.mechRadio[Random.Range(0, bank.mechRadio.Length)], 0.3f, 1f);
+                    break;
                 case GameEventKind.UpgradeComplete when e.team == me:
                 case GameEventKind.ArmyUpgradeComplete when e.team == me:
                     PlayUI(bank.uiPromote != null ? bank.uiPromote : promote, 0.5f, 1f);
