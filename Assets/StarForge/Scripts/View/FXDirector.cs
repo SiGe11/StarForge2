@@ -2211,6 +2211,7 @@ namespace StarForge.View
                 Wrecks(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,
                        new Vector3(w2.x, 0f, w2.y));
                 FlameJets(dt);
+                SmokeScreens(dt);
                 MechEffects(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,
                             new Vector3(w2.x, 0f, w2.y));
                 WeatherEffects(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,
@@ -2395,6 +2396,15 @@ namespace StarForge.View
                         rings.Add(Matrix4x4.TRS(u.Ground, Quaternion.identity, new Vector3(u.def.range * 2f, 6f, u.def.range * 2f)),
                                   PlayerColor * 0.9f, new Vector4(4f, 0f, 0f, 0f));
                 }
+                // The squad a report is about, while the pointer is on its line: easy to find on a busy field.
+                foreach (var u in player.Highlighted)
+                {
+                    if (!Unit.Live(u)) continue;
+                    float r = Mathf.Max(u.def.radius * 1.3f, u.def.visualRadius * 0.9f);
+                    float beat = 1f + 0.35f * Mathf.Sin(now * 9f);
+                    rings.Add(Matrix4x4.TRS(u.Ground, Quaternion.identity, new Vector3(r * 3.4f * beat, 5f, r * 3.4f * beat)), new Color(3.2f, 2.5f, 0.7f), Vector4.zero);
+                    rings.Add(Matrix4x4.TRS(u.Ground, Quaternion.identity, new Vector3(r * 2f, 4f, r * 2f)), new Color(3.6f, 3f, 1.2f), Vector4.zero);
+                }
                 var h = player.Hovered;
                 if (Unit.Live(h) && !player.Selection.Contains(h))
                 {
@@ -2501,6 +2511,10 @@ namespace StarForge.View
                     case GameWorld.ProjAP: streak = Mathf.Clamp(len * 1.4f, 2f, 5f); width = 0.24f; c = new Color(3.6f, 2.6f, 1.2f); halo = new Color(0.8f, 0.45f, 0.15f); break;
                     case GameWorld.ProjAcid: streak = 0.9f; width = 0.32f; c = AcidColor; halo = AcidColor * 0.25f; break;
                     case GameWorld.ProjGlaive: streak = 1.2f; width = 0.3f; c = GlaiveColor; halo = GlaiveColor * 0.25f; break;
+                    // Something small and dark turning over in the air, with a glint to find it by.
+                    case GameWorld.ProjFrag:
+                    case GameWorld.ProjSmoke:
+                    case GameWorld.ProjFlash: streak = 0.35f; width = 0.13f; c = new Color(1.3f, 1.15f, 0.9f); halo = new Color(0f, 0f, 0f, 0f); break;
                     case GameWorld.ProjRocket: streak = 1.7f; width = 0.38f; c = new Color(5f, 3.2f, 1.3f); halo = new Color(1.1f, 0.5f, 0.15f); break;
                     default: streak = Mathf.Min(len * 1.5f, 3.5f); width = 0.12f; c = p.team == 0 ? new Color(0.9f, 1.8f, 2.6f) : new Color(2.6f, 1.2f, 0.5f); halo = Color.clear; break;
                 }

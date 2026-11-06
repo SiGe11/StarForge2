@@ -229,7 +229,7 @@ namespace StarForge.EditorTools
 
         public const string RigSuffix = "_RIG.fbx";
         /// <summary>The rig's clips that play round and round; the rest run once.</summary>
-        static readonly string[] RigLoops = { "Idle", "Walk", "Run", "Sneak", "CrouchWalk", "CrouchIdle", "CrouchAim", "Crawl", "ProneAim", "Aim" };
+        static readonly string[] RigLoops = { "Idle", "Walk", "Run", "Sneak", "CrouchWalk", "CrouchIdle", "CrouchAim", "Crawl", "ProneAim", "Aim", "PistolAim", "CrouchPistol", "RunPistol" };
 
         void OnPreprocessAnimation()
         {

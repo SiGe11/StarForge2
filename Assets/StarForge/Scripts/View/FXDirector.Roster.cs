@@ -21,6 +21,21 @@ namespace StarForge.View
             Vector3 fwd = e.dir.sqrMagnitude > 1e-4f ? e.dir.normalized : Vector3.forward;
             switch (e.projectileKind)
             {
+                case GameWorld.ProjPistol:
+                    AddFlare(e.pos, fwd, 0.8f, 0.22f, new Color(4f, 3f, 1.7f), 0.05f);
+                    break;
+                case GameWorld.ProjMG:
+                    AddFlare(e.pos, fwd, 1.5f, 0.42f, new Color(4.5f, 3.3f, 1.6f), 0.05f);
+                    if (Random.value < 0.25f) Emit(smoke, e.pos + fwd * 0.3f + Vector3.up * 0.1f, fwd * 1.2f + Vector3.up * 0.5f, 0.5f, 0.6f, new Color(0.6f, 0.58f, 0.56f, 0.28f), Random.Range(0f, 360f));
+                    break;
+                case GameWorld.ProjKnife:
+                    for (int i = 0; i < 3; i++)
+                        Emit(sparks, e.pos, Random.insideUnitSphere * 1.6f, 0.05f, 0.14f, new Color(1f, 0.95f, 0.85f));
+                    break;
+                case GameWorld.ProjFrag:
+                case GameWorld.ProjSmoke:
+                case GameWorld.ProjFlash:
+                    break;
                 case GameWorld.ProjLob:
                     // The Mech's mortar, a man's size.
                     MortarSlam(e.pos, fwd, ThumperScale);
@@ -136,6 +151,23 @@ namespace StarForge.View
         {
             switch (e.projectileKind)
             {
+                case GameWorld.ProjFrag:
+                    Explosion(e.pos, 0.95f, false, pressure: 0.55f);
+                    for (int i = 0; i < 12; i++)
+                        Emit(sparks, e.pos + Vector3.up * 0.3f, Random.insideUnitSphere * 11f + Vector3.up * 2f, 0.1f, Random.Range(0.15f, 0.35f), new Color(1f, 0.8f, 0.5f));
+                    ShakeFrom(e.pos, 0.05f);
+                    break;
+                case GameWorld.ProjFlash:
+                    // No fire and no smoke to speak of: a white crack that fills the eye.
+                    Emit(glow, e.pos + Vector3.up * 0.8f, Vector3.zero, 16f, 0.16f, new Color(1f, 1f, 0.97f));
+                    Emit(glow, e.pos + Vector3.up * 0.8f, Vector3.zero, 7f, 0.32f, new Color(0.85f, 0.9f, 1f));
+                    Flash(e.pos + Vector3.up, new Color(0.95f, 0.97f, 1f), 9f, 16f, 0.14f);
+                    Emit(smoke, e.pos + Vector3.up * 0.5f, Vector3.up * 0.6f, 1.1f, 1.1f, new Color(0.6f, 0.6f, 0.58f, 0.3f), Random.Range(0f, 360f));
+                    break;
+                case GameWorld.ProjSmoke:
+                    // The can's pop; the cloud itself is SmokeScreens.
+                    Emit(smoke, e.pos + Vector3.up * 0.6f, Vector3.up * 1.2f, 1.6f, 1.2f, new Color(0.72f, 0.72f, 0.7f, 0.5f), Random.Range(0f, 360f));
+                    break;
                 case GameWorld.ProjLob:
                     Explosion(e.pos, 2.2f * ThumperScale * 1.15f, false, pressure: 1.3f * ThumperScale);
                     ShakeFrom(e.pos, 0.2f * ThumperScale);
@@ -205,6 +237,45 @@ namespace StarForge.View
                 return;
             }
             flameJets.Add(new FlameJet { unit = e.unit, from = e.pos, to = e.end, until = Time.time + hold });
+        }
+
+        /// <summary>The clouds the world has, as it has them: what blocks sight is what is drawn. Billows
+        /// lifted off the ground (a puff born on geometry fades out), a rate per second capped by the 0.1 s step.</summary>
+        void SmokeScreens(float dt)
+        {
+            if (!world.Tactical) return;
+            foreach (var c in world.SmokeClouds)
+            {
+                Vector3 foot = new Vector3(c.at.x, world.Map.HeightAt(c.at), c.at.y);
+                // A cloud hides its own middle from whoever threw it: it is drawn if any of it is in view.
+                if (!CloudInView(foot)) continue;
+                float age = world.time - c.born, left = c.until - world.time;
+                float grow = Mathf.Clamp01(age / 2f);
+                // It thins for its last few seconds, and the particles already up outlive it by theirs.
+                float rate = left < 4f ? 3f : age < 2f ? 34f : 15f;
+                float want = rate * Mathf.Min(dt, 0.1f);
+                int n = (int)want + (Random.value < want - (int)want ? 1 : 0);
+                for (int i = 0; i < n; i++)
+                {
+                    Vector2 disk = Random.insideUnitCircle * (StarForge.Sim.TacticalRules.SmokeRadius * 0.85f * grow + 1f);
+                    Vector3 p = foot + new Vector3(disk.x, Random.Range(1f, 4.5f), disk.y);
+                    Vector3 vel = Vector3.up * Random.Range(0.1f, 0.4f) + Random.insideUnitSphere * 0.25f;
+                    float g = Random.Range(0.7f, 0.86f);
+                    Emit(smoke, p, vel, Random.Range(5f, 8f), Random.Range(3.5f, 5f), new Color(g, g, g * 0.98f, 0.85f), Random.Range(0f, 360f));
+                }
+            }
+        }
+
+        bool CloudInView(Vector3 foot)
+        {
+            if (Seen(foot)) return true;
+            float r = StarForge.Sim.TacticalRules.SmokeRadius + 3f;
+            for (int i = 0; i < 8; i++)
+            {
+                float a = i * Mathf.PI / 4f;
+                if (Seen(foot + new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r))) return true;
+            }
+            return false;
         }
 
         void FlameJets(float dt)

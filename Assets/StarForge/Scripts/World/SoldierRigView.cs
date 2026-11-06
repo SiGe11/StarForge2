@@ -14,13 +14,16 @@ namespace StarForge.World
             CrouchWalk = Animator.StringToHash("CrouchWalk"), CrouchIdle = Animator.StringToHash("CrouchIdle"), CrouchAim = Animator.StringToHash("CrouchAim"),
             Crawl = Animator.StringToHash("Crawl"), ProneAim = Animator.StringToHash("ProneAim"), Aim = Animator.StringToHash("Aim"),
             Fire = Animator.StringToHash("Fire"), CrouchFire = Animator.StringToHash("CrouchFire"), ProneFire = Animator.StringToHash("ProneFire"),
-            Dive = Animator.StringToHash("Dive");
+            Dive = Animator.StringToHash("Dive"), ThrowClip = Animator.StringToHash("Throw"), Stab = Animator.StringToHash("Stab"),
+            Reload = Animator.StringToHash("Reload"), CrouchReload = Animator.StringToHash("CrouchReload"), ProneReload = Animator.StringToHash("ProneReload"),
+            PistolAim = Animator.StringToHash("PistolAim"), PistolFire = Animator.StringToHash("PistolFire"),
+            CrouchPistol = Animator.StringToHash("CrouchPistol"), RunPistol = Animator.StringToHash("RunPistol");
         static readonly int FlashId = Shader.PropertyToID("_FlashColor"), DamageId = Shader.PropertyToID("_Damage"), BurnId = Shader.PropertyToID("_Burn");
 
         // Metres a second the clips' feet move at, at their own speed (build_soldier_rig.py -- stride):
         // the Animator's speed follows the ground, or the feet slide.
         const float WalkFeet = 2.5f, RunFeet = 5.05f, CrouchFeet = 3.9f, CrawlFeet = 1.16f;
-        const float FireLasts = 0.33f, DiveLasts = 0.42f;
+        const float FireLasts = 0.33f, DiveLasts = 0.42f, ThrowLasts = 1.1f, StabLasts = 1.1f;
 
         readonly Unit unit;
         readonly Transform root;
@@ -33,6 +36,8 @@ namespace StarForge.World
         float busyUntil;
         float prevCooldown;
         Posture prevPosture;
+        float shownThrow = -99f, shownStab = -99f, shownPistol = -99f, shownReload = -99f;
+        float pistolUntil, busySpeed;
 
         public readonly Renderer[] Renderers;
         /// <summary>Where a cape hanging on the rigid body should sit, with him down.</summary>
@@ -42,7 +47,8 @@ namespace StarForge.World
         /// <summary>The rigged body in place of these parts; null if the prefab is not there (the old look).</summary>
         public static SoldierRigView Attach(Unit u, Renderer[] parts)
         {
-            var prefab = Resources.Load<GameObject>($"SoldierRig_T{Mathf.Clamp(u.team, 0, 1)}");
+            int side = Mathf.Clamp(u.team, 0, 1);
+            var prefab = Resources.Load<GameObject>(u.Type == UnitType.Trooper ? $"SoldierRig_T{side}" : $"SoldierRig_{u.Type}_T{side}");
             return prefab == null ? null : new SoldierRigView(u, parts, prefab);
         }
 
@@ -86,6 +92,50 @@ namespace StarForge.World
                 busyUntil = now + DiveLasts;
             }
             prevPosture = posture;
+            // A round from the pistol, standing still: as a shot.
+            if (unit.pistolAtT != shownPistol)
+            {
+                shownPistol = unit.pistolAtT;
+                pistolUntil = now + 1.2f;
+                if (speed < 0.5f && now >= busyUntil)
+                {
+                    int shot = posture == Posture.Prone ? ProneFire : posture == Posture.Crouch ? CrouchPistol : PistolFire;
+                    anim.Play(shot, 0, 0f);
+                    state = shot;
+                    busyUntil = now + FireLasts;
+                }
+            }
+            if (unit.reloadAtT != shownReload)
+            {
+                shownReload = unit.reloadAtT;
+                // On the move he does it as he goes: there is no clip for that, and it does not show at this range.
+                if (speed < 0.5f && unit.def.reloadTime > 0.2f)
+                {
+                    int clip = posture == Posture.Prone ? ProneReload : posture == Posture.Crouch ? CrouchReload : Reload;
+                    anim.Play(clip, 0, 0f);
+                    state = clip;
+                    busyUntil = now + unit.def.reloadTime;
+                    busySpeed = 2f / unit.def.reloadTime;   // the clips are two seconds long
+                }
+            }
+            if (unit.thrownAtT != shownThrow)
+            {
+                shownThrow = unit.thrownAtT;
+                // Flat on the ground he has no room to swing: the smoke comes from where he lies.
+                if (posture != Posture.Prone)
+                {
+                    anim.Play(ThrowClip, 0, 0f);
+                    state = ThrowClip;
+                    busyUntil = now + ThrowLasts;
+                }
+            }
+            if (unit.stabbedAtT != shownStab)
+            {
+                shownStab = unit.stabbedAtT;
+                anim.Play(Stab, 0, 0f);
+                state = Stab;
+                busyUntil = now + StabLasts;
+            }
 
             int want;
             float feet = 0f;
@@ -97,19 +147,20 @@ namespace StarForge.World
             }
             else if (posture == Posture.Crouch)
             {
-                want = speed > 0.3f ? CrouchWalk : aiming ? CrouchAim : CrouchIdle;
+                want = speed > 0.3f ? CrouchWalk : now < pistolUntil ? CrouchPistol : aiming ? CrouchAim : CrouchIdle;
                 if (want == CrouchWalk) feet = CrouchFeet;
             }
             else
             {
-                want = speed > 4.4f ? Run : speed > 0.3f ? Walk : aiming ? Aim : Idle;
+                want = speed > 4.4f ? (now < pistolUntil ? RunPistol : Run) : speed > 0.3f ? Walk : now < pistolUntil ? PistolAim : aiming ? Aim : Idle;
                 if (want == Walk) feet = WalkFeet;
-                else if (want == Run) feet = RunFeet;
+                else if (want == Run || want == RunPistol) feet = RunFeet;
             }
-            anim.speed = feet > 0f ? Mathf.Clamp(speed / feet, 0.4f, 1.8f) : 1f;
+            if (now >= busyUntil) busySpeed = 0f;
+            anim.speed = busySpeed > 0f ? busySpeed : feet > 0f ? Mathf.Clamp(speed / feet, 0.4f, 1.8f) : 1f;
             if (now >= busyUntil && want != state)
             {
-                anim.CrossFadeInFixedTime(want, want == Run || state == Run ? 0.12f : 0.2f, 0);
+                anim.CrossFadeInFixedTime(want, want == Run || state == Run || want == RunPistol ? 0.12f : 0.2f, 0);
                 state = want;
             }
 

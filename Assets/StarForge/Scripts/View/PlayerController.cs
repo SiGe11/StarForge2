@@ -528,7 +528,7 @@ namespace StarForge.View
                 for (int i = 0; i < (int)UnitType.Count; i++)
                 {
                     var d = Defs.Get((UnitType)i);
-                    if (d == null || d.producer != structureType) continue;
+                    if (d == null || d.producer != structureType || (d.tacticalOnly && !world.Tactical)) continue;
                     bool supplyOk = F.supplyUsed + d.supplyCost <= world.SupplyCap(team);
                     bool reqOk = d.requires == UnitType.None || world.HasComplete(team, d.requires);
                     // The Mech-Hunter: the Armory's programme, one at a time, a wait after it falls.
@@ -709,6 +709,16 @@ namespace StarForge.View
 
         float lastRightClickTime = -9f;
         Vector2 lastRightClickAt;
+
+        /// <summary>Those a report's line is about, while the pointer is on it: ringed brightly (FXDirector).</summary>
+        public readonly List<Unit> Highlighted = new List<Unit>(8);
+
+        public void HighlightUnits(Unit[] men)
+        {
+            Highlighted.Clear();
+            if (men == null) return;
+            foreach (var u in men) if (Unit.Live(u) && Mine(u)) Highlighted.Add(u);
+        }
 
         /// <summary>A report clicked: those who sent it, as many as are still with us.</summary>
         public void SelectUnits(IEnumerable<Unit> men)

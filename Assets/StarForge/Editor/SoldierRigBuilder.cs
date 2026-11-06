@@ -14,9 +14,17 @@ namespace StarForge.EditorTools
         const string Model = "TROOPER_RIG";
         const string Dir = "Assets/StarForge/Resources";
         const string ControllerPath = Dir + "/SoldierRig.controller";
+        static readonly string[] Kinds = { "Trooper", "Marksman", "Thumper", "Scorcher", "Rocketeer", "Gunner" };
 
         [MenuItem("StarForge/Build/2b Soldier Rig", priority = 3)]
         public static void BuildMenu() => Debug.Log(Build());
+
+        /// <summary>After a change to the import rule (a looping clip, say): the FBX's bytes did not change, so nothing reimports it by itself.</summary>
+        public static string ReimportAndBuild()
+        {
+            AssetDatabase.ImportAsset($"{SFAssetPostprocessor.ModelDir}SF_{Model}.fbx", ImportAssetOptions.ForceUpdate);
+            return Build();
+        }
 
         public static string Build()
         {
@@ -36,9 +44,13 @@ namespace StarForge.EditorTools
             }
 
             string info = "";
+            // The other infantry stand on the same skeleton, so one controller and one set of clips does for all.
+            foreach (var kind in Kinds)
             for (int team = 0; team < 2; team++)
             {
-                var go = ModelFactory.Create(Model, team);
+                string model = kind == "Trooper" ? Model : kind.ToUpperInvariant() + "_RIG";
+                if (!File.Exists($"{SFAssetPostprocessor.ModelDir}SF_{model}.fbx")) continue;
+                var go = ModelFactory.Create(model, team);
                 // The writer's axes with no space baking bring the model in facing -Z (as
                 // Tools/blender/export_fbx.py found of its own first write): turned here.
                 var root = new GameObject("SoldierRig");
@@ -55,7 +67,7 @@ namespace StarForge.EditorTools
                 // The clips reach further than the T the mesh was bound in (a crawl lies forward),
                 // and the import leaves the mesh's own axes Z up: a box that holds him either way.
                 smr.localBounds = new Bounds(Vector3.zero, Vector3.one * 5f);
-                PrefabUtility.SaveAsPrefabAsset(root, $"{Dir}/SoldierRig_T{team}.prefab");
+                PrefabUtility.SaveAsPrefabAsset(root, kind == "Trooper" ? $"{Dir}/SoldierRig_T{team}.prefab" : $"{Dir}/SoldierRig_{kind}_T{team}.prefab");
                 info = $"{smr.sharedMesh.vertexCount} vertices, {smr.sharedMesh.subMeshCount} submeshes, {smr.bones.Length} bones exposed, avatar {(anim.avatar != null && anim.avatar.isValid)}, mesh bounds {smr.sharedMesh.bounds.size}";
                 Object.DestroyImmediate(root);
             }

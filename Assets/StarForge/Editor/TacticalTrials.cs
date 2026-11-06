@@ -820,6 +820,8 @@ namespace StarForge.EditorTools
             var sb = new StringBuilder();
             var rng = new System.Random(303);
             HoldStatics();
+            // Its targets are for squads that do it right; `TacticalArms.Mistakes` is for those that do not.
+            TacticalRules.NoMistakes = true;
 
             // Forming: five together, three 50 m off.
             if (FindRange(rng, 52f, out var a, out var d))
@@ -1021,6 +1023,26 @@ namespace StarForge.EditorTools
                     int alive = 0;
                     foreach (var u in menHeard) if (Unit.Live(u)) alive++;
                     picked = player.Selection.Count;
+                    int ringed = -1;
+                    if (line != null)
+                    {
+                        using (var enter = UnityEngine.UIElements.PointerEnterEvent.GetPooled())
+                        {
+                            enter.target = line;
+                            line.SendEvent(enter);
+                        }
+                        yield return null;
+                        yield return null;
+                        ringed = player.Highlighted.Count;
+                        using (var leave = UnityEngine.UIElements.PointerLeaveEvent.GetPooled())
+                        {
+                            leave.target = line;
+                            line.SendEvent(leave);
+                        }
+                        yield return null;
+                        yield return null;
+                    }
+                    sb.AppendLine($"  pointed at, the line rings {ringed}, then {player.Highlighted.Count} when the pointer leaves (target those alive, then 0)");
                     sb.AppendLine($"  first report after {firstAt:0.0} s; the line in the feed {(line != null ? "found" : "NOT FOUND")}; a click selects {picked}, {alive} of the {menHeard.Length} who reported are alive (target the same)");
                     player.Selection.Clear();
                 }
@@ -1043,6 +1065,7 @@ namespace StarForge.EditorTools
                 ClearSpawned();
             }
             ListenWhileHeld(null);
+            TacticalRules.NoMistakes = false;
             report = sb.ToString();
             ReleaseStatics();
         }
@@ -1176,6 +1199,7 @@ namespace StarForge.EditorTools
             foreach (var (c, d) in sites) yield return OneFight(sb, "plain six, plain eight", c, d, false, false, plain);
             if (Fields <= 5) foreach (var (c, d) in sites) yield return OneFight(sb, "thinking six, plain eight", c, d, true, false, thinking);
             Fields = 5;
+            sb.AppendLine($"  thrown in all: {world.ThrownCount[1]} frags, {world.ThrownCount[2]} smoke, {world.ThrownCount[3]} flash; {world.FragFriendAtLanding} frags landed with a friend in reach, {world.FriendHurt} friends hurt, {world.Stunned} men stunned, {world.PistolShots} pistol rounds, {world.Stabs} stabs");
             sb.Insert(0, $"map {map.seed}, {sites.Count} fields, the same ones each time: six among cover against eight coming over open ground, both thinking, won {both[0]} of {sites.Count} (target 4 of 5); plain six against plain eight {plain[0]}; thinking six against plain eight, who feel no fire at all, {thinking[0]}\n");
             report = sb.ToString();
             ReleaseStatics();

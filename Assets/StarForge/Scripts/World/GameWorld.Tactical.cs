@@ -48,6 +48,8 @@ namespace StarForge.World
             spotNext = 0;
             sweepNext = 0;
             BeginSquads();
+            BeginArms();
+            BeginHulks();
             Sight = Tactical ? new SightMap(map) : null;
         }
 
@@ -169,7 +171,7 @@ namespace StarForge.World
 
         /// <summary>A round's error: standing still, at a soldier standing still, RifleSpread. A shooter
         /// lying down holds steadier; a moving target is harder; a veteran better.</summary>
-        float ShotSpread(Unit s, Unit t)
+        float ShotSpread(Unit s, Unit t, float gun = 0f)
         {
             float k = s.posture == Posture.Prone ? 0.7f : s.posture == Posture.Crouch ? 0.85f : 1f;
             if (s.Velocity.sqrMagnitude > 1f) k *= 1.6f;
@@ -177,7 +179,7 @@ namespace StarForge.World
             float tSpeed = t.Velocity.magnitude;
             k *= 1f + 0.08f * tSpeed;
             k *= 1f - 0.1f * Mathf.Min(s.rank, 3);
-            return s.def.shotSpread * k;
+            return (gun > 0f ? gun : s.def.shotSpread) * k;
         }
 
         /// <summary>Two numbers from a normal curve (Box-Muller), from the combat stream.</summary>
@@ -191,7 +193,7 @@ namespace StarForge.World
 
         /// <summary>Where a round goes: <paramref name="end"/> is where it stops, <paramref name="stopped"/>
         /// whether anything stopped it there, and what it returns is the enemy it struck, or null.</summary>
-        Unit DecideShot(Unit s, Unit t, out Vector3 muzzle, out Vector3 end, out bool stopped)
+        Unit DecideShot(Unit s, Unit t, out Vector3 muzzle, out Vector3 end, out bool stopped, float gun = 0f)
         {
             lineWatch.Restart();
             muzzle = ShotMuzzle(s, t, s.target == t ? s.leanSide : 0);
@@ -201,10 +203,10 @@ namespace StarForge.World
             Vector3 right = Vector3.Cross(Vector3.up, dir).normalized;
             Vector3 up = Vector3.Cross(dir, right);
             Gauss(out float ex, out float ey);
-            float sd = ShotSpread(s, t);
+            float sd = ShotSpread(s, t, gun);
             dir = (dir + right * (ex * sd) + up * (ey * sd)).normalized;
 
-            float reach = Mathf.Max(s.def.range * 1.25f, dist + 6f);
+            float reach = gun > 0f ? dist + 6f : Mathf.Max(s.def.range * 1.25f, dist + 6f);
             Vector3 far = muzzle + dir * reach;
             float stop = Sight.FirstStop(muzzle, far, Plants, boulders);
             Unit struck = StruckOnLine(s, muzzle, far, ref stop);
@@ -260,10 +262,14 @@ namespace StarForge.World
                 if (struck.def.bodyRadius > 0f) StruckIn[(int)struck.mode]++;
                 Damage(struck, ShotDamage(s, struck), s.pos, s);
             }
-            Tracer(s, muzzle, end, stopped);
+            // The long rifle's round is drawn as its own line, from the Fire event.
+            bool sniper = D.weapon == WeaponKind.Sniper;
+            int kind = sniper ? ProjSniper : D.weapon == WeaponKind.MachineGun ? ProjMG : 0;
+            if (!sniper) Tracer(s, muzzle, end, stopped);
+            else if (stopped) Raise(new GameEvent { kind = GameEventKind.Impact, team = s.team, pos = end, dir = (end - muzzle).normalized, scale = 0.4f, projectileKind = ProjSniper });
             SuppressAlong(s, muzzle, end);
             Vector3 fwd = new Vector3(Mathf.Sin(s.yaw), 0f, Mathf.Cos(s.yaw));
-            Raise(new GameEvent { kind = GameEventKind.Fire, unit = s, type = D.type, team = s.team, pos = muzzle, dir = fwd, projectileKind = 0 });
+            Raise(new GameEvent { kind = GameEventKind.Fire, unit = s, type = D.type, team = s.team, pos = muzzle, dir = sniper ? (end - muzzle).normalized : fwd, end = sniper ? end : default, projectileKind = kind });
         }
 
         const float NearMiss = 2.5f, NearMissWeight = 0.06f;
@@ -287,7 +293,7 @@ namespace StarForge.World
                         float ox = a.x + dx * t - o.pos.x, oz = a.z + dz * t - o.pos.y;
                         float d2 = ox * ox + oz * oz;
                         // With a rock in front of him a man takes it better.
-                        if (d2 < NearMiss * NearMiss) o.Suppress(NearMissWeight * (1f - Mathf.Sqrt(d2) / NearMiss) * (o.mode == SoldierMode.InCover ? 0.5f : 1f));
+                        if (d2 < NearMiss * NearMiss) o.Suppress((s.def.suppressMul > 0f ? s.def.suppressMul : 1f) * NearMissWeight * (1f - Mathf.Sqrt(d2) / NearMiss) * (o.mode == SoldierMode.InCover ? 0.5f : 1f));
                     }
         }
 
@@ -462,13 +468,21 @@ namespace StarForge.World
             for (int k = -1; k <= 1; k++)
             {
                 Vector2 p = spot + side * k;
-                if (Sight.FirstStop(gun, new Vector3(p.x, g, p.y), Plants, boulders) < 1f) stopped++;
+                Vector3 body = new Vector3(p.x, g, p.y);
+                if (Sight.FirstStop(gun, body, Plants, boulders) < 1f || TankInWay(gun, body, shelterTeam)) stopped++;
             }
             return stopped / 3f;
         }
 
         /// <summary>Does his cover still stand between him and this enemy, the most of him?</summary>
-        public bool CoversFrom(Vector2 spot, Unit threat) => CoverShare(spot, threat) >= 0.5f;
+        public bool CoversFrom(Vector2 spot, Unit threat)
+        {
+            shelterTeam = threat.team == 0 ? 1 : 0;
+            return CoverShare(spot, threat) >= 0.5f;
+        }
+
+        /// <summary>Whose tanks count as cover in the look going on.</summary>
+        int shelterTeam;
 
         /// <summary>Could he get a round from there at this enemy, standing up to it if he must?</summary>
         bool CanFireFrom(Vector2 spot, Unit threat)
@@ -494,20 +508,21 @@ namespace StarForge.World
         /// there, or a fold in the ground. A place he could shoot from counts for more, one a friend
         /// has already taken for nothing, and <paramref name="onward"/> or <paramref name="back"/> pull it
         /// toward the enemy or away. Only somewhere he can walk.</summary>
-        public bool FindCover(Unit u, Unit threat, float reach, bool onward, bool back, out Vector2 best)
+        public bool FindCover(Unit u, Unit threat, float reach, bool onward, bool back, out Vector2 best, bool poor = false)
         {
             best = default;
             CoverSearches++;
             lineWatch.Restart();
-            bool got = FindCoverSpot(u, threat, reach, onward, back, out best);
+            bool got = FindCoverSpot(u, threat, reach, onward, back, out best, poor);
             lineWatch.Stop();
             LinesMs += lineWatch.Elapsed.TotalMilliseconds;
             if (got) CoverFound++;
             return got;
         }
 
-        bool FindCoverSpot(Unit u, Unit threat, float reach, bool onward, bool back, out Vector2 best)
+        bool FindCoverSpot(Unit u, Unit threat, float reach, bool onward, bool back, out Vector2 best, bool poor)
         {
+            shelterTeam = u.team;
             best = default;
             Vector2 chosen = default;
             shelters.Clear();
@@ -524,6 +539,20 @@ namespace StarForge.World
                     shelters.Add(new Vector3(o.pos.x, o.pos.y, o.def.radius));
             }
             if (Plants != null) Sight.TrunksNear(u.pos, reach, Plants, shelters, MostShelters);
+            // A burnt-out tank, and a friend's that is still going.
+            foreach (var h in Hulks)
+                if (shelters.Count < MostShelters && (h.at - u.pos).sqrMagnitude < (reach + h.radius) * (reach + h.radius))
+                    shelters.Add(new Vector3(h.at.x, h.at.y, h.radius));
+            CellRange(u.pos, reach + LargestRadius, out int tx0, out int tx1, out int tz0, out int tz1);
+            for (int tz = tz0; tz <= tz1; tz++)
+                for (int tx = tx0; tx <= tx1; tx++)
+                    for (int i = gridHead[tz * GRID + tx]; i >= 0; i = gridNext[i])
+                    {
+                        var o = i < units.Count ? units[i] : null;
+                        if (o == null || o.dying || o.team != u.team || !IsTankLike(o) || shelters.Count >= MostShelters) continue;
+                        if ((o.pos - u.pos).sqrMagnitude < (reach + o.BodyRadius) * (reach + o.BodyRadius))
+                            shelters.Add(new Vector3(o.pos.x, o.pos.y, o.BodyRadius));
+                    }
 
             float here = (u.pos - threat.pos).magnitude;
             if (here < 1e-3f) return false;
@@ -570,9 +599,12 @@ namespace StarForge.World
                 }
                 else if (onward) score += (here - d) * 0.15f + Vector2.Dot(p - u.pos, pull) * 0.25f;
                 if (back) score += (d - here) * 0.15f;
-                if (score <= bestScore || score <= herePlain + 0.3f) return;
+                if (score <= herePlain + 0.3f) return;
+                // Misjudging it, he takes the worst place that would do, not the best.
+                float ranked = poor ? -score : score;
+                if (ranked <= bestScore) return;
                 if (TakenByFriend(u, p)) return;
-                bestScore = score;
+                bestScore = ranked;
                 chosen = p;
             }
             foreach (var s in shelters)
@@ -660,6 +692,7 @@ namespace StarForge.World
 
         bool Notices(Unit o, Unit e, float k)
         {
+            if (o != null && time < o.blindUntil) return false;
             if (o == null || o.dying || o.team != 1 - e.team) return false;
             float reach = LookFrom(o);
             if (reach <= 0f) return false;

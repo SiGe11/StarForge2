@@ -286,11 +286,20 @@ namespace StarForge.World
                     RaiseFire(s, m, (aim - m).normalized, 0);
                     break;
                 }
+                case WeaponKind.MachineGun:
+                {
+                    // At an aircraft, real rounds (Fire): everything else is decided when fired.
+                    Vector3 m = Muzzle(s, 1.2f, 0.9f);
+                    Round(s, t, 0, m, 115f);
+                    RaiseFire(s, m, (aim - m).normalized, 0);
+                    break;
+                }
                 case WeaponKind.Mortar:
                 {
                     // Lobbed high over whatever is in the way, led a little on a moving target.
                     Vector3 m = Muzzle(s, 1.5f, 0.3f);
                     var p = Round(s, t, ProjLob, m, 1f);
+                    p.friendly = Tactical;
                     Vector3 lead = aim;
                     float dist0 = new Vector2(aim.x - m.x, aim.z - m.z).magnitude;
                     float time = Mathf.Clamp(dist0 / 13f, 1.3f, 2.6f);
@@ -412,7 +421,7 @@ namespace StarForge.World
                 {
                     // A rocket off the shoulder: straight, quick, a small burst where it strikes.
                     Vector3 m = Muzzle(s, 1.66f, 1.0f);
-                    Round(s, t, ProjRocket, m, 42f);
+                    Round(s, t, ProjRocket, m, 42f).friendly = Tactical;
                     RaiseFire(s, m, (aim - m).normalized, ProjRocket);
                     break;
                 }

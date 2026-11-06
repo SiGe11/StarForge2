@@ -138,7 +138,9 @@ RMS = {"rifle": 0.095, "cannon": 0.14, "bolt": 0.10, "pulse": 0.10,
        # The Mech's (make_mech_audio).
        "mech_step": 0.11, "mech_servo": 0.045, "mech_autocannon": 0.12, "mech_gatling": 0.10,
        "mech_missile": 0.085, "mech_mortar": 0.14, "mech_laser": 0.10, "mech_railgun": 0.13,
-       "mech_drop": 0.11, "mech_land": 0.15, "mech_radio": 0.055}
+       "mech_drop": 0.11, "mech_land": 0.15, "mech_radio": 0.055,
+       # A soldier's side arms (make_side_arms).
+       "pistol": 0.075, "knife": 0.06, "grenade": 0.125, "flashbang": 0.13, "smokepop": 0.05, "hmg": 0.105}
 WEAPONS = {
     # The Trooper's rifle: an AK-47 above all -- the 7.62x39 has a body the AR-15's
     # 5.56 snap lacks, and a thin crack vanishes under music and a tank battle --
@@ -737,6 +739,80 @@ def spectrum_report(name, x):
     return "%-18s %5.1f s  under-120Hz %4.0f%%  centroid %5.0f Hz" % (name, len(x) / SR, 100 * spec[f < 120].sum() / tot, (spec * f).sum() / tot)
 
 
+# ------------------------------------------------------------ a soldier's side arms
+def pistol(i):
+    """A pistol from beside the shooter and from a distance: sharper and shorter than the rifle."""
+    near, far = [("Walther PPQ/X_31P.wav", "Walther PPQ/X_39P.wav"), ("1911/A_34P.wav", "1911/A_42P.wav"),
+                 ("Walther PPQ/X_39P.wav", "1911/A_42P.wav")][i]
+    out = gun(near, far, 1.04, 0.55, 0.5, 0.04)
+    return finish(slapback(out, 0.08), 0.55, hp=120)
+
+
+def knife(i):
+    """A thrust: a short dull punch with a tick of metal in it."""
+    punch = pitched(onset(kenney_clip("impact-sounds", "impactPunch_medium_00%d" % (i % 5))), 1.1)
+    tick = pitched(onset(kenney_clip("impact-sounds", "impactMetal_light_00%d" % (i % 5))), 1.5)
+    return finish(add(punch, hipass_lin(tick, 1200, 2), 0.0, 0.35), 0.35, 0.04, hp=100)
+
+
+def grenade(i):
+    """A frag: a good deal smaller than a shell, a sharp crack over a short thump, and it is soon over."""
+    crunch = pitched(onset(kenney_clip("sci-fi-sounds", "explosionCrunch_00%d" % [2, 3][i])), 1.05 + 0.1 * i)
+    out = slapback(crunch, 0.1)
+    # The weight at 120 Hz and up: lower, a laptop plays none of it and the crack gets turned down for it.
+    out = add(out, thump(130, 0.14, 90), 0.004, 0.25)
+    out = add(out, rolling(out, 1.1, 1100), 0.08, 0.3)
+    return finish(out, 1.6, 0.1, hp=120)
+
+
+def flashbang():
+    """A bare crack with no body to it (a rifle's near take pitched up), and the ring it leaves in the ear."""
+    crack = gun("AK-47/C_36P.wav", None, 1.35, 0.3)
+    t = np.arange(int(1.0 * SR)) / SR
+    ring = np.sin(2 * np.pi * 3100 * t) * np.exp(-t / 0.28) * 0.05
+    return finish(slapback(add(crack, ring, 0.0, 1.0), 0.1), 1.0, 0.1, hp=300)
+
+
+def smokepop():
+    """The can's pop and the hiss of it going."""
+    rng = np.random.default_rng(42)
+    pop = pitched(onset(kenney_clip("impact-sounds", "impactSoft_medium_001")), 1.2)
+    n = int(1.4 * SR)
+    t = np.arange(n) / SR
+    hiss = hipass_lin(rng.normal(0, 1, n) * np.exp(-t / 0.6) * np.minimum(1, t / 0.04), 1800, 2) * 0.06
+    return finish(add(pop, hiss, 0.03, 1.0), 1.4, 0.2, hp=90)
+
+
+def hmg(i):
+    """A belt-fed gun: a full-bore rifle's crack pitched down a little with more body than a rifleman's,
+    short, since it comes many times a second."""
+    near, far = [("1917/B_24P.wav", "1917/B_16P.wav"), ("AK-47/C_36P.wav", "AK-47/C_27P.wav"),
+                 ("1917/B_16P.wav", "AK-47/C_34P.wav")][i]
+    out = gun(near, far, 0.86, 0.5, 0.55, 0.05)
+    out = slapback(out, 0.08)
+    out = out + filt_lin(out, 240, 2) * 0.35
+    return finish(out, 0.5, hp=90)
+
+
+def make_side_arms():
+    out = os.path.join(AUDIO, "Sfx")
+    os.makedirs(out, exist_ok=True)
+    built = {}
+    for i in range(3): built["pistol_%d" % i] = pistol(i)
+    for i in range(2): built["knife_%d" % i] = knife(i)
+    for i in range(2): built["grenade_%d" % i] = grenade(i)
+    built["flashbang_0"] = flashbang()
+    built["smokepop_0"] = smokepop()
+    for i in range(3): built["hmg_%d" % i] = hmg(i)
+    for name, x in built.items():
+        x = match(x, name)
+        write_wav(os.path.join(out, name + ".wav"), x)
+        spec = np.abs(np.fft.rfft(x)) ** 2
+        freq = np.fft.rfftfreq(len(x), 1.0 / SR)
+        print("%-14s %.2f s  centroid %5.0f Hz  under 120 Hz %2.0f%%" %
+              (name, len(x) / SR, (spec * freq).sum() / spec.sum(), 100 * spec[freq < 120].sum() / spec.sum()))
+
+
 def make_mech_audio():
     out = os.path.join(AUDIO, "Sfx")
     os.makedirs(out, exist_ok=True)
@@ -970,9 +1046,13 @@ def main():
     if "--mech" in sys.argv:
         make_mech_audio()       # the Mech's sounds only, leaving everything else as it is
         return
+    if "--sidearms" in sys.argv:
+        make_side_arms()        # the same for a soldier's side arms
+        return
     copy_sfx()
     make_weapons()
     make_mech_audio()
+    make_side_arms()
     amb = os.path.join(AUDIO, "Ambience")
     os.makedirs(amb, exist_ok=True)
     write_wav(os.path.join(amb, "wind.wav"), make_wind())

@@ -582,6 +582,27 @@ def build_rocketeer():
     return m
 
 
+def build_gunner():
+    """Gunner: a belt-fed gun with a heavy jacketed barrel and a bipod, an ammunition box on the back
+    and another under the receiver -- the thick barrel and the box are the silhouette."""
+    m = _infantry(MESH_BASE + 20, 'GUNNER')
+    m.add(box((0, 1.26, -0.50), (0.24, 0.20, 0.12), 'armor_dark', bevel_w=0.02))
+    m.add(box((0, 1.26, -0.63), (0.17, 0.12, 0.012), 'team', bevel_w=0.0))
+    m.add(box((0.26, 1.20, -0.30), (0.03, 0.03, 0.16), 'dark', bevel_w=0.01))
+    m.group('Gun', (0.30, 1.16, 0.10))
+    m.add(box((0.30, 1.17, 0.20), (0.075, 0.09, 0.26), 'dark', bevel_w=0.02))
+    m.add(box((0.30, 1.03, 0.22), (0.07, 0.07, 0.10), 'armor_dark', bevel_w=0.015))
+    m.add(box((0.30, 1.03, 0.22), (0.072, 0.02, 0.06), 'team', bevel_w=0.0))
+    m.add(cyl((0.30, 1.19, 0.44), 0.045, 0.045, 0.82, 10, 'steel', axis='z', bevel_w=0.0))
+    m.add(cyl((0.30, 1.19, 0.44), 0.07, 0.07, 0.36, 10, 'armor_dark', axis='z', bevel_w=0.01))
+    m.add(cyl((0.30, 1.19, 1.24), 0.06, 0.08, 0.12, 10, 'dark', axis='z', bevel_w=0.01))
+    # The bipod, folded under the barrel.
+    m.add(box((0.26, 1.11, 0.98), (0.012, 0.012, 0.14), 'steel', bevel_w=0.0))
+    m.add(box((0.34, 1.11, 0.98), (0.012, 0.012, 0.14), 'steel', bevel_w=0.0))
+    m.group('')
+    return m
+
+
 def build_ironclad_legs():
     """Ironclad's lower half: two thick digitigrade legs on broad feet under a squat
     pelvis -- a walker the size of a small building's door, heavier than any tank."""
@@ -637,7 +658,7 @@ ROSTER_BUILDERS = [
     build_lancer_hull, build_lancer_turret, build_aegis_hull, build_aegis_turret,
     build_hauler, build_kestrel, build_swift,
     build_armory, build_airfield, build_biolab,
-    build_rocketeer, build_ironclad_legs, build_ironclad_torso,
+    build_rocketeer, build_ironclad_legs, build_ironclad_torso, build_gunner,
     build_prospector_turret, build_mechhunter_hull, build_mechhunter_turret,
 ]
 ROSTER_CHUNKED = {'ARMORY': 8, 'AIRFIELD': 10, 'BIOLAB': 9}

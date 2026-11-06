@@ -111,6 +111,8 @@ namespace StarForge.World
         public string text;
         /// <summary>SquadReport: who is speaking, for the click to select.</summary>
         public Unit[] men;
+        /// <summary>SquadReport: its call sign.</summary>
+        public string who;
         /// <summary>The plant, for the Plant* events (index into Vegetation.plants).</summary>
         public int index;
         /// <summary>Where a Beam ended.</summary>
@@ -148,6 +150,10 @@ namespace StarForge.World
         /// <summary>Only what the player sees of a round already decided (GameWorld.Tactical): it flies
         /// to <see cref="aim"/> and, if <see cref="strikes"/>, sparks there. Recycle clears it.</summary>
         public bool cosmetic, strikes;
+        /// <summary>Under the new rules its burst can catch its own side (a shell, a grenade), and a thrown
+        /// thing that has come down, waiting on its fuse. Recycle clears them.</summary>
+        public bool friendly, landed;
+        public float landedAt;
     }
 
     [DefaultExecutionOrder(-50)]
@@ -412,7 +418,7 @@ namespace StarForge.World
             }
             // Idle defenders retaliate against whatever just hit them.
             // (A soldier under the new rules answers for himself, and from where he has cover.)
-            if (u.order == Order.Idle && !u.def.building && u.def.Armed && !u.def.Autonomous && !u.deserted && !(Tactical && u.def.bodyRadius > 0f))
+            if (u.order == Order.Idle && !u.def.building && u.def.Armed && !u.def.Autonomous && !u.deserted && !ownSide && !(Tactical && u.def.bodyRadius > 0f))
             {
                 var t = NearestEnemy(u, u.def.sight);
                 // The nearest, not necessarily the shooter: its own pick, so it may give way.
@@ -487,7 +493,7 @@ namespace StarForge.World
         void Kill(Unit u, Vector2 from, Unit source, bool splash)
         {
             var d = u.def;
-            if (Tactical) NoteLoss(u);
+            if (Tactical) { NoteLoss(u); AddHulk(u); }
             // Which way it goes down, and how hard: thrown away from a shell bursting
             // beside it (harder the closer), knocked back from whoever shot it.
             Vector2 away = u.pos - from;
@@ -508,12 +514,14 @@ namespace StarForge.World
                 if (d.building && u.Complete) factions[u.team].supplyCap -= d.supplyGive;
                 factions[u.team].lost++;
                 if (!byOwnSide) factions[1 - u.team].killed++;
-                NoteLoss(u, byOwnSide);
+                // A friend's burst (source is the man himself) is a loss like any other; only a Mech's
+                // punishment is not.
+                NoteLoss(u, byOwnSide && source != u);
                 if (u.deserted)
                 {
                     morale[u.team].deserters.Remove(u);
                     if (morale[u.team].deserters.Count == 0) morale[u.team].desertersGoneAt = time;
-                    if (byOwnSide) morale[u.team].executed++;
+                    if (byOwnSide && source != u) morale[u.team].executed++;
                 }
             }
             if (u.team < 2) MechBookkeeping(u);
@@ -633,7 +641,7 @@ namespace StarForge.World
             }
 
             UpdateProjectiles(dt);
-            if (Tactical) { TickCoverLooks(dt); TickSquads(); }
+            if (Tactical) { TickCoverLooks(dt); TickSquads(); TickSmoke(); TickHulks(); }
             CrushBoulders(dt);
             if (Plants != null) Plants.Tick(this, dt);
             StructureFires(dt);
@@ -1227,6 +1235,7 @@ namespace StarForge.World
                 p.life -= dt;
                 p.age += dt;
                 if (p.cosmetic) { if (TracerStep(p, dt)) Recycle(k); continue; }
+                if (p.kind >= ProjFrag && p.kind <= ProjFlash) { if (ThrownStep(p, dt)) Recycle(k); continue; }
                 var t = p.target;
                 bool targetOk = t != null && !t.dying;
 
@@ -1303,13 +1312,16 @@ namespace StarForge.World
                         if (e == null || e.dying || e.team == 2) continue;
                         // A round fired at deserters catches them only while the punishment is on (a
                         // mortar bomb still in the air when it is called off does not).
-                        if (e.team == p.team && !(p.purge && e.deserted && Purging(p.team))) continue;
+                        bool ownSide = e.team == p.team && p.friendly && !e.def.building;
+                        if (e.team == p.team && !ownSide && !(p.purge && e.deserted && Purging(p.team))) continue;
                         // A burst on the ground does not reach an aircraft overhead, nor flak a tank.
                         if (e.def.flying ? !p.hitsAir : !p.hitsGround) continue;
                         float d = (e.pos - c).magnitude;
                         if (d > p.splash + e.def.radius || e.Untargetable) continue;
                         float falloff = 1f - Saturate((d - e.def.radius) / p.splash) * 0.6f;
-                        Damage(e, p.dmg * falloff * p.ClassMul(e), c, p.shooter, true);
+                        if (ownSide) FriendHurt++;
+                        // A friend's source is himself: the alarm and the kill count know a same-side hit by it.
+                        Damage(e, p.dmg * falloff * p.ClassMul(e), c, ownSide ? e : p.shooter, true);
                         // A heavy burst throws the light ones round it off their feet.
                         if ((p.kind == 5 || p.kind == 6 || p.kind == ProjLob) && !e.dying) Shove(e, e.pos - c, (p.kind == 6 ? 7f : 3.5f) * falloff);
                     }
@@ -1360,6 +1372,8 @@ namespace StarForge.World
             p.shooter = null;
             p.cosmetic = false;
             p.strikes = false;
+            p.friendly = false;
+            p.landed = false;
             int last = projectiles.Count - 1;
             projectiles[index] = projectiles[last];
             projectiles.RemoveAt(last);
@@ -1401,7 +1415,7 @@ namespace StarForge.World
                 u.harvestNode = null;
                 u.buildTarget = null;
                 u.hurry = hurry;
-                if (!again || u.MayWalkNow) u.MoveTo(goal);
+                if ((!again || u.MayWalkNow) && !u.Stunned) u.MoveTo(goal);
                 i++;
             }
         }
@@ -1423,7 +1437,7 @@ namespace StarForge.World
                 u.targetOrdered = true;
                 u.harvestNode = null;
                 u.hurry = hurry;
-                if (!again || u.MayWalkNow) u.MoveTo(target.pos);
+                if ((!again || u.MayWalkNow) && !u.Stunned) u.MoveTo(target.pos);
             }
             if (cannot != null) CmdMove(cannot, target.pos, true, hurry);
         }
@@ -1511,6 +1525,7 @@ namespace StarForge.World
             if (what < 0 || what >= UnitType.Count) return false;
             var D = Defs.Get(what);
             int team = building.team;
+            if (D.tacticalOnly && !Tactical) return Refuse(team, "Not in this game");
             if (D.producer != building.Type) return Refuse(team, $"{building.def.displayName} cannot train that");
             if (D.requires != UnitType.None && !HasComplete(team, D.requires))
                 return Refuse(team, $"Requires a {Defs.Get(D.requires).displayName}");

@@ -862,7 +862,7 @@ Combat is being rebuilt so that soldiers fight like soldiers: the player gives t
 units decide how to carry them out. It sits behind one switch until it is finished (the "Combat" button
 on the title screen, not remembered between runs, or `-sftactical` on a benchmark or test run), and with
 the switch off the game plays as described in the rest of this file.
-So far, for Troopers (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.md`):
+So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.md`):
 
 - **Shots can miss.** A round goes where it goes: an aim error, then the first thing on its line. A far
   or low target is a small one, and cover works by stopping the round. Rounds never hurt their own
@@ -885,15 +885,16 @@ So far, for Troopers (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
   stopped. Hurried, he runs at 6 m/s and looks at nothing, and only being pinned stops him.
 - **They tell you how it is going.** "We should fall back" and "we need air support" arrive as text in the
   comms feed, with no button to accept. Clicking one looks at them and selects them; what to do is yours.
+- **They carry more than a gun.** All five infantry types are on the new rules. A Trooper has a pistol, a knife, two frags, a smoke grenade and a flashbang; the others their own gun, pistol, knife, a frag and a smoke grenade, all restocked near base. Nobody orders any of it: a frag goes at men behind cover or bunched up, flash at men about to be rushed, smoke when pinned or caught in the open, and it blocks sight for both sides. Grenades and shells can hurt friends, so a man looks where they will be first, and his squad waits for it to go off. The pistol is for when the main gun cannot be used, on the run or too close for it; the knife is for arm's length.
 - **They have real bodies:** a rigged soldier crouching, crawling, aiming and firing, its 19 clips moving
   the legs and trunk from KayKit's animations with the rifle in hand-defined poses, one material, so
-  200 of them cost a fight about 3 fps. A real match with thinking, rigged soldiers ran 47.9 fps.
+  200 of them cost a fight about 3 fps. A real match with all of this ran 41.3 fps on High, at the sharper resolution High now aims for, and stayed above 36 at its worst.
   Every other unit and building now draws the same way, one material a part with its surfaces in a small
   palette texture, which took 896 draws a pass down to 233 across the models and, with no visible change,
   a benchmark match from 49.9 to 51.0 fps (48.8 to 51.4 with a Mech in view; these and the rigged
   numbers above were measured before *High* gave its spare frames to resolution, see Performance).
 - **Not there yet:** on today's maps cover does not win fights by itself. Six among cover beat eight coming
-  over open ground only 2 times in 12, because boulders are too tall to fire over; low walls are to come.
+  over open ground only 4 times in 12, because boulders are too tall to fire over; low walls are to come.
 
 `Editor/TacticalTrials.cs` holds the checks; `Assets/StarForge/Scripts/World/CLAUDE.md` the rules and
 their numbers.

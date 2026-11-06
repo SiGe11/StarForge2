@@ -112,7 +112,7 @@ SOURCES = [
        A + "Sfx/bigboom_0.ogg", A + "Sfx/rumble_0.ogg", A + "Sfx/crystal_*.ogg",
        # make_audio.py builds these from the same pack: the explosion crunches with a
        # thump and a rolling report under them, and the engine bed dropped an octave.
-       A + "Sfx/blast_*.wav", A + "Sfx/blastbig_*.wav", A + "Sfx/engine_heavy.wav",
+       A + "Sfx/blast_*.wav", A + "Sfx/blastbig_*.wav", A + "Sfx/grenade_*.wav", A + "Sfx/engine_heavy.wav",
        # The Mech's (make_audio.py --mech): the leg hydraulics are the pack's doors
        # slowed down, the missiles its thrusters, the laser and the railgun its
        # lasers, the drop its large engine and thrusters, the landing its crunch,
@@ -125,7 +125,7 @@ SOURCES = [
        A + "Sfx/build_0.ogg",
        # The Mech's footfalls (heavy plates, punches and mining crunches), the
        # mortar's tube (a heavy bell hit) and the landing.
-       A + "Sfx/mech_step_*.wav", A + "Sfx/mech_mortar_*.wav", A + "Sfx/mech_land.wav"], ["impact-sounds"]),
+       A + "Sfx/mech_step_*.wav", A + "Sfx/mech_mortar_*.wav", A + "Sfx/mech_land.wav", A + "Sfx/knife_*.wav", A + "Sfx/smokepop_*.wav"], ["impact-sounds"]),
     S("Interface Sounds", "Kenney", CC0, "https://kenney.nl/assets/interface-sounds", ("kenney", None),
       [A + "Sfx/ui_*.ogg"], ["interface-sounds"]),
 
@@ -147,7 +147,7 @@ SOURCES = [
 
     # KayKit -- the rigged soldier's skeleton and the motion of its legs and trunk (CC0), via itch.io
     S("KayKit Character Animations", "Kay Lousberg", CC0, "https://kaylousberg.itch.io/kaykit-character-animations",
-      ("itch", None), [M + "SF_TROOPER_RIG.fbx"], ["KayKit_Character_Animations"]),
+      ("itch", None), [M + "SF_TROOPER_RIG.fbx", M + "SF_MARKSMAN_RIG.fbx", M + "SF_THUMPER_RIG.fbx", M + "SF_SCORCHER_RIG.fbx", M + "SF_ROCKETEER_RIG.fbx", M + "SF_GUNNER_RIG.fbx"], ["KayKit_Character_Animations"]),
 
     # OpenGameArt -- music (CC0)
     S("At Home (orchestral)", "wolfgang", CC0, "https://opengameart.org/content/at-home-orchestral",
@@ -168,7 +168,7 @@ SOURCES = [
     S("The Free Firearm Sound Library", "Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney", CC0,
       "https://opengameart.org/content/the-free-firearm-sound-library",
       ("oga", "the-free-firearm-sound-library"),
-      [A + "Sfx/rifle_*.wav", A + "Sfx/cannon_*.wav", A + "Sfx/bolt_*.wav", A + "Sfx/pulse_*.wav",
+      [A + "Sfx/rifle_*.wav", A + "Sfx/hmg_*.wav", A + "Sfx/pistol_*.wav", A + "Sfx/flashbang_*.wav", A + "Sfx/cannon_*.wav", A + "Sfx/bolt_*.wav", A + "Sfx/pulse_*.wav",
        # The Mech's guns: an AK and a .30-06 pitched down for the autocannon, a PPSh's
        # rounds run together for the rotary cannon, pistol cracks under the missiles
        # and the laser, shotguns for the mortar, rifles for the railgun's crack.

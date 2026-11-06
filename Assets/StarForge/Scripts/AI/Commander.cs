@@ -1319,7 +1319,8 @@ namespace StarForge.AI
                             (UnitType.Rocketeer, Few(s, UnitType.Rocketeer, 0.15f + 1.4f * heavy)),
                             (UnitType.Scorcher, Few(s, UnitType.Scorcher, 0.2f + 1.1f * light)),
                             (UnitType.Thumper, armory ? Few(s, UnitType.Thumper, 0.15f + (s.eSentinels > 0 ? 0.6f : 0f) + 0.4f * light) : 0f),
-                            (UnitType.Marksman, armory ? Few(s, UnitType.Marksman, 0.1f + 0.9f * air + 0.2f * light) : 0f));
+                            (UnitType.Marksman, armory ? Few(s, UnitType.Marksman, 0.1f + 0.9f * air + 0.2f * light) : 0f),
+                            (UnitType.Gunner, armory && w.Tactical ? Few(s, UnitType.Gunner, 0.15f + 0.8f * light) : 0f));
         }
 
         /// <summary>The Workshop's tank: Maulers by default (towers above all), Lancers against

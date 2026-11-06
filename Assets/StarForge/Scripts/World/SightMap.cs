@@ -20,6 +20,8 @@ namespace StarForge.World
         const float RefreshEvery = 2f;
         // Metres of it a line of sight gets through: a tree a cell makes 16 m of wood opaque.
         const float TreeLeaf = 1f / 16f, BushLeaf = 1f / 24f, SnagLeaf = 1f / 48f;
+        // A smoke cloud is foliage nobody can see through for long, as tall as a man on a roof.
+        const float SmokeLeaf = 0.3f, SmokeTop = 5f;
 
         readonly float cell, inv;
         readonly float[] ground = new float[(N + 1) * (N + 1)];
@@ -68,8 +70,14 @@ namespace StarForge.World
         }
 
         /// <summary>Bring what stands on the ground and the foliage up to date, at most every couple of seconds.</summary>
+        /// <summary>Burnt-out tanks: they stop a round and a look as a rock does (GameWorld.Hulks).</summary>
+        List<Hulk> hulks;
+
+        public void StampHulk(Hulk h) => Stamp(h.at, h.radius, h.height);
+
         public void Refresh(GameWorld w, bool force = false)
         {
+            hulks = w.Hulks;
             if (!force && w.time < nextRefresh) return;
             nextRefresh = w.time + RefreshEvery;
 
@@ -95,16 +103,39 @@ namespace StarForge.World
                 }
             }
 
+            foreach (var c in w.SmokeClouds) AddSmoke(c.at, StarForge.Sim.TacticalRules.SmokeRadius);
+
             Array.Clear(standing, 0, standing.Length);
             Structures.Clear();
             foreach (var b in w.boulders)
                 if (b != null && !b.smashed)
                     Stamp(b.Pos, b.Radius, b.Radius * 1.1f);
+            foreach (var h in w.Hulks) StampHulk(h);
             foreach (var u in w.units)
                 if (u != null && !u.dying && u.def.building)
                 {
                     Structures.Add(u);
                     Stamp(u.pos, u.def.radius * 0.9f, u.def.visualHeight * Mathf.Max(0.25f, u.buildProgress));
+                }
+        }
+
+        /// <summary>A smoke cloud into the leaf cells: every line of sight, for a unit or for the fog, then
+        /// goes through it. The cells forget it at the refresh after it ends.</summary>
+        public void AddSmoke(Vector2 at, float radius)
+        {
+            float size = cell * (1 << LeafShift);
+            int x0 = Mathf.Max(0, (int)((at.x - radius) / size)), x1 = Mathf.Min(LeafN - 1, (int)((at.x + radius) / size));
+            int z0 = Mathf.Max(0, (int)((at.y - radius) / size)), z1 = Mathf.Min(LeafN - 1, (int)((at.y + radius) / size));
+            float r2 = radius * radius;
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    float dx = (x + 0.5f) * size - at.x, dz = (z + 0.5f) * size - at.y;
+                    bool own = at.x >= x * size && at.x < (x + 1) * size && at.y >= z * size && at.y < (z + 1) * size;
+                    if (!own && dx * dx + dz * dz > r2) continue;
+                    int c = z * LeafN + x;
+                    leaves[c] += SmokeLeaf;
+                    leafTop[c] = Mathf.Max(leafTop[c], SmokeTop);
                 }
         }
 
@@ -194,6 +225,12 @@ namespace StarForge.World
                     float rad = r.Radius;
                     float t = RayCircle(a.x, a.z, dx, dz, flat2, c.x, c.y, rad);
                     if (t < stop && a.y + dy * t < GroundAt(c.x, c.y) + rad * 1.1f) stop = t;
+                }
+            if (hulks != null)
+                foreach (var h in hulks)
+                {
+                    float t = RayCircle(a.x, a.z, dx, dz, flat2, h.at.x, h.at.y, h.radius);
+                    if (t < stop && a.y + dy * t < GroundAt(h.at.x, h.at.y) + h.height) stop = t;
                 }
             int steps = Mathf.Max(2, Mathf.CeilToInt(flat * 2f * inv));
             float step = 1f / steps;

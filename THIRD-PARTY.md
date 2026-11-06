@@ -81,8 +81,8 @@ and mixes two of them into the energy weapons.
 
 | Pack | Becomes |
 |---|---|
-| [Sci-Fi Sounds](https://kenney.nl/assets/sci-fi-sounds) | explosions, mining, shields, the laser layer under `bolt_*.wav` / `pulse_*.wav`, and the sources `make_audio.py` builds `blast_*.wav`, `blastbig_*.wav` and `engine_heavy.wav` from; for the Mech (`make_audio.py --mech`), the doors slowed into its leg hydraulics (`mech_servo_*.wav`), the thrusters in `mech_missile_*.wav` and `mech_drop.wav`, the lasers in `mech_laser_*.wav` and `mech_railgun_*.wav`, the crunch in `mech_land.wav` and the low engine in `mech_hum.wav` |
-| [Impact Sounds](https://kenney.nl/assets/impact-sounds) | metal hits, rock, thuds, the wood thump in `treefall_*.wav`; the Mech's footfalls (`mech_step_*.wav`), the mortar's tube in `mech_mortar_*.wav` and the stones in `mech_land.wav` |
+| [Sci-Fi Sounds](https://kenney.nl/assets/sci-fi-sounds) | explosions, mining, shields, the laser layer under `bolt_*.wav` / `pulse_*.wav`, and the sources `make_audio.py` builds `blast_*.wav`, `blastbig_*.wav`, `grenade_*.wav` and `engine_heavy.wav` from; for the Mech (`make_audio.py --mech`), the doors slowed into its leg hydraulics (`mech_servo_*.wav`), the thrusters in `mech_missile_*.wav` and `mech_drop.wav`, the lasers in `mech_laser_*.wav` and `mech_railgun_*.wav`, the crunch in `mech_land.wav` and the low engine in `mech_hum.wav` |
+| [Impact Sounds](https://kenney.nl/assets/impact-sounds) | metal hits, rock, thuds, the wood thump in `treefall_*.wav`; `knife_*.wav`, `smokepop_0.wav`; the Mech's footfalls (`mech_step_*.wav`), the mortar's tube in `mech_mortar_*.wav` and the stones in `mech_land.wav` |
 | [Interface Sounds](https://kenney.nl/assets/interface-sounds) | `Audio/Sfx/ui_*.ogg` |
 
 ## KayKit — CC0 1.0 (<https://www.kaylousberg.com>)
@@ -96,7 +96,7 @@ Nothing here does either: this repository holds no copy of the pack, only the cl
 
 | Pack | Becomes |
 |---|---|
-| KayKit Character Animations | `Art/Models/SF_TROOPER_RIG.fbx` (the skeleton and 17 clips) |
+| KayKit Character Animations | `Art/Models/SF_TROOPER_RIG.fbx` (the skeleton and 19 clips); the same skeleton in `SF_MARKSMAN_RIG.fbx`, `SF_THUMPER_RIG.fbx`, `SF_SCORCHER_RIG.fbx`, `SF_ROCKETEER_RIG.fbx`, `SF_GUNNER_RIG.fbx` |
 
 ## Quaternius — CC0 1.0 (<https://quaternius.com>)
 
@@ -147,7 +147,7 @@ What the guns and the felled trees are built from, in `Tools/make_audio.py`.
 
 | Source | Author(s) | Becomes |
 |---|---|---|
-| [The Free Firearm Sound Library](https://opengameart.org/content/the-free-firearm-sound-library) | Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney (uploaded by bart) | `rifle_0–3.wav`, `cannon_0–2.wav`, and the muzzle crack under `bolt_*` / `pulse_*` — every gun recorded from beside the shooter and again at a distance, and a shot mixes both; and the Mech's guns: `mech_autocannon_*.wav` (an AK-47 and a 1917 pitched down), `mech_gatling_*.wav` (a PPSh's rounds run together), `mech_mortar_*.wav` (shotguns an octave and a half down), `mech_railgun_*.wav`, and the cracks under `mech_missile_*.wav` and `mech_laser_*.wav` |
+| [The Free Firearm Sound Library](https://opengameart.org/content/the-free-firearm-sound-library) | Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney (uploaded by bart) | `rifle_0–3.wav`, `cannon_0–2.wav`, `pistol_0–2.wav` (a Walther PPQ and a 1911), `hmg_0–2.wav` (a 1917 and an AK-47 pitched down), `flashbang_0.wav` (an AK-47's crack), and the muzzle crack under `bolt_*` / `pulse_*` — every gun recorded from beside the shooter and again at a distance, and a shot mixes both; and the Mech's guns: `mech_autocannon_*.wav` (an AK-47 and a 1917 pitched down), `mech_gatling_*.wav` (a PPSh's rounds run together), `mech_mortar_*.wav` (shotguns an octave and a half down), `mech_railgun_*.wav`, and the cracks under `mech_missile_*.wav` and `mech_laser_*.wav` |
 | [tree chop fall thud](https://opengameart.org/content/tree-chop-fall-thud) | kheetor | the fall and the crash in `treefall_*.wav` / `treecrash_*.wav` |
 | [Tree Creaking](https://opengameart.org/content/tree-creaking) | AntumDeluge, from a sample by Department64 | the creak in `treefall_*.wav` |
 | [100 CC0 metal and wood SFX](https://opengameart.org/content/100-cc0-metal-and-wood-sfx) | rubberduck | wood breaks in `treecrash_*.wav`, `crush_*.wav`; the metal hits `engine_tracks.wav` is built from; the ring of the Mech's leg in `mech_step_*.wav` and the metal in `mech_land.wav` |

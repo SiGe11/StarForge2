@@ -69,6 +69,17 @@ namespace StarForge.View
         Rigidbody[] bodies;         // everything simulated: hull, part, limbs
         Collider[] cols;
         Renderer[] renderers;
+        /// <summary>What it is under the new combat: cover for as long as the world keeps the record, and the
+        /// wreck stays with it. One that died out of sight is drawn from when its ground is seen.</summary>
+        StarForge.World.Hulk hulk;
+        bool unseen;
+        float unseenLookAt;
+
+        void HideUntilSeen()
+        {
+            unseen = true;
+            foreach (var r in renderers) if (r != null) r.enabled = false;
+        }
         MaterialPropertyBlock mpb;
         Transform legL, legR;
         Quaternion legLFrom, legRFrom, legLTo, legRTo;
@@ -88,12 +99,14 @@ namespace StarForge.View
         /// <summary>Take over a dead unit's model. <paramref name="velocity"/> is how it was
         /// moving (UnitView tracks it: the agent is gone by now).</summary>
         public static void Create(Unit unit, Transform body, Transform turret, Transform gun,
-                                  Transform legL, Transform legR, Vector3 velocity)
+                                  Transform legL, Transform legR, Vector3 velocity, bool seen = true)
         {
             if (body == null) return;
             var go = new GameObject("Wreck " + unit.def.displayName);
             var w = go.AddComponent<UnitWreck>();
+            w.hulk = unit.hulk;
             w.Build(unit, body, turret, gun, legL, legR, velocity);
+            if (!seen) w.HideUntilSeen();
         }
 
         /// <summary>The wreck the wider roster leaves, by the original unit it falls like: infantry
@@ -369,7 +382,11 @@ namespace StarForge.View
             }
         }
 
-        void SinkNow() => lieFor = Mathf.Min(lieFor, age);
+        void SinkNow()
+        {
+            if (hulk != null && !hulk.gone) return;   // a man may be behind it
+            lieFor = Mathf.Min(lieFor, age);
+        }
 
         /// <summary>A blast nearby (FXDirector.Explosion): every wreck still lying within
         /// <paramref name="radius"/> is shoved away from it, a settled one woken first. The
@@ -442,6 +459,22 @@ namespace StarForge.View
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
             age += dt;
+            if (hulk != null && !hulk.gone)
+            {
+                lieFor = Mathf.Max(lieFor, age + 1f);
+                lieUntil = Mathf.Max(lieUntil, lieFor + 6f);
+            }
+            if (unseen && Time.time >= unseenLookAt)
+            {
+                unseenLookAt = Time.time + 0.25f;
+                var world = StarForge.World.GameWorld.Instance;
+                var at = transform.position;
+                if (world != null && (StarForge.Game.MatchSettings.spectate || world.Visible(0, new Vector2(at.x, at.z))))
+                {
+                    unseen = false;
+                    foreach (var r in renderers) if (r != null) r.enabled = true;
+                }
+            }
 
             if (legL != null && legR != null)
             {

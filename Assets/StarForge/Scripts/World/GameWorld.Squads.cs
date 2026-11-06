@@ -10,6 +10,7 @@ using StarForge.Sim;
 namespace StarForge.World
 {
     public enum SquadReportKind : byte { FallBack, NeedAir }
+    public enum SquadBlunder : byte { None, Rush, Stall }
 
     public sealed class Squad
     {
@@ -26,6 +27,15 @@ namespace StarForge.World
         /// <summary>Which way this squad works round an enemy that holds it: -1 or 1.</summary>
         public int flankSide = 1;
         public float reportedAt = -99f;
+        /// <summary>Its name on the radio, and the highest rank in it: the oldest hand steadies them all.</summary>
+        public string callsign;
+        public int veteran;
+        /// <summary>It gets it wrong for a turn: everyone goes at once, or nobody goes at all.</summary>
+        public SquadBlunder blunder;
+        /// <summary>One man throws at a time: the others hold off until then.</summary>
+        public float thrownUntil = -99f;
+        /// <summary>One of theirs is about to go off: nobody moves up into it.</summary>
+        public float fragUntil = -99f;
         /// <summary>When an order made it: it does not merge straight back into those it left.</summary>
         public float orderedAt = -99f;
         public int checkedAt;
@@ -37,6 +47,7 @@ namespace StarForge.World
     {
         const float SquadJoin = 15f, SquadLeave = 30f, SquadMerge = 8f, SquadSameGoal = 12f, MergeAfterOrder = 10f;
         const float SquadEvery = 0.5f, TurnLasts = 4.5f;
+        static readonly string[] CallSigns = { "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliet", "Kilo", "Lima" };
         const float ReportSquadEvery = 30f, ReportSideEvery = 10f, ReportPlaceEvery = 60f, ReportPlace = 40f;
         const float NeedAirAfter = 8f, LossesLast = 20f, ContactAt = 40f;
 
@@ -132,9 +143,9 @@ namespace StarForge.World
 
         Squad NewSquad(Unit u)
         {
-            var q = new Squad { team = u.team, centre = u.pos, flankSide = (u.id & 1) == 0 ? 1 : -1 };
+            int made = SquadsMade[Mathf.Clamp(u.team, 0, 1)]++;
+            var q = new Squad { team = u.team, centre = u.pos, flankSide = (u.id & 1) == 0 ? 1 : -1, callsign = CallSigns[made % CallSigns.Length] };
             Squads.Add(q);
-            SquadsMade[Mathf.Clamp(u.team, 0, 1)]++;
             return q;
         }
 
@@ -222,7 +233,13 @@ namespace StarForge.World
         static void Measure(Squad q)
         {
             Vector2 sum = Vector2.zero;
-            foreach (var u in q.men) sum += u.pos;
+            int veteran = 0;
+            foreach (var u in q.men)
+            {
+                sum += u.pos;
+                if (u.rank > veteran) veteran = u.rank;
+            }
+            q.veteran = veteran;
             if (q.men.Count > 0) q.centre = sum / q.men.Count;
         }
 
@@ -263,9 +280,18 @@ namespace StarForge.World
             {
                 q.turnUntil = time + TurnLasts;
                 if (q.men.Count >= 2) q.movingTeam = 1 - q.movingTeam;
+                // Now and then a squad gets it wrong for a turn, less the longer its oldest hand has served.
+                q.blunder = SquadBlunder.None;
+                if (q.men.Count >= 2 && !TacticalRules.NoMistakes && combatRng.F01() < TacticalRules.MistakeChance(q.veteran) * 0.6f)
+                {
+                    q.blunder = combatRng.F01() < 0.5f ? SquadBlunder.Rush : SquadBlunder.Stall;
+                    SquadBlunders++;
+                }
             }
-            // Those whose turn it is not, walking up on an attack, stop and shoot; so do any over the half.
-            int most = Mathf.Max(1, q.men.Count / 2);
+            if (q.blunder == SquadBlunder.Rush) { q.moving = moving; return; }
+            // Those whose turn it is not, walking up on an attack, stop and shoot; so do any over the half,
+            // and everyone while one of theirs is about to go off.
+            int most = time < q.fragUntil || q.blunder == SquadBlunder.Stall ? 0 : Mathf.Max(1, q.men.Count / 2);
             if (q.men.Count >= 2)
                 foreach (var u in q.men)
                     if (u.fireTeam != q.movingTeam && u.StopForTurn()) moving--;
@@ -349,7 +375,7 @@ namespace StarForge.World
             ReportsMade[q.team]++;
 
             string where = Whereabouts(q.team, q.centre);
-            string who = q.men.Count == 1 ? "1 soldier" : $"{q.men.Count} soldiers";
+            string who = q.men.Count == 1 ? "1 man" : $"{q.men.Count} men";
             string text = kind == SquadReportKind.FallBack
                 ? (started > q.men.Count
                     ? $"{who} left of {started} {where}, under heavy fire. We should fall back."
@@ -358,7 +384,7 @@ namespace StarForge.World
             Raise(new GameEvent
             {
                 kind = GameEventKind.SquadReport, team = q.team, pos = map.Ground(q.centre), text = text,
-                index = (int)kind, men = q.men.ToArray(),
+                index = (int)kind, men = q.men.ToArray(), who = q.callsign,
             });
             return true;
         }
@@ -367,11 +393,12 @@ namespace StarForge.World
         string Whereabouts(int team, Vector2 at)
         {
             Vector2 from = at - map.StartPos(Mathf.Clamp(team, 0, 1));
-            if (from.magnitude < 30f) return "at our base";
+            float away = from.magnitude;
+            if (away < 30f) return "at our base";
             float deg = Mathf.Atan2(from.x, from.y) * Mathf.Rad2Deg;
             if (deg < 0f) deg += 360f;
             string[] compass = { "north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west" };
-            return $"{compass[Mathf.RoundToInt(deg / 45f) % 8]} of our base";
+            return $"{Mathf.RoundToInt(away / 10f) * 10} m {compass[Mathf.RoundToInt(deg / 45f) % 8]} of our base";
         }
     }
 }

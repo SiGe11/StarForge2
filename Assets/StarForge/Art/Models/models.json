@@ -875,5 +875,32 @@
     },
     "chunks": 0,
     "lod1_triangles": 0
+  },
+  "GUNNER": {
+    "radius": 1.408,
+    "height": 2.003,
+    "triangles": 2708,
+    "materials": [
+      "palette"
+    ],
+    "groups": {
+      "LegR": [
+        0.27,
+        0.8,
+        0.0
+      ],
+      "LegL": [
+        -0.27,
+        0.8,
+        0.0
+      ],
+      "Gun": [
+        0.3,
+        1.16,
+        0.1
+      ]
+    },
+    "chunks": 0,
+    "lod1_triangles": 0
   }
 }

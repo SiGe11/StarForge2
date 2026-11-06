@@ -52,7 +52,7 @@ namespace StarForge.World
         const float FollowPoint = 0.8f, PointLead = 12f, CoverIsThere = 6f;
 
         /// <summary>He is busy with something that takes him out of the order for now.</summary>
-        bool SoldierBusy => mode != SoldierMode.Free;
+        bool SoldierBusy => mode != SoldierMode.Free || throwing != Thrown.None;
 
         /// <summary>Fire near him. <paramref name="amount"/> at the line's closest pass.</summary>
         public void Suppress(float amount)
@@ -94,7 +94,7 @@ namespace StarForge.World
         }
 
         /// <summary>Walking up or running to cover on an attack: what his squad counts as moving in contact.</summary>
-        public bool MayWalkNow => SquadLetsMove();
+        public bool MayWalkNow => !SoldierBusy && SquadLetsMove();
         public bool IsMovingUnderOrder => !hurry && Moving && (order == Order.Attack || order == Order.AttackMove || order == Order.Move || order == Order.Idle);
 
         /// <summary>A soldier sent somewhere chooses how he gets there; only a hurried one looks at nothing.</summary>
@@ -103,8 +103,12 @@ namespace StarForge.World
         /// <summary>In contact, half a squad moves while the other half shoots: is it his turn, with room?</summary>
         bool SquadLetsMove()
         {
+            if (!hurry && world.time < fragWaitUntil) return false;
             var q = squad;
+            if (q != null && !hurry && world.time < q.fragUntil) return false;
             if (q == null || !q.contact || hurry) return true;
+            if (q.blunder == SquadBlunder.Rush) return true;
+            if (q.blunder == SquadBlunder.Stall) return false;
             if (q.men.Count >= 2 && fireTeam != q.movingTeam) return false;
             return IsMovingUnderOrder || q.moving < Mathf.Max(1, q.men.Count / 2);
         }
@@ -139,6 +143,7 @@ namespace StarForge.World
             if (order == Order.Idle) return;
             lineOnlyUntil = moved ? 0f : lineOnlyUntil;
             if (mode != SoldierMode.ToCover && mode != SoldierMode.InCover) return;
+            diving = false;
             mode = SoldierMode.Free;
             rushing = false;
             hiding = false;
@@ -153,6 +158,8 @@ namespace StarForge.World
             mode = SoldierMode.Free;
             rushing = false;
             hiding = false;
+            diving = false;
+            throwing = Thrown.None;
             StopLeaning();
             posture = Posture.Stand;
             soldierPace = 1f;
@@ -162,6 +169,7 @@ namespace StarForge.World
         {
             if (noMind) return;
             ReadOrder();
+            TickSideArms();
             if (world.time - lastFiredAtT > EbbAfter) suppression = Mathf.MoveTowards(suppression, 0f, SuppressionEbb * dt);
             if (world.time >= mindAt)
             {
@@ -183,7 +191,15 @@ namespace StarForge.World
 
         void Think()
         {
+            if (diving)
+            {
+                if (Dist(coverAt) < 1.1f || world.time >= coverBy) EndDive();
+                return;
+            }
             var threat = world.NearestThreat(this, def.sight);
+            if (throwing != Thrown.None) return;
+            if (threat != null) TryThrow(threat);
+            if (throwing != Thrown.None) return;
             float courage = Courage();
 
             if (mode == SoldierMode.Panic)
@@ -227,6 +243,14 @@ namespace StarForge.World
 
             // Told to hurry, he goes: he only stops when pinned. On Hold he keeps his ground, and his head down.
             if (hurry) { posture = Posture.Stand; return; }
+            // At arm's length he does not turn his back and run: it is the knife (CloseQuarters).
+            if (threat != null && threat.def.bodyRadius > 0f && mode == SoldierMode.Free &&
+                Dist(threat) - threat.def.radius <= TacticalRules.KnifeReach + 0.5f)
+            {
+                posture = Posture.Stand;
+                if (Moving && order != Order.Move) Halt();
+                return;
+            }
             // In cover near where he was sent, he is there: not out into the open for the last metres.
             if (order == Order.Move && mode == SoldierMode.InCover && Dist(orderPos) < CoverIsThere) order = Order.Idle;
             bool mayMove = order == Order.Attack || order == Order.AttackMove || order == Order.Move || order == Order.Idle;
@@ -251,8 +275,15 @@ namespace StarForge.World
                 ChooseFiringPosture(threat);
                 if (!mayMove) return;
                 bool flanked = !world.CoversFrom(coverAt, threat);
-                bool onward = order != Order.Idle && suppression < 0.3f && world.time >= coverStayUntil &&
-                              (order == Order.Move || range > def.range * 0.75f || fireBlocked);
+                bool due = order != Order.Idle && world.time >= coverStayUntil && (order == Order.Move || range > def.range * 0.75f || fireBlocked);
+                // A rash man goes on under fire he should have waited out.
+                bool rash = false;
+                if (due && suppression >= 0.3f && world.time >= rashLookAt)
+                {
+                    rashLookAt = world.time + 2.5f;
+                    rash = world.Errs(this, 0.5f);
+                }
+                bool onward = due && (suppression < 0.3f || rash);
                 if ((flanked || onward) && world.time >= nextCoverLook) LookForCover(threat, onward, false, flanked);
                 return;
             }
@@ -298,7 +329,15 @@ namespace StarForge.World
             if (!back && !flanked && !SquadLetsMove()) return;
             if (!world.TakeCoverLook()) return;
             nextCoverLook = world.time + 2.5f;
-            if (!world.FindCover(this, threat, CoverReach, onward, back, out var spot))
+            // Getting it wrong: he stays where he is, or takes a worse place than there was to take.
+            bool poor = false;
+            if (!back && !flanked && world.Errs(this))
+            {
+                if (world.CombatRoll() < 0.5f) return;
+                poor = true;
+            }
+            noCoverLast = !world.FindCover(this, threat, CoverReach, onward, back, out var spot, poor);
+            if (noCoverLast)
             {
                 // Nowhere better: an onward bound with no cover to reach ends in the open, walking up.
                 if (mode == SoldierMode.InCover && onward)

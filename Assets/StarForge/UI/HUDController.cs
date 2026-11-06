@@ -411,6 +411,14 @@ namespace StarForge.UI
         }
 
         // ------------------------------------------------------------ selection
+        /// <summary>What a soldier of ours has left to throw.</summary>
+        string ArmsText(Unit s)
+        {
+            if (!world.Tactical || s.def.bodyRadius <= 0f || s.team != player.team) return "";
+            string ammo = s.def.magazine > 1 ? (s.Reloading ? "  ·  RELOADING" : $"  ·  AMMO {s.rounds}/{s.def.magazine}") : "";
+            return ammo + (s.flashes > 0 ? $"  ·  FRAG {s.frags}  ·  SMOKE {s.smokes}  ·  FLASH {s.flashes}" : $"  ·  FRAG {s.frags}  ·  SMOKE {s.smokes}");
+        }
+
         void UpdateSelectionPanel()
         {
             var sel = player.Selection;
@@ -480,7 +488,7 @@ namespace StarForge.UI
                 unitStats.text = $"HULL {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}{shieldText}  ·  ARMOUR {core.Armour * 100f:0}%  ·  KILLS {s.kills}";
             }
             else if (d.Armed)
-                unitStats.text = $"HP {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}  ·  DMG {d.damage * (1f + 0.15f * s.rank):0}  ·  RANGE {d.range:0}  ·  KILLS {s.kills}";
+                unitStats.text = $"HP {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}  ·  DMG {d.damage * (1f + 0.15f * s.rank):0}  ·  RANGE {d.range:0}  ·  KILLS {s.kills}" + ArmsText(s);
             else
                 unitStats.text = $"HP {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}" + (d.supplyGive > 0 ? $"  ·  +{d.supplyGive} supply" : "");
             unitStatus.text = StatusText(s);
@@ -813,7 +821,7 @@ namespace StarForge.UI
             line.AddToClassList("comms-line--new");
             var head = new VisualElement { pickingMode = PickingMode.Ignore };
             head.AddToClassList("comms-head");
-            var who = new Label("SQUAD") { pickingMode = PickingMode.Ignore };
+            var who = new Label((e.who ?? "Squad").ToUpperInvariant()) { pickingMode = PickingMode.Ignore };
             who.AddToClassList("comms-who");
             head.Add(who);
             var tag = new Label(air ? "NEED AIR SUPPORT" : "FALL BACK?") { pickingMode = PickingMode.Ignore };
@@ -824,7 +832,7 @@ namespace StarForge.UI
             text.AddToClassList("comms-text");
             line.Add(head);
             line.Add(text);
-            var hint = new Label("Click to look and select them") { pickingMode = PickingMode.Ignore };
+            var hint = new Label("Point here to find them · click to look and select") { pickingMode = PickingMode.Ignore };
             hint.AddToClassList("comms-hint");
             line.Add(hint);
             Vector2 at = new Vector2(e.pos.x, e.pos.z);
@@ -835,6 +843,14 @@ namespace StarForge.UI
                 rig.CenterOn(at);
                 if (player != null && men != null) player.SelectUnits(men);
             });
+            // Pointed at, they are ringed where they stand, and the map shows where that is.
+            line.RegisterCallback<PointerEnterEvent>(_ =>
+            {
+                if (player != null) player.HighlightUnits(men);
+                AdvicePing(at, air ? MechAdviceKind.Warning : MechAdviceKind.Regroup, true);
+            });
+            line.RegisterCallback<PointerLeaveEvent>(_ => { if (player != null) player.Highlighted.Clear(); });
+            line.RegisterCallback<DetachFromPanelEvent>(_ => { if (player != null) player.Highlighted.Clear(); });
             while (commsFeed.childCount >= 3)
             {
                 VisualElement drop = null;

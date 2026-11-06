@@ -330,6 +330,9 @@ namespace StarForge.EditorTools
             {
                 // The guns and the wood are built by make_audio.py (.wav); the rest are Kenney's (.ogg).
                 rifle = Takes("Sfx", "rifle", "wav"), cannon = Takes("Sfx", "cannon", "wav"),
+                pistol = Takes("Sfx", "pistol", "wav"), knife = Takes("Sfx", "knife", "wav"),
+                grenade = Takes("Sfx", "grenade", "wav"), flashBang = Takes("Sfx", "flashbang", "wav"),
+                smokePop = Takes("Sfx", "smokepop", "wav"), machineGun = Takes("Sfx", "hmg", "wav"),
                 pulse = Takes("Sfx", "pulse", "wav"), bolt = Takes("Sfx", "bolt", "wav"),
                 treeFall = Takes("Sfx", "treefall", "wav"), treeCrash = Takes("Sfx", "treecrash", "wav"),
                 crush = Takes("Sfx", "crush", "wav"),

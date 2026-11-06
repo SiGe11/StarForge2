@@ -524,7 +524,9 @@ namespace StarForge.World
                 {
                     TickSoldier(dt);
                     // On his way to cover he runs; bolting, or frozen with fear, he does not shoot.
-                    if (mode == SoldierMode.ToCover || mode == SoldierMode.Panic) return;
+                    if (mode == SoldierMode.ToCover) { RunningShot(); return; }
+                    if (mode == SoldierMode.Panic || throwing != Thrown.None) return;
+                    if (hurry && order == Order.Move) { RunningShot(); return; }
                 }
                 ReviewTarget();
             }
@@ -570,6 +572,7 @@ namespace StarForge.World
                 targetOrdered = false;
             }
             if (target == null) return;
+            if (world.Tactical && def.bodyRadius > 0f && !noMind && CloseQuarters(dt)) return;
             // A mortar too close to fire: something else in its band, or it waits for the
             // others to deal with what is on top of it.
             if (def.minRange > 0f && Dist(target) - target.def.radius < def.minRange)
@@ -596,7 +599,7 @@ namespace StarForge.World
             fireBlocked = false;
             if (d > def.range) return false;
             // No gun fires at what its side does not know of, and a round must have a way there.
-            if (world.Tactical && (hiding || !world.Sees(team, target) || (def.shotSpread > 0f && !target.def.flying && !LineOfFireNow())))
+            if (world.Tactical && (hiding || !world.Sees(team, target) || (def.DirectFire && !target.def.flying && !LineOfFireNow())))
             {
                 fireBlocked = true;
                 return false;
@@ -617,7 +620,7 @@ namespace StarForge.World
             else
             {
                 yaw = ApproachAngle(yaw, want, def.turnRate * dt);
-                if (Mathf.Abs(WrapAngle(want - yaw)) < 0.35f && cooldown <= 0f) Fire();
+                if (Mathf.Abs(WrapAngle(want - yaw)) < 0.35f && cooldown <= 0f && !Reloading && (def.weapon != WeaponKind.MachineGun || !Moving) && FriendsAllow()) Fire();
             }
             return true;
         }
@@ -764,7 +767,11 @@ namespace StarForge.World
             // Pinned flat he gets off fewer rounds.
             cooldown = def.cooldown * (mode == SoldierMode.Pinned ? 1.8f : 1f);
             world.Fire(this, target);
-            if (world.Tactical) world.RevealShooter(this);
+            if (world.Tactical)
+            {
+                world.RevealShooter(this);
+                SpendRound();
+            }
         }
 
         void UpdateHarvest(float dt)

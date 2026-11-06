@@ -15,6 +15,8 @@ namespace StarForge.World
         [System.NonSerialized] public Unit seer0, seer1;
         /// <summary>When it last fired: a gun gives away where it is.</summary>
         [System.NonSerialized] public float firedAt = -99f;
+        /// <summary>The wreck it left, for the view to keep while the record stands.</summary>
+        [System.NonSerialized] public Hulk hulk;
         /// <summary>The fog cells it sees (GameWorld.UpdateSight), and where and when they were worked out.</summary>
         [System.NonSerialized] public ushort[] viewCells;
         [System.NonSerialized] public int viewCount = -1;
@@ -46,7 +48,7 @@ namespace StarForge.World
 
         /// <summary>In cover he is out from it a moment before and after each round, and back behind it
         /// between them.</summary>
-        public bool ShowsForShot => cooldown <= PeekFor || cooldown >= def.cooldown - PeekFor;
+        public bool ShowsForShot => !Reloading && (cooldown <= PeekFor || cooldown >= def.cooldown - PeekFor);
         const float PeekFor = 0.12f;
 
         public void Spot(int team, float until, Unit by)
@@ -134,7 +136,7 @@ namespace StarForge.World
         void FireBlocked(float dt)
         {
             bool closing = order == Order.Attack || order == Order.AttackMove;
-            if (!(order == Order.Attack && targetOrdered) && def.shotSpread > 0f && world.time >= shootableLookAt)
+            if (!(order == Order.Attack && targetOrdered) && def.DirectFire && world.time >= shootableLookAt)
             {
                 shootableLookAt = world.time + 0.5f;
                 var open = world.NearestShootable(this, true);

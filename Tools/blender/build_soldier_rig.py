@@ -35,7 +35,9 @@ import bmesh
 from mathutils import Matrix, Quaternion, Vector
 
 import build_models as B
+import build_roster as R
 import export_fbx as X
+from sf_model import box, sphere
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 KAYKIT = os.path.join(ROOT, 'Art', 'Source', 'kaykit', 'KayKit_Character_Animations',
@@ -56,10 +58,20 @@ LEG_RATIO = 0.80 / 0.519
 SHOULDER = (0.47, 1.40, 0.00)
 ELBOW = (0.47, 1.07, 0.05)
 WRIST = (0.45, 0.90, 0.22)
-# The forearm is drawn out at binding: modelled short, it could not reach a rifle held in
+# The forearm is drawn out along its own block at binding: modelled short, it could not reach a rifle held in
 # front of the chest from these shoulders.
 FOREARM_STRETCH = 1.8
 FOREARM = 0.40                 # elbow to hand
+# Where each side arm hangs, game space. Which clips have it in his right hand; a grenade leaves it
+# partway through the throw (u), and the world's throw lets go at about the same moment.
+SIDE_ARMS = {'Pistol': (0.31, 1.03, 0.16), 'Knife': (-0.17, 1.36, 0.23), 'Grenade': (0.0, 1.30, 0.0)}
+IN_HAND = {'Stab': 'Knife', 'Throw': 'Grenade', 'PistolAim': 'Pistol', 'PistolFire': 'Pistol',
+           'CrouchPistol': 'Pistol', 'RunPistol': 'Pistol'}
+THROW_RELEASE = 0.42
+# The pistol held out, against the chest but level whatever the trunk does (right, up, forward).
+PISTOL_AT = (0.36, 0.24, 0.70)
+# The top of the forearm's block as modelled, which goes on the elbow (game space).
+FOREARM_TOP = (0.45, 1.105, 0.16)
 # The rifle, game space: the point that goes in the right hand; the left hand's, ahead of it.
 GRIP = (0.30, 1.12, 0.22)
 FOREGRIP = (0.30, 1.10, 0.46)
@@ -109,11 +121,22 @@ AIM = hold((0.08, 0.10, 0.34), follow=0.0, twist=36)
 CRAWL = hold('hand.r', pitch=-4, follow=0.0, left='mapped')
 PRONE = hold((0.06, 0.30, 0.12), follow=0.0, twist=0.0)
 CARRY = hold((-0.34, -0.42, 0.16), yaw=-24, pitch=-58, right='mapped', left='grip')
+PISTOL = dict(CARRY, right='pistol', recoil=0.0)
 
 
 def fire(u):
     k = max(0.0, 1.0 - u * 2.6)
     return hold((0.08, 0.10 + 0.012 * k, 0.34 - 0.07 * k), pitch=4.0 * k, follow=0.0, twist=36)
+
+
+def prone_reload(u):
+    h = dict(PRONE)
+    h['left_path'] = u
+    return h
+
+
+def pistol_fire(u):
+    return dict(PISTOL, recoil=max(0.0, 1.0 - u * 2.6))
 
 
 def prone_fire(u):
@@ -149,6 +172,13 @@ SPECS = [
     ('Dive',       'Dodge_Forward',        PORT,  None, None, False),
     ('Vault',      'Jump_Full_Short',      PORT,  None, None, False),
     ('Hit',        'Hit_A',                READY, None, None, False),
+    # Reloading low, and the pistol: the rifle in the left hand, the right arm held out to the line of fire.
+    ('CrouchReload', 'Crouching',          reload_, 2.0, 'feet', False),
+    ('ProneReload',  'Crawling',           prone_reload, 2.0, 0.0, False),
+    ('PistolAim',    'Idle_A',             PISTOL, None, None, True),
+    ('PistolFire',   'Idle_A',             pistol_fire, 0.4, 0.0, False),
+    ('CrouchPistol', 'Crouching',          PISTOL, 1.0, 'feet', True),
+    ('RunPistol',    'Running_A',          PISTOL, None, None, True),
 ]
 
 
@@ -227,6 +257,12 @@ def fit_skeleton(arm):
     gun.head = g2b(GRIP)
     gun.tail = gun.head + Vector((0.0, -0.3, 0.0))
     gun.parent = eb['chest']
+    # What he carries besides the rifle: each its own bone under the chest, keyed in every clip.
+    for name, at in SIDE_ARMS.items():
+        b = eb.new(name)
+        b.head = g2b(at)
+        b.tail = b.head + Vector((0.0, 0.0, -0.12))
+        b.parent = eb['chest']
     bpy.ops.object.mode_set(mode='OBJECT')
 
 
@@ -235,8 +271,8 @@ NO_PALETTE = ('crystal', 'ore_glow', 'rock', 'bark', 'leaf', 'needle')   # each 
 
 def part_bone(c, group):
     """Which bone a part rides, by where it is modelled (its centre, game space)."""
-    if group == 'Gun':
-        return 'Gun'
+    if group == 'Gun' or group in SIDE_ARMS:
+        return group
     if group in ('LegL', 'LegR'):
         n = 'l' if group == 'LegL' else 'r'
         return ('upperleg.' if c.y >= 0.47 else 'lowerleg.' if c.y >= 0.14 else 'foot.') + n
@@ -270,20 +306,53 @@ def stretch(pivot, axis, k):
     return Matrix.Translation(pivot) @ m.to_4x4() @ Matrix.Translation(-pivot)
 
 
-def build_soldier(arm, model):
+def add_side_arms(m):
+    """Pistol at the right hip and knife on the chest, both hanging point down (the way each is held in
+    the hand is worked out from that: `Retarget`), grenades on the belt, and the one that gets thrown
+    out of sight inside the chest until it is in his hand. Bigger than life, or they do not read at
+    this camera."""
+    x, y, z = SIDE_ARMS['Pistol']
+    m.group('Pistol', (x, y, z))
+    m.add(box((x, y - 0.13, z + 0.02), (0.026, 0.15, 0.036), 'dark', bevel_w=0.008))
+    m.add(box((x, y - 0.12, z + 0.02), (0.018, 0.13, 0.042), 'steel', bevel_w=0.006))
+    m.add(box((x, y + 0.01, z - 0.05), (0.022, 0.03, 0.05), 'dark', bevel_w=0.006))
+    x, y, z = SIDE_ARMS['Knife']
+    m.group('Knife', (x, y, z))
+    m.add(box((x, y - 0.20, z), (0.009, 0.17, 0.034), 'steel', bevel_w=0.003))
+    m.add(box((x, y - 0.03, z), (0.016, 0.012, 0.05), 'armor_dark', bevel_w=0.003))
+    m.add(box((x, y + 0.04, z), (0.018, 0.06, 0.022), 'dark', bevel_w=0.006))
+    x, y, z = SIDE_ARMS['Grenade']
+    m.group('Grenade', (x, y, z))
+    m.add(sphere((x, y, z), 0.085, 8, 6, 'armor_dark'))
+    m.group('')
+    for side in (1, -1):
+        m.add(sphere((0.10 * side, 1.10, 0.26), 0.07, 8, 6, 'armor_dark'))
+
+
+def build_soldier(arm, model, kind='TROOPER'):
     """Merge the model's parts on the skeleton, each bound whole to its bone."""
+    add_side_arms(model)
     bones = [part_bone(centroid(p), g) for p, g in zip(model.parts, model.part_groups)]
     slots, rad, _ = X.prepare(model)
     X.bake_ao(model, rad)
     turn = Matrix.Rotation(math.pi, 4, 'Z')
     data = arm.data.bones
     moves = {}
+
+    def along(bone):
+        # In the armature's space: a Bone's own `vector` is against its parent, which bound the forearm
+        # 90 degrees off the bone that moves it, so it never reached the hand.
+        return data[bone].tail_local - data[bone].head_local
+
+    down = g2b((0.0, -1.0, 0.0))
     for n, s in (('l', -1), ('r', 1)):
-        sh, el, wr = (g2b((p[0] * s, p[1], p[2])) for p in (SHOULDER, ELBOW, WRIST))
-        moves['upperarm.' + n] = about(sh, (el - sh).rotation_difference(data['upperarm.' + n].vector))
-        moves['lowerarm.' + n] = (about(el, (wr - el).rotation_difference(data['lowerarm.' + n].vector),
+        sh, el = (g2b((p[0] * s, p[1], p[2])) for p in (SHOULDER, ELBOW))
+        top = g2b((FOREARM_TOP[0] * s, FOREARM_TOP[1], FOREARM_TOP[2]))
+        moves['upperarm.' + n] = about(sh, (el - sh).rotation_difference(along('upperarm.' + n)))
+        # Stretched along the block's own axis, or it shears into a tray.
+        moves['lowerarm.' + n] = (about(top, down.rotation_difference(along('lowerarm.' + n)),
                                         data['lowerarm.' + n].head_local.copy())
-                                  @ stretch(el, wr - el, FOREARM_STRETCH))
+                                  @ stretch(top, down, FOREARM_STRETCH))
     ranges = {}
     first = 0
     for part, bone in zip(model.parts, bones):
@@ -294,7 +363,7 @@ def build_soldier(arm, model):
         ranges.setdefault(bone, []).append((first, first + len(part.verts)))
         first += len(part.verts)
 
-    obj, tris = X.make_object('TROOPER', model.parts, slots)
+    obj, tris = X.make_object(kind, model.parts, slots)
     for bone, spans in ranges.items():
         vg = obj.vertex_groups.new(name=bone)
         for a, b in spans:
@@ -452,6 +521,11 @@ class Retarget:
             if want == 'mapped':
                 solve_arm(self.rest, pose, Pt, side, mapped(side), source_pole)
                 continue
+            if want == 'pistol':
+                k = h['recoil']
+                at = chest_at + g2b((PISTOL_AT[0], PISTOL_AT[1] + 0.04 * k, PISTOL_AT[2] - 0.06 * k))
+                solve_arm(self.rest, pose, Pt, side, at, g2b(POLE[side]))
+                continue
             if side == 'r' and follows_hand:
                 solve_arm(self.rest, pose, Pt, side, grip_at, source_pole, eased=True)
                 continue
@@ -472,6 +546,28 @@ class Retarget:
                 else:
                     at = mag.lerp(fore_at, (t - 0.85) / 0.15)
             solve_arm(self.rest, pose, Pt, side, at, g2b(POLE[side]))
+
+        # The side arms hang where they are modelled unless this clip has one in his hand.
+        for b in SIDE_ARMS:
+            pose[b] = (Quaternion(), Vector())
+        prop = IN_HAND.get(name)
+        if prop and (name != 'Throw' or u < THROW_RELEASE):
+            Pf = fk(self.rest, pose)
+            hand = Pf['hand.r'].to_translation()
+            fore = (hand - Pf['lowerarm.r'].to_translation()).normalized()
+            if 'recoil' in h:
+                # The pistol lies along the line of fire, not the forearm, and kicks up.
+                fore = (g2b((0.0, 0.0, 1.0)) + g2b((0.0, 1.0, 0.0)) * (0.25 * h['recoil'])).normalized()
+            side_ = fore.cross(Vector((0.0, 0.0, 1.0)))
+            side_ = side_.normalized() if side_.length > 1e-3 else Vector((1.0, 0.0, 0.0))
+            up = side_.cross(fore).normalized()
+            rest_along, rest_up = g2b((0.0, -1.0, 0.0)), g2b((0.0, 0.0, 1.0))
+            to = Matrix((fore, up, fore.cross(up))).transposed()
+            frm = Matrix((rest_along, rest_up, rest_along.cross(rest_up))).transposed()
+            rg = self.rest[prop][0]
+            placed = Matrix.Translation(hand + fore * 0.05) @ (to @ frm.inverted()).to_4x4() @ Matrix.Translation(-rg.to_translation())
+            local = (chest @ (self.rest['chest'][0].inverted() @ rg)).inverted() @ (placed @ rg)
+            pose[prop] = (local.to_quaternion(), local.to_translation())
         return pose
 
 
@@ -512,7 +608,7 @@ def write_action(arm, retarget, spec, clips):
     for b, (qs, ls) in keys.items():
         for i in range(4):
             curve('pose.bones["%s"].rotation_quaternion' % b, i, b, [q[i] for q in qs])
-        if b in ('root', 'hips', 'Gun'):
+        if b in ('root', 'hips', 'Gun') or b in SIDE_ARMS:
             for i in range(3):
                 curve('pose.bones["%s"].location' % b, i, b, [l[i] for l in ls])
     return act, slot
@@ -543,33 +639,36 @@ def merge_materials(soldier, slots):
     me.update()
 
 
-def export(arm, soldier, retarget, clips, out_dir):
+def export(arm, soldier, retarget, clips, out_dir, kind='TROOPER'):
+    # Only the Trooper's file carries clips: the other infantry stand on the same skeleton and play them
+    # (SoldierRigBuilder gives them all one controller), so five sets of the same clips are never loaded.
     scene = bpy.context.scene
     scene.render.fps = FPS
     merge_materials(soldier, [m.name for m in soldier.data.materials])
     source = list(bpy.data.actions)
-    made = [write_action(arm, retarget, s, clips) for s in SPECS]
+    made = [write_action(arm, retarget, s, clips) for s in SPECS] if kind == 'TROOPER' else []
     for a in source:
         bpy.data.actions.remove(a)
     for a, _ in made:
         a.name = a.name[len('new_'):]
     for pb in arm.pose.bones:
         pb.rotation_mode = 'QUATERNION'
-    arm.animation_data_create()
-    arm.animation_data.action = made[0][0]
-    arm.animation_data.action_slot = made[0][1]
+    if made:
+        arm.animation_data_create()
+        arm.animation_data.action = made[0][0]
+        arm.animation_data.action_slot = made[0][1]
     bpy.ops.object.select_all(action='DESELECT')
     arm.select_set(True)
     soldier.select_set(True)
     bpy.context.view_layer.objects.active = arm
-    path = os.path.join(out_dir, 'SF_TROOPER_RIG.fbx')
+    path = os.path.join(out_dir, 'SF_%s_RIG.fbx' % kind)
     bpy.ops.export_scene.fbx(
         filepath=path, use_selection=True, object_types={'ARMATURE', 'MESH'},
         apply_unit_scale=True, apply_scale_options='FBX_SCALE_ALL',
         axis_forward='-Z', axis_up='Y', bake_space_transform=False,
         mesh_smooth_type='FACE', use_mesh_modifiers=False, colors_type='LINEAR',
         add_leaf_bones=False, use_armature_deform_only=False,
-        bake_anim=True, bake_anim_use_all_actions=True, bake_anim_use_nla_strips=False,
+        bake_anim=bool(made), bake_anim_use_all_actions=True, bake_anim_use_nla_strips=False,
         bake_anim_force_startend_keying=True, bake_anim_step=1.0, bake_anim_simplify_factor=1.0,
         path_mode='STRIP')
     print('EXPORTED %s  %.2f MB, %d clips' % (path, os.path.getsize(path) / 1e6, len(made)))
@@ -728,6 +827,10 @@ def check(retarget, rest, clips):
             spec[0], miss['r'], miss['l'], reach['r'], reach['l'], step, seam, pitch, yaw, min(soles), max(soles)))
 
 
+INFANTRY = {'TROOPER': B.build_trooper, 'MARKSMAN': R.build_marksman, 'THUMPER': R.build_thumper,
+            'SCORCHER': R.build_scorcher, 'ROCKETEER': R.build_rocketeer, 'GUNNER': R.build_gunner}
+
+
 def main():
     argv = sys.argv[sys.argv.index('--') + 1:]
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -737,16 +840,18 @@ def main():
     rest = capture_rest(arm)
     clips = {name: Clip(a) for name, a in actions.items()}
     retarget = Retarget(rest_src, rest, clips)
-    soldier, tris = build_soldier(arm, B.build_trooper())
+    # The type goes last: preview <png> [view] [TYPE], export <dir> [TYPE].
+    kind = argv[-1] if argv[-1] in INFANTRY else 'TROOPER'
+    soldier, tris = build_soldier(arm, INFANTRY[kind](), kind)
     print('SOLDIER %d triangles, %d bones' % (tris, len(arm.data.bones)))
     if argv[0] == 'preview':
         at = {'Walk': 0.25, 'Run': 0.25, 'Sneak': 0.25, 'CrouchWalk': 0.25, 'Crawl': 0.25, 'Fire': 0.05,
               'Reload': 0.35, 'Throw': 0.45, 'Stab': 0.45, 'Dive': 0.5, 'Vault': 0.4, 'Hit': 0.3}
         poses = [(s[0], retarget(s, at.get(s[0], 0.0))) for s in SPECS]
-        view = argv[2] if len(argv) > 2 else 'front'
+        view = argv[2] if len(argv) > 2 and argv[2] in ('front', 'side', 'back') else 'front'
         preview(arm, soldier, poses, os.path.abspath(argv[1]), {'front': 25.0, 'side': 80.0, 'back': 155.0}[view])
     elif argv[0] == 'export':
-        export(arm, soldier, retarget, clips, os.path.abspath(argv[1]))
+        export(arm, soldier, retarget, clips, os.path.abspath(argv[1]), kind)
     elif argv[0] == 'stride':
         stride(retarget, rest, clips)
     elif argv[0] == 'check':

@@ -1,0 +1,64 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bea8dcdffa772411b8732f9c9b8585a7, type: 3}
+  m_Name: Gunner
+  m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
+  type: 32
+  displayName: Gunner
+  blurb: Belt-fed machine gun. Pins whole squads from far off, but must stop to fire and is slow to reload. Requires an Armory.
+  building: 0
+  neutral: 0
+  radius: 0.6
+  hp: 80
+  speed: 5
+  turnRate: 8
+  range: 20
+  damage: 6
+  cooldown: 0.22
+  splash: 0
+  sight: 28
+  bonusVsWorkers: 1
+  weapon: 16
+  hitsAir: 1
+  hitsGround: 1
+  minRange: 0
+  vsLight: 1
+  vsHeavy: 0.3
+  vsStructure: 0.3
+  vsAir: 1
+  vsMech: 1
+  bounces: 0
+  ignite: 0
+  upgradeClass: 1
+  harvester: 0
+  builder: 0
+  carry: 8
+  harvestTime: 1.6
+  heavyArmour: 0
+  flying: 0
+  fixedWing: 0
+  altitude: 0
+  organic: 0
+  buildTime: 20
+  cost: 110
+  supplyCost: 2
+  supplyGive: 0
+  hotkey: 71
+  producer: 5
+  requires: 26
+  prefabs:
+  - {fileID: 5130346058735247944, guid: 10e5748d60c6f46199c9a8fe5e77861c, type: 3}
+  - {fileID: 8515212096901051175, guid: afea983ab24b741bdbadfd879c0dcd2e, type: 3}
+  icon: {fileID: 2800000, guid: f13dd2a4cbce2470da2761bce57c19ad, type: 3}
+  visualRadius: 0.96000004
+  visualHeight: 2.003
+  tacticalOnly: 1

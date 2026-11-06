@@ -21,6 +21,8 @@ namespace StarForge.Sim
         Rocketeer, Ironclad, Gorehorn,
         // The Workshop's Mech-killer: one in the field a side, after the Armory's programme.
         MechHunter,
+        // The Garrison's belt-fed gun: under the new combat only (UnitDef.tacticalOnly).
+        Gunner,
         Count
     }
 
@@ -30,7 +32,7 @@ namespace StarForge.Sim
     /// <summary>How a unit's gun works (GameWorld.Fire). Auto is the original units', chosen
     /// by their type as before.</summary>
     public enum WeaponKind { Auto = 0, Rifle, Mortar, Flamer, Sniper, Cannon, Flak, Rockets, Needle, Claws, Acid, Glaive,
-                             Bazooka, Battery, Gore, Lance }
+                             Bazooka, Battery, Gore, Lance, MachineGun }
 
     public enum Order { Idle = 0, Move, AttackMove, Attack, Harvest, Return, Build, Hold }
 
@@ -115,6 +117,16 @@ namespace StarForge.Sim
         /// projectiles; a soldier's width to a round, or 0 for what is no soldier; what a round does to a
         /// soldier on top of the class multipliers (TacticalRules.Apply).</summary>
         [System.NonSerialized] public float shotSpread, bodyRadius, vsSoldier;
+        /// <summary>Under the new rules: its gun needs a clear way to what it is aimed at (a rocket, a flame
+        /// jet), and inside this he goes to his pistol (a mortar too close, a launcher, a long rifle).</summary>
+        [System.NonSerialized] public bool needsLine;
+        [System.NonSerialized] public float pistolInside;
+        /// <summary>Rounds before he must reload, and how long that takes (0: no magazine). Ammunition is
+        /// never short. How much harder its rounds keep heads down (0 reads as 1).</summary>
+        [System.NonSerialized] public int magazine;
+        [System.NonSerialized] public float reloadTime, suppressMul;
+        [Tooltip("Trained only under the new combat (TacticalRules); the classic game has no such unit.")] public bool tacticalOnly;
+        public bool DirectFire => shotSpread > 0f || needsLine;
         /// <summary>Moves on the ground through the NavMesh (everything mobile but aircraft).</summary>
         public bool Walks => IsMobile && !flying;
         /// <summary>The worker counts (Diggers, Haulers, Prospectors): what keeps a side's economy.</summary>

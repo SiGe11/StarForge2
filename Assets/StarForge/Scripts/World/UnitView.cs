@@ -278,6 +278,8 @@ namespace StarForge.World
                     if (unit.def.organic) CreatureCorpse.Create(unit, body, anim, clipDeath);
                     else UnitWreck.Create(unit, body, turret, gun, legL, legR, velocity);
                 }
+                // A tank that died out of sight still leaves its hulk, to be seen when someone gets there.
+                else if (unit.hulk != null && body != null) UnitWreck.Create(unit, body, turret, gun, legL, legR, velocity, false);
                 return;
             }
             float step = Time.deltaTime;

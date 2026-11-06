@@ -75,6 +75,8 @@ namespace StarForge.EditorTools
                     "Flamethrower infantry. Short reach, burns everything on the ground in its jet; deadly to infantry and Diggers, weak against armour. Sets grass alight."),
                 Def(UnitType.Marksman,  "Marksman",   false, false, 0.56f,  55, 5.6f,  9.0f, 30f, 58, 3.20f, 0f,   34, 22, 125, 2, 0, 'N',
                     "Sniper. Outranges everything but the Mech; one shot fells a rifleman. Fragile, slow to fire, poor against armour. Requires an Armory."),
+                Def(UnitType.Gunner,    "Gunner",     false, false, 0.60f,  80, 5.0f,  8.0f, 20f,  6, 0.22f, 0f,   28, 20, 110, 2, 0, 'G',
+                    "Belt-fed machine gun. Pins whole squads from far off, but must stop to fire and is slow to reload. Requires an Armory."),
                 Def(UnitType.Lancer,    "Lancer",     false, false, 1.40f, 280, 5.2f,  2.8f, 18f, 36, 1.70f, 0f,   30, 28, 175, 3, 0, 'L',
                     "Tank destroyer. A long, fast-firing cannon that punches through armour; wasteful against infantry."),
                 Def(UnitType.Aegis,     "Aegis",      false, false, 1.35f, 200, 4.8f,  2.8f, 21f,  9, 0.40f, 1.6f, 32, 24, 150, 3, 0, 'F',
@@ -169,6 +171,7 @@ namespace StarForge.EditorTools
             R(UnitType.Skitter,   d => { d.producer = UnitType.Biolab; d.weapon = WeaponKind.Claws; d.hitsAir = false; d.organic = true; d.upgradeClass = UnitClass.Creature; });
             R(UnitType.Spitter,   d => { d.producer = UnitType.Biolab; d.weapon = WeaponKind.Acid; d.hitsAir = true; d.organic = true; d.upgradeClass = UnitClass.Creature; });
             R(UnitType.Razorwing, d => { d.producer = UnitType.Biolab; d.weapon = WeaponKind.Glaive; d.hitsAir = true; d.flying = true; d.organic = true; d.upgradeClass = UnitClass.Creature; });
+            R(UnitType.Gunner, d => { d.producer = UnitType.Garrison; d.requires = UnitType.Armory; d.weapon = WeaponKind.MachineGun; d.hitsAir = true; d.upgradeClass = UnitClass.Infantry; d.tacticalOnly = true; });
             R(UnitType.Rocketeer, d => { d.producer = UnitType.Garrison; d.weapon = WeaponKind.Bazooka; d.hitsAir = false; d.upgradeClass = UnitClass.Infantry; });
             R(UnitType.Ironclad,  d => { d.producer = UnitType.Workshop; d.requires = UnitType.Armory; d.weapon = WeaponKind.Battery; d.hitsAir = true; d.heavyArmour = true; d.upgradeClass = UnitClass.Vehicle; });
             R(UnitType.Gorehorn,  d => { d.producer = UnitType.Biolab; d.requires = UnitType.Armory; d.weapon = WeaponKind.Gore; d.hitsAir = false; d.organic = true; d.heavyArmour = true; d.upgradeClass = UnitClass.Creature; });
@@ -187,6 +190,7 @@ namespace StarForge.EditorTools
             T(UnitType.Thumper,   d => { d.minRange = 7f; d.vsHeavy = 0.6f; d.vsStructure = 1.25f; });
             T(UnitType.Scorcher,  d => { d.vsHeavy = 0.5f; d.vsStructure = 0.8f; d.bonusVsWorkers = 1.5f; d.ignite = 0.25f; });
             T(UnitType.Marksman,  d => { d.vsHeavy = 0.5f; d.vsStructure = 0.25f; });
+            T(UnitType.Gunner,    d => { d.vsHeavy = 0.3f; d.vsStructure = 0.3f; });
             T(UnitType.Lancer,    d => { d.vsLight = 0.7f; d.vsHeavy = 1.5f; });
             T(UnitType.Aegis,     d => { d.vsAir = 2.2f; d.vsLight = 0.6f; d.vsHeavy = 0.4f; d.vsStructure = 0.3f; });
             T(UnitType.Kestrel,   d => { d.altitude = 7.5f; d.vsHeavy = 1.15f; });
@@ -253,6 +257,7 @@ namespace StarForge.EditorTools
                 case UnitType.Airfield: return "AIRFIELD";
                 case UnitType.Biolab: return "BIOLAB";
                 case UnitType.Rocketeer: return "ROCKETEER";
+                case UnitType.Gunner: return "GUNNER";
                 case UnitType.Ironclad: return "IRONCLAD_LEGS";
                 case UnitType.MechHunter: return "MECHHUNTER_HULL";
                 // Animals from the Biolab: Quaternius models (CreatureBody), not a Blender build.

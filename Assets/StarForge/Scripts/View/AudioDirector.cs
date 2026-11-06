@@ -47,6 +47,8 @@ namespace StarForge.View
         public AudioClip[] rifle, cannon, pulse, bolt, boom, bigBoom, rumble, thud, hitMetal, crystal, rock, mine, stomp, shield, build;
         [Tooltip("Built by make_audio.py: a shell landing and a structure going up, with the thump and the rolling report Kenney's crunches have no low end for.")]
         public AudioClip[] blast, blastBig;
+        [Tooltip("Built by make_audio.py: a soldier's side arms.")]
+        public AudioClip[] pistol, knife, grenade, flashBang, smokePop, machineGun;
         [Tooltip("A tree splitting and groaning as it goes over, its crash as it lands, and a bush flattened under a Mauler.")]
         public AudioClip[] treeFall, treeCrash, crush;
         [Tooltip("Looped beds: the Mauler's engine, its track clatter, and the Skimmer's drive.")]
@@ -260,6 +262,21 @@ namespace StarForge.View
                 case GameEventKind.ArmyUpgradeComplete when e.team == me:
                     PlayUI(bank.uiPromote != null ? bank.uiPromote : promote, 0.5f, 1f);
                     break;
+                case GameEventKind.Impact when e.projectileKind == GameWorld.ProjFrag:
+                    if (!Seen(e.pos)) return;
+                    Heat(e.pos, 0.12f);
+                    PlayAt(e.pos, bank.grenade != null && bank.grenade.Length > 0 ? bank.grenade : bank.blast, 0.62f, 0.05f, boom);
+                    QuietBirds(e.pos);
+                    break;
+                case GameEventKind.Impact when e.projectileKind == GameWorld.ProjFlash:
+                    if (!Seen(e.pos)) return;
+                    PlayAt(e.pos, bank.flashBang != null && bank.flashBang.Length > 0 ? bank.flashBang : bank.boom, 0.7f, 0.05f, boom);
+                    QuietBirds(e.pos);
+                    break;
+                case GameEventKind.Impact when e.projectileKind == GameWorld.ProjSmoke:
+                    if (!Seen(e.pos)) return;
+                    PlayAt(e.pos, bank.smokePop != null && bank.smokePop.Length > 0 ? bank.smokePop : bank.thud, 0.4f, 0.05f);
+                    break;
                 case GameEventKind.Impact when (e.projectileKind >= 5 && e.projectileKind <= 7) || e.projectileKind == GameWorld.ProjLob || e.projectileKind == GameWorld.ProjRocket:
                     if (!Seen(e.pos)) return;
                     Heat(e.pos, 0.2f);
@@ -282,6 +299,12 @@ namespace StarForge.View
                         case GameWorld.ProjLob: PlayAt(e.pos, bank.mechMortar, 0.45f, 0.15f, cannon); PlayAt(e.pos, bank.thud, 0.2f, 0.15f); break;
                         case GameWorld.ProjSniper: PlayAt(e.pos, bank.rifle, 0.62f, 0.02f, rifle); PlayAt(e.pos, bank.thud, 0.15f, 0.05f); break;
                         case GameWorld.ProjAP: PlayAt(e.pos, bank.cannon, 0.7f, 0.08f, cannon); break;
+                        case GameWorld.ProjPistol: PlayAt(e.pos, bank.pistol != null && bank.pistol.Length > 0 ? bank.pistol : bank.rifle, 0.3f, 0.02f, rifle); break;
+                        case GameWorld.ProjMG: PlayAt(e.pos, bank.machineGun != null && bank.machineGun.Length > 0 ? bank.machineGun : bank.rifle, 0.42f, 0.02f, rifle); break;
+                        case GameWorld.ProjKnife: PlayAt(e.pos, bank.knife != null && bank.knife.Length > 0 ? bank.knife : bank.thud, 0.35f, 0.05f); break;
+                        case GameWorld.ProjFrag:
+                        case GameWorld.ProjSmoke:
+                        case GameWorld.ProjFlash: break;
                         case GameWorld.ProjAcid: PlayAt(e.pos, bank.pulse, 0.18f, 0.12f, pulse); break;
                         case GameWorld.ProjClaw:
                             if (e.type == UnitType.Gorehorn) { PlayAt(e.pos, bank.stomp, 0.55f, 0.15f); PlayAt(e.pos, bank.thud, 0.35f, 0.15f); }
