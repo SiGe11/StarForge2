@@ -115,6 +115,15 @@ namespace StarForge.EditorTools
         public static string RigLookReport() => Report<TacticalRigLookTrial>();
         /// <summary>The fight's A/B on twelve fields, to tell the two apart (no both-thinking pass).</summary>
         public static string FightWide() { TacticalFightTrial.Fields = 12; return Stage<TacticalFightTrial>("Fight"); }
+        /// <summary>The same fight with the six behind a wall of the map's (phase 5): the eight come from its
+        /// far side. Target: the six win 4 of 5 with both thinking.</summary>
+        public static string FightWalls()
+        {
+            TacticalFightTrial.AtWalls = true;
+            var s = Stage<TacticalFightTrial>("Fight");
+            if (!s.StartsWith("staging")) TacticalFightTrial.AtWalls = false;
+            return s;
+        }
 
         /// <summary>The map the next Play draws: for runs that must compare. ClearSeed puts it back.</summary>
         public static string UseSeed1000() { StarForge.Game.MatchSettings.mapSeed = 1000; return "next Play on map 1000"; }
@@ -1136,6 +1145,32 @@ namespace StarForge.EditorTools
     {
         protected override bool RulesOnly => true;
         public static int Fields = 5;
+        public static bool AtWalls;
+
+        /// <summary>Behind a run of the map's walls, the eight's open ground beyond it.</summary>
+        bool FindWallSite(System.Random rng, List<(Vector2 c, Vector2 d)> taken, out Vector2 at, out Vector2 dir)
+        {
+            at = dir = default;
+            var walls = world.Walls;
+            for (int tries = 0; tries < 3000 && walls.Count > 0; tries++)
+            {
+                var w = walls[rng.Next(walls.Count)];
+                if (w.smashed || (w.b - w.a).magnitude < 2.5f || w.height > 1.2f) continue;
+                Vector2 ab = (w.b - w.a).normalized, n = new Vector2(-ab.y, ab.x);
+                if (rng.NextDouble() < 0.5) n = -n;
+                var c = w.Mid - n * 4f;
+                bool used = false;
+                foreach (var t in taken) if ((t.c - c).magnitude < 15f) used = true;
+                if (used || !WalkClear(c)) continue;
+                var e = w.Mid + n * 48f;
+                if (!WalkClear(e) || !WalkClear(w.Mid + n * 24f)) continue;
+                if (world.Sight.WoodsAt(e) > 0.01f || !world.Sight.Clear(Eye(c), Eye(e))) continue;
+                if (Mathf.Abs(map.HeightAt(c) - map.HeightAt(e)) > 3f) continue;
+                at = c; dir = n;
+                return true;
+            }
+            return false;
+        }
 
         /// <summary>Somewhere with things to hide behind within a few metres, and open ground 52 m off.</summary>
         bool FindCoverSite(System.Random rng, out Vector2 at, out Vector2 dir)
@@ -1150,6 +1185,8 @@ namespace StarForge.EditorTools
                 foreach (var b in world.boulders)
                     if (b != null && !b.smashed && (b.Pos - c).sqrMagnitude < 10f * 10f) near.Add(new Vector3(b.Pos.x, b.Pos.y, b.Radius));
                 world.Sight.TrunksNear(c, 8f, world.Plants, near, 10);
+                foreach (var w in world.Walls)
+                    if (!w.smashed && w.Distance(c) < 8f) near.Add(new Vector3(w.Mid.x, w.Mid.y, 1f));
                 int rocks = 0;
                 foreach (var n in near) if (n.z >= 0.8f) rocks++;
                 if (rocks < 2) continue;
@@ -1211,6 +1248,9 @@ namespace StarForge.EditorTools
 
         IEnumerator Start()
         {
+            // Read first: a trial that stops at staging must not leave the next plain Fight at walls.
+            bool atWalls = AtWalls;
+            AtWalls = false;
             yield return TacticalMatch();
             if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
             var sb = new StringBuilder();
@@ -1219,14 +1259,18 @@ namespace StarForge.EditorTools
             Time.timeScale = 4f;
             var sites = new List<(Vector2 c, Vector2 d)>();
             for (int f = 0; f < Fields; f++)
-                if (FindCoverSite(rng, out var c, out var d)) sites.Add((c, d));
+            {
+                Vector2 c, d;
+                if (atWalls ? FindWallSite(rng, sites, out c, out d) : FindCoverSite(rng, out c, out d)) sites.Add((c, d));
+            }
+            if (atWalls) sb.AppendLine($"  at walls: {world.Walls.Count} runs of wall on the map ({world.CoverPlaced})");
             var thinking = new int[2]; var plain = new int[2]; var both = new int[2];
             foreach (var (c, d) in sites) yield return OneFight(sb, "both thinking", c, d, true, true, both);
             foreach (var (c, d) in sites) yield return OneFight(sb, "plain six, plain eight", c, d, false, false, plain);
             if (Fields <= 5) foreach (var (c, d) in sites) yield return OneFight(sb, "thinking six, plain eight", c, d, true, false, thinking);
             Fields = 5;
             sb.AppendLine($"  thrown in all: {world.ThrownCount[1]} frags, {world.ThrownCount[2]} smoke, {world.ThrownCount[3]} flash; {world.FragFriendAtLanding} frags landed with a friend in reach, {world.FriendHurt} friends hurt, {world.Stunned} men stunned, {world.PistolShots} pistol rounds, {world.Stabs} stabs");
-            sb.Insert(0, $"map {map.seed}, {sites.Count} fields, the same ones each time: six among cover against eight coming over open ground, both thinking, won {both[0]} of {sites.Count} (target 4 of 5); plain six against plain eight {plain[0]}; thinking six against plain eight, who feel no fire at all, {thinking[0]}\n");
+            sb.Insert(0, $"map {map.seed}, {sites.Count} fields, the same ones each time: six {(atWalls ? "behind a wall" : "among cover")} against eight coming over open ground, both thinking, won {both[0]} of {sites.Count} (target 4 of 5); plain six against plain eight {plain[0]}; thinking six against plain eight, who feel no fire at all, {thinking[0]}\n");
             report = sb.ToString();
             ReleaseStatics();
         }

@@ -10,17 +10,36 @@ terrain hides them.
     ROCK_SHELF    low slabs stepping down a slope
     WRECK         the burnt-out hull of a crashed dropship, nose in the dirt
     RUIN_PYLON    a broken monolith left by whoever held this ground before
+
+Cover (the new combat only; placed when a match begins, GameWorld.BeginTactical): walls a man gets
+behind, of rock blocks under rusted plate like the pylon's, each with its shape for the rules in
+`meta['cover']` -- segments (ax, az, bx, bz, height, thickness) in the model's frame, which the game
+reads instead of the mesh. Keep the two in step.
+
+    WALL_LOW      3 m of low wall a man fires over, 1.2 m high (a crouching man, 1.15 m, is behind it)
+    WALL_SHORT    2 m of the same, broken at one end
+    RUIN_WALL     3.2 m of a ruined house wall, 1.7 m at one end falling to 1.15
+    RUIN_CORNER   the corner of a ruin, an L of 3 m and 2.6 m, tall at the angle
+
+`python Tools/blender/build_env.py -- <dir>` (Blender, background) exports only these and merges them
+into the folder's models.json; export_fbx.py writes them with everything else.
 """
 
+import json
 import math
+import os
+import random
+import sys
 
 from mathutils import Matrix, Vector
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # run on its own by Blender
 import build_models as B
 import sf_model as S
 from sf_model import Model, box, frustum, cyl, blob, inset, face_plate
 
 MESH_ROCK_SPIRE, MESH_ROCK_SHELF, MESH_WRECK, MESH_RUIN_PYLON = 30, 31, 32, 33
+MESH_WALL_LOW, MESH_WALL_SHORT, MESH_RUIN_WALL, MESH_RUIN_CORNER = 34, 35, 36, 37
 
 
 def slab(center, radius, height, seed, amount=0.9, spin=0.0, tilt=0.0):
@@ -143,4 +162,128 @@ def build_ruin_pylon():
     return m
 
 
-ENV_BUILDERS = [build_rock_spire, build_rock_shelf, build_wreck, build_ruin_pylon]
+# ------------------------------------------------------------ cover
+WALL_THICK = 0.46
+
+
+def wall_run(m, rng, x0, x1, z, tops, axis='x', thick=WALL_THICK):
+    """A wall from x0 to x1 (along X, or along Z with axis='z') at z: courses of rock blocks, the top
+    course of rusted plate. `tops` gives the top's height at each end; where it falls, the courses
+    stop short in a broken line. No two faces flush: neighbours overlap and differ in depth and height."""
+    length = x1 - x0
+    parts = []
+    # How high the wall stands at a point along it.
+    def top_at(t):
+        return tops[0] + (tops[1] - tops[0]) * t
+    x = x0
+    while x < x1 - 0.05:
+        w = min(x1 - x, rng.uniform(0.62, 1.05))
+        if x1 - (x + w) < 0.3:
+            w = x1 - x
+        mid = (x + w * 0.5 - x0) / max(1e-3, length)
+        top = top_at(mid) + rng.uniform(-0.04, 0.04)
+        y = 0.0
+        course = 0
+        while y < top - 0.12:
+            h = min(top - y, rng.uniform(0.40, 0.56) if course == 0 else rng.uniform(0.34, 0.46))
+            is_top = y + h >= top - 0.12
+            d = thick * 0.5 + rng.uniform(-0.03, 0.02) - (0.03 if is_top else 0.0)
+            cx = x + w * 0.5 + rng.uniform(-0.03, 0.03)
+            hw = w * 0.5 + 0.02 + rng.uniform(0.0, 0.015)
+            mat = 'rust' if is_top and course > 0 else 'rock'
+            blk = box((cx, y + h * 0.5, z + rng.uniform(-0.025, 0.025)), (hw, h * 0.5 + 0.012, d), mat,
+                      bevel_w=0.035 if mat == 'rock' else 0.02, bevel_seg=1)
+            B.rot(blk, math.radians(rng.uniform(-3.0, 3.0)), 'Y', (cx, 0.0, z))
+            parts.append(blk)
+            y += h
+            course += 1
+        x += w
+    # Rubble fallen from it.
+    for k in range(max(1, int(length / 1.4))):
+        t = rng.uniform(0.1, 0.9)
+        side = rng.choice((-1, 1))
+        parts.append(blob((x0 + length * t, 0.05, z + side * (thick * 0.5 + rng.uniform(0.15, 0.45))),
+                          rng.uniform(0.12, 0.22), 6, 4, rng.randint(1, 9999), 0.7, 'rock'))
+    for p in parts:
+        if axis == 'z':
+            B.rot(p, math.radians(-90.0), 'Y', (0.0, 0.0, 0.0))
+        m.add(p)
+
+
+def cover_meta(m, segments):
+    m.meta['cover'] = [[round(v, 3) for v in sg] for sg in segments]
+
+
+def build_wall_low():
+    m = Model(MESH_WALL_LOW, 'WALL_LOW')
+    wall_run(m, random.Random(341), -1.5, 1.5, 0.0, (1.2, 1.2))
+    cover_meta(m, [(-1.5, 0.0, 1.5, 0.0, 1.2, WALL_THICK)])
+    return m
+
+
+def build_wall_short():
+    m = Model(MESH_WALL_SHORT, 'WALL_SHORT')
+    wall_run(m, random.Random(352), -1.0, 0.45, 0.0, (1.2, 1.16))
+    wall_run(m, random.Random(353), 0.45, 1.0, 0.0, (1.06, 0.66))
+    cover_meta(m, [(-1.0, 0.0, 0.45, 0.0, 1.18, WALL_THICK), (0.45, 0.0, 1.0, 0.0, 0.8, WALL_THICK)])
+    return m
+
+
+def build_ruin_wall():
+    m = Model(MESH_RUIN_WALL, 'RUIN_WALL')
+    wall_run(m, random.Random(361), -1.6, -0.4, 0.0, (1.75, 1.55))
+    wall_run(m, random.Random(362), -0.4, 1.6, 0.0, (1.25, 1.1))
+    cover_meta(m, [(-1.6, 0.0, -0.4, 0.0, 1.65, WALL_THICK), (-0.4, 0.0, 1.6, 0.0, 1.15, WALL_THICK)])
+    return m
+
+
+def build_ruin_corner():
+    m = Model(MESH_RUIN_CORNER, 'RUIN_CORNER')
+    t = WALL_THICK
+    # The angle at (-1.5, -1.3): one arm along X, one along Z, tallest where they meet.
+    wall_run(m, random.Random(371), -1.5 - t * 0.5, -0.3, -1.3, (1.95, 1.7))
+    wall_run(m, random.Random(372), -0.3, 1.5, -1.3, (1.25, 1.08))
+    arm = Model(0, 'tmp')
+    # The Z arm, built along X and turned: x here runs from the angle outward.
+    wall_run(arm, random.Random(373), 0.0 + t * 0.5, 1.4, 0.0, (1.6, 1.45))
+    wall_run(arm, random.Random(374), 1.4, 2.6, 0.0, (1.22, 1.05))
+    for p in arm.parts:
+        B.rot(p, math.radians(-90.0), 'Y', (0.0, 0.0, 0.0))
+        S.xform(p, Matrix.Translation(Vector((-1.5, 0.0, -1.3))))
+        m.add(p)
+    cover_meta(m, [(-1.5 - t * 0.5, -1.3, -0.3, -1.3, 1.8, t), (-0.3, -1.3, 1.5, -1.3, 1.15, t),
+                   (-1.5, -1.3 + t * 0.5, -1.5, 0.1, 1.5, t), (-1.5, 0.1, -1.5, 1.3, 1.12, t)])
+    return m
+
+
+COVER_BUILDERS = [build_wall_low, build_wall_short, build_ruin_wall, build_ruin_corner]
+ENV_BUILDERS = [build_rock_spire, build_rock_shelf, build_wreck, build_ruin_pylon] + COVER_BUILDERS
+
+
+def main():
+    """Export only the cover pieces and merge them into the folder's models.json (export_fbx.py would
+    rewrite every model)."""
+    import bpy
+    import export_fbx as X
+    argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
+    out_dir = argv[0] if argv else os.path.join(os.getcwd(), 'Assets', 'StarForge', 'Art', 'Models')
+    os.makedirs(out_dir, exist_ok=True)
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    models = [fn() for fn in COVER_BUILDERS]
+    meta_path = os.path.join(out_dir, 'models.json')
+    meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
+    for i, model in enumerate(models):
+        slots, rad, top = X.prepare(model)
+        X.bake_ao(model, rad)
+        objs, tris = X.export_groups(model, slots, out_dir)
+        objs[0].location.x = i * 7.0
+        meta[model.name] = {'radius': round(rad, 3), 'height': round(top, 3), 'triangles': tris,
+                            'materials': X.fbx_slots(slots), 'groups': {}, 'chunks': 0, 'lod1_triangles': 0}
+        meta[model.name].update(model.meta)
+        print('%-16s tris=%6d radius=%5.2f height=%5.2f  %s  cover %s' % (model.name, tris, rad, top, ','.join(slots), model.meta['cover']))
+    with open(meta_path, 'w') as fh:
+        json.dump(meta, fh, indent=2)
+
+
+if __name__ == '__main__':
+    main()

@@ -899,8 +899,19 @@ So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
   palette texture, which took 896 draws a pass down to 233 across the models and, with no visible change,
   a benchmark match from 49.9 to 51.0 fps (48.8 to 51.4 with a Mech in view; these and the rigged
   numbers above were measured before *High* gave its spare frames to resolution, see Performance).
-- **Not there yet:** on today's maps cover does not win fights by itself. Six among cover beat eight coming
-  over open ground only 4 times in 12, because boulders are too tall to fire over; low walls are to come.
+- **The ground is something to fight over.** Under the new combat every map gets low field walls, the broken
+  outlines of ruined houses and a few ditches, laid out when the match begins (a classic map is left as it
+  was). The low walls stand 1.2 m: a man ducked behind one is out of a round's way (in a trial not one of
+  9,000 rounds from 10-30 m struck him, against a quarter to nine tenths of them in front of the same wall),
+  and he comes up over it to fire, when he can be hit, then goes down again; soldiers vault low walls
+  (vehicles go round, a Mauler drives through and breaks them), a ruin's tall corners stop everyone, and a
+  man lying in a ditch or a shell crater, or behind a fallen tree, has something between him and the
+  rounds. Over 200 random maps the walls never cut a base off from the other or from its ore, and no ditch
+  made a vehicle go round.
+- **Not there yet:** cover does not win fights by itself. Six behind a wall won 2 of 5 fights and drew one
+  against eight coming over open ground (1 of 9 before the walls were raised): even with room for three
+  behind each wall, the six spent only a quarter to two thirds of each fight in cover, and why is not yet
+  traced. That is for the balancing at the end.
 
 `Editor/TacticalTrials.cs` holds the checks; `Assets/StarForge/Scripts/World/CLAUDE.md` the rules and
 their numbers.

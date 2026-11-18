@@ -277,6 +277,7 @@ namespace StarForge.World
             // His main gun out of it for now, and they are close: the pistol while he reloads.
             bool clearing = Reloading && d <= TacticalRules.PistolRange;
             if ((!inside && !beyond && !clearing) || hiding || !known) return false;
+            if (mode == SoldierMode.InCover && leanSide == GameWorld.RiseOver && !risen) return false;
             // For men and light things: at armour or a wall his main gun, or nothing, is better.
             if (target.def.Heavy || target.def.building) return false;
             // On a plain Move he shoots only while stopped.

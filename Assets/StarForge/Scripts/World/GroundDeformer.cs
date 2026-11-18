@@ -34,6 +34,11 @@ namespace StarForge.World
 
         /// <summary>After a crater opens: centre and radius of what changed.</summary>
         public event Action<Vector2, float> Deformed;
+        /// <summary>While Deformed is raised for a ditch (Trench): its line and half width, so the ground mask
+        /// lays dug soil along it rather than a crater's round of thrown earth.</summary>
+        public bool Digging { get; private set; }
+        public Vector2 DitchA, DitchB;
+        public float DitchHalf;
 
         public static GroundDeformer Instance { get; private set; }
 
@@ -44,6 +49,8 @@ namespace StarForge.World
             waterLevel = map.waterLevel;
             mapSize = map.mapSize;
             var src = terrain.terrainData;
+            // Again on a map generated in place since (the map sweep): the copy before goes.
+            if (data != null && data != src) Destroy(data);
             data = Instantiate(src);
             data.name = src.name + " (match)";
             terrain.terrainData = data;
@@ -95,6 +102,57 @@ namespace StarForge.World
             float was = Mathf.Lerp(Mathf.Lerp(before[z, x], before[z, x + 1], tx), Mathf.Lerp(before[z + 1, x], before[z + 1, x + 1], tx), tz);
             float now = Bilinear(current, p);
             return (now - was) * heightScale;
+        }
+
+        /// <summary>Digs a ditch along a..b: a flat bottom <paramref name="flatHalf"/> each side of the line,
+        /// <paramref name="depth"/> deep, rising over <paramref name="slope"/> metres each side on a cosine (the
+        /// steepest part 1.57x the mean: 0.9 m over 2 m is 35 degrees, under the NavMesh's 40), round at the ends.
+        /// It becomes the map's own ground (Drop reads nothing there): dug when a match begins, before the
+        /// NavMesh is rebuilt over it. It digs the copy Init made: a map generated in place since must Init again.</summary>
+        public bool Trench(Vector2 a, Vector2 b, float flatHalf, float slope, float depth, bool tell = true)
+        {
+            if (data == null) return false;
+            float outer = flatHalf + slope;
+            float minX = Mathf.Min(a.x, b.x) - outer, maxX = Mathf.Max(a.x, b.x) + outer;
+            float minZ = Mathf.Min(a.y, b.y) - outer, maxZ = Mathf.Max(a.y, b.y) + outer;
+            if (minX < 4f || minZ < 4f || maxX > mapSize - 4f || maxZ > mapSize - 4f) return false;
+            int x0 = Mathf.Max(0, Mathf.FloorToInt(minX / step)), x1 = Mathf.Min(res - 1, Mathf.CeilToInt(maxX / step));
+            int z0 = Mathf.Max(0, Mathf.FloorToInt(minZ / step)), z1 = Mathf.Min(res - 1, Mathf.CeilToInt(maxZ / step));
+            int w = x1 - x0 + 1, h = z1 - z0 + 1;
+            var patch = data.GetHeights(x0, z0, w, h);
+            before = (float[,])patch.Clone();
+            bx0 = x0; bz0 = z0; bw = w; bh = h;
+            float dryFloor = (waterLevel + 0.05f - baseY) / heightScale;
+            Vector2 ab = b - a;
+            float ab2 = Mathf.Max(1e-4f, ab.sqrMagnitude);
+            bool kept = original != null && original.GetLength(0) == res;
+            for (int z = 0; z < h; z++)
+                for (int x = 0; x < w; x++)
+                {
+                    var p = new Vector2((x0 + x) * step, (z0 + z) * step);
+                    float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab2);
+                    float d = (p - (a + ab * t)).magnitude;
+                    if (d >= outer) continue;
+                    float k = d <= flatHalf ? 1f : 0.5f * (1f + Mathf.Cos(Mathf.PI * (d - flatHalf) / slope));
+                    float o = patch[z, x];
+                    float nh = o - k * depth / heightScale;
+                    if (o >= dryFloor) nh = Mathf.Max(nh, Mathf.Min(o, dryFloor));
+                    patch[z, x] = nh;
+                    if (kept)
+                    {
+                        original[z0 + z, x0 + x] = nh;
+                        current[z0 + z, x0 + x] = Mathf.Min(current[z0 + z, x0 + x], nh);
+                    }
+                }
+            data.SetHeights(x0, z0, patch);
+            if (tell)
+            {
+                Digging = true;
+                DitchA = a; DitchB = b; DitchHalf = outer;
+                try { Deformed?.Invoke((a + b) * 0.5f, ab.magnitude * 0.5f + outer); }
+                finally { Digging = false; }
+            }
+            return true;
         }
 
         /// <summary>Presses a bowl of <paramref name="radius"/> metres, <paramref name="depth"/> deep at its

@@ -111,7 +111,7 @@ namespace StarForge.World
         public float MaxHp => mech != null ? mech.MaxHp : def.hp * (1f + 0.1f * rank);
         /// <summary>Not to be shot at: a Mech still coming down from orbit.</summary>
         public bool Untargetable => mech != null && !mech.Landed;
-        public float Speed => mech != null ? mech.Speed : def.speed * soldierPace;
+        public float Speed => mech != null ? mech.Speed : def.speed * soldierPace * (vaulting ? VaultPace : 1f);
         public float TurnRate => mech != null ? mech.TurnRate : def.turnRate;
         public Vector3 Ground => world.Map.Ground(pos);
         public bool HasTurret => def.type == UnitType.Mauler || def.type == UnitType.Sentinel ||
@@ -180,7 +180,9 @@ namespace StarForge.World
                                         : d.type == UnitType.Skimmer || d.type == UnitType.Skitter ? 60 : 50;
                 // Boulders stand on Rubble ground: only a Mauler's path runs
                 // through them, and a Mech's (they crush them, GameWorld.CrushBoulders).
-                agent.areaMask = d.type == UnitType.Mauler || d.type == UnitType.Mech ? NavMesh.AllAreas : GameWorld.GroundAreas;
+                // Soldiers vault low walls (the new combat's Vault area; none on a classic map).
+                agent.areaMask = d.type == UnitType.Mauler || d.type == UnitType.Mech ? NavMesh.AllAreas
+                               : d.bodyRadius > 0f && d.upgradeClass == UnitClass.Infantry ? GameWorld.FootAreas : GameWorld.GroundAreas;
                 if (NavMesh.SamplePosition(transform.position, out var hit, 10f, NavMesh.AllAreas))
                 {
                     agent.enabled = true;
@@ -620,7 +622,8 @@ namespace StarForge.World
             else
             {
                 yaw = ApproachAngle(yaw, want, def.turnRate * dt);
-                if (Mathf.Abs(WrapAngle(want - yaw)) < 0.35f && cooldown <= 0f && !Reloading && (def.weapon != WeaponKind.MachineGun || !Moving) && FriendsAllow()) Fire();
+                if (Mathf.Abs(WrapAngle(want - yaw)) < 0.35f && cooldown <= 0f && !Reloading && (def.weapon != WeaponKind.MachineGun || !Moving) &&
+                    (leanSide != GameWorld.RiseOver || posture == Posture.Stand) && FriendsAllow()) Fire();
             }
             return true;
         }

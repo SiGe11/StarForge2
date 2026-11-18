@@ -122,6 +122,7 @@ namespace StarForge.EditorTools
                 Scenery("SCAN_SHELF_A", 9, 5.0f, 0.7f, 1.2f),
             };
             kit.plantKinds = LoadPlantKinds();
+            kit.cover = CoverPieces();
             EditorUtility.SetDirty(kit);
             AssetDatabase.SaveAssets();
             return kit;
@@ -143,6 +144,43 @@ namespace StarForge.EditorTools
                 ModelFactory.Create("SCAN_BOULDER_" + v, 0, body);
                 list.Add(PrefabUtility.SaveAsPrefabAsset(go, path));
                 Object.DestroyImmediate(go);
+            }
+            return list.ToArray();
+        }
+
+        /// <summary>The new combat's walls and ruins (Tools/blender/build_env.py): a prefab each, and the shape
+        /// the rules read, from models.json's `cover` (segments ax, az, bx, bz, height, thickness).</summary>
+        static CoverPiece[] CoverPieces()
+        {
+            string json = File.ReadAllText(Path.Combine(SFAssetPostprocessor.ModelDir, "models.json"));
+            var number = "\\s*(-?[0-9.]+)\\s*";
+            var seg = new System.Text.RegularExpressions.Regex($"\\[{number},{number},{number},{number},{number},{number}\\]");
+            var list = new List<CoverPiece>();
+            foreach (string model in new[] { "WALL_LOW", "WALL_SHORT", "RUIN_WALL", "RUIN_CORNER" })
+            {
+                int at = json.IndexOf($"\"{model}\": {{", System.StringComparison.Ordinal);
+                int cov = at < 0 ? -1 : json.IndexOf("\"cover\":", at, System.StringComparison.Ordinal);
+                int next = at < 0 ? -1 : json.IndexOf("\n  \"", at + model.Length + 4, System.StringComparison.Ordinal);
+                if (cov < 0 || (next >= 0 && cov > next)) { Debug.LogWarning($"[StarForge] {model}: no cover shape in models.json"); continue; }
+                int close = json.IndexOf("]\n", json.IndexOf("[", cov), System.StringComparison.Ordinal);
+                string block = json.Substring(cov, (close < 0 ? json.Length : close) - cov + 1);
+                var segs = new List<Vector4>();
+                var heights = new List<float>();
+                float thick = 0.46f;
+                foreach (System.Text.RegularExpressions.Match m in seg.Matches(block))
+                {
+                    float F(int g) => float.Parse(m.Groups[g].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    segs.Add(new Vector4(F(1), F(2), F(3), F(4)));
+                    heights.Add(F(5));
+                    thick = F(6);
+                }
+                if (segs.Count == 0) { Debug.LogWarning($"[StarForge] {model}: an empty cover shape"); continue; }
+                string path = $"{PrefabDir}/Cover_{model}.prefab";
+                var go = ModelFactory.Create(model, 0);
+                go.AddComponent<NavMeshModifier>().ignoreFromBuild = true;
+                var prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
+                Object.DestroyImmediate(go);
+                list.Add(new CoverPiece { name = model, prefab = prefab, segments = segs.ToArray(), heights = heights.ToArray(), thickness = thick });
             }
             return list.ToArray();
         }
@@ -652,6 +690,19 @@ namespace StarForge.EditorTools
             {
                 areas.GetArrayElementAtIndex(RubbleArea).FindPropertyRelative("name").stringValue = "Rubble";
                 areas.GetArrayElementAtIndex(RubbleArea).FindPropertyRelative("cost").floatValue = 1f;
+                // Under a low wall (the new combat's): infantry vault it rather than walk round, unless the way round
+                // is under about 1.7 m longer (the band is ~1.7 m across: cost 2 counts it as twice that). At 5 no
+                // one vaulted at all: the pieces are 3 m long, so the way round their ends was always shorter.
+                if (areas.arraySize > MapGenerator.VaultArea)
+                {
+                    areas.GetArrayElementAtIndex(MapGenerator.VaultArea).FindPropertyRelative("name").stringValue = "Vault";
+                    areas.GetArrayElementAtIndex(MapGenerator.VaultArea).FindPropertyRelative("cost").floatValue = 2f;
+                }
+                if (areas.arraySize > MapGenerator.WallArea)
+                {
+                    areas.GetArrayElementAtIndex(MapGenerator.WallArea).FindPropertyRelative("name").stringValue = "Wall";
+                    areas.GetArrayElementAtIndex(MapGenerator.WallArea).FindPropertyRelative("cost").floatValue = 1f;
+                }
             }
             var settings = so.FindProperty("m_Settings");
             if (settings == null || settings.arraySize == 0) return;

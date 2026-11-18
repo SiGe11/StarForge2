@@ -24,7 +24,7 @@ using static StarForge.SFMath;
 
 namespace StarForge.World
 {
-    public static class MapGenerator
+    public static partial class MapGenerator
     {
         public const uint DefaultSeed = 1000;
         public const float Size = HeightfieldGenerator.SIZE;

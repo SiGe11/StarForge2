@@ -15,6 +15,7 @@ namespace StarForge.World
             Crawl = Animator.StringToHash("Crawl"), ProneAim = Animator.StringToHash("ProneAim"), Aim = Animator.StringToHash("Aim"),
             Fire = Animator.StringToHash("Fire"), CrouchFire = Animator.StringToHash("CrouchFire"), ProneFire = Animator.StringToHash("ProneFire"),
             Dive = Animator.StringToHash("Dive"), ThrowClip = Animator.StringToHash("Throw"), Stab = Animator.StringToHash("Stab"),
+            VaultClip = Animator.StringToHash("Vault"),
             Reload = Animator.StringToHash("Reload"), CrouchReload = Animator.StringToHash("CrouchReload"), ProneReload = Animator.StringToHash("ProneReload"),
             PistolAim = Animator.StringToHash("PistolAim"), PistolFire = Animator.StringToHash("PistolFire"),
             CrouchPistol = Animator.StringToHash("CrouchPistol"), RunPistol = Animator.StringToHash("RunPistol");
@@ -24,6 +25,8 @@ namespace StarForge.World
         // the Animator's speed follows the ground, or the feet slide.
         const float WalkFeet = 2.5f, RunFeet = 5.05f, CrouchFeet = 3.9f, CrawlFeet = 1.16f;
         const float FireLasts = 0.33f, DiveLasts = 0.42f, ThrowLasts = 1.1f, StabLasts = 1.1f;
+        // Over a low wall at half pace: about half a second, so the 1.17 s clip plays twice as fast.
+        const float VaultLasts = 0.6f, VaultClipLength = 1.17f;
 
         readonly Unit unit;
         readonly Transform root;
@@ -36,7 +39,7 @@ namespace StarForge.World
         float busyUntil;
         float prevCooldown;
         Posture prevPosture;
-        float shownThrow = -99f, shownStab = -99f, shownPistol = -99f, shownReload = -99f;
+        float shownThrow = -99f, shownStab = -99f, shownPistol = -99f, shownReload = -99f, shownVault = -99f;
         float pistolUntil, busySpeed;
 
         public readonly Renderer[] Renderers;
@@ -92,6 +95,15 @@ namespace StarForge.World
                 busyUntil = now + DiveLasts;
             }
             prevPosture = posture;
+            // Over a low wall: the vault, whatever he was doing.
+            if (unit.vaultAtT != shownVault)
+            {
+                shownVault = unit.vaultAtT;
+                anim.CrossFadeInFixedTime(VaultClip, 0.06f, 0);
+                state = VaultClip;
+                busyUntil = now + VaultLasts;
+                busySpeed = VaultClipLength / VaultLasts;
+            }
             // A round from the pistol, standing still: as a shot.
             if (unit.pistolAtT != shownPistol)
             {

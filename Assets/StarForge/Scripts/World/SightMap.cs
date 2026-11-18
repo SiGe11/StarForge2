@@ -6,7 +6,10 @@
 // What stands on the ground and the foliage are redone every couple of seconds: nothing that
 // changes them (a tree burning down, a Garrison going up) has to tell this about it.
 //
-// Craters are left out: they only lower the ground, so a line this calls clear stays clear.
+// Craters and ditches lower the ground under them (Regrid, from GroundDeformer's Deformed): a man lying
+// in one has its rim between him and a round. Low walls and ruins (the new combat's CoverWall) and the
+// trunks of fallen trees are stamped as standing height for sight and tried exactly, as rectangles, for
+// rounds: a 1.2 m wall stops a round at a crouching man and lets one over it.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -75,6 +78,102 @@ namespace StarForge.World
 
         public void StampHulk(Hulk h) => Stamp(h.at, h.radius, h.height);
 
+        List<CoverWall> walls;
+        readonly List<CoverWall>[] wallsIn = new List<CoverWall>[LeafN * LeafN];
+        int wallMark;
+        /// <summary>Every run of cover as of the last Refresh: the match's walls and the fallen trunks.</summary>
+        public readonly List<CoverWall> Runs = new List<CoverWall>(192);
+        readonly List<CoverWall> logs = new List<CoverWall>(64), logPool = new List<CoverWall>(64);
+
+        /// <summary>The match's walls (they are listed with the fallen trunks in every leaf cell they touch).</summary>
+        public void SetWalls(List<CoverWall> list)
+        {
+            walls = list;
+            Reindex();
+        }
+
+        void Reindex()
+        {
+            // Every 2 s with the logs: the lists are kept, not made again.
+            for (int i = 0; i < wallsIn.Length; i++) wallsIn[i]?.Clear();
+            Runs.Clear();
+            if (walls != null) Runs.AddRange(walls);
+            Runs.AddRange(logs);
+            float leafCell = cell * (1 << LeafShift);
+            foreach (var w in Runs)
+            {
+                float r = w.half + 0.1f;
+                int x0 = Mathf.Clamp((int)((Mathf.Min(w.a.x, w.b.x) - r) / leafCell), 0, LeafN - 1), x1 = Mathf.Clamp((int)((Mathf.Max(w.a.x, w.b.x) + r) / leafCell), 0, LeafN - 1);
+                int z0 = Mathf.Clamp((int)((Mathf.Min(w.a.y, w.b.y) - r) / leafCell), 0, LeafN - 1), z1 = Mathf.Clamp((int)((Mathf.Max(w.a.y, w.b.y) + r) / leafCell), 0, LeafN - 1);
+                for (int z = z0; z <= z1; z++)
+                    for (int x = x0; x <= x1; x++)
+                        (wallsIn[z * LeafN + x] ??= new List<CoverWall>(4)).Add(w);
+            }
+        }
+
+        /// <summary>A tree lying where it fell: its trunk from the stump out to where it rises clear of a
+        /// crouching man is a low run of cover, as thick as the trunk. Pressed into the ground by tracks, sunk or
+        /// burnt away, it is not.</summary>
+        void RefreshLogs(Vegetation v)
+        {
+            foreach (var l in logs) logPool.Add(l);
+            logs.Clear();
+            for (int i = 0; i < v.plants.Length && i < v.live.Length; i++)
+            {
+                var s = v.live[i];
+                if (s.state != PlantState.Down || s.crush > 0.5f || s.sink > 0.2f) continue;
+                var k = v.KindOf(i);
+                if (k.bush) continue;
+                float r = v.TrunkRadius(i);
+                if (r < 0.16f || s.fallDir.sqrMagnitude < 0.5f) continue;
+                float len = k.height * v.plants[i].scale;
+                // It rests on its boughs at `rest` from upright: the trunk rises 1 m for every tan(rest) along.
+                float along = Mathf.Min(len * Mathf.Sin(s.rest) * 0.9f, Mathf.Tan(Mathf.Clamp(s.rest, 0.2f, 1.55f)) * 0.75f);
+                if (along < 1.2f) continue;
+                var p = v.plants[i].pos;
+                var foot = new Vector2(p.x, p.z);
+                CoverWall w;
+                if (logPool.Count > 0) { w = logPool[logPool.Count - 1]; logPool.RemoveAt(logPool.Count - 1); }
+                else w = new CoverWall();
+                w.a = foot + s.fallDir * (r + 0.2f);
+                w.b = foot + s.fallDir * along;
+                w.half = r;
+                w.height = 0.55f + r;
+                w.top = GroundAt(foot.x, foot.y) + w.height;
+                w.smashed = false;
+                w.piece = null;
+                w.cluster = -1;
+                logs.Add(w);
+            }
+        }
+
+        /// <summary>The ground under a crater or a ditch, again from the terrain.</summary>
+        public void Regrid(MapInfo map, Vector2 c, float r)
+        {
+            int x0 = Mathf.Max(0, (int)((c.x - r) * inv)), x1 = Mathf.Min(N, (int)((c.x + r) * inv) + 1);
+            int z0 = Mathf.Max(0, (int)((c.y - r) * inv)), z1 = Mathf.Min(N, (int)((c.y + r) * inv) + 1);
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                    ground[z * (N + 1) + x] = map.HeightAt(new Vector2(x * cell, z * cell));
+        }
+
+        /// <summary>A wall into the standing heights: every 1 m cell its middle line crosses, at its top.</summary>
+        void StampWall(CoverWall w)
+        {
+            Vector2 ab = w.b - w.a;
+            float len = ab.magnitude;
+            int steps = Mathf.Max(1, Mathf.CeilToInt(len * inv * 2f));
+            for (int s = 0; s <= steps; s++)
+            {
+                Vector2 p = w.a + ab * (s / (float)steps);
+                int ix = (int)(p.x * inv), iz = (int)(p.y * inv);
+                if (ix < 0 || iz < 0 || ix >= N || iz >= N) continue;
+                float h = w.top - GroundAt((ix + 0.5f) * cell, (iz + 0.5f) * cell);
+                int i = iz * N + ix;
+                if (h > standing[i]) standing[i] = h;
+            }
+        }
+
         public void Refresh(GameWorld w, bool force = false)
         {
             hulks = w.Hulks;
@@ -111,6 +210,10 @@ namespace StarForge.World
                 if (b != null && !b.smashed)
                     Stamp(b.Pos, b.Radius, b.Radius * 1.1f);
             foreach (var h in w.Hulks) StampHulk(h);
+            if (v != null) RefreshLogs(v);
+            Reindex();
+            foreach (var cw in Runs)
+                if (!cw.smashed) StampWall(cw);
             foreach (var u in w.units)
                 if (u != null && !u.dying && u.def.building)
                 {
@@ -210,7 +313,11 @@ namespace StarForge.World
 
         /// <summary>How far along the line a round gets, 0..1: 1 if the ground, a boulder or a trunk do
         /// not stop it first. The ground half a metre at a time, the rest exactly.</summary>
-        public float FirstStop(Vector3 a, Vector3 b, Vegetation plants, List<Boulder> boulders)
+        public float FirstStop(Vector3 a, Vector3 b, Vegetation plants, List<Boulder> boulders) => FirstStop(a, b, plants, boulders, new Vector2(b.x, b.z));
+
+        /// <summary>The same for a round fired on past its mark (DecideShot): <paramref name="inside"/> is where the
+        /// man it is fired at stands. A wall he stands in lets it reach him and stops it where it comes out beyond.</summary>
+        public float FirstStop(Vector3 a, Vector3 b, Vegetation plants, List<Boulder> boulders, Vector2 inside)
         {
             float dx = b.x - a.x, dz = b.z - a.z, dy = b.y - a.y;
             float flat2 = dx * dx + dz * dz;
@@ -235,6 +342,10 @@ namespace StarForge.World
             int steps = Mathf.Max(2, Mathf.CeilToInt(flat * 2f * inv));
             float step = 1f / steps;
             int lastCell = -1;
+            bool runs = Runs.Count > 0;
+            if (runs) wallMark++;
+            // The cell the line starts in has its walls too (the first step may be in the next).
+            if (runs) WallsStop(a, dx, dz, dy, inside, (Mathf.Clamp((int)(a.z * inv), 0, N - 1) >> LeafShift) * LeafN + (Mathf.Clamp((int)(a.x * inv), 0, N - 1) >> LeafShift), ref stop);
             for (int s = 1; s <= steps; s++)
             {
                 float t = s * step;
@@ -243,10 +354,11 @@ namespace StarForge.World
                 int ix = (int)(x * inv), iz = (int)(z * inv);
                 if (ix < 0 || iz < 0 || ix >= N || iz >= N) { stop = Mathf.Min(stop, t); break; }
                 if (y <= GroundAt(x, z)) { stop = Mathf.Min(stop, t); break; }
-                if (plants == null) continue;
                 int c = (iz >> LeafShift) * LeafN + (ix >> LeafShift);
                 if (c == lastCell) continue;
                 lastCell = c;
+                if (runs) WallsStop(a, dx, dz, dy, inside, c, ref stop);
+                if (plants == null) continue;
                 var list = trunks[c];
                 if (list == null) continue;
                 for (int j = 0; j < list.Count; j++)
@@ -259,6 +371,44 @@ namespace StarForge.World
                 }
             }
             return stop;
+        }
+
+        /// <summary>The walls listed in leaf cell <paramref name="c"/>, each tried once a line: where the line
+        /// is inside one below its top, it stops where it went in. Not before <paramref name="inside"/> in a wall
+        /// that holds it (the line's end, or the man a round is fired at): a man standing in one (on its band,
+        /// vaulting or stopped there) is in nothing's shelter, and with it no round ever came at him while he
+        /// fired out. Past him such a round stops where it comes out of the wall.</summary>
+        void WallsStop(Vector3 a, float dx, float dz, float dy, Vector2 inside, int c, ref float stop)
+        {
+            var list = wallsIn[c];
+            if (list == null) return;
+            for (int j = 0; j < list.Count; j++)
+            {
+                var w = list[j];
+                if (w.mark == wallMark || w.smashed) continue;
+                w.mark = wallMark;
+                if (!w.Ray(a.x, a.z, dx, dz, out float enter, out float leave)) continue;
+                if (w.Distance(inside) <= w.half)
+                {
+                    if (leave < 1f && leave < stop && a.y + dy * leave < w.top) stop = leave;
+                    continue;
+                }
+                if (enter >= stop) continue;
+                if (Mathf.Min(a.y + dy * enter, a.y + dy * leave) < w.top) stop = enter;
+            }
+        }
+
+        /// <summary>The low wall whose run is under <paramref name="p"/> (within its half thickness and
+        /// <paramref name="pad"/>), or null: a soldier crossing it is vaulting it.</summary>
+        public CoverWall WallUnder(Vector2 p, float pad)
+        {
+            int ix = (int)(p.x * inv), iz = (int)(p.y * inv);
+            if (ix < 0 || iz < 0 || ix >= N || iz >= N) return null;
+            var list = wallsIn[(iz >> LeafShift) * LeafN + (ix >> LeafShift)];
+            if (list == null) return null;
+            foreach (var w in list)
+                if (!w.smashed && w.height <= MapGenerator.VaultHigh && w.Distance(p) < w.half + pad) return w;
+            return null;
         }
 
         /// <summary>Trunks a man could shelter behind within reach, into <paramref name="into"/> as (x, z,

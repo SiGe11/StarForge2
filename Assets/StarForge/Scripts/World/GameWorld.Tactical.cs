@@ -69,15 +69,25 @@ namespace StarForge.World
         // ------------------------------------------------------------ shots
         /// <summary>The gun's mouth, as if already turned on what it is aimed at (a soldier turns as he
         /// aims, so which way he faces now says nothing about the line).</summary>
+        /// <summary>Where his round leaves from. <paramref name="leanSide"/> -1 or 1 leans out round his
+        /// cover, 2 rises over it (a low wall: standing, the gun clears it).</summary>
         static Vector3 ShotMuzzle(Unit s, Unit t, int leanSide = 0)
         {
             Vector2 to = t.pos - s.pos;
             float len = to.magnitude;
             if (len > 1e-3f) to /= len;
+            bool rise = leanSide == RiseOver;
+            // Up over a wall he is judged from behind it: he is up only for his rounds.
+            float gun = rise ? StandingGun : s.risen ? CrouchGun : s.GunHeight;
+            int side = rise ? 0 : leanSide;
             // Leaning out round his cover, the gun comes out past his shoulder.
-            Vector2 lean = new Vector2(-to.y, to.x) * (LeanOut * leanSide);
-            return s.Ground + Vector3.up * s.GunHeight + new Vector3(to.x + lean.x, 0f, to.y + lean.y) * 0.7f + new Vector3(lean.x, 0f, lean.y) * 0.3f;
+            Vector2 lean = new Vector2(-to.y, to.x) * (LeanOut * side);
+            return s.Ground + Vector3.up * gun + new Vector3(to.x + lean.x, 0f, to.y + lean.y) * 0.7f + new Vector3(lean.x, 0f, lean.y) * 0.3f;
         }
+
+        /// <summary>The lean that is no lean: up over a low wall.</summary>
+        public const int RiseOver = 2;
+        const float StandingGun = 1.25f, CrouchGun = 0.85f;
 
         const float LeanOut = 0.45f, ShowsAtEdge = 0.25f;
 
@@ -93,7 +103,7 @@ namespace StarForge.World
             if (open) return top;
             // A man leaning out from cover shows the side he leans to, wherever the shooter is, and only
             // for his own shot: he ducks back between rounds. Hiding, he shows nothing.
-            if (t.mode == SoldierMode.InCover && t.leanSide != 0 && t.ShowsForShot)
+            if (t.mode == SoldierMode.InCover && (t.leanSide == 1 || t.leanSide == -1) && t.ShowsForShot)
             {
                 Vector3 edge = middle + new Vector3(t.leanDir.x, 0f, t.leanDir.y) * ShowsAtEdge;
                 open = RoundGets(muzzle, edge, s, t);
@@ -135,6 +145,12 @@ namespace StarForge.World
                 {
                     ShotAim(s, t, ShotMuzzle(s, t, -1), out open);
                     if (open) lean = -1;
+                }
+                // Behind a low wall, crouched, he comes up over it for his rounds.
+                if (!open && (s.posture != Posture.Stand || s.risen))
+                {
+                    ShotAim(s, t, ShotMuzzle(s, t, RiseOver), out open);
+                    if (open) lean = RiseOver;
                 }
             }
             lineWatch.Stop();
@@ -208,7 +224,8 @@ namespace StarForge.World
 
             float reach = gun > 0f ? dist + 6f : Mathf.Max(s.def.range * 1.25f, dist + 6f);
             Vector3 far = muzzle + dir * reach;
-            float stop = Sight.FirstStop(muzzle, far, Plants, boulders);
+            // Fired on past him: a wall he stands in still lets the round reach him.
+            float stop = Sight.FirstStop(muzzle, far, Plants, boulders, t.pos);
             Unit struck = StruckOnLine(s, muzzle, far, ref stop);
             end = muzzle + (far - muzzle) * stop;
             stopped = stop < 1f;
@@ -293,7 +310,7 @@ namespace StarForge.World
                         float ox = a.x + dx * t - o.pos.x, oz = a.z + dz * t - o.pos.y;
                         float d2 = ox * ox + oz * oz;
                         // With a rock in front of him a man takes it better.
-                        if (d2 < NearMiss * NearMiss) o.Suppress((s.def.suppressMul > 0f ? s.def.suppressMul : 1f) * NearMissWeight * (1f - Mathf.Sqrt(d2) / NearMiss) * (o.mode == SoldierMode.InCover ? 0.5f : 1f));
+                        if (d2 < NearMiss * NearMiss) o.Suppress((s.def.suppressMul > 0f ? s.def.suppressMul : 1f) * NearMissWeight * (1f - Mathf.Sqrt(d2) / NearMiss) * (o.mode == SoldierMode.InCover || o.pinnedInCover ? 0.5f : 1f));
                     }
         }
 
@@ -494,12 +511,17 @@ namespace StarForge.World
             Vector3 gun = new Vector3(spot.x, Sight.GroundAt(spot.x, spot.y) + 0.85f, spot.y) + new Vector3(to.x, 0f, to.y) * 0.7f;
             Vector3 aim = threat.Ground + Vector3.up * (threat.BodyHeight * 0.55f);
             if (Sight.FirstStop(gun, aim, Plants, boulders) >= 1f) return true;
+            // Up over what is in front of him: a low wall or a rock no higher than his gun.
+            if (Sight.FirstStop(gun + Vector3.up * (StandingGun - 0.85f), aim, Plants, boulders) >= 1f) return true;
             Vector3 lean = new Vector3(-to.y, 0f, to.x) * LeanOut;
             return Sight.FirstStop(gun + lean, aim, Plants, boulders) >= 1f || Sight.FirstStop(gun - lean, aim, Plants, boulders) >= 1f;
         }
 
-        // Scratch for FindCover: what might shelter a man near him (centre, radius).
+        // Scratch for FindCover: what might shelter a man near him (centre, radius), and the runs of wall near him.
         readonly List<Vector3> shelters = new List<Vector3>(32);
+        readonly List<(float d, CoverWall w)> nearRuns = new List<(float d, CoverWall w)>(32);
+        static readonly System.Comparison<(float d, CoverWall w)> ByDistanceFn = (x, y) => x.d.CompareTo(y.d);
+        static readonly IComparer<(float d, CoverWall w)> ByDistance = Comparer<(float d, CoverWall w)>.Create(ByDistanceFn);
         const int MostShelters = 10;
         UnityEngine.AI.NavMeshPath coverPath;
 
@@ -582,7 +604,7 @@ namespace StarForge.World
             float goalHere = toGoal ? (u.pos - u.orderPos).magnitude : 0f;
             float bestScore = float.MinValue;
             float herePlain = Sheltered(u.pos) * 4f + (CanFireFrom(u.pos, threat) ? 2f : 0f);
-            void Try(Vector2 p)
+            void Try(Vector2 p, float apart = 1.2f)
             {
                 if (!map.InBounds(p, 2f) || !Walkable(p, 0.5f)) return;
                 float walk = (p - u.pos).magnitude;
@@ -607,7 +629,7 @@ namespace StarForge.World
                 // Misjudging it, he takes the worst place that would do, not the best.
                 float ranked = poor ? -score : score;
                 if (ranked <= bestScore) return;
-                if (TakenByFriend(u, p)) return;
+                if (TakenByFriend(u, p, apart)) return;
                 bestScore = ranked;
                 chosen = p;
             }
@@ -623,6 +645,51 @@ namespace StarForge.World
                 Try(c + toBehind * (r * 0.8f) + side * edge);
                 Try(c + toBehind * (r * 0.8f) - side * edge);
             }
+            // Low walls and ruins: behind the eight nearest, a place every metre along each, on the side away
+            // from the enemy, just off its band, wherever its top stands over a ducked man's head; men a metre
+            // apart (1.2 m let a 3 m wall take two). Runs too low to duck behind (fallen trunks, broken ends) are
+            // weighed as any cover, the four nearest, and do not take the walls' places.
+            if (Sight.Runs.Count > 0)
+            {
+                nearRuns.Clear();
+                foreach (var w in Sight.Runs)
+                {
+                    if (w.smashed) continue;
+                    float dw = w.Distance(u.pos);
+                    if (dw <= reach) nearRuns.Add((dw, w));
+                }
+                nearRuns.Sort(ByDistance);
+                int walls = 0, lows = 0;
+                for (int i = 0; i < nearRuns.Count && (walls < 8 || lows < 4); i++)
+                {
+                    var w = nearRuns[i].w;
+                    bool tall = w.height - 0.06f >= MapGenerator.DuckedClear;
+                    if (tall ? walls++ >= 8 : lows++ >= 4) continue;
+                    Vector2 ab = w.b - w.a;
+                    float len = ab.magnitude;
+                    if (len < 0.5f) continue;
+                    Vector2 n = new Vector2(-ab.y, ab.x) / len;
+                    if (Vector2.Dot(mass - w.Mid, n) > 0f) n = -n;
+                    float off = w.half + MapGenerator.WallPad + 0.08f;
+                    int places = tall ? Mathf.Clamp(Mathf.RoundToInt(len), 1, 4) : 3;
+                    for (int k = 0; k < places; k++)
+                    {
+                        Vector2 p = w.a + ab * (tall ? (k + 0.5f) / places : 0.2f + 0.3f * k) + n * off;
+                        if (!tall) Try(p);
+                        else if (w.top - Sight.GroundAt(p.x, p.y) >= MapGenerator.DuckedClear) Try(p, 0.95f);
+                    }
+                }
+            }
+            // Down in a ditch, near where he stands.
+            foreach (var dt in Ditches)
+            {
+                if (MapGenerator.SegmentDistance(u.pos, dt.a, dt.b) > reach) continue;
+                Vector2 ab = dt.b - dt.a;
+                float t = Mathf.Clamp01(Vector2.Dot(u.pos - dt.a, ab) / Mathf.Max(1e-4f, ab.sqrMagnitude));
+                Try(dt.a + ab * t);
+                Try(dt.a + ab * Mathf.Clamp01(t + 0.25f));
+                Try(dt.a + ab * Mathf.Clamp01(t - 0.25f));
+            }
             // Folds in the ground, a few steps away from where he stands.
             for (int k = 0; k < 6; k++)
             {
@@ -631,13 +698,15 @@ namespace StarForge.World
             }
             if (bestScore <= float.MinValue) return false;
             coverPath ??= new UnityEngine.AI.NavMeshPath();
-            if (!UnityEngine.AI.NavMesh.CalculatePath(u.Ground, map.Ground(chosen), GroundAreas, coverPath) ||
+            // By his own areas: a soldier's way may go over a low wall.
+            int areas = u.agent != null ? u.agent.areaMask : GroundAreas;
+            if (!UnityEngine.AI.NavMesh.CalculatePath(u.Ground, map.Ground(chosen), areas, coverPath) ||
                 coverPath.status != UnityEngine.AI.NavMeshPathStatus.PathComplete) return false;
             best = chosen;
             return true;
         }
 
-        bool TakenByFriend(Unit u, Vector2 p)
+        bool TakenByFriend(Unit u, Vector2 p, float apart = 1.2f)
         {
             CellRange(p, 1.5f, out int x0, out int x1, out int z0, out int z1);
             for (int z = z0; z <= z1; z++)
@@ -646,8 +715,8 @@ namespace StarForge.World
                     {
                         var o = i < units.Count ? units[i] : null;
                         if (o == null || o == u || o.team != u.team || o.dying) continue;
-                        if ((o.pos - p).sqrMagnitude < 1.2f * 1.2f) return true;
-                        if ((o.mode == SoldierMode.ToCover || o.mode == SoldierMode.InCover) && (o.coverAt - p).sqrMagnitude < 1.2f * 1.2f) return true;
+                        if ((o.pos - p).sqrMagnitude < apart * apart) return true;
+                        if ((o.mode == SoldierMode.ToCover || o.mode == SoldierMode.InCover) && (o.coverAt - p).sqrMagnitude < apart * apart) return true;
                     }
             return false;
         }

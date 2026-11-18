@@ -294,7 +294,8 @@ namespace StarForge.World
             var stack = new Stack<int>();
             for (int m = 0; m < 2; m++)
             {
-                bool Uses(int i) => m == WithRubble || polyArea[i] != rubble;
+                // The ground mask is GameWorld.GroundAreas: no Rubble, and no wall's band (Vault, Wall).
+                bool Uses(int i) => m == WithRubble || (polyArea[i] != rubble && polyArea[i] != MapGenerator.VaultArea && polyArea[i] != MapGenerator.WallArea);
                 for (int i = 0; i < np; i++) label[i] = -1;
                 int count = 0;
                 for (int s0 = 0; s0 < np; s0++)

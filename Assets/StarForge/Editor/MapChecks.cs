@@ -111,6 +111,30 @@ namespace StarForge.EditorTools
                         if (Walkable(map.Ground(u.pos), ground)) solidLeaks++;
                     }
                 sb.Append($"; ore and structures {solid - solidLeaks}/{solid} blocked");
+                // The new combat's walls: no vehicle stands on one, a soldier only on a low one, and soldiers'
+                // ground joins the bases too.
+                if (world != null && world.Walls.Count > 0)
+                {
+                    int foot = GameWorld.FootAreas, low = 0, lowOk = 0, tall = 0, tallOk = 0;
+                    foreach (var w in world.Walls)
+                    {
+                        if (w.smashed) continue;
+                        bool vehicle = false, soldier = false;
+                        for (int k = 1; k <= 3; k++)
+                        {
+                            var p = map.Ground(Vector2.Lerp(w.a, w.b, k / 4f));
+                            vehicle |= Walkable(p, ground);
+                            soldier |= Walkable(p, foot);
+                        }
+                        if (w.height <= MapGenerator.VaultHigh) { low++; if (!vehicle && soldier) lowOk++; }
+                        else { tall++; if (!vehicle && !soldier) tallOk++; }
+                    }
+                    bool footLinked = NavMesh.SamplePosition(map.Ground(map.StartPos(0)), out var f0, 12f, foot)
+                                   && NavMesh.SamplePosition(map.Ground(map.StartPos(1)), out var f1, 12f, foot)
+                                   && NavMesh.CalculatePath(f0.position, f1.position, foot, path)
+                                   && path.status == NavMeshPathStatus.PathComplete;
+                    sb.Append($"; low walls a soldier vaults and no vehicle crosses {lowOk}/{low}, ruin walls no one crosses {tallOk}/{tall}; bases {(footLinked ? "connected" : "NOT CONNECTED")} for soldiers");
+                }
             }
             return sb.ToString();
         }

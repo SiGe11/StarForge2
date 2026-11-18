@@ -174,6 +174,11 @@ namespace StarForge.World
 
         public readonly List<Unit> units = new List<Unit>(1024);
         public readonly List<Boulder> boulders = new List<Boulder>(64);
+        /// <summary>Low walls and ruins: the new combat's only (PlaceWalls).</summary>
+        public readonly List<CoverWall> Walls = new List<CoverWall>(128);
+        /// <summary>The ditches dug when the match began (the new combat's), as their bottoms' lines.</summary>
+        public readonly List<(Vector2 a, Vector2 b)> Ditches = new List<(Vector2 a, Vector2 b)>(8);
+        public MapGenerator.CoverResult CoverPlaced { get; private set; }
         public readonly Faction[] factions = { new Faction { team = 0 }, new Faction { team = 1 } };
         public readonly List<Projectile> projectiles = new List<Projectile>(256);
         readonly Stack<Projectile> projectilePool = new Stack<Projectile>();
@@ -215,8 +220,23 @@ namespace StarForge.World
         {
             get
             {
-                int rubble = NavMesh.GetAreaFromName("Rubble");
-                return rubble < 0 ? NavMesh.AllAreas : NavMesh.AllAreas & ~(1 << rubble);
+                int rubble = NavMesh.GetAreaFromName("Rubble"), vault = NavMesh.GetAreaFromName("Vault"), wall = NavMesh.GetAreaFromName("Wall");
+                int m = NavMesh.AllAreas;
+                if (rubble >= 0) m &= ~(1 << rubble);
+                if (vault >= 0) m &= ~(1 << vault);
+                if (wall >= 0) m &= ~(1 << wall);
+                return m;
+            }
+        }
+
+        /// <summary>A soldier's: the ground, and the low walls he vaults (the new combat's; on a map with none the
+        /// same as GroundAreas).</summary>
+        public static int FootAreas
+        {
+            get
+            {
+                int vault = NavMesh.GetAreaFromName("Vault");
+                return vault < 0 ? GroundAreas : GroundAreas | (1 << vault);
             }
         }
 
@@ -283,6 +303,8 @@ namespace StarForge.World
 
         void OnGroundDeformed(Vector2 c, float radius)
         {
+            // The new combat's sight and rounds see the crater's rim.
+            if (Sight != null) Sight.Regrid(map, c, radius + 1f);
             foreach (var b in boulders)
                 if (b != null && !b.smashed && (b.Pos - c).magnitude < radius + 0.5f)
                     b.transform.position += Vector3.up * GroundShape.LastChange(b.Pos);
@@ -349,6 +371,7 @@ namespace StarForge.World
             boulders.Clear();
             foreach (var b in FindObjectsByType<Boulder>())
                 if (!b.smashed) boulders.Add(b);
+            PlaceWalls();
             // Each side's pilot is drawn now, from the match's seed; the Mech's parts are
             // picked when it is called down (MechArmoury), against what the enemy fields then.
             for (int t = 0; t < 2; t++)
@@ -692,17 +715,77 @@ namespace StarForge.World
             TickedMs = SimMs - beforeTicked;
         }
 
+        // ------------------------------------------------------------ walls
+        /// <summary>Under the new combat, the map's low walls and ruins, placed now (MapGenerator.PlaceCover):
+        /// the map was built before the combat was chosen. The NavMesh is rebuilt with them on it, and any
+        /// that cut a base off from the other or from ore are taken away again. The old combat places none.</summary>
+        void PlaceWalls()
+        {
+            Walls.Clear();
+            Ditches.Clear();
+            CoverPlaced = null;
+            if (map != null && map.transform.Find("Cover") != null) MapGenerator.CoverRoot(map, true);
+            if (!Tactical || map == null || navSurface == null) return;
+            var rt = map.GetComponent<MapRuntime>();
+            if (rt == null || rt.kit == null) return;
+            uint mapSeed = MapRuntime.LastSeed != 0 ? MapRuntime.LastSeed : matchSeed;
+            // Ditches first: dug into the match's ground before the NavMesh is rebuilt over them.
+            MapGenerator.DigDitches(map, GroundShape, mapSeed, Ditches);
+            CoverPlaced = MapGenerator.PlaceCover(map, rt.kit, mapSeed, Walls, Ditches);
+            CoverPlaced.ditches = Ditches.Count;
+            if (Walls.Count > 0 || Ditches.Count > 0)
+            {
+                // The data it replaces is Awake's copy: a match's own.
+                MapGenerator.Rebuild(navSurface);
+                CoverPlaced.dropped = MapGenerator.OpenCutWays(map, navSurface, Walls);
+                CoverPlaced.walls = Walls.Count;
+                Islands.Invalidate();
+            }
+            Sight?.SetWalls(Walls);
+            Debug.Log($"[StarForge] cover: {CoverPlaced}");
+        }
+
+        /// <summary>A Mauler or a Mech drives through a wall: the piece goes down, its ground is free.</summary>
+        void CrushWalls(Unit u)
+        {
+            float reach = (u.mech != null ? u.agent.radius : u.def.radius) * 0.8f;
+            for (int i = Walls.Count - 1; i >= 0; i--)
+            {
+                var w = Walls[i];
+                if (w.smashed || w.Distance(u.pos) > reach + w.half) continue;
+                var piece = w.piece;
+                foreach (var o in Walls)
+                    if (o.piece == piece && !o.smashed)
+                    {
+                        o.smashed = true;
+                        Vector2 m = o.Mid;
+                        Raise(new GameEvent
+                        {
+                            kind = GameEventKind.Death, type = UnitType.Boulder, team = 2, pos = new Vector3(m.x, o.top - o.height * 0.5f, m.y),
+                            dir = new Vector3(Mathf.Sin(u.yaw), 0f, Mathf.Cos(u.yaw)), scale = 0.9f
+                        });
+                    }
+                if (piece != null)
+                {
+                    foreach (var vol in piece.GetComponentsInChildren<Unity.AI.Navigation.NavMeshModifierVolume>()) vol.enabled = false;
+                    piece.SetActive(false);
+                }
+                RequestNavRebuild();
+            }
+        }
+
         // ------------------------------------------------------------ boulders
         /// <summary>Maulers drive through rocks and break them. Crushed rocks free
         /// their ground, so the NavMesh tiles under them are rebuilt shortly after
         /// (batched, and in the background).</summary>
         void CrushBoulders(float dt)
         {
-            if (boulders.Count > 0)
+            if (boulders.Count > 0 || Walls.Count > 0)
                 foreach (var u in units)
                 {
                     if (u == null || u.dying || (u.Type != UnitType.Mauler && u.Type != UnitType.Mech) || u.agent == null || !u.agent.enabled) continue;
                     if (u.agent.velocity.sqrMagnitude < 0.25f) continue;
+                    if (Walls.Count > 0) CrushWalls(u);
                     for (int i = boulders.Count - 1; i >= 0; i--)
                     {
                         var b = boulders[i];

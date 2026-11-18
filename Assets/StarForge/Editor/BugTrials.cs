@@ -523,6 +523,15 @@ namespace StarForge.EditorTools
         /// or an ore field nobody can mine. One seed a frame; the scene is reloaded at the end.</summary>
         public static string MapSweep() { MapSweepTrial.Count = 200; MapSweepTrial.Last = null; return Stage<MapSweepTrial>("MapSweep"); }
         public static string MapSweepReport() => MapSweepTrial.Last ?? Report<MapSweepTrial>();
+        /// <summary>The same 200 seeds with the new combat's walls on each (phase 5): placed, the NavMesh rebuilt,
+        /// the cut ways reopened, then the same checks. Target: as without, and no wall a unit walks through.</summary>
+        public static string MapSweepCover()
+        {
+            MapSweepTrial.Cover = true;
+            var s = MapSweep();
+            if (!s.StartsWith("staging")) MapSweepTrial.Cover = false;
+            return s;
+        }
 
         /// <summary>A map mined out: a spectated AI-vs-AI match, every ore node depleted at 300 s, then up to
         /// 480 s: each side's ore at the depletion and a minute later, waves each side started after it, and
@@ -3200,17 +3209,25 @@ namespace StarForge.EditorTools
     public sealed class MapSweepTrial : BugTrial
     {
         public static int Count = 200;
+        /// <summary>With the new combat's walls placed on each map and the NavMesh rebuilt (phase 5).</summary>
+        public static bool Cover;
         /// <summary>The finished report: the scene reload at the end takes this trial with it.</summary>
         public static string Last;
 
         IEnumerator Start()
         {
             var info = MapInfo.Instance;
+            bool cover = Cover;
+            Cover = false;
             var rt = info != null ? info.GetComponent<MapRuntime>() : null;
             if (rt == null || rt.kit == null) { report = "no map runtime"; yield break; }
             int count = Count, mask = GameWorld.GroundAreas;
             var rng = new System.Random(20261021);
             int notJoined = 0, unreachable = 0, oreCut = 0, corridorsMaxed = 0, fewExp = 0, done = 0, offMesh = 0;
+            int clusters = 0, pieces = 0, runs = 0, dropped = 0, fewCover = 0, centresOpen = 0, ditchCount = 0, footCut = 0, ditchRound = 0, ditchUnsampled = 0;
+            var walls = new List<CoverWall>();
+            var ditches = new List<(Vector2 a, Vector2 b)>();
+            var surface = info.GetComponent<Unity.AI.Navigation.NavMeshSurface>();
             var bad = new StringBuilder();
             var path = new UnityEngine.AI.NavMeshPath();
             float t0 = Time.realtimeSinceStartup;
@@ -3224,6 +3241,37 @@ namespace StarForge.EditorTools
                 done++;
                 if (threw != null) { bad.Append($"\n{seed}: Generate threw {threw}"); notJoined++; yield return null; continue; }
                 var problems = new List<string>();
+                if (cover && surface != null)
+                {
+                    // Generate made new terrain data: the deformer must dig that, as a match's would.
+                    GroundDeformer.Instance?.Init(info);
+                    MapGenerator.DigDitches(info, GroundDeformer.Instance, seed, ditches, tell: false);
+                    ditchCount += ditches.Count;
+                    var cr = MapGenerator.PlaceCover(info, rt.kit, seed, walls, ditches);
+                    if (walls.Count > 0 || ditches.Count > 0) MapGenerator.Rebuild(surface);
+                    cr.dropped = MapGenerator.OpenCutWays(info, surface, walls);
+                    // A ditch is no wall: a ground unit walks down one side and up the other, not round its end.
+                    foreach (var dt in ditches)
+                    {
+                        Vector2 mid = (dt.a + dt.b) * 0.5f, ab = (dt.b - dt.a).normalized, nn = new Vector2(-ab.y, ab.x);
+                        float o = MapGenerator.DitchOuter + 1.5f;
+                        if (!UnityEngine.AI.NavMesh.SamplePosition(info.Ground(mid + nn * o), out var h1, 1f, mask) ||
+                            !UnityEngine.AI.NavMesh.SamplePosition(info.Ground(mid - nn * o), out var h2, 1f, mask)) { ditchUnsampled++; continue; }
+                        UnityEngine.AI.NavMesh.CalculatePath(h1.position, h2.position, mask, path);
+                        float plen = 0f;
+                        for (int i = 1; i < path.corners.Length; i++) plen += (path.corners[i] - path.corners[i - 1]).magnitude;
+                        if (path.status != UnityEngine.AI.NavMeshPathStatus.PathComplete || plen > 2f * o * 1.6f)
+                        { ditchRound++; problems.Add($"a ditch at {mid} a ground unit goes round ({path.status}, {plen:0} m)"); }
+                    }
+                    clusters += cr.clusters; pieces += cr.pieces; runs += walls.Count; dropped += cr.dropped;
+                    if (cr.clusters < 8) { fewCover++; problems.Add($"only {cr.clusters} cover clusters"); }
+                    // Nothing walks through a wall but a Mauler.
+                    foreach (var w in walls)
+                    {
+                        var mid = info.Ground(w.Mid);
+                        if (UnityEngine.AI.NavMesh.SamplePosition(mid, out var hm, 0.2f, mask) && new Vector2(hm.position.x - w.Mid.x, hm.position.z - w.Mid.y).magnitude < 0.2f) centresOpen++;
+                    }
+                }
                 if (r.unreachable.Count > 0) { unreachable++; problems.Add($"{r.unreachable.Count} places the generator could not join"); }
                 if (r.corridors >= 4) { corridorsMaxed++; problems.Add($"{r.corridors} corridors carved (the limit)"); }
                 int ores = 0; foreach (Transform o in info.oreRoot) ores++;
@@ -3237,6 +3285,11 @@ namespace StarForge.EditorTools
                 {
                     UnityEngine.AI.NavMesh.CalculatePath(a3, b3, mask, path);
                     if (path.status != UnityEngine.AI.NavMeshPathStatus.PathComplete) { notJoined++; problems.Add($"no ground path A to B ({path.status})"); }
+                    if (cover)
+                    {
+                        UnityEngine.AI.NavMesh.CalculatePath(a3, b3, GameWorld.FootAreas, path);
+                        if (path.status != UnityEngine.AI.NavMeshPathStatus.PathComplete) { footCut++; problems.Add($"no soldier's path A to B ({path.status})"); }
+                    }
                     int cut = 0;
                     foreach (Transform o in info.oreRoot)
                     {
@@ -3252,6 +3305,11 @@ namespace StarForge.EditorTools
                 if (problems.Count > 0) bad.Append($"\n{seed}: {string.Join("; ", problems)}");
                 report = $"staging ({done}/{count})";
                 yield return null;
+            }
+            if (cover)
+            {
+                MapGenerator.CoverRoot(info, true);
+                bad.Insert(0, $"\nwith cover: {clusters} clusters, {pieces} pieces, {runs} runs of wall, {ditchCount} ditches in all ({clusters / Mathf.Max(1f, done):0.0} clusters and {ditchCount / Mathf.Max(1f, done):0.0} ditches a map); {dropped} clusters dropped to keep a way open; seeds with fewer than 8 clusters {fewCover}; wall middles a ground unit stands on {centresOpen}; seeds with no soldier's path between the bases {footCut}; ditches a ground unit goes round {ditchRound} ({ditchUnsampled} with no ground NavMesh beside them to try)");
             }
             report = $"{done} random map seeds in {Time.realtimeSinceStartup - t0:0} s: bases not joined by ground {notJoined}, a start position off the NavMesh {offMesh}, " +
                      $"seeds with ore seams no base reaches {oreCut}, places the generator could not join {unreachable}, corridor limit used up {corridorsMaxed}, fewer than 4 expansions {fewExp}" + bad;

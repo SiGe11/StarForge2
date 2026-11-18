@@ -16,6 +16,19 @@ namespace StarForge.World
         public float minScale = 1f, maxScale = 1f;
     }
 
+    /// <summary>A wall or ruin piece the new combat places when a match begins (MapGenerator.PlaceCover),
+    /// with its shape for the rules from models.json's `cover` (Tools/blender/build_env.py).</summary>
+    [Serializable]
+    public sealed class CoverPiece
+    {
+        public string name;
+        public GameObject prefab;
+        [Tooltip("Its straight runs in the model's frame: (ax, az, bx, bz).")]
+        public Vector4[] segments = Array.Empty<Vector4>();
+        public float[] heights = Array.Empty<float>();
+        public float thickness = 0.46f;
+    }
+
     public sealed class MapKit : ScriptableObject
     {
         [Tooltip("StarForge/Terrain. A match uses a copy with its own relief-occlusion texture.")]
@@ -29,5 +42,7 @@ namespace StarForge.World
         public GameObject[] boulderPrefabs = Array.Empty<GameObject>();
         public SceneryPiece[] scenery = Array.Empty<SceneryPiece>();
         public PlantKind[] plantKinds = Array.Empty<PlantKind>();
+        [Tooltip("Low walls and ruins: placed only under the new combat, when a match begins.")]
+        public CoverPiece[] cover = Array.Empty<CoverPiece>();
     }
 }

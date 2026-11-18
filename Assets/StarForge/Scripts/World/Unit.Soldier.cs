@@ -41,8 +41,18 @@ namespace StarForge.World
         [System.NonSerialized] public bool noMind;
         /// <summary>Down behind his cover: he shows nothing and fires nothing.</summary>
         [System.NonSerialized] public bool hiding;
+        /// <summary>Behind a low wall: up over it for a few rounds, then down behind it again.</summary>
+        [System.NonSerialized] public bool risen;
+        /// <summary>Pinned where he had taken cover: rounds stopped by it suppress him at the cover's half rate, and
+        /// when it eases he comes back up into it (out into the open beside it, he stood over his own wall).</summary>
+        [System.NonSerialized] public bool pinnedInCover;
+        [System.NonSerialized] float riseFlipAt;
         /// <summary>The share of his walking pace his posture leaves him; a rush is over 1.</summary>
         [System.NonSerialized] float soldierPace = 1f;
+        /// <summary>Over a low wall: he slows to climb it, and the rig plays the vault (vaultAtT).</summary>
+        [System.NonSerialized] public bool vaulting;
+        [System.NonSerialized] public float vaultAtT = -99f;
+        const float VaultPace = 0.5f;
 
         const float MindEvery = 0.25f;
         const float SuppressionEbb = 0.2f, EbbAfter = 1.5f;
@@ -163,12 +173,32 @@ namespace StarForge.World
             StopLeaning();
             posture = Posture.Stand;
             soldierPace = 1f;
+            risen = false;
+            vaulting = false;
+            pinnedInCover = false;
         }
 
         void TickSoldier(float dt)
         {
+            // Over a low wall he climbs it, slowly: going across it, not along beside a fallen trunk.
+            bool over = false;
+            if (Moving && world.Walls.Count > 0 && world.Sight != null)
+            {
+                var w = world.Sight.WallUnder(pos, 0.3f);
+                if (w != null)
+                {
+                    Vector3 v = Velocity;
+                    Vector2 ab = w.b - w.a;
+                    float across = Mathf.Abs(v.x * ab.y - v.z * ab.x), speed = new Vector2(v.x, v.z).magnitude * ab.magnitude;
+                    over = across > 0.5f * speed;
+                }
+            }
+            if (over && !vaulting) vaultAtT = world.time;
+            vaulting = over;
             if (noMind) return;
             ReadOrder();
+            // Up over a wall only while in cover behind it: out of it, his lines are his posture's again.
+            if (risen && mode != SoldierMode.InCover) risen = false;
             TickSideArms();
             if (world.time - lastFiredAtT > EbbAfter) suppression = Mathf.MoveTowards(suppression, 0f, SuppressionEbb * dt);
             if (world.time >= mindAt)
@@ -181,6 +211,22 @@ namespace StarForge.World
 
         void Release()
         {
+            bool back = pinnedInCover && mode == SoldierMode.Pinned && !hurry && Dist(coverAt) < 1.5f;
+            pinnedInCover = false;
+            if (back)
+            {
+                var th = world.NearestThreat(this, def.sight);
+                if (th == null || world.CoversFrom(coverAt, th))
+                {
+                    mode = SoldierMode.InCover;
+                    rushing = false;
+                    hiding = false;
+                    StopLeaning();
+                    posture = Posture.Crouch;
+                    coverStayUntil = world.time + 2.5f;
+                    return;
+                }
+            }
             mode = SoldierMode.Free;
             rushing = false;
             hiding = false;
@@ -219,6 +265,7 @@ namespace StarForge.World
             }
             else if (suppression >= pin)
             {
+                pinnedInCover = mode == SoldierMode.InCover;
                 mode = SoldierMode.Pinned;
                 rushing = false;
                 posture = Posture.Prone;
@@ -231,10 +278,17 @@ namespace StarForge.World
                 // The same order asked again sets him walking to its goal: his way is still to cover.
                 if (agent != null && agent.enabled && agent.isOnNavMesh && !agent.pathPending &&
                     (new Vector2(agent.destination.x, agent.destination.z) - coverAt).sqrMagnitude > 1f) MoveTo(coverAt);
-                if (Dist(coverAt) < 1.1f || world.time >= coverBy || (!Moving && world.time >= coverBy - 0.5f))
+                // Not on a wall's own band, where he is in nothing's shelter (vaulting he is slower than coverBy
+                // allowed): three seconds more to get off it.
+                bool onWall = world.Sight != null && world.Sight.WallUnder(pos, 0f) != null;
+                if ((!onWall && (Dist(coverAt) < 1.1f || world.time >= coverBy || (!Moving && world.time >= coverBy - 0.5f))) ||
+                    world.time >= coverBy + 3f)
                 {
                     mode = SoldierMode.InCover;
                     rushing = false;
+                    // Under heavy fire he throws himself down into it (the rig dives, from the run); he comes
+                    // up again at his next look.
+                    if (suppression > 0.4f && Velocity.sqrMagnitude > 4f) posture = Posture.Prone;
                     Halt();
                     coverStayUntil = world.time + 2.5f + 2.5f * ((id * 7 + (int)world.time) % 8) / 8f;
                 }
@@ -273,6 +327,7 @@ namespace StarForge.World
                 // And in cover the same order asked again does not walk him out of it.
                 if (Moving) Halt();
                 ChooseFiringPosture(threat);
+                RiseAndDuck();
                 if (!mayMove) return;
                 bool flanked = !world.CoversFrom(coverAt, threat);
                 bool due = order != Order.Idle && world.time >= coverStayUntil && (order == Order.Move || range > def.range * 0.75f || fireBlocked);
@@ -295,13 +350,29 @@ namespace StarForge.World
         }
 
         /// <summary>As low as his gun has a way from, unless the fire is too heavy to show himself at all.</summary>
+        /// <summary>Behind a low wall he fires standing, so he comes up for a round or two and goes down again
+        /// between them: up 0.9 s (a slow gun's round and some), down 1.2 (the lean's rule, slower, so it
+        /// does not read as a twitch). Too hot, he stays down (hiding).</summary>
+        void RiseAndDuck()
+        {
+            if (mode != SoldierMode.InCover || hiding || leanSide != GameWorld.RiseOver) { risen = false; return; }
+            if (world.time >= riseFlipAt)
+            {
+                risen = !risen;
+                float jitter = 0.85f + 0.3f * ((id * 2654435761u >> 8) & 0xFF) / 255f;
+                riseFlipAt = world.time + (risen ? Mathf.Max(0.9f, def.cooldown + 0.3f) : 1.2f) * jitter;
+            }
+            posture = risen ? Posture.Stand : Posture.Crouch;
+        }
+
         void ChooseFiringPosture(Unit threat)
         {
             if (mode == SoldierMode.Free && Dist(threat) < 12f && suppression < 0.1f) { posture = Posture.Stand; return; }
             // Too hot: right back behind it, showing nothing and firing nothing, until it eases.
             bool hot = mode == SoldierMode.InCover && suppression > (hiding ? 0.2f : 0.35f);
             if (hot != hiding) { hiding = hot; fireLookAt = -99f; }
-            if (hiding) { posture = Posture.Crouch; StopLeaning(); return; }
+            // Down behind it; one who dived in stays flat.
+            if (hiding) { if (posture != Posture.Prone) posture = Posture.Crouch; StopLeaning(); return; }
             // The lines below are asked of every soldier in contact: once a second is enough to choose by.
             // (Up off the ground at once when he sets off again, or he crawls the first of his turn.)
             if (world.time < postureLookAt && !(posture == Posture.Prone && Moving && suppression < 0.25f)) return;
@@ -345,6 +416,17 @@ namespace StarForge.World
                     mode = SoldierMode.Free;
                     posture = Posture.Crouch;
                     if (order == Order.Move) MoveTo(orderPos);
+                }
+                // Already behind something (a wall a few steps in front): he takes it where he stands, and
+                // comes up over it for his rounds rather than stand in the open to fire.
+                else if (mode == SoldierMode.Free && !onward && !Moving && world.CoversFrom(pos, threat) &&
+                         (world.Sight == null || world.Sight.WallUnder(pos, 0f) == null))
+                {
+                    noCoverLast = false;
+                    coverAt = pos;
+                    mode = SoldierMode.InCover;
+                    rushing = false;
+                    coverStayUntil = world.time + 2.5f;
                 }
                 return;
             }

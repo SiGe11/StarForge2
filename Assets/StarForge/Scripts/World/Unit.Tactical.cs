@@ -65,12 +65,20 @@ namespace StarForge.World
                 if (def.bodyRadius <= 0f) return Mathf.Max(0.5f, def.visualHeight);
                 switch (posture)
                 {
-                    case Posture.Crouch: return 1.15f;
+                    case Posture.Crouch: return Ducked ? DuckedHeight : 1.15f;
                     case Posture.Prone: return 0.5f;
                     default: return 1.8f;
                 }
             }
         }
+
+        /// <summary>Crouched in cover with his head down: hiding, or behind a low wall between the rounds he
+        /// comes up for. The rig's crouch stands 1.15 m; a low wall stands at least
+        /// <see cref="MapGenerator.DuckedClear"/> over a spot the cover search offers, and at 1.15 the top of his
+        /// head took 2-9% of rounds there (against 29-75% in front of it).</summary>
+        /// His eye is then 0.95 (at 1.05 he saw over what hid him).
+        public bool Ducked => mode == SoldierMode.InCover && !risen && (hiding || leanSide == GameWorld.RiseOver);
+        const float DuckedHeight = 1.0f;
 
         public float BodyRadius => def.bodyRadius > 0f ? def.bodyRadius : def.radius * 0.85f;
 
@@ -82,7 +90,7 @@ namespace StarForge.World
                 if (def.bodyRadius <= 0f) return Mathf.Max(1.5f, def.visualHeight * 0.8f);
                 switch (posture)
                 {
-                    case Posture.Crouch: return 1.05f;
+                    case Posture.Crouch: return Ducked ? 0.95f : 1.05f;
                     case Posture.Prone: return 0.35f;
                     default: return 1.7f;
                 }
@@ -182,7 +190,7 @@ namespace StarForge.World
                 Vector2 to = target.pos - pos;
                 float len = to.magnitude;
                 // Which way that takes him, on the ground: what shows of him to anyone.
-                leanDir = leanSide == 0 || len < 1e-3f ? Vector2.zero : new Vector2(-to.y, to.x) / len * leanSide;
+                leanDir = leanSide == 0 || leanSide == GameWorld.RiseOver || len < 1e-3f ? Vector2.zero : new Vector2(-to.y, to.x) / len * leanSide;
             }
             return fireLineClear;
         }

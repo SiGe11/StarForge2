@@ -63,11 +63,35 @@ namespace StarForge.View
         {
             ground = world != null ? world.GroundShape : null;
             if (ground != null) ground.Deformed += OnCrater;
+            // A match begun before this listened (GameBootstrap starts it from its own Start when the menu is
+            // skipped): its ditches were dug unheard.
+            if (world != null && world.Ditches.Count > 0)
+            {
+                texel = world.MapSize / R;
+                foreach (var d in world.Ditches) StampDitch(d.a, d.b, MapGenerator.DitchOuter);
+            }
+        }
+
+        /// <summary>A ditch: dug soil along it, not a crater's round of thrown earth.</summary>
+        void StampDitch(Vector2 a, Vector2 b, float half)
+        {
+            Vector2 ab = b - a;
+            int n = Mathf.Max(2, Mathf.CeilToInt(ab.magnitude / 1.8f));
+            for (int i = 0; i <= n; i++)
+            {
+                var p = a + ab * (i / (float)n);
+                Stamp(crater, new Vector3(p.x, 0f, p.y), half * 0.8f, 150);
+            }
         }
 
         void OnCrater(Vector2 c, float radius)
         {
             texel = world.MapSize / R;
+            if (ground != null && ground.Digging)
+            {
+                StampDitch(ground.DitchA, ground.DitchB, ground.DitchHalf);
+                return;
+            }
             Stamp(crater, new Vector3(c.x, 0f, c.y), radius * 1.15f, 255);
         }
 
