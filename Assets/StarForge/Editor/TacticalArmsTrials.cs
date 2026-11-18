@@ -186,6 +186,7 @@ namespace StarForge.EditorTools
 
     public sealed class ArmsSmokeTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         IEnumerator Start()
         {
             yield return TacticalMatch();
@@ -243,6 +244,7 @@ namespace StarForge.EditorTools
 
     public sealed class ArmsFlashTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         IEnumerator Start()
         {
             yield return TacticalMatch();
@@ -292,6 +294,7 @@ namespace StarForge.EditorTools
 
     public sealed class ArmsSidearmsTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         IEnumerator Start()
         {
             yield return TacticalMatch();
@@ -394,6 +397,7 @@ namespace StarForge.EditorTools
 
     public sealed class ArmsRestockTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         IEnumerator Start()
         {
             yield return TacticalMatch();
@@ -421,6 +425,7 @@ namespace StarForge.EditorTools
 
     public sealed class ArmsMagazinesTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         IEnumerator Start()
         {
             yield return TacticalMatch();
@@ -431,6 +436,7 @@ namespace StarForge.EditorTools
             int main = 0, pistol = 0;
             ListenWhileHeld(ev =>
             {
+                if (ev.kind == GameEventKind.Beam && ev.team == 0 && ev.projectileKind == (int)MechWeapon.Flamer) { main++; return; }
                 if (ev.kind != GameEventKind.Fire || ev.team != 0) return;
                 if (ev.projectileKind == GameWorld.ProjPistol) pistol++;
                 else if (ev.projectileKind < GameWorld.ProjFrag || ev.projectileKind > GameWorld.ProjKnife || ev.projectileKind == GameWorld.ProjMG) main++;
@@ -454,7 +460,8 @@ namespace StarForge.EditorTools
                     yield return null;
                 }
                 var def = man.def;
-                sb.AppendLine($"  {type} at {at} m, 30 s: {main} main rounds (a magazine of {def.magazine} takes {def.magazine * def.cooldown + def.reloadTime:0.0} s), {world.Reloads - r0} reloads of {def.reloadTime} s, pistol {pistol}, {man.rounds} left");
+                float cycle = def.magazine * def.cooldown + def.reloadTime;
+                sb.AppendLine($"  {type} at {at} m, 30 s: {main} main rounds (at most {30f * def.magazine / cycle:0}: a magazine of {def.magazine} takes {cycle:0.0} s), {world.Reloads - r0} reloads of {def.reloadTime} s, pistol {pistol}, {man.rounds} left");
                 ClearSpawned();
                 yield return Wait(1.5f);
             }
@@ -525,6 +532,7 @@ namespace StarForge.EditorTools
 
     public sealed class ArmsHulksTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         IEnumerator Start()
         {
             yield return TacticalMatch();
@@ -532,8 +540,34 @@ namespace StarForge.EditorTools
             var sb = new StringBuilder();
             var rng = new System.Random(88);
             HoldStatics();
-            int wrecks0 = Object.FindObjectsByType<StarForge.View.UnitWreck>(FindObjectsSortMode.None).Length;
-            if (FindRange(rng, 36f, out var a, out var d))
+            int HulkWrecks(Hulk of)
+            {
+                int n = 0;
+                foreach (var w in Object.FindObjectsByType<StarForge.View.UnitWreck>(FindObjectsSortMode.None)) if (w.Hulk == of) n++;
+                return n;
+            }
+            int fired = 0;
+            ListenWhileHeld(ev => { if (ev.kind == GameEventKind.Fire && ev.team == 1) fired++; });
+            // A field with nothing else to get behind within 13 m (a cover search's reach) of where the tank dies: the wreck or nothing.
+            var near = new List<Vector3>();
+            int ShelterNear(Vector2 p)
+            {
+                near.Clear();
+                foreach (var bo in world.boulders) if (bo != null && !bo.smashed && (bo.Pos - p).sqrMagnitude < 13f * 13f) near.Add(new Vector3(bo.Pos.x, bo.Pos.y, bo.Radius));
+                if (world.Plants != null) world.Sight.TrunksNear(p, 13f, world.Plants, near, 32);
+                return near.Count;
+            }
+            // The field with the least else to get behind (none on most maps).
+            Vector2 a = default, d = default;
+            int fewest = int.MaxValue;
+            for (int tries = 0; tries < 300 && fewest > 0; tries++)
+                if (FindRange(rng, 36f, out var a1, out var d1))
+                {
+                    int n = ShelterNear(a1 + d1 * 8f);
+                    if (n < fewest) { fewest = n; a = a1; d = d1; }
+                }
+            bool clear = fewest < int.MaxValue;
+            if (clear)
             {
                 var side = new Vector2(-d.y, d.x);
                 var tank = Put(UnitType.Mauler, 1, a + d * 8f);
@@ -542,22 +576,57 @@ namespace StarForge.EditorTools
                 yield return Wait(2f);
                 var h = world.Hulks.Count > 0 ? world.Hulks[world.Hulks.Count - 1] : null;
                 if (h == null) { report = "no hulk left by a dead Mauler"; ReleaseStatics(); yield break; }
-                int wrecks = Object.FindObjectsByType<StarForge.View.UnitWreck>(FindObjectsSortMode.None).Length - wrecks0;
-                sb.AppendLine($"  a Mauler dead: {world.Hulks.Count} hulk, radius {h.radius:0.0}, height {h.height:0.0}, {wrecks} wreck made (target 1, 1)");
-                var man = Put(UnitType.Trooper, 0, h.at - d * (h.radius + 3f) + side * 2f);
+                float diedAt = world.time - 2f;
+                sb.AppendLine($"  a Mauler dead: {world.Hulks.Count} hulk, radius {h.radius:0.0}, height {h.height:0.0}, {HulkWrecks(h)} wreck made (target 1, 1)");
+                // Out in the open beside it, where the rifles see him: he should get behind it.
+                var man = Put(UnitType.Trooper, 0, h.at - d * (h.radius + 2f) + side * 5f);
                 man.hp = 1e6f;
                 for (int r = 0; r < 3; r++) { var e = Soldier(1, h.at + d * 24f + side * ((r - 1) * 2f)); e.noMind = true; }
                 yield return Wait(12f);
-                sb.AppendLine($"  a man by it under three rifles, 12 s: {man.mode}, {(man.coverAt - h.at).magnitude:0.0} m from its middle (target in cover within {h.radius + 2f:0.0}), a line from the rifles to him stopped: {world.Sight.FirstStop(map.Ground(h.at + d * 24f) + Vector3.up * 1.25f, man.Ground + Vector3.up, null, world.boulders) < 1f}");
+                sb.AppendLine($"  a man 5 m beside it under three rifles, {fewest} rocks or trunks within 13 m, 12 s: {man.mode}, cover {(man.coverAt - h.at).magnitude:0.0} m from its middle (target in cover within {h.radius + 2f:0.0}), now {(man.pos - h.at).magnitude:0.0} m from it, {fired} rounds at him, suppression {man.suppression:0.00}");
+                // Why he went where he did: the place behind it, as the cover search tries it.
+                {
+                    Vector2 rifles = h.at + d * 24f;
+                    Vector3 gun = map.Ground(rifles) + Vector3.up * 1.25f;
+                    var lines = new System.Text.StringBuilder();
+                    foreach (float extra in new[] { 0.6f, 1.0f, 1.4f })
+                    {
+                        Vector2 behind = h.at - d * (h.radius + extra);
+                        int stopped = 0;
+                        for (int k = -1; k <= 1; k++)
+                        {
+                            Vector2 q = behind + side * (k * 0.35f);
+                            if (world.Sight.FirstStop(gun, map.Ground(q) + Vector3.up * 0.75f, world.Plants, world.boulders) < 1f) stopped++;
+                        }
+                        var path = new UnityEngine.AI.NavMeshPath();
+                        bool walk = world.Walkable(behind, 0.5f);
+                        bool got = UnityEngine.AI.NavMesh.CalculatePath(man.Ground, map.Ground(behind), GameWorld.GroundAreas, path);
+                        lines.Append($" [{h.radius + extra:0.0} m behind: walkable {walk}, path {(got ? path.status.ToString() : "none")}, sheltered {stopped}/3]");
+                    }
+                    sb.AppendLine($"  the place behind it from the rifles:{lines}");
+                }
+                // A fight kept going 9 m off it, the man's cover or not.
+                var keep = Soldier(0, h.at - d * 4f + side * 9f);
+                keep.noMind = true;
                 yield return Wait(70f);
-                sb.AppendLine($"  after {world.time:0} s with the fight going on: still there {!h.gone} (the minute is up; target true)");
+                sb.AppendLine($"  {world.time - diedAt:0} s after it died, a fight 9 m off going on: still there {!h.gone}, wreck {HulkWrecks(h)} (the minute is up; target true, 1)");
                 ClearSpawned();
-                yield return Wait(35f);
-                wrecks = Object.FindObjectsByType<StarForge.View.UnitWreck>(FindObjectsSortMode.None).Length - wrecks0;
-                sb.AppendLine($"  35 s after the fight ended: gone {h.gone} (target true); wrecks left {wrecks} (it sinks after)");
+                float endedAt = world.time;
+                while (!h.gone && world.time - endedAt < 40f) yield return null;
+                sb.AppendLine($"  the fight over: gone after {world.time - endedAt:0} s (target 20-22), wreck {HulkWrecks(h)} (it sinks after)");
                 yield return Wait(15f);
-                wrecks = Object.FindObjectsByType<StarForge.View.UnitWreck>(FindObjectsSortMode.None).Length - wrecks0;
-                sb.AppendLine($"  15 s on: wrecks left {wrecks} (target 0)");
+                sb.AppendLine($"  15 s on: wreck {HulkWrecks(h)} (target 0)");
+            }
+            // A beast is no tank: a dead Gorehorn leaves no record.
+            if (FindRange(rng, 20f, out var gA, out var gD))
+            {
+                int before = world.Hulks.Count;
+                var beast = Put(UnitType.Gorehorn, 1, gA + gD * 8f);
+                yield return Wait(0.5f);
+                world.Damage(beast, 1e7f, beast.pos, null);
+                yield return Wait(2f);
+                sb.AppendLine($"  a Gorehorn dead: {world.Hulks.Count - before} records (target 0)");
+                ClearSpawned();
             }
             // A friend's tank that is still going.
             if (FindRange(rng, 36f, out var b, out var c))
@@ -583,6 +652,7 @@ namespace StarForge.EditorTools
 
     public sealed class ArmsGunnerTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         IEnumerator Start()
         {
             yield return TacticalMatch();
@@ -603,13 +673,16 @@ namespace StarForge.EditorTools
                     gun.noMind = false;
                     world.CmdHold(new List<Unit> { gun });
                     var man = Soldier(1, a + d * 26f);
-                    float t0 = world.time, pinned = -1f;
+                    float t0 = world.time, pinned = -1f, peak = 0f, seen = 0f, frames = 0f;
+                    int shots0 = world.ShotsFired;
                     while (world.time - t0 < 20f)
                     {
+                        peak = Mathf.Max(peak, man.suppression);
+                        frames++; if (world.Sees(0, man)) seen++;
                         if (man.mode == SoldierMode.Pinned) { pinned = world.time - t0; break; }
                         yield return null;
                     }
-                    times += pinned < 0f ? " never" : $" {pinned:0.0} s";
+                    times += (pinned < 0f ? " never" : $" {pinned:0.0} s") + $" ({world.ShotsFired - shots0} rounds, peak {peak:0.00}, seen {100f * seen / Mathf.Max(1f, frames):0}%, {man.posture})";
                     ClearSpawned();
                     yield return Wait(1.5f);
                 }
@@ -721,6 +794,7 @@ namespace StarForge.EditorTools
 
     public sealed class ArmsTypesTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         IEnumerator Start()
         {
             yield return TacticalMatch();

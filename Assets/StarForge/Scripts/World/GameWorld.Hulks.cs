@@ -28,10 +28,28 @@ namespace StarForge.World
         {
             Hulks.Clear();
             hulksNext = 0f;
+            tanksCountedAt = -1f;
+        }
+
+        float tanksCountedAt = -1f;
+        readonly int[] tanksAlive = new int[2];
+
+        /// <summary>Live tanks of a side, counted once a tick: most of the time there are none, and every
+        /// cover line asks.</summary>
+        int TanksAlive(int team)
+        {
+            if (tanksCountedAt != time)
+            {
+                tanksCountedAt = time;
+                tanksAlive[0] = tanksAlive[1] = 0;
+                foreach (var o in units)
+                    if (o != null && !o.dying && o.team <= 1 && IsTankLike(o)) tanksAlive[o.team]++;
+            }
+            return tanksAlive[team];
         }
 
         /// <summary>A tank that can be got behind: a walking Mech has a wreck of its own.</summary>
-        public static bool IsTankLike(Unit o) => o.def.Heavy && o.def.IsMobile && !o.def.flying && o.mech == null;
+        public static bool IsTankLike(Unit o) => o.def.Heavy && o.def.IsMobile && !o.def.flying && !o.def.organic && o.mech == null;
 
         void AddHulk(Unit u)
         {
@@ -52,7 +70,7 @@ namespace StarForge.World
             ob.height = h.height;
             ob.center = Vector3.up * (h.height * 0.5f);
             ob.carving = true;
-            ob.carveOnlyStationary = true;
+            ob.carveOnlyStationary = false;   // at once: NavIslands may rebuild two frames after the invalidate
             Hulks.Add(h);
             u.hulk = h;
             Sight.StampHulk(h);
@@ -101,7 +119,7 @@ namespace StarForge.World
         /// <summary>A live tank of this side on the way from a gun to a man near it: a round would strike the tank.</summary>
         bool TankInWay(Vector3 a, Vector3 b, int team)
         {
-            if (team > 1) return false;
+            if (team > 1 || TanksAlive(team) == 0) return false;
             float dx = b.x - a.x, dz = b.z - a.z, dy = b.y - a.y, flat2 = dx * dx + dz * dz;
             if (flat2 < 1e-3f) return false;
             CellRange(new Vector2(b.x, b.z), 6f + LargestRadius, out int x0, out int x1, out int z0, out int z1);

@@ -846,11 +846,13 @@ namespace StarForge.UI
             // Pointed at, they are ringed where they stand, and the map shows where that is.
             line.RegisterCallback<PointerEnterEvent>(_ =>
             {
+                ringingLine = line;
                 if (player != null) player.HighlightUnits(men);
                 AdvicePing(at, air ? MechAdviceKind.Warning : MechAdviceKind.Regroup, true);
             });
-            line.RegisterCallback<PointerLeaveEvent>(_ => { if (player != null) player.Highlighted.Clear(); });
-            line.RegisterCallback<DetachFromPanelEvent>(_ => { if (player != null) player.Highlighted.Clear(); });
+            // Only the line that rang them clears them: an older line dropped while another is pointed at must not.
+            line.RegisterCallback<PointerLeaveEvent>(_ => StopRinging(line));
+            line.RegisterCallback<DetachFromPanelEvent>(_ => StopRinging(line));
             while (commsFeed.childCount >= 3)
             {
                 VisualElement drop = null;
@@ -862,6 +864,15 @@ namespace StarForge.UI
             line.schedule.Execute(() => line.RemoveFromClassList("comms-line--new")).StartingIn(30);
             line.schedule.Execute(() => line.AddToClassList("comms-line--fading")).StartingIn(16000);
             line.schedule.Execute(() => line.RemoveFromHierarchy()).StartingIn(16450);
+        }
+
+        VisualElement ringingLine;
+
+        void StopRinging(VisualElement line)
+        {
+            if (ringingLine != line) return;
+            ringingLine = null;
+            if (player != null) player.Highlighted.Clear();
         }
 
         void AdvicePing(Vector2 at, MechAdviceKind kind, bool refresh = false)
@@ -1317,7 +1328,8 @@ namespace StarForge.UI
             "your line, Scorchers against massed infantry, " +
             "Thumpers and Maulers against your towers, and gunships or Razorwings where little of yours can shoot up. It adds " +
             "Haulers to its ore lines from four minutes, and Prospectors -- armed ore trucks -- while you raid them. Once it knows of " +
-            "your Mech, its bay or your Ironclads it buys the Armory's Mech-Hunter Programme and keeps a Mech-Hunter in the field.\n\n" +
+            "your Mech, its bay or your Ironclads it buys the Armory's Mech-Hunter Programme and keeps a Mech-Hunter in the field. " +
+            "Under the new combat it also trains Gunners once its Armory stands.\n\n" +
             "It has a Mech too. It raises a Mech Bay early (its Mech lands seven minutes later), buys its Mech upgrades from spare " +
             "ore once that Mech is two minutes from landing -- guns and hardpoints when it means to attack, armour when it means to hold -- " +
             "and goes for your Mech Bay while your Mech has not yet landed. " +

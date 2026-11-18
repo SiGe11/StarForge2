@@ -63,7 +63,7 @@ rebuilt from the **StarForge** menu; **StarForge ▸ Build All** runs every step
 | **Groups** | `Ctrl`/`Cmd`+`1`–`0` assign · `1`–`0` recall (double-tap to centre) |
 | **Orders** | Right-click: move / attack / mine / rally · double right-click: hurry (new combat only) · `R` attack-move · `C` stop · `H` hold |
 | **Build** | Digger selected: `B` basic structures (`F` Foundry · `B` Bunkhouse · `G` Garrison · `N` Sentinel · `V` Workshop) · `V` advanced structures (`U` Armory · `L` Airfield · `O` Biolab · `Y` Mech Bay) · `X` or `Esc` back |
-| **Train** | Foundry `U` Digger, `J` Hauler, `K` Prospector · Garrison `T` Trooper, `K` Skimmer, `F` Scorcher, `M` Thumper, `N` Marksman, `B` Rocketeer · Workshop `M` Mauler, `L` Lancer, `F` Aegis, `T` Ironclad, `K` Mech-Hunter · Airfield `G` Kestrel, `F` Swift · Biolab `Z` Skitter, `T` Spitter, `V` Razorwing, `G` Gorehorn · `X` cancel. With Diggers in the selection the card shows only their builds |
+| **Train** | Foundry `U` Digger, `J` Hauler, `K` Prospector · Garrison `T` Trooper, `K` Skimmer, `F` Scorcher, `M` Thumper, `N` Marksman, `B` Rocketeer, `G` Gunner (new combat only) · Workshop `M` Mauler, `L` Lancer, `F` Aegis, `T` Ironclad, `K` Mech-Hunter · Airfield `G` Kestrel, `F` Swift · Biolab `Z` Skitter, `T` Spitter, `V` Razorwing, `G` Gorehorn · `X` cancel. With Diggers in the selection the card shows only their builds |
 | **Armory** | The Armory selected on its own: `T` Infantry Weapons · `G` Infantry Armour · `V` Vehicle Weapons · `B` Vehicle Plating · `N` Creature Venom · `M` Creature Carapace · `K` Mech-Hunter Programme · `X` cancel |
 | **Mech Bay** | The bay selected on its own: `V` Servo Actuators · `B` Ablative Armour · `N` Weapon Overcharge · `M` Extra Hardpoint · `K` Targeting Uplink · `X` cancel · click the Mech strip (top left) to find the Mech |
 | **Other** | `P` pause (no orders go in until you resume) · `,` `.` game speed, kept through a pause · `Esc` unwinds placement → build card → selection → menu |
@@ -98,6 +98,7 @@ the deserters alone, and they do not stop until you have lost.
 | **Thumper** | 100 | 2 | 70 | Mortar infantry: lobs shells 26 m over cover with splash; cannot fire inside 7 m or at aircraft (needs an Armory) |
 | **Marksman** | 125 | 2 | 55 | Sniper: 30 m, one shot fells a rifleman; slow to fire, fragile, poor against armour; shoots at aircraft (needs an Armory) |
 | **Rocketeer** | 90 | 2 | 90 | Anti-armour infantry: a shoulder rocket (19 m, 1.6x against armour) that wrecks tanks, Mechs and buildings; poor against infantry, cannot fire at aircraft |
+| **Gunner** | 110 | 2 | 80 | Machine gunner (Garrison, needs an Armory; **new combat only**): a belt-fed gun that pins whole squads from 40 m and also fires at aircraft, but must stop to fire and is slow to reload; little use against armour or walls |
 | **Lancer** | 175 | 3 | 280 | Tank destroyer: armour-piercing cannon, 1.5x against armour, wasteful against infantry |
 | **Aegis** | 150 | 3 | 200 | Anti-aircraft tank: flak that bursts round aircraft (2.2x against them), light work against ground targets |
 | **Ironclad** | 300 | 6 | 480 | Walking mini-mech (Workshop, needs an Armory): twin shoulder cannons against the ground, missile pods against aircraft; slow, very hard to stop |
@@ -530,7 +531,8 @@ as the Mauler's cannon (158-192 Hz, 41-58%), the deepest sounds in the game.
   it fields most, and answers what it has seen of yours: Aegis tanks, Swifts,
   Spitters and Marksmen against your aircraft, Lancers and Rocketeers against your
   armour, Ironclads and Gorehorns to break your line, Scorchers against massed infantry, Thumpers and Maulers against your towers, and
-  gunships or Razorwings where little of yours can shoot up. It adds Haulers to its
+  gunships or Razorwings where little of yours can shoot up (and, under the new combat, Gunners once its Armory
+  stands). It adds Haulers to its
   ore lines from four minutes, and Prospectors -- armed ore trucks -- while you raid
   them. Once it knows of your Mech, its bay or your Ironclads it buys the Armory's
   Mech-Hunter Programme and keeps a Mech-Hunter in the field.
@@ -885,8 +887,12 @@ So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
   stopped. Hurried, he runs at 6 m/s and looks at nothing, and only being pinned stops him.
 - **They tell you how it is going.** "We should fall back" and "we need air support" arrive as text in the
   comms feed, with no button to accept. Clicking one looks at them and selects them; what to do is yours.
-- **They carry more than a gun.** All five infantry types are on the new rules. A Trooper has a pistol, a knife, two frags, a smoke grenade and a flashbang; the others their own gun, pistol, knife, a frag and a smoke grenade, all restocked near base. Nobody orders any of it: a frag goes at men behind cover or bunched up, flash at men about to be rushed, smoke when pinned or caught in the open, and it blocks sight for both sides. Grenades and shells can hurt friends, so a man looks where they will be first, and his squad waits for it to go off. The pistol is for when the main gun cannot be used, on the run or too close for it; the knife is for arm's length.
-- **They have real bodies:** a rigged soldier crouching, crawling, aiming and firing, its 19 clips moving
+- **They carry more than a gun.** All five infantry types are on the new rules. A Trooper has a pistol, a knife, two frags, a smoke grenade and a flashbang; the others their own gun, pistol, knife, a frag and a smoke grenade, all restocked near base. Nobody orders any of it: a frag goes at men behind cover or bunched up, flash at men about to be rushed, smoke when pinned or caught in the open, and it blocks sight for both sides. Grenades and shells can hurt friends, so a man looks where they will be first, and his squad waits for it to go off. Guns have magazines, never an empty pouch: a Trooper reloads every twenty rounds, a Marksman every five, and a man reloading near an enemy draws his pistol. The pistol is for when the main gun cannot be used, reloading, on the run or too close for it; the knife is for arm's length. Pistol, knife and grenade are in his hand when he uses them.
+- **The Gunner** (new combat only) carries a belt-fed gun: slow, stops to fire, slow to reload, and pins a man at 26 m in two or three seconds where a rifle takes far longer.
+- **Wrecks and tanks are cover.** A tank's wreck stands where it died, stopping rounds and sight, for at least a minute and for as long as someone is behind it or a fight goes on round it; a friend's tank shelters the men behind it.
+- **Nobody is perfect.** Now and then a man picks poor cover, stays put, pushes on under fire or throws a grenade at a lone target, and a squad's turn goes wrong; a green squad does it about one judgement in four, veterans one in twenty-five, and a green man with a veteran in his squad judges as the veteran.
+- **A report says who and where** ("Juliet: 4 men 150 m north-east of our base"), and pointing at it rings those men on the map.
+- **They have real bodies:** a rigged soldier crouching, crawling, aiming, firing, reloading and drawing a pistol, its 25 clips moving
   the legs and trunk from KayKit's animations with the rifle in hand-defined poses, one material, so
   200 of them cost a fight about 3 fps. A real match with all of this ran 41.3 fps on High, at the sharper resolution High now aims for, and stayed above 36 at its worst.
   Every other unit and building now draws the same way, one material a part with its surfaces in a small

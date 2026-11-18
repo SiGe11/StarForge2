@@ -526,6 +526,24 @@ namespace StarForge.World
             best = default;
             Vector2 chosen = default;
             shelters.Clear();
+            // A burnt-out tank, and a friend's that is still going, first: there are few, and after the rocks and
+            // trunks of a wood had taken all ten places a man 5 m from a wreck never weighed it.
+            foreach (var h in Hulks)
+                if (shelters.Count < MostShelters && (h.at - u.pos).sqrMagnitude < (reach + h.radius) * (reach + h.radius))
+                    shelters.Add(new Vector3(h.at.x, h.at.y, h.radius));
+            if (TanksAlive(u.team) > 0)
+            {
+                CellRange(u.pos, reach + LargestRadius, out int tx0, out int tx1, out int tz0, out int tz1);
+                for (int tz = tz0; tz <= tz1; tz++)
+                    for (int tx = tx0; tx <= tx1; tx++)
+                        for (int i = gridHead[tz * GRID + tx]; i >= 0; i = gridNext[i])
+                        {
+                            var o = i < units.Count ? units[i] : null;
+                            if (o == null || o.dying || o.team != u.team || !IsTankLike(o) || shelters.Count >= MostShelters) continue;
+                            if ((o.pos - u.pos).sqrMagnitude < (reach + o.BodyRadius) * (reach + o.BodyRadius))
+                                shelters.Add(new Vector3(o.pos.x, o.pos.y, o.BodyRadius));
+                        }
+            }
             foreach (var b in boulders)
             {
                 if (b == null || b.smashed || (b.Pos - u.pos).sqrMagnitude > reach * reach) continue;
@@ -539,20 +557,6 @@ namespace StarForge.World
                     shelters.Add(new Vector3(o.pos.x, o.pos.y, o.def.radius));
             }
             if (Plants != null) Sight.TrunksNear(u.pos, reach, Plants, shelters, MostShelters);
-            // A burnt-out tank, and a friend's that is still going.
-            foreach (var h in Hulks)
-                if (shelters.Count < MostShelters && (h.at - u.pos).sqrMagnitude < (reach + h.radius) * (reach + h.radius))
-                    shelters.Add(new Vector3(h.at.x, h.at.y, h.radius));
-            CellRange(u.pos, reach + LargestRadius, out int tx0, out int tx1, out int tz0, out int tz1);
-            for (int tz = tz0; tz <= tz1; tz++)
-                for (int tx = tx0; tx <= tx1; tx++)
-                    for (int i = gridHead[tz * GRID + tx]; i >= 0; i = gridNext[i])
-                    {
-                        var o = i < units.Count ? units[i] : null;
-                        if (o == null || o.dying || o.team != u.team || !IsTankLike(o) || shelters.Count >= MostShelters) continue;
-                        if ((o.pos - u.pos).sqrMagnitude < (reach + o.BodyRadius) * (reach + o.BodyRadius))
-                            shelters.Add(new Vector3(o.pos.x, o.pos.y, o.BodyRadius));
-                    }
 
             float here = (u.pos - threat.pos).magnitude;
             if (here < 1e-3f) return false;

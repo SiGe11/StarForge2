@@ -34,6 +34,7 @@ namespace StarForge.World
         [System.NonSerialized] public int rounds;
         [System.NonSerialized] public float reloadAtT = -99f;
         [System.NonSerialized] float reloadDoneAt, rashLookAt;
+        [System.NonSerialized] Unit nervousOf;
         public bool Reloading => reloadDoneAt > 0f && world.time < reloadDoneAt;
         /// <summary>The rank that counts when he decides: his own, or the oldest hand with him.</summary>
         public int Experience => squad != null ? Mathf.Max(rank, squad.veteran) : rank;
@@ -68,13 +69,16 @@ namespace StarForge.World
         void SpendRound()
         {
             if (noMind || def.magazine <= 0 || !loadoutGiven) return;
+            if (reloadDoneAt > 0f && world.time >= reloadDoneAt) { reloadDoneAt = 0f; rounds = def.magazine; }
             if (--rounds <= 0) BeginReload();
         }
 
         void BeginReload()
         {
             reloadAtT = world.time;
-            reloadDoneAt = world.time + def.reloadTime * (mode == SoldierMode.Pinned ? 1.4f : 1f);
+            // After the last round's own wait: a magazine and its reload take magazine x cooldown + reload,
+            // the cycle the numbers were set for (overlapped, a Marksman fired 19% faster than before).
+            reloadDoneAt = world.time + Mathf.Max(0f, cooldown) + def.reloadTime * (mode == SoldierMode.Pinned ? 1.4f : 1f);
             world.Reloads++;
         }
 
@@ -111,8 +115,13 @@ namespace StarForge.World
             // At men, not at armour or walls; at what his rifle cannot reach, or at more than one of them.
             if (threat.def.Heavy || threat.def.building) return;
             bool noLine = target == threat && fireBlocked && !hiding;
-            // (A nervous hand throws at one man in the open.)
-            if (!noLine && world.EnemiesRound(threat, team, 5f) < 2 && !world.Errs(this, 0.1f)) return;
+            // (A nervous hand throws at one man in the open: judged once for each man he faces.)
+            if (!noLine && world.EnemiesRound(threat, team, 5f) < 2)
+            {
+                if (nervousOf == threat) return;
+                nervousOf = threat;
+                if (!world.Errs(this, 0.4f)) return;
+            }
             if (frags <= 0 && flashes <= 0) return;
             if (world.CombatRoll() > ThrowChance) return;
             float secs = GameWorld.ThrowFlight(d);

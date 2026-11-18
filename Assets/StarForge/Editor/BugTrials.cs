@@ -742,6 +742,7 @@ namespace StarForge.EditorTools
             if (--holds > 0) return;
             Commander.Suspended = savedSuspended;
             Unit.StickyTargets = false;
+            TacticalRules.NoMistakes = false;
             // The speed the match's own state calls for, not the one saved at the hold: paused or
             // resumed while a trial ran, the saved one froze a running match (0) or ran a paused one.
             Time.timeScale = scaleOwned || GameBootstrap.Instance == null ? savedScale : StateScale();

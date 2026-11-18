@@ -278,7 +278,7 @@ namespace StarForge.World
                 bool due = order != Order.Idle && world.time >= coverStayUntil && (order == Order.Move || range > def.range * 0.75f || fireBlocked);
                 // A rash man goes on under fire he should have waited out.
                 bool rash = false;
-                if (due && suppression >= 0.3f && world.time >= rashLookAt)
+                if (due && suppression >= 0.3f && world.time >= rashLookAt && world.time >= nextCoverLook)
                 {
                     rashLookAt = world.time + 2.5f;
                     rash = world.Errs(this, 0.5f);

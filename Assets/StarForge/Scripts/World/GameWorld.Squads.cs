@@ -47,7 +47,9 @@ namespace StarForge.World
     {
         const float SquadJoin = 15f, SquadLeave = 30f, SquadMerge = 8f, SquadSameGoal = 12f, MergeAfterOrder = 10f;
         const float SquadEvery = 0.5f, TurnLasts = 4.5f;
-        static readonly string[] CallSigns = { "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliet", "Kilo", "Lima" };
+        // All 26: squads form about five a minute, and twelve came round again while the first were alive.
+        static readonly string[] CallSigns = { "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliet", "Kilo", "Lima",
+                                               "Mike", "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra", "Tango", "Uniform", "Victor", "Whiskey", "X-ray", "Yankee", "Zulu" };
         const float ReportSquadEvery = 30f, ReportSideEvery = 10f, ReportPlaceEvery = 60f, ReportPlace = 40f;
         const float NeedAirAfter = 8f, LossesLast = 20f, ContactAt = 40f;
 
@@ -272,7 +274,7 @@ namespace StarForge.World
                     if (left < leastLeft) { leastLeft = left; q.point = u; }
                 }
             }
-            if (contact && !q.contact) { q.contactSince = time; q.turnUntil = time + TurnLasts; }
+            if (contact && !q.contact) { q.contactSince = time; q.turnUntil = time + TurnLasts; q.blunder = SquadBlunder.None; }
             q.contact = contact;
             q.moving = moving;
             if (!contact) return;
@@ -288,7 +290,7 @@ namespace StarForge.World
                     SquadBlunders++;
                 }
             }
-            if (q.blunder == SquadBlunder.Rush) { q.moving = moving; return; }
+            if (q.blunder == SquadBlunder.Rush && time >= q.fragUntil) { q.moving = moving; return; }
             // Those whose turn it is not, walking up on an attack, stop and shoot; so do any over the half,
             // and everyone while one of theirs is about to go off.
             int most = time < q.fragUntil || q.blunder == SquadBlunder.Stall ? 0 : Mathf.Max(1, q.men.Count / 2);
@@ -346,10 +348,12 @@ namespace StarForge.World
 
             bool losing = q.lostAt.Count >= Mathf.Max(2, Mathf.CeilToInt(started / 3f));
             bool outgunned = theirs >= ours * 1.6f && pinned * 2 >= q.men.Count;
-            bool held = heavy > 0f && time - q.contactSince >= NeedAirAfter && !AircraftNear(q);
+            bool airHelps = heavy > 0f && !AircraftNear(q);
+            bool held = airHelps && time - q.contactSince >= NeedAirAfter;
             if (losing && MakeReport(q, SquadReportKind.FallBack, started)) return;
             if (held && MakeReport(q, SquadReportKind.NeedAir, started)) return;
-            if (outgunned) MakeReport(q, SquadReportKind.FallBack, started);
+            // Held by armour, the call is for aircraft: an "outgunned" first would use up the squad's turn to speak.
+            if (outgunned && !(airHelps && time - q.contactSince < NeedAirAfter)) MakeReport(q, SquadReportKind.FallBack, started);
         }
 
         bool AircraftNear(Squad q)

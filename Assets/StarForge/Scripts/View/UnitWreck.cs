@@ -72,6 +72,7 @@ namespace StarForge.View
         /// <summary>What it is under the new combat: cover for as long as the world keeps the record, and the
         /// wreck stays with it. One that died out of sight is drawn from when its ground is seen.</summary>
         StarForge.World.Hulk hulk;
+        public StarForge.World.Hulk Hulk => hulk;
         bool unseen;
         float unseenLookAt;
 
@@ -324,7 +325,9 @@ namespace StarForge.View
 
             Active.Add(this);
             // Too many: the oldest go early.
-            for (int i = 0; Active.Count - i > MaxWrecks; i++) Active[i].SinkNow();
+            // A wreck still standing as cover is passed over, not counted against the cap.
+            for (int i = 0, over = Active.Count - MaxWrecks; i < Active.Count && over > 0; i++)
+                if (Active[i].SinkNow()) over--;
         }
 
         /// <summary>A rifleman's legs as rigid bodies of their own, at the pose he died in
@@ -382,10 +385,11 @@ namespace StarForge.View
             }
         }
 
-        void SinkNow()
+        bool SinkNow()
         {
-            if (hulk != null && !hulk.gone) return;   // a man may be behind it
+            if (hulk != null && !hulk.gone) return false;   // a man may be behind it
             lieFor = Mathf.Min(lieFor, age);
+            return true;
         }
 
         /// <summary>A blast nearby (FXDirector.Explosion): every wreck still lying within
@@ -401,6 +405,7 @@ namespace StarForge.View
         void Shove(Vector3 at, float radius, float strength)
         {
             if (hull == null || age >= lieFor) return;   // already going under
+            if (hulk != null && !hulk.gone) return;      // cover where the record says it is, not shoved off it
             // Too near its end to be thrown and come to rest before it must sink: left
             // alone, or a fight going on beside it would keep it awake for ever.
             if (age + 4f > lieUntil) return;

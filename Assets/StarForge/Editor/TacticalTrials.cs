@@ -205,11 +205,15 @@ namespace StarForge.EditorTools
         }
 
         /// <summary>The new rules are read when a match begins: only a match this trial started has them.</summary>
+        /// <summary>A trial of the rules themselves runs with nobody getting it wrong: its numbers were set before mistakes.</summary>
+        protected virtual bool RulesOnly => false;
+
         protected IEnumerator TacticalMatch()
         {
             TacticalRules.On = true;
             yield return EnsureMatch();
             TacticalRules.On = false;
+            if (RulesOnly) TacticalRules.NoMistakes = true;
             if (Ready && !world.Tactical) { report = "this match began under the old rules: stop, play and call again at the menu"; world = null; }
         }
     }
@@ -524,6 +528,7 @@ namespace StarForge.EditorTools
 
     public sealed class TacticalOrdersTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         /// <summary>A soldier in cover, in the open three rifles' sights: he gets there himself.</summary>
         IEnumerator InCover(System.Random rng, System.Action<Unit> then)
         {
@@ -660,6 +665,7 @@ namespace StarForge.EditorTools
 
     public sealed class TacticalCoverGoalTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         IEnumerator Start()
         {
             yield return TacticalMatch();
@@ -859,8 +865,13 @@ namespace StarForge.EditorTools
                 var man = Soldier(0, r);
                 yield return Wait(0.5f);
                 world.CmdMove(new List<Unit> { man }, r + e * 30f, false, hurried);
-                float t0 = world.time, top = 0f;
-                while (world.time - t0 < 12f && (man.pos - (r + e * 30f)).magnitude > 4f) { top = Mathf.Max(top, man.Velocity.magnitude); yield return null; }
+                float t0 = world.time, top = 0f, spanAt = world.time;
+                Vector2 spanFrom = man.pos;
+                while (world.time - t0 < 12f && (man.pos - (r + e * 30f)).magnitude > 4f)
+                {
+                    if (world.time - spanAt >= 0.5f) { top = Mathf.Max(top, (man.pos - spanFrom).magnitude / (world.time - spanAt)); spanAt = world.time; spanFrom = man.pos; }
+                    yield return null;
+                }
                 float took = world.time - t0;
                 yield return Wait(1.5f);
                 sb.AppendLine($"  {(hurried ? "hurried" : "plain")} Move: 26 m in {took:0.0} s, top speed {top:0.0} m/s, afterwards order {man.order}, hurry {man.hurry}");
@@ -997,10 +1008,22 @@ namespace StarForge.EditorTools
                 var side = new Vector2(-g.y, g.x);
                 var four = new List<Unit>();
                 for (int i = 0; i < 4; i++) { var u = Put(UnitType.Trooper, 0, f1 + side * (i - 1.5f) * 2f); four.Add(u); }
-                for (int i = 0; i < 10; i++) Soldier(1, f1 + g * 26f + side * (i - 4.5f) * 2f);
+                var ten = new List<Unit>();
+                for (int i = 0; i < 10; i++) ten.Add(Soldier(1, f1 + g * 26f + side * (i - 4.5f) * 2f));
                 var player = Object.FindAnyObjectByType<StarForge.View.PlayerController>();
-                float t0 = world.time;
-                while (menHeard == null && world.time - t0 < 25f) yield return null;
+                float t0 = world.time, contactFor = 0f;
+                int mostPinned = 0, mostSeen = 0, shots0 = world.ShotsFired;
+                bool squadOf4 = false;
+                void Sample()
+                {
+                    int pinned = 0, seen = 0;
+                    foreach (var u in four) if (Unit.Live(u) && (u.mode == SoldierMode.Pinned || u.mode == SoldierMode.Panic)) pinned++;
+                    foreach (var e in ten) if (Unit.Live(e) && world.Sees(0, e)) seen++;
+                    mostPinned = Mathf.Max(mostPinned, pinned); mostSeen = Mathf.Max(mostSeen, seen);
+                    var q = four.Find(Unit.Live)?.squad;
+                    if (q != null) { squadOf4 = true; if (q.contact) contactFor += Time.deltaTime; }
+                }
+                while (menHeard == null && world.time - t0 < 25f) { Sample(); yield return null; }
                 float firstAt = world.time - t0;
                 if (menHeard != null && player != null)
                 {
@@ -1046,8 +1069,9 @@ namespace StarForge.EditorTools
                     sb.AppendLine($"  first report after {firstAt:0.0} s; the line in the feed {(line != null ? "found" : "NOT FOUND")}; a click selects {picked}, {alive} of the {menHeard.Length} who reported are alive (target the same)");
                     player.Selection.Clear();
                 }
-                while (world.time - t0 < 25f) yield return null;
-                sb.AppendLine($"  four against ten, 25 s: {heard.Count} reports (target 1){(heard.Count > 0 ? ": " + heard[0] : "")}");
+                while (world.time - t0 < 25f) { Sample(); yield return null; }
+                int alive4 = four.FindAll(Unit.Live).Count;
+                sb.AppendLine($"  four against ten, 25 s: {heard.Count} reports (target 1){(heard.Count > 0 ? ": " + heard[0] : "")} [squad {squadOf4}, contact {contactFor:0} s, most pinned {mostPinned}, most of the ten seen {mostSeen}, {alive4} of 4 alive, {world.ShotsFired - shots0} rounds]");
                 ClearSpawned();
                 yield return Wait(2f);
             }
@@ -1073,6 +1097,7 @@ namespace StarForge.EditorTools
 
     public sealed class TacticalPinTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         IEnumerator Start()
         {
             yield return TacticalMatch();
@@ -1109,6 +1134,7 @@ namespace StarForge.EditorTools
 
     public sealed class TacticalFightTrial : TacticalTrial
     {
+        protected override bool RulesOnly => true;
         public static int Fields = 5;
 
         /// <summary>Somewhere with things to hide behind within a few metres, and open ground 52 m off.</summary>
