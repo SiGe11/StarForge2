@@ -10,7 +10,9 @@
 // (not under a crown), each bird hopping, pecking and looking round, until
 // something comes near or it grows restless; then it flushes together and flies
 // low to another open spot with a small bird's bounding flight -- a few
-// wingbeats, wings shut, a few more -- and lands. Eagles circle high overhead.
+// wingbeats, wings shut, a few more -- and lands. Eagles soar in circles high
+// overhead on held wings, leaning into the turn, with a few slow beats now and
+// then; they beat steadily only when something has frightened them.
 //
 // Ground animals move over the ground units could use: every step is checked
 // against the NavMesh for ground units (GameWorld.GroundAreas), so they go round
@@ -83,7 +85,10 @@ namespace StarForge.View
             public bool air;
             public Vector3 at, landAt;
             public Vector2 slot, hopFrom, hopTo;
-            public float launchAt, nextAct, hopT = 1f, beatUntil, foldUntil, lift, pitch;
+            public float launchAt, nextAct, hopT = 1f, beatUntil, foldUntil, lift, pitch, faceTo;
+            // Soaring flyers: the wings are held (the flight cycle stopped where they are level).
+            public bool gliding;
+            public float cycle;      // where its flight cycle was on the last frame (0..1)
             // A cheater's reckoning.
             public Avenger avenger;
             public float flyY, moveSpeed;
@@ -94,7 +99,7 @@ namespace StarForge.View
             public FaunaSpecies sp;
             public readonly List<Animal> members = new List<Animal>();
             public Vector2 home, centre, drift, away;
-            public float fleeUntil, floor, altitude, nextHome;
+            public float fleeUntil, floor, altitude, nextHome, climb;
             // Perching flyers: a flight from one spot to the next.
             public bool aloft, skipClimb;
             public Vector2 from, to, bend;
@@ -108,6 +113,8 @@ namespace StarForge.View
         PlayerController player;
         Rng rng;
         float nextScan;
+        Vector2[] scanAt = Array.Empty<Vector2>();
+        bool[] scanSeen = Array.Empty<bool>(), scanSkip = Array.Empty<bool>();
 
         void Start()
         {
@@ -289,8 +296,13 @@ namespace StarForge.View
                     }
                     an.at = map.Ground(an.pos);
                     an.nextAct = rng.Range(0f, 2f);
+                    an.faceTo = an.yaw;
                 }
-                else if (sp.flies) an.pos = g.centre + new Vector2(Mathf.Cos(an.angle), Mathf.Sin(an.angle)) * sp.circle * an.radius;
+                else if (sp.flies)
+                {
+                    an.pos = g.centre + new Vector2(Mathf.Cos(an.angle), Mathf.Sin(an.angle)) * sp.circle * an.radius;
+                    an.nextAct = Time.time + 2f + an.phase * 0.7f;     // its first few wingbeats (no draw: the spawn stream stays as it was)
+                }
                 else
                 {
                     an.pos = g.home;
@@ -392,20 +404,40 @@ namespace StarForge.View
             // Units close by: any side, but an unseen enemy only frightens animals
             // the player cannot see either.
             if (world != null && world.running)
-                foreach (var u in world.units)
+            {
+                // Each group's middle and whether the player sees it, once a scan: asked
+                // per unit they were worked out a few thousand times a pass.
+                int n = groups.Count;
+                if (scanAt.Length < n) { scanAt = new Vector2[n]; scanSeen = new bool[n]; scanSkip = new bool[n]; }
+                float now = Time.time;
+                bool any = false;
+                for (int k = 0; k < n; k++)
                 {
-                    if (u == null || u.dying || u.def.neutral) continue;
-                    bool seen = MatchSettings.spectate || u.team == ViewerTeam || world.Sees(ViewerTeam, u);
-                    foreach (var g in groups)
-                    {
-                        if (g.fleeUntil > Time.time) continue;
-                        if (!seen && GroupSeen(g)) continue;
-                        if (g.sp.perches && g.aloft) continue;
-                        float reach = g.sp.wariness * (u.def.building ? 1.3f : 1f) + (g.sp.flies && !g.sp.perches ? 5f : 0f);
-                        var c = g.sp.flies && !g.sp.perches ? g.centre : Centroid(g);
-                        if ((c - u.pos).sqrMagnitude < reach * reach) Scare(g, u.pos);
-                    }
+                    var g = groups[k];
+                    scanSkip[k] = g.fleeUntil > now || (g.sp.perches && g.aloft);
+                    if (scanSkip[k]) continue;
+                    any = true;
+                    scanAt[k] = g.sp.flies && !g.sp.perches ? g.centre : Centroid(g);
+                    scanSeen[k] = GroupSeen(g);
                 }
+                if (any)
+                    foreach (var u in world.units)
+                    {
+                        if (u == null || u.dying || u.def.neutral) continue;
+                        bool seen = MatchSettings.spectate || u.team == ViewerTeam || world.Sees(ViewerTeam, u);
+                        for (int k = 0; k < n; k++)
+                        {
+                            if (scanSkip[k]) continue;
+                            if (!seen && scanSeen[k]) continue;
+                            var g = groups[k];
+                            float reach = g.sp.wariness * (u.def.building ? 1.3f : 1f) + (g.sp.flies && !g.sp.perches ? 5f : 0f);
+                            if ((scanAt[k] - u.pos).sqrMagnitude >= reach * reach) continue;
+                            Scare(g, u.pos);
+                            // As before: once scared it is passed over for the rest of the scan.
+                            scanSkip[k] = g.fleeUntil > now || (g.sp.perches && g.aloft);
+                        }
+                    }
+            }
             dangers.RemoveAll(x => x.t < Time.time);
         }
 
@@ -544,25 +576,90 @@ namespace StarForge.View
             // slowly; higher while frightened.
             float floor = FloorUnder(g.centre, sp.circle);
             g.floor = Mathf.MoveTowards(g.floor, floor, dt * (floor > g.floor ? 3f : 1.2f));
-            float alt = g.floor + g.altitude + (fleeing ? 12f : 0f) + push.magnitude * 8f;
+            // Higher while frightened or pushed off by a danger: climbed to and sunk from over a
+            // few seconds (added whole, a frightened eagle was 12 m higher on the next frame).
+            float higher = (fleeing ? 12f : 0f) + push.magnitude * 8f;
+            g.climb = Mathf.MoveTowards(g.climb, higher, dt * (higher > g.climb ? 4.5f : 2f));
+            float alt = g.floor + g.altitude + g.climb;
 
             foreach (var a in g.members)
             {
-                float speed = (fleeing ? sp.runSpeed : sp.speed) * (0.9f + 0.2f * a.radius);
-                float r = sp.circle * a.radius;
-                a.angle += speed / Mathf.Max(3f, r) * dt;
+                // Speeding up and slowing over a second or two, not from one frame to the next.
+                float cruise = (fleeing ? sp.runSpeed : sp.speed) * (0.9f + 0.2f * a.radius);
+                a.speed = a.speed <= 0f ? cruise : Mathf.MoveTowards(a.speed, cruise, dt * 4f);
+                float speed = a.speed;
+                float r = Mathf.Max(3f, sp.circle * a.radius);
+                a.angle += speed / r * dt;
                 var c = g.centre + new Vector2(Mathf.Cos(a.angle), Mathf.Sin(a.angle)) * r;
                 float y = alt + a.height + Mathf.Sin(now * 0.6f + a.phase) * 0.8f;
                 var p = new Vector3(c.x, y, c.y);
                 var prev = a.t.position;
                 var vel = (p - prev) / Mathf.Max(dt, 1e-3f);
-                if (vel.sqrMagnitude > 0.1f) a.yaw = Mathf.Atan2(vel.x, vel.z) * Mathf.Rad2Deg;
-                a.bank = Mathf.Lerp(a.bank, Mathf.Clamp(speed * speed / Mathf.Max(3f, r) * 3f, 8f, 35f), dt * 2f);
+                // Leaning into the turn it is really making, by as much as that turn needs
+                // (tan = ground speed x turn rate / g): a left turn brings the right wing up,
+                // a positive roll. From the path over the ground, not the circle alone: a
+                // frightened flock's drift bends the path the other way for a moment, and the
+                // lean goes with it. (It was a fixed lean, and outward.)
+                float turn = 0f;
+                if (vel.sqrMagnitude > 0.1f)
+                {
+                    float yaw = Mathf.Atan2(vel.x, vel.z) * Mathf.Rad2Deg;
+                    turn = Mathf.Clamp(Mathf.DeltaAngle(a.yaw, yaw) / Mathf.Max(dt, 1e-3f), -90f, 90f);
+                    a.yaw = yaw;
+                }
+                float over = Mathf.Min(new Vector2(vel.x, vel.z).magnitude, 30f);
+                float lean = Mathf.Clamp(Mathf.Atan2(over * -turn * Mathf.Deg2Rad, 9.81f) * Mathf.Rad2Deg, -40f, 40f);
+                a.bank = Mathf.Lerp(a.bank, lean, 1f - Mathf.Exp(-dt * 2f));
+                // Nose up while it climbs, down while it sinks.
+                a.pitch = Mathf.Lerp(a.pitch, Mathf.Clamp(-Mathf.Atan2(vel.y, Mathf.Max(1f, speed)) * Mathf.Rad2Deg, -20f, 20f), 1f - Mathf.Exp(-dt * 2f));
                 a.pos = c;
-                Place(a, p, Quaternion.Euler(0f, a.yaw, -a.bank));
-                Animate(a, sp, speed);
+                Place(a, p, Quaternion.Euler(a.pitch, a.yaw, a.bank));
+                Soar(a, sp, fleeing || vel.y > 1.5f, now);
             }
         }
+
+        /// <summary>A soaring bird's wings: held level on the air most of the time (the
+        /// flight cycle stopped at its seam, where they are spread and level), a few slow
+        /// beats every several seconds, and steady beating while it flees or climbs.
+        /// Beating without a pause, a circling eagle read as a wind-up toy.</summary>
+        void Soar(Animal a, FaunaSpecies sp, bool working, float now)
+        {
+            if (a.anim == null || sp.move == null) return;
+            var st = a.anim[sp.move.name];
+            if (st == null) return;
+            if (!a.anim.IsPlaying(sp.move.name)) a.anim.CrossFade(sp.move.name, 0.25f);
+            if (working) { a.beatUntil = Mathf.Max(a.beatUntil, now + 0.6f); a.nextAct = Mathf.Max(a.nextAct, now + rng.Range(3f, 7f)); }
+            else if (now >= a.nextAct)
+            {
+                // Two or three beats, then back onto held wings.
+                a.beatUntil = now + st.length / 0.85f * (rng.F01() < 0.5f ? 2f : 3f) - 0.1f;
+                a.nextAct = a.beatUntil + rng.Range(5f, 12f);
+            }
+            if (now < a.beatUntil)
+            {
+                a.gliding = false;
+                st.speed = working ? 1.25f : 0.85f;
+                a.cycle = Mathf.Repeat(st.normalizedTime, 1f);
+                return;
+            }
+            if (a.gliding) return;
+            // Let the beat in hand run out, and stop as the cycle comes round to its seam,
+            // where the wings are level (stopped from a tenth of a cycle short of it, the
+            // wings jumped an eighth of their stroke in one frame).
+            float u = Mathf.Repeat(st.normalizedTime, 1f);
+            if (u < a.cycle || u <= GlideAt)
+            {
+                st.speed = 0f;
+                st.normalizedTime = GlideAt;
+                a.gliding = true;
+            }
+            else st.speed = 0.85f;
+            a.cycle = u;
+        }
+
+        // Where in the flight cycle the wings are spread, a little above level (the clip's
+        // second frame of 30: tips 3% of the span up).
+        const float GlideAt = 0.04f;
 
         // ------------------------------------------------------------ the reckoning
         const float HuntScale = 1.35f;      // bigger than they were, and the colour of it
@@ -578,6 +675,7 @@ namespace StarForge.View
                 {
                     // A wolf outruns a Digger, or one could run for ever; a flyer is quick enough as it is.
                     a.avenger = world.Enlist(a.pos, g.sp.flies, g.sp.runSpeed * (g.sp.flies ? 1f : 1.4f));
+                    a.gliding = false;
                     a.flyY = a.t.position.y;
                     a.t.localScale *= HuntScale;
                     a.shown = true;
@@ -795,7 +893,7 @@ namespace StarForge.View
                     a.air = false;
                     a.at = a.landAt;
                     a.pos = new Vector2(a.at.x, a.at.z);
-                    a.pitch = a.bank = 0f;
+                    a.faceTo = a.yaw;       // pitch and bank ease out on its feet (Feed)
                     a.hopT = 1f;
                     a.nextAct = now + rng.Range(0.4f, 1.5f);
                     if (a.anim != null && sp.idle != null) a.anim.CrossFade(sp.idle.name, 0.1f);
@@ -812,6 +910,7 @@ namespace StarForge.View
                         a.at = a.landAt;
                         a.pos = new Vector2(a.at.x, a.at.z);
                         a.pitch = a.bank = 0f;
+                        a.faceTo = a.yaw;
                         a.hopT = 1f;
                         if (a.anim != null && sp.idle != null) a.anim.CrossFade(sp.idle.name, 0.2f);
                         landed++;
@@ -851,7 +950,7 @@ namespace StarForge.View
                         a.hopFrom = a.pos;
                         a.hopTo = to;
                         a.hopT = 0f;
-                        a.yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
+                        a.faceTo = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
                     }
                     a.nextAct = now + (rng.F01() < 0.5f ? rng.Range(0.18f, 0.3f) : rng.Range(0.6f, 2f));
                 }
@@ -863,7 +962,7 @@ namespace StarForge.View
                 else
                 {
                     if (a.anim != null && sp.idle != null) a.anim.CrossFade(sp.idle.name, 0.15f);
-                    a.yaw += rng.Range(-70f, 70f);
+                    a.faceTo = a.yaw + rng.Range(-70f, 70f);
                     a.nextAct = now + rng.Range(0.8f, 2.5f);
                 }
                 a.at = map.Ground(a.pos);
@@ -872,7 +971,12 @@ namespace StarForge.View
             // A peck plays once, then back to standing.
             if (a.anim != null && sp.peck != null && sp.idle != null && now >= a.nextAct - 0.05f && a.anim.IsPlaying(sp.peck.name))
                 a.anim.CrossFade(sp.idle.name, 0.1f);
-            Place(a, a.at, Quaternion.Euler(0f, a.yaw, 0f));
+            // A quick turn, not a jump from one facing to the next (a tenth of a second for
+            // a look round), and out of the landing's tilt over the first moment down.
+            a.yaw = Mathf.MoveTowardsAngle(a.yaw, a.faceTo, dt * 900f);
+            a.pitch = Mathf.MoveTowards(a.pitch, 0f, dt * 240f);
+            a.bank = Mathf.MoveTowards(a.bank, 0f, dt * 240f);
+            Place(a, a.at, Quaternion.Euler(a.pitch, a.yaw, -a.bank));
         }
 
         void Place(Animal a, Vector3 p, Quaternion r)

@@ -19,6 +19,16 @@ namespace StarForge.AI
         float aggrScore;         // cumulative aggression: a rusher stays high between waves
         float armyEst;           // decaying estimate of their total army
         float commitPeak;        // decaying peak of committed force
+        // What has come onto our half of the map lately, each unit counted once, the first
+        // time it is seen there, fading over 90 s. The peak above is how much stood there at
+        // once: a rusher who keeps sending whatever he has trained arrives a few at a time, as
+        // a raid does, and the two read alike by it; by this one sends several times the other.
+        // Counted by the unit itself (cameAtUs), not by its memory entry: an entry goes when its
+        // unit steps out of sight on seen ground and a new one is made when it is back, so three
+        // raiders dipping in and out counted again each time, and a newcomer walking into a dead
+        // man's entry was not counted at all. Only units in sight (Sees) are ever looked at.
+        float commitFlow;
+        readonly HashSet<int> cameAtUs = new HashSet<int>();
         // The memory entries this tick's sightings were matched to (Observe): one each, so an
         // entry is one unit, and "in sight now" is exactly these (Forget).
         readonly HashSet<Remembered> claimed = new HashSet<Remembered>();
@@ -39,7 +49,8 @@ namespace StarForge.AI
             Home = w.Map.StartPos(t);
             mem.Clear();
             aggrT = -1e9f;
-            aggrScore = armyEst = commitPeak = 0f;
+            aggrScore = armyEst = commitPeak = commitFlow = 0f;
+            cameAtUs.Clear();
 
             // Reading a symmetric map is something a human does before scouting
             // too -- but a guess is all it is. Nothing counts as known until a unit
@@ -66,6 +77,8 @@ namespace StarForge.AI
             if (s.eArmyOurHalf > commitPeak) commitPeak = s.eArmyOurHalf;
             else commitPeak = Lerp(commitPeak, s.eArmyOurHalf, 1f - Mathf.Exp(-dt / 120f));
             s.eCommitPeak = commitPeak;
+            commitFlow *= Mathf.Exp(-dt / 90f);
+            s.eCommitFlow = commitFlow;
             // Cumulative aggression: a rusher rebuilding between waves looks calm
             // for 45 s and would otherwise read as a turtle.
             float target = Saturate(s.eArmyOurHalf / 200f);
@@ -79,10 +92,14 @@ namespace StarForge.AI
         void Observe()
         {
             var s = Snap;
-            float keepEst = s.eArmyEstimate, keepCommit = s.eCommitPeak, keepPressure = s.pressure;
+            float keepEst = s.eArmyEstimate, keepCommit = s.eCommitPeak, keepPressure = s.pressure, keepFlow = s.eCommitFlow;
+            bool keepBaseKnown = s.enemyBaseKnown;
+            Vector2 keepBase = s.enemyBase;
             s.Clear();
-            s.eArmyEstimate = keepEst; s.eCommitPeak = keepCommit; s.pressure = keepPressure;
+            s.eArmyEstimate = keepEst; s.eCommitPeak = keepCommit; s.pressure = keepPressure; s.eCommitFlow = keepFlow;
             claimed.Clear();
+            // Where we took them to live as of the last pass (this pass's belief is made below).
+            Vector2 theirs = keepBaseKnown ? keepBase : (guesses.Count > 0 ? guesses[0] : Home);
             int enemy = 1 - team;
             var F = w.factions[team];
             s.ore = F.ore;
@@ -130,6 +147,10 @@ namespace StarForge.AI
                 // Their deserters are out of the war, as ours are (the player sees their bars in the
                 // deserter colour too): remembered, a camp 40-68 m out read as their army away from home.
                 if (e.deserted) continue;
+                // A fighting unit of theirs seen on our half for the first time: into the flow.
+                if (!e.def.building && !e.def.harvester && e.Type != UnitType.Mech &&
+                    (e.pos - Home).sqrMagnitude < (e.pos - theirs).sqrMagnitude && cameAtUs.Add(e.id))
+                    commitFlow += Defs.ArmyValue(e.Type);
                 // Their Mech: its guns are on the outside, so seeing it is knowing what it
                 // is built to kill.
                 if (e.Type == UnitType.Mech && e.mech != null && e.mech.design != null)

@@ -13,8 +13,8 @@ skeleton and writes new cycles for them:
            way up), legs tucked, tail level
     Fold   the wings shut against the body, legs tucked: the glide between beats
            of a small bird's bounding flight
-    Perch  standing, head turning now and then
-    Peck   a dip of the head to the ground and back
+    Perch  standing, wings shut along the flanks, head turning now and then
+    Peck   a dip of the head to the ground and back, wings shut
 
 shortens the tail to a finch's, and colours it through one small palette
 texture (UVs per face: back, head, breast, wings, tail, beak and legs), so a
@@ -179,6 +179,26 @@ def wings(arm, spread, lift, tip_lift, sweep):
         rot_about(po, (0, 1, 0), -s * tip_lift)
 
 
+# How a bird carries its shut wings, standing and in the glide between beats: spread,
+# lift, tip lift and sweep for wings(), then how far each is drawn in and down. The
+# source's rest pose holds them out from the body like a dart's fins (the outer panel
+# 0.5-0.8 of a body width clear of the flank: 3.2 wide over a 1.5 body), and a feeding
+# flock showed exactly that from the game's camera; this lays them along the flanks,
+# tips over the rump (2.2 wide).
+TUCK = (-30, 14, 0, -10, 0.10, 0.10)
+
+
+def tuck_wings(arm):
+    wings(arm, *TUCK[:4])
+    # Then drawn in against the flank and down (model units, world axes).
+    for inner, s in ((WING_R, 1), (WING_L, -1)):
+        pb = arm.pose.bones[inner]
+        bpy.context.view_layer.update()
+        m = pb.matrix.copy()
+        pb.matrix = Matrix.Translation(Vector((-s * TUCK[4], 0, -TUCK[5]))) @ m
+        bpy.context.view_layer.update()
+
+
 def key(arm, frame):
     for pb in arm.pose.bones:
         pb.keyframe_insert("rotation_quaternion", frame=frame)
@@ -216,18 +236,20 @@ def make_actions(arm):
     for f in (0, 8):
         reset(arm)
         tuck_legs(arm)
-        wings(arm, 8, 0, 0, 0)
+        tuck_wings(arm)
         key(arm, f)
     # Perch: standing, the head turning left and right now and then.
     acts.append(new_action(arm, "Perch"))
     for f, yaw in ((0, 0), (10, 0), (13, 28), (26, 28), (29, -22), (42, -22), (45, 0), (60, 0)):
         reset(arm)
+        tuck_wings(arm)
         rot_about(arm.pose.bones[HEAD], (0, 0, 1), yaw)
         key(arm, f)
     # Peck: head down to the ground and back up, twice.
     acts.append(new_action(arm, "Peck"))
     for f, dip in ((0, 0), (3, 62), (5, 62), (8, 0), (10, 0), (13, 62), (15, 62), (18, 0), (24, 0)):
         reset(arm)
+        tuck_wings(arm)
         rot_about(arm.pose.bones[HEAD], (1, 0, 0), dip)
         key(arm, f)
     for a in acts:

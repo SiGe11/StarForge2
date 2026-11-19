@@ -14,7 +14,8 @@
 //  * grime: dust climbing up from the ground and dirt settling in cavities;
 //  * rim light: a cool sky rim that keeps silhouettes readable over the ground.
 //
-// UnitView drives per-renderer state through a property block: _Damage chars
+// UnitView drives per-unit state on a copy of the material made for that unit
+// (a wreck's and the Mech's still go through a property block): _Damage chars
 // the surface and, when heavy, opens glowing seams; _BuildLevel shows the
 // unbuilt part of a structure above that line as a team-coloured hologram with
 // a bright weld line; _FlashColor is the hit flash; _Burn scorches a dying

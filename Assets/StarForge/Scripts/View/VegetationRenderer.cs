@@ -90,6 +90,13 @@ namespace StarForge.View
             if (world == null) world = GameWorld.Instance;
             if (player == null) player = FindAnyObjectByType<PlayerController>();
             if (vegetation == null || vegetation.plants.Length == 0) { enabled = false; return; }
+            // -sfnograze on the player: SF_Tree's edge-on card fade off, for an fps or burst A/B
+            // (on a copy: the material is a generated asset).
+            if (foliageMaterial != null && System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-sfnograze") >= 0)
+            {
+                foliageMaterial = new Material(foliageMaterial);
+                foliageMaterial.SetVector("_CardGraze", Vector4.zero);
+            }
             Init();
         }
 
@@ -146,6 +153,15 @@ namespace StarForge.View
         {
             ref var s = ref vegetation.live[i];
             ref var key = ref poseKey[i];
+            // Felled and lying trees stop swaying; embers glow with the fire.
+            float sway = s.state == PlantState.Standing ? 1f : 0f;
+            bool gone = s.state == PlantState.Gone;
+            // Nothing it is drawn by has moved since it was last looked at: nearly every plant,
+            // nearly every frame (all of them were worked out again each frame they were in sight).
+            ref var seen = ref seenParams[i];
+            if (poseKnown[i] && seenGone[i] == gone && seen.x == s.charred && seen.y == s.fire && seen.z == s.foliageLost && seen.w == sway &&
+                key.groundShift == s.groundShift && key.sink == s.sink && key.crush == s.crush &&
+                key.fallAngle == s.fallAngle && key.flatten == s.flatten && key.fallX == s.fallDir.x && key.fallY == s.fallDir.y) return;
             if (!poseKnown[i] || key.groundShift != s.groundShift || key.sink != s.sink || key.crush != s.crush ||
                 key.fallAngle != s.fallAngle || key.flatten != s.flatten || key.fallX != s.fallDir.x || key.fallY != s.fallDir.y)
             {
@@ -157,15 +173,13 @@ namespace StarForge.View
                 };
                 poseKnown[i] = true;
             }
-            // Felled and lying trees stop swaying; embers glow with the fire.
-            float sway = s.state == PlantState.Standing ? 1f : 0f;
             seenParams[i] = new Vector4(s.charred, s.fire, s.foliageLost, sway);
             // Burnt through as the char deepens: 35-60% of the stem left, by plant.
             float keep = 0.35f + 0.25f * Mathf.Repeat(i * 0.61803f, 1f);
             seenCut[i] = slender[vegetation.plants[i].kind]
                 ? Mathf.Lerp(1f, keep, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 0.95f, s.charred)))
                 : 1f;
-            seenGone[i] = s.state == PlantState.Gone;
+            seenGone[i] = gone;
         }
 
         void LateUpdate()

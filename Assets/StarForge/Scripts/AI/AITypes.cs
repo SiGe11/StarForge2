@@ -158,6 +158,7 @@ namespace StarForge.AI
         public float eArmyEstimate;      // decaying peak: what we think they have overall
         public float eArmyOurHalf;       // enemy combat units on our side of the map
         public float eCommitPeak;        // decaying peak of force committed at us
+        public float eCommitFlow;        // what has come onto our half lately, each unit once (fades over 90 s)
         public float eArmyNearOurBase;
         public float eArmyAwayFromHome;
         public float sinceAggression = 1e9f;
@@ -193,7 +194,7 @@ namespace StarForge.AI
             armyValue = 0f;
             eWorkers = eTroopers = eMaulers = eSkimmers = 0;
             eFoundries = eGarrisons = eWorkshops = eBunkhouses = eSentinels = 0;
-            eArmyValue = eArmyEstimate = eArmyOurHalf = eCommitPeak = eArmyNearOurBase = eArmyAwayFromHome = 0f;
+            eArmyValue = eArmyEstimate = eArmyOurHalf = eCommitPeak = eCommitFlow = eArmyNearOurBase = eArmyAwayFromHome = 0f;
             sinceAggression = 1e9f;
             pressure = 0f;
             enemyBaseKnown = false;

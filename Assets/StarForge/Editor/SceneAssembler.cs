@@ -398,6 +398,10 @@ namespace StarForge.EditorTools
                 // Leaf cards are seen from both sides; bark culls as usual.
                 m.SetFloat("_Cull", foliage ? 0f : 2f);
                 m.SetFloat("_Cutoff", 0.45f);
+                // A card seen edge-on thins out and goes (SF_Tree CardFacing): gone under 0.10 of
+                // |face normal . view|, whole above 0.34. Written here so the asset holds what the
+                // shader's default says (a play-mode look once left it in the .mat by itself).
+                if (foliage) m.SetVector("_CardGraze", new Vector4(0.10f, 0.34f, 0f, 0f));
                 m.enableInstancing = true;
                 EditorUtility.SetDirty(m);
                 return m;

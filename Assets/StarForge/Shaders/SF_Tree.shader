@@ -47,6 +47,7 @@ Shader "StarForge/Tree"
         _CardNormal("Leaf spray normals", 2D) = "bump" {}
         _CardTint("Card colour multiplier", Color) = (1, 1, 1, 1)
         _Cutoff("Card coverage cut-off", Range(0, 1)) = 0.45
+        _CardGraze("Card seen edge-on: gone below x, whole above y (|normal . view|); y 0 = off", Vector) = (0.10, 0.34, 0, 0)
         [Enum(UnityEngine.Rendering.CullMode)] _Cull("Cull", Float) = 2
     }
 
@@ -73,6 +74,7 @@ Shader "StarForge/Tree"
             half _BarkStyle;
             half4 _CardTint;
             half _Cutoff;
+            half4 _CardGraze;
         CBUFFER_END
 
         TEXTURE2D(_CardTex); SAMPLER(sampler_CardTex);
@@ -84,6 +86,23 @@ Shader "StarForge/Tree"
         {
             if (isCard < 0.5) return 1.0;
             return SAMPLE_TEXTURE2D(_CardTex, sampler_CardTex, uv).a;
+        }
+
+        // How much of a card is left by the angle it is seen at: 1 face on, 0 edge on.
+        // The cards face out of the crown, so from the RTS camera those on its far side
+        // and its top lie nearly along the line of sight, and a spray drawn that way is
+        // a smear of stretched leaves (streaks fanning round every crown). A card thins
+        // out as it turns edge-on -- its coverage is scaled down, so its sparsest parts
+        // go first -- and is gone before it is a sliver. From the face's own normal
+        // (screen-space derivatives), not the vertex normal, which points out of the crown.
+        // The camera's passes only: to the sun the same card is a different shape.
+        half CardFacing(float3 positionWS)
+        {
+            if (_CardGraze.y <= 0.0) return 1.0;
+            float3 fn = cross(ddx(positionWS), ddy(positionWS));
+            float3 v = GetWorldSpaceNormalizeViewDir(positionWS);
+            half facing = abs(dot(fn, v)) * rsqrt(max(dot(fn, fn), 1e-20));
+            return smoothstep(_CardGraze.x, _CardGraze.y, facing);
         }
 
         UNITY_INSTANCING_BUFFER_START(TreeProps)
@@ -289,7 +308,7 @@ Shader "StarForge/Tree"
                 {
                     // A leaf card: the photographed spray, cut out on its coverage.
                     half4 tex = SAMPLE_TEXTURE2D(_CardTex, sampler_CardTex, i.uv);
-                    clip(tex.a - _Cutoff);
+                    clip(tex.a * CardFacing(i.positionWS) - _Cutoff);
                     // The spray's own normals, in a frame from the screen-space
                     // derivatives of position and UV (the cards carry no tangents),
                     // tilted gently off the crown normal the card was given.
@@ -473,14 +492,15 @@ Shader "StarForge/Tree"
             #pragma fragment DepthFrag
             #pragma multi_compile_instancing
 
-            struct DepthVaryings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; half card : TEXCOORD1; };
+            struct DepthVaryings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; half card : TEXCOORD1; float3 positionWS : TEXCOORD2; };
 
             DepthVaryings DepthVert(TreeAttributes v)
             {
                 DepthVaryings o;
                 UNITY_SETUP_INSTANCE_ID(v);
                 float3 posOS, nOS;
-                o.positionCS = TransformWorldToHClip(TreeVertex(v, TreeParams(), posOS, nOS));
+                o.positionWS = TreeVertex(v, TreeParams(), posOS, nOS);
+                o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.uv = v.uv;
                 o.card = _Foliage > 0.5 ? v.color.a : 0.0;
                 return o;
@@ -488,7 +508,10 @@ Shader "StarForge/Tree"
 
             half DepthFrag(DepthVaryings i) : SV_Target
             {
-                clip(CardAlpha(i.uv, i.card) - _Cutoff);
+                // The same cut as the lit pass, or SSAO shades leaves that are not drawn.
+                half a = CardAlpha(i.uv, i.card);
+                if (i.card > 0.5) a *= CardFacing(i.positionWS);
+                clip(a - _Cutoff);
                 return i.positionCS.z;
             }
             ENDHLSL
@@ -507,14 +530,15 @@ Shader "StarForge/Tree"
             #pragma multi_compile_instancing
             #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
 
-            struct NormalsVaryings { float4 positionCS : SV_POSITION; half3 normalWS : TEXCOORD0; float2 uv : TEXCOORD1; half card : TEXCOORD2; };
+            struct NormalsVaryings { float4 positionCS : SV_POSITION; half3 normalWS : TEXCOORD0; float2 uv : TEXCOORD1; half card : TEXCOORD2; float3 positionWS : TEXCOORD3; };
 
             NormalsVaryings NormalsVert(TreeAttributes v)
             {
                 NormalsVaryings o;
                 UNITY_SETUP_INSTANCE_ID(v);
                 float3 posOS, nOS;
-                o.positionCS = TransformWorldToHClip(TreeVertex(v, TreeParams(), posOS, nOS));
+                o.positionWS = TreeVertex(v, TreeParams(), posOS, nOS);
+                o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = TransformObjectToWorldNormal(nOS);
                 o.uv = v.uv;
                 o.card = _Foliage > 0.5 ? v.color.a : 0.0;
@@ -523,7 +547,9 @@ Shader "StarForge/Tree"
 
             half4 NormalsFrag(NormalsVaryings i) : SV_Target
             {
-                clip(CardAlpha(i.uv, i.card) - _Cutoff);
+                half a = CardAlpha(i.uv, i.card);
+                if (i.card > 0.5) a *= CardFacing(i.positionWS);
+                clip(a - _Cutoff);
             #if defined(_GBUFFER_NORMALS_OCT)
                 float2 oct = PackNormalOctQuadEncode(normalize(i.normalWS));
                 return half4(PackFloat2To888(saturate(oct * 0.5 + 0.5)), 0.0);

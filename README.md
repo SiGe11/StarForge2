@@ -32,7 +32,7 @@ metal under a shader that finds their bevels by curvature rather than by a
 hand-painted map; buildings print themselves into existence and come apart into
 pre-cut pieces; and explosions throw lit debris that bounces off the terrain
 behind a ring that bends the picture; wolves and foxes roam the meadows, flocks of
-songbirds feed on the open ground and eagles circle overhead, all fleeing the
+songbirds feed on the open ground and eagles soar in circles overhead, all fleeing the
 fighting and the fires, and the music moves with the match. Played as a match
 actually runs -- vsync on, 60 Hz -- it holds ~42 fps on the Neo's *High* preset -- the full
 shadow distance and ground cover it had before the Mechs, at a render scale of about 0.76 -- and
@@ -680,6 +680,13 @@ heard by its commander in all 20. (The evaluation reuses five seeds against ever
 rolls are now drawn per opponent: from the seed alone, every match got one of five fixed
 sequences of rolls, and at the shipped odds none could break before its third crisis.)
 
+**Reading a rush** (2026-11-19). A rusher who sends on whatever he has just trained arrives a few units at a time, as a raid does, and the AI read
+the scripted rusher as "harassing" more often than "rushing". It now also counts what has come onto its half of the map over the last
+minute and a half, each unit once, and a steady stream reads as a rush. A full run on that (Commander, 900 s cap, the same five seeds):
+**20 of 20 won, none lost**, no exception; the rusher read correctly 63% of the time (31% in the run the evening before on the same
+code without it), the harasser 71% (71%), the turtle 84% (85%), the macro player 11% (13%: once its second Foundry is seen it reads as
+"expanding", which the AI answers the same way).
+
 Runs vary: the same twenty seeds gave 13, 15, 12, 15 and 11 wins in the round that added
 the Mechs, 15, 10 and 12 in the round that added the loadouts picked at the drop, the
 Flame Tower and the anti-Mech tactics below, and 14 once its enemy memory
@@ -1117,6 +1124,14 @@ of 200 made no difference beyond its frame-to-frame spread of a few milliseconds
 trimmed cape (210 cloth particles, was 182) the same: 12.8 / 13.3, 13.4 / 13.6 ms with cloth /
 at rest, with 40 soldiers standing 0 frames over 0.1 s either way. 0
 exceptions in all eleven runs.
+
+**The birds, the trees' leaf cards and unit surfaces** (2026-11-19, Unity 6000.6.9). Eagles now soar on held wings and lean into their
+turn, songbirds stand with their wings shut, a leaf card seen edge-on fades out instead of smearing into streaks round the crown, and a
+unit's hit flash, damage, construction line and ore glow go on materials of its own instead of per-renderer overrides (which took every
+working Digger, hurt unit and building site off the fast batched path: frozen 243 s into a match, 164 of 384 unit renderers, and
+set-pass calls a frame fell from about 340 to about 120). On this benchmark none of it costs or gains anything that can be measured:
+with the render scale held at 0.75, 44.1 and 44.5 fps without the changes against 44.2 and 43.7 with them (alternating runs, battery
+charging), the render thread at 3.0-3.1 ms either way.
 
 The median frame is a full 60 Hz refresh (16.7 ms), and the average is how often one is
 missed. Getting there took three findings, each measured on this benchmark:

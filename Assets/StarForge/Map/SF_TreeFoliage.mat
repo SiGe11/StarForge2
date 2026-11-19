@@ -60,6 +60,7 @@ Material:
     - _Bloom: {r: 1, g: 1, b: 1, a: 0}
     - _CanopyCenter: {r: 0, g: 5, b: 0, a: 0.6}
     - _CanopyRadii: {r: 2.5, g: 2, b: 2.5, a: 0}
+    - _CardGraze: {r: 0.1, g: 0.34, b: 0, a: 0}
     - _CardTint: {r: 1, g: 1, b: 1, a: 1}
     - _LeafColor: {r: 0.12999997, g: 0.21999997, b: 0.06999998, a: 1}
     - _LeafColor2: {r: 0.23999995, g: 0.28999996, b: 0.07999996, a: 1}

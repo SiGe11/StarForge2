@@ -22,6 +22,10 @@ namespace StarForge.AI
         const int K = (int)PlayerStrat.Count;
         readonly float[] post = new float[K];
         readonly float[] prior = new float[K];
+        readonly float[] L = new float[K];
+        /// <summary>A/B: read the player without the flow of force at us (the evaluation
+        /// runner resets it).</summary>
+        public static bool LegacyRead;
         public readonly PlayerProfile Profile = new PlayerProfile();
         float earlyAggr, lastArmy, lastSwitchT;
         int question;
@@ -83,17 +87,21 @@ namespace StarForge.AI
             // meaningful if we have recently looked at their base.
             float commitFrac = Saturate(s.eCommitPeak / Mathf.Max(120f, s.eArmyEstimate));
             commitFrac = Lerp(0.5f, commitFrac, s.scoutConfidence);
+            // Everything he trains sent on as it comes: few at our base at any moment, like a
+            // raid, but many over a minute and a half. (Read by the peak alone, the rusher
+            // was "harassing" 44% of the time and "rushing" 31%.)
+            float stream = LegacyRead ? 0f : SoftIndicator(s.eCommitFlow, FlowLow, FlowHigh);
 
-            var L = new float[K];
             L[(int)PlayerStrat.Rushing] = 0.05f + 2.0f * bigCommit + 1.0f * pressure * earlyGame
                                         + 0.5f * nearUs + 0.5f * earlyGame * armySeen
-                                        + 1.6f * pressure * commitFrac;
+                                        + 1.6f * pressure * commitFrac
+                                        + 1.8f * stream;
             L[(int)PlayerStrat.Turtling] = 0.05f + (1.2f * prodSeen + 1.6f * armySeen * (1f - nearUs)
                                         + 0.9f * depotHeavy + 1.4f * turretSeen) * peace;
             L[(int)PlayerStrat.Macro] = 0.05f + (2.2f * ecoHeavy + 0.30f * (1f - armySeen)) * peace;
-            L[(int)PlayerStrat.Harassing] = 0.05f + 2.2f * smallRaid * (1f - bigCommit)
+            L[(int)PlayerStrat.Harassing] = 0.05f + (2.2f * smallRaid * (1f - bigCommit)
                                           + 1.8f * pressure * (1f - commitFrac)
-                                          + 0.4f * aggrRecent * (1f - bigCommit)
+                                          + 0.4f * aggrRecent * (1f - bigCommit)) * (1f - 0.8f * stream)
                                           + 0.8f * raiders * aggrRecent;
             L[(int)PlayerStrat.Expanding] = 0.05f + 2.4f * expandSeen + 0.5f * ecoHeavy * peace;
             L[(int)PlayerStrat.Teching] = 0.05f + 2.2f * techSeen + 0.4f * (1f - earlyGame) * peace;
@@ -143,6 +151,10 @@ namespace StarForge.AI
             float needExpand = 1f - Saturate(s.eFoundries / 2f) + post[(int)PlayerStrat.Expanding] * 0.6f;
             question = (needTech > needArmy && needTech > needExpand) ? 1 : (needExpand > needArmy ? 2 : 0);
         }
+
+        // The flow of force at us (Perception.commitFlow, army value) from which it stops
+        // reading as raids, and at which it reads as everything he has.
+        public const float FlowLow = 350f, FlowHigh = 800f;
 
         public PlayerStrat MostLikely()
         {

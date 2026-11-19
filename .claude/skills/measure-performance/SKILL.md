@@ -23,7 +23,7 @@ Builds/StarForge.app/Contents/MacOS/StarForge -sfbench 420 -sfplay -sfbenchout /
 - Always `-sfplay` (vsync + 60 cap = what a player sees). Without it the run is uncapped and bimodal (~9/60 ms).
 - Compare averages and the render scale (*High* pays for load in resolution first, so a cost or a saving shows mostly in the scale) against a build measured the same way, in **alternating pairs** (the Neo is fanless and drifts ~1 ms as it heats). `-sfcap60` matches builds from before the uncapping fix.
 - Read the report's `simulation ...`, `frames over 40 ms ...` and `frame timing:` lines before blaming rendering; the `frame timing:` GPU time is not usable on Metal.
-- Presets and probes: `-sfquality high|balanced|battery` (runs a preset without saving it), `-sfshadows N`, `-sfdensity X`, `-sfseed N`, `-sfdebug`, `-sfshot <png> -sfshotat <s>`; A/B switches `-sfnocloth` (the Mech banner rigid), `-sfnocapes` (no soldiers' capes), `-sfallcapes` (every soldier caped from training: the cape budget full), `-sfnofauna`.
+- Presets and probes: `-sfquality high|balanced|battery` (runs a preset without saving it), `-sfshadows N`, `-sfdensity X`, `-sfseed N`, `-sfdebug`, `-sfshot <png> -sfshotat <s>`; A/B switches `-sfnocloth` (the Mech banner rigid), `-sfnocapes` (no soldiers' capes), `-sfallcapes` (every soldier caped from training: the cape budget full), `-sfnofauna`, `-sfblocks` (units' flash, damage, build line and glow through property blocks again, off the SRP Batcher: the old way), `-sfnograze` (SF_Tree's edge-on leaf-card fade off).
 
 ## Flicker / shimmer (built player, camera still; never trust editor captures)
 ```bash

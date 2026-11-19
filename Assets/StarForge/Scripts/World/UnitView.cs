@@ -10,9 +10,12 @@
 //   Ore seam   the crystal cluster shrinks as the seam is mined out
 //   Mauler, Sentinel   barrels recoil and ease back
 //   Foundry    the control head sweeps slowly; Workshop: the crane trolley travels
-// Surface state goes to StarForge/Unit through one property block per renderer
-// -- damage charring, the construction hologram, a hit flash, burning on death --
-// set only while something shows, so idle renderers stay SRP-batched. A
+// Surface state goes to StarForge/Unit on materials of the unit's own -- damage
+// charring, the construction hologram, a hit flash, burning on death, a Digger's
+// load glowing -- made the first time something shows, worn only while it does and
+// written only when a value changes, so every renderer stays SRP-batched (through
+// property blocks, every working Digger, every hurt unit and every site went the
+// slow way round, a few hundred draws a frame in a match). A
 // destroyed structure is swapped for its pre-cut debris; a unit that dies hands its
 // model to a UnitWreck, which plays the death out with rigid bodies.
 using UnityEngine;
@@ -38,6 +41,18 @@ namespace StarForge.World
         MaterialPropertyBlock mpb;
         bool shown = true;
         bool blockActive;
+        // The unit's own copies of its materials (per renderer, per slot), and the shared
+        // ones they stand in for. ownActive: the renderers wear the copies now.
+        Material[][] sharedMats, ownMats;
+        bool ownActive;
+        int ownWorn;
+        Color ownFlash = new Color(-1f, 0f, 0f);
+        float ownFlashAmount;
+        float ownDamage = -1f, ownBurn = -1f, ownGlow = -1f, ownLevel = float.NaN;
+        /// <summary>A/B: surface state through property blocks, as before (cleared at each play entry).</summary>
+        public static bool LegacyBlocks;
+        /// <summary>Renderers wearing a unit's own materials now, over all units (for checks).</summary>
+        public static int OwnSurfaces;
         bool debrisSpawned, handedOff;
         float bodyBaseY;
         // How the model has been moving (the agent is switched off by the time the
@@ -142,8 +157,19 @@ namespace StarForge.World
             }
         }
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics()
+        {
+            // -sfblocks on the player: the old way, for an fps A/B.
+            LegacyBlocks = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-sfblocks") >= 0;
+            OwnSurfaces = 0;
+        }
+
         void CollectRenderers()
         {
+            // The list is taken again (a cloth rebuilt): back onto the shared materials first,
+            // the copies were made for the old list.
+            DropOwnMaterials();
             renderers = GetComponentsInChildren<Renderer>(true);
             // Each renderer's height above the model origin, so the construction
             // line (in object space) lines up across a turret or a raised head.
@@ -156,6 +182,85 @@ namespace StarForge.World
         {
             if (bannerCloth != null) bannerCloth.Destroy();
             if (rig != null) rig.Destroyed();
+            DropOwnMaterials();
+        }
+
+        /// <summary>Put the renderers back on their shared materials and destroy the unit's copies
+        /// (Unity does not: a material made in play lives until the scene goes).</summary>
+        void DropOwnMaterials()
+        {
+            WearOwn(false);
+            if (ownMats != null)
+                foreach (var set in ownMats)
+                    if (set != null)
+                        foreach (var m in set) if (m != null && m.name.EndsWith(OwnSuffix)) Destroy(m);
+            ownMats = sharedMats = null;
+        }
+
+        /// <summary>What a unit's own copy of a material is called after the shared one's name (and how
+        /// a copy is told from a shared material left in its slot).</summary>
+        public const string OwnSuffix = " (unit)";
+
+        /// <summary>The renderers onto the unit's own materials, or back onto the shared ones.</summary>
+        void WearOwn(bool own)
+        {
+            if (own == ownActive || renderers == null) return;
+            if (own)
+            {
+                if (ownMats == null || ownMats.Length != renderers.Length)
+                {
+                    sharedMats = new Material[renderers.Length][];
+                    ownMats = new Material[renderers.Length][];
+                }
+                for (int i = 0; i < renderers.Length; i++)
+                {
+                    var r = renderers[i];
+                    if (r == null) continue;
+                    if (ownMats[i] == null)
+                    {
+                        var src = r.sharedMaterials;
+                        var mine = new Material[src.Length];
+                        // Only what reads the surface state is copied (StarForge/Unit): a creature's
+                        // URP/Lit and the Mech-Hunter's cloth keep their shared materials in their slots.
+                        for (int k = 0; k < src.Length; k++)
+                            mine[k] = src[k] != null && src[k].HasProperty(FlashId) ? new Material(src[k]) { name = src[k].name + OwnSuffix } : src[k];
+                        sharedMats[i] = src;
+                        ownMats[i] = mine;
+                    }
+                    r.sharedMaterials = ownMats[i];
+                    ownWorn++;
+                }
+                OwnSurfaces += ownWorn;
+                // Everything is written on the first frame they are worn.
+                ownFlash = new Color(-1f, 0f, 0f);
+                ownDamage = ownBurn = ownGlow = -1f;
+                ownLevel = float.NaN;
+            }
+            else
+            {
+                for (int i = 0; i < renderers.Length; i++)
+                {
+                    var r = renderers[i];
+                    if (r == null || sharedMats == null || i >= sharedMats.Length || sharedMats[i] == null) continue;
+                    r.sharedMaterials = sharedMats[i];
+                }
+                OwnSurfaces -= ownWorn;
+                ownWorn = 0;
+            }
+            ownActive = own;
+        }
+
+        /// <summary>The model is about to go to a wreck or a corpse, which takes the surface up
+        /// from the renderers' property blocks: give it there what the unit showed, on the shared
+        /// materials (the copies are this view's, and go with it).</summary>
+        void HandSurfaceOver()
+        {
+            if (!ownActive) return;
+            WearOwn(false);
+            if (rig != null || unit == null) return;
+            // What it showed on its last frame, as the old block held it (not this frame's flash:
+            // the killing hit has just set that to full).
+            WriteBlocks(ownDamage < 0f ? 0f : ownFlashAmount, ownDamage < 0f ? 0f : ownDamage, false, 0f);
         }
 
         public void Bind(Unit u)
@@ -273,6 +378,7 @@ namespace StarForge.World
                 // The wreck keeps the rigid flag: the cloth would go on swinging on a dead hull.
                 if (bannerCloth != null) { bannerCloth.Destroy(); bannerCloth = null; if (banner != null) banner.gameObject.SetActive(true); }
                 if (rig != null && rig.Die(shown)) return;
+                HandSurfaceOver();
                 if (shown && body != null)
                 {
                     if (unit.def.organic) CreatureCorpse.Create(unit, body, anim, clipDeath);
@@ -581,31 +687,146 @@ namespace StarForge.World
             float burn = unit.dying ? Mathf.Clamp01(unit.deathTimer / 0.8f) : 0f;
             if (rig != null) { rig.ApplySurface(flash, damage, burn); return; }
 
-            if (flash > 0.01f || damage > 0.01f || constructing || unit.dying || loadFill > 0.001f || OreGlow > 0.001f)
+            bool showing = flash > 0.01f || damage > 0.01f || constructing || unit.dying || loadFill > 0.001f || OreGlow > 0.001f;
+            if (LegacyBlocks)
             {
-                Color teamGlow = (unit.team == 0 ? new Color(0.15f, 0.55f, 1f) : new Color(1f, 0.25f, 0.12f)) * 1.5f;
-                float level = unit.buildProgress * (unit.def.visualHeight + 0.2f);
-                for (int i = 0; i < renderers.Length; i++)
+                WearOwn(false);
+                if (showing) WriteBlocks(flash, damage, constructing, burn);
+                else ClearBlocks();
+                return;
+            }
+            ClearBlocks();
+            WearOwn(showing);
+            if (!showing) return;
+
+            // Written only when a value has moved: most of what wears its own materials is a
+            // Digger at work or a unit hurt a while ago, and nothing on it changes frame to frame.
+            Color flashColor = FlashColor(flash);
+            float glow = Glow;
+            float level = constructing ? unit.buildProgress * (unit.def.visualHeight + 0.2f) : BuildOff;
+            bool first = ownDamage < 0f;
+            bool setFlash = first || Mathf.Abs(flashColor.r - ownFlash.r) > 0.002f;
+            bool setDamage = first || Mathf.Abs(damage - ownDamage) > 0.004f;
+            bool setBurn = first || Mathf.Abs(burn - ownBurn) > 0.004f;
+            bool setGlow = first || Mathf.Abs(glow - ownGlow) > 0.002f;
+            bool setLevel = first || level != ownLevel;
+            if (!(setFlash || setDamage || setBurn || setGlow || setLevel)) return;
+            Color teamGlow = TeamGlow;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var set = i < ownMats.Length ? ownMats[i] : null;
+                if (set == null) continue;
+                foreach (var m in set)
                 {
-                    var r = renderers[i];
-                    if (r == null) continue;
-                    r.GetPropertyBlock(mpb);
-                    // A hit flash that suits a trooper turns a whole building white.
-                    mpb.SetColor(FlashId, new Color(1f, 0.55f, 0.3f) * (flash * (unit.def.building ? 0.4f : 1.2f)));
-                    mpb.SetFloat(DamageId, damage);
-                    mpb.SetFloat(BuildLevelId, constructing ? level - rendererBaseY[i] : BuildOff);
-                    mpb.SetFloat(BurnId, burn);
-                    mpb.SetColor(TeamGlowId, teamGlow);
-                    mpb.SetFloat(OreGlowId, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(glowFill)) + glowFlare);
-                    r.SetPropertyBlock(mpb);
+                    // A slot left on its shared material is never written to.
+                    if (m == null || !m.name.EndsWith(OwnSuffix)) continue;
+                    if (setFlash) m.SetColor(FlashId, flashColor);
+                    if (setDamage) m.SetFloat(DamageId, damage);
+                    if (setBurn) m.SetFloat(BurnId, burn);
+                    if (setGlow) m.SetFloat(OreGlowId, glow);
+                    if (setLevel) m.SetFloat(BuildLevelId, constructing ? level - rendererBaseY[i] : BuildOff);
+                    if (first) m.SetColor(TeamGlowId, teamGlow);
                 }
-                blockActive = true;
             }
-            else if (blockActive)
+            if (setFlash) { ownFlash = flashColor; ownFlashAmount = flash; }
+            if (setDamage) ownDamage = damage;
+            if (setBurn) ownBurn = burn;
+            if (setGlow) ownGlow = glow;
+            if (setLevel) ownLevel = level;
+        }
+
+        /// <summary>Renderers of this unit wearing its own materials now, and how many copies it holds (for checks).</summary>
+        public int OwnWorn => ownWorn;
+        public int OwnCopies
+        {
+            get
             {
-                foreach (var r in renderers) if (r != null) r.SetPropertyBlock(null);
-                blockActive = false;
+                int n = 0;
+                if (ownMats != null)
+                    foreach (var set in ownMats)
+                        if (set != null)
+                            foreach (var m in set) if (m != null && m.name.EndsWith(OwnSuffix)) n++;
+                return n;
             }
+        }
+
+        /// <summary>For checks, asked at the end of a frame: null when the renderers wear what they
+        /// should and the unit's own materials hold what ApplySurface would write now (within the
+        /// written-on-change tolerances), else what is off. Allocates; nothing in a match calls it.</summary>
+        public string SurfaceFault()
+        {
+            if (unit == null || handedOff || rig != null || renderers == null || LegacyBlocks) return null;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var r = renderers[i];
+                if (r == null) continue;
+                var want = ownActive ? (ownMats != null && i < ownMats.Length ? ownMats[i] : null)
+                                     : (sharedMats != null && i < sharedMats.Length ? sharedMats[i] : null);
+                if (want == null) { if (ownActive) return $"{unit.Type}: wearing, but no materials kept for renderer {i}"; continue; }
+                var now = r.sharedMaterials;
+                if (now.Length != want.Length) return $"{unit.Type}: renderer {i} has {now.Length} slots, {want.Length} kept";
+                for (int k = 0; k < now.Length; k++)
+                    if (now[k] != want[k]) return $"{unit.Type}: renderer {i} slot {k} wears {(now[k] != null ? now[k].name : "nothing")}, should wear {(want[k] != null ? want[k].name : "nothing")}";
+            }
+            if (!shown) return null;      // not kept up while the fog hides it
+            float flash = unit.damageFlash;
+            float damage = unit.Complete && !unit.def.neutral ? Mathf.Clamp01((1f - unit.hp / unit.MaxHp - 0.25f) / 0.75f) : 0f;
+            bool constructing = !unit.Complete && unit.def.building;
+            float burn = unit.dying ? Mathf.Clamp01(unit.deathTimer / 0.8f) : 0f;
+            bool showing = flash > 0.01f || damage > 0.01f || constructing || unit.dying || loadFill > 0.001f || OreGlow > 0.001f;
+            if (showing != ownActive) return $"{unit.Type}: showing {showing} but wearing own {ownActive}";
+            if (!ownActive) return null;
+            float level = constructing ? unit.buildProgress * (unit.def.visualHeight + 0.2f) : BuildOff;
+            for (int i = 0; i < renderers.Length && i < ownMats.Length; i++)
+            {
+                if (ownMats[i] == null) continue;
+                foreach (var m in ownMats[i])
+                {
+                    if (m == null || !m.name.EndsWith(OwnSuffix)) continue;
+                    if (Mathf.Abs(m.GetColor(FlashId).r - FlashColor(flash).r) > 0.006f) return $"{unit.Type}: flash {m.GetColor(FlashId).r:0.000}, should be {FlashColor(flash).r:0.000}";
+                    if (Mathf.Abs(m.GetFloat(DamageId) - damage) > 0.008f) return $"{unit.Type}: damage {m.GetFloat(DamageId):0.000}, should be {damage:0.000}";
+                    if (Mathf.Abs(m.GetFloat(BurnId) - burn) > 0.008f) return $"{unit.Type}: burn {m.GetFloat(BurnId):0.000}, should be {burn:0.000}";
+                    if (Mathf.Abs(m.GetFloat(OreGlowId) - Glow) > 0.006f) return $"{unit.Type}: glow {m.GetFloat(OreGlowId):0.000}, should be {Glow:0.000}";
+                    float wantLevel = constructing ? level - rendererBaseY[i] : BuildOff;
+                    if (Mathf.Abs(m.GetFloat(BuildLevelId) - wantLevel) > 0.001f * Mathf.Max(1f, Mathf.Abs(wantLevel))) return $"{unit.Type}: build level {m.GetFloat(BuildLevelId):0.000}, should be {wantLevel:0.000}";
+                    if (Mathf.Abs(m.GetColor(TeamGlowId).r - TeamGlow.r) > 0.01f) return $"{unit.Type}: team glow not its side's";
+                }
+            }
+            return null;
+        }
+
+        // A hit flash that suits a trooper turns a whole building white.
+        Color FlashColor(float flash) => new Color(1f, 0.55f, 0.3f) * (flash * (unit.def.building ? 0.4f : 1.2f));
+        Color TeamGlow => (unit.team == 0 ? new Color(0.15f, 0.55f, 1f) : new Color(1f, 0.25f, 0.12f)) * 1.5f;
+        float Glow => Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(glowFill)) + glowFlare;
+
+        /// <summary>The same surface state through one property block per renderer: the old way
+        /// (LegacyBlocks), and what a wreck or a corpse is handed (HandSurfaceOver).</summary>
+        void WriteBlocks(float flash, float damage, bool constructing, float burn)
+        {
+            Color teamGlow = TeamGlow;
+            float level = unit.buildProgress * (unit.def.visualHeight + 0.2f);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var r = renderers[i];
+                if (r == null) continue;
+                r.GetPropertyBlock(mpb);
+                mpb.SetColor(FlashId, FlashColor(flash));
+                mpb.SetFloat(DamageId, damage);
+                mpb.SetFloat(BuildLevelId, constructing ? level - rendererBaseY[i] : BuildOff);
+                mpb.SetFloat(BurnId, burn);
+                mpb.SetColor(TeamGlowId, teamGlow);
+                mpb.SetFloat(OreGlowId, Glow);
+                r.SetPropertyBlock(mpb);
+            }
+            blockActive = true;
+        }
+
+        void ClearBlocks()
+        {
+            if (!blockActive) return;
+            foreach (var r in renderers) if (r != null) r.SetPropertyBlock(null);
+            blockActive = false;
         }
     }
 }

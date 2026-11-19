@@ -27,7 +27,7 @@ namespace StarForge.Game
         sealed class KindStats
         {
             public int games, wins;
-            public float length, beliefAcc, firstIdent, apm, peakApm, switches;
+            public float length, beliefAcc, firstIdent, apm, peakApm, switches, flow, flowPeak;
             public int identN;
             public readonly float[] stratUse = new float[(int)Strategy.Count];
             public readonly float[] labelUse = new float[(int)PlayerStrat.Count];
@@ -60,7 +60,7 @@ namespace StarForge.Game
         GameBootstrap boot;
         ScriptedOpponent opponent;
         int samples, correct;
-        float firstCorrect = -1f, apmSum;
+        float firstCorrect = -1f, apmSum, flowSum, flowPeak;
         int apmN;
         float peakApm;
         readonly float[] stratUse = new float[(int)Strategy.Count];
@@ -108,6 +108,7 @@ namespace StarForge.Game
             Commander.IgnoreSites = false;
             Commander.RepositionOff = false;   // the blocked-shot trial's A/B switch
             Perception.LegacyMechMemory = false;
+            OpponentModel.LegacyRead = false;
             MechBrain.LegacyHunt = false;
             MechBrain.LegacyCommit = false;
             Commander.LegacyNoMaxOut = false;
@@ -167,6 +168,10 @@ namespace StarForge.Game
                 }
                 stratUse[(int)ai.Dbg.strategy]++;
                 labelUse[(int)ai.Dbg.believed]++;
+                // The flow of force onto the AI's half, as its opponent model reads it.
+                float flow = ai.Perception.Snap.eCommitFlow;
+                flowSum += flow;
+                if (flow > flowPeak) flowPeak = flow;
             }
             if (ai.Dbg.apm > 0f) { apmSum += ai.Dbg.apm; apmN++; }
             // How the AI's Mech spends its time once it is down, and (replaying one
@@ -310,6 +315,8 @@ namespace StarForge.Game
             if (world.winner == 1) s.wins++;
             s.length += world.time;
             s.beliefAcc += samples > 0 ? (float)correct / samples : 0f;
+            s.flow += samples > 0 ? flowSum / samples : 0f;
+            s.flowPeak += flowPeak;
             if (firstCorrect >= 0f) { s.firstIdent += firstCorrect; s.identN++; }
             s.apm += apmN > 0 ? apmSum / apmN : 0f;
             s.peakApm = Mathf.Max(s.peakApm, peakApm);
@@ -505,7 +512,8 @@ namespace StarForge.Game
                     $"{(s.identN > 0 ? s.firstIdent / s.identN : -1f),7:0}s   {s.apm / s.games,4:0}/{s.peakApm,-4:0}      {s.switches / s.games,5:0.0}   " +
                     $"{AINames.Of((Strategy)a)}, {AINames.Of((Strategy)b)} / {string.Join(", ", read)}");
                 sb.AppendLine($"            actions {s.actions / s.games} per game, {s.denied / s.games} refused by the APM cap " +
-                              $"({100.0 * s.denied / System.Math.Max(1L, s.actions + s.denied):0}% of intents)");
+                              $"({100.0 * s.denied / System.Math.Max(1L, s.actions + s.denied):0}% of intents); " +
+                              $"force come onto its half (each unit once, fading over 90 s): mean {s.flow / s.games:0}, peak {s.flowPeak / s.games:0}");
             }
             sb.AppendLine($"morale: desertion in {moraleGames} of {totalGames} matches; soldiers deserted AI {desertedAI}, opponent {desertedOpp}; " +
                           $"crises AI {crisesAI}, opponent {crisesOpp}; put down by their own Mech {executed}");
