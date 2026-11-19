@@ -29,7 +29,7 @@ Auto-memory (`~/.claude/projects/-Users-sige-starforge/memory/`) holds session s
 
 ## Using it
 - Ask normally; the session implements. For "how does X work" or "what would adding Y touch", it should send `scout` (or ask for it: "use the scout agent").
-- Before a gameplay, AI, View, shader or generator change is reported done, the session runs `verify-change` (named check, numbers against the area-note target) and then `reviewer`. Ask for either by name at any time.
+- Before a gameplay, AI, View, shader or generator change is reported done, the session runs `verify-change` (named check, numbers against the area-note target) and then `reviewer` (pass `effort: "xhigh"` for AI or World changes; the agent's own default is `high`). Ask for either by name at any time.
 - `/checkpoint [subject]` commits only this session's files with their `.meta` and lists the peers' files it left alone.
 - New or edited agent definitions load at session start: open a new session after changing `.claude/agents/`. Skills reload live.
 

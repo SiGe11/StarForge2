@@ -75,9 +75,17 @@ Testing cheat: `Ctrl`/`Cmd`+`Shift`+`M` (+5000 ore, +100 supply, toggles 5x trai
 
 ## Agents, skills and git
 
-- **The session implements; subagents only read.** `scout` (read-only investigator) answers questions spanning areas or 1k+ line files and lists every touch point a new unit, weapon, part or event needs; `reviewer` (read-only, adversarial) reviews a level-3+ change before you report it done: pass it the changed files, the intent and the checks run with their numbers. Do not delegate edits, Editor or player runs: one Editor and one assembly mean a second writer recompiles under someone's play mode. Built-in `Explore`/`Plan` skip this file; prefer `scout`. Agent Teams stay off (experimental; named subagents would become teammates writing this tree).
+- **The session implements; subagents only read.** `scout` (read-only investigator) answers questions spanning areas or 1k+ line files and lists every touch point a new unit, weapon, part or event needs; `reviewer` (read-only, adversarial) reviews a level-3+ change before you report it done: pass it the changed files, the intent and the checks run with their numbers. **Effort: pass `effort: "xhigh"` on the Agent call when the change touches `Scripts/AI/` or `Scripts/World/` (incl. `MapGen/`, `Mech/`); otherwise omit it (the agent's own default is `high`).** Do not delegate edits, Editor or player runs: one Editor and one assembly mean a second writer recompiles under someone's play mode. Built-in `Explore`/`Plan` skip this file; prefer `scout`. Agent Teams stay off (experimental; named subagents would become teammates writing this tree).
 - **Skills:** `verify-change` (verify in the Editor, write a trial), `measure-performance` (fps, bench, burst, gallery, evaluation), `checkpoint` (every commit the user asks for: this session's files only).
 - **Git in a shared tree:** commit only explicit paths (`/checkpoint`), each new asset with its `.meta`. Never `add -A`/`.`, `commit -a`, `stash`, `reset`, `checkout`/`restore` of files you did not change, `clean`, branch switches, or push unasked; `.claude/settings.json` denies or asks for these. No git worktrees: a worktree is a second Unity project with its own Library import that the open Editor cannot drive.
+
+## Model advice after every request (standing instruction, teaching aid)
+
+**End every reply that answers a user request with one line: `Model advice: <model> @ <effort>[, ultracode]: <one-clause reason>`**, naming what would have been best for that request (not necessarily what ran), so the user learns the mapping. Say "as run" when it matches. Keep it to one line; skip it only for a bare acknowledgement.
+- Sonnet low: lookups, state checks, commits. Sonnet medium: routine edits with a clear spec, asset/licence bookkeeping, bulk templated work, `scout` questions. Sonnet high: scoped single-area feature or bug with a named check (HUD card, FX tweak, MapChecks fix).
+- Opus high: cross-file gameplay/rules work, ordinary reviews. Opus xhigh: AI/Perception/Commander invariants, NavMesh and domain-reload bugs, balance or evaluation diagnosis, `reviewer` on `Scripts/AI/` or `Scripts/World/`. Opus max: novel design only, rare.
+- Escalate to xhigh only after a lower level missed something subtle or the area breaks silently; plan at the high level, then do mechanical edits lower. xhigh costs roughly 2x high in tokens (rough third-party figure).
+- Ultracode (`/effort ultracode`: xhigh plus automatic parallel subagents, session-only, very costly): never for edits (one Editor, one working tree). Only for read-only sweeps that split into independent parts, e.g. an AI-invariant audit across `Scripts/AI/`, a licence audit of `Assets/`, an area-notes consistency check.
 
 ## Compact instructions
 

@@ -12,7 +12,7 @@ Performance, fps, flicker, gallery and the player benchmark: use the `measure-pe
 |---|---|---|
 | 1 | Docs, comments, area notes, README | `git diff -- <paths>` read through |
 | 2 | Contained code: one area, behaviour unchanged (refactor, text, tool script, Editor helper) | compiles clean + the area's closest check or a one-off `call` + diff read |
-| 3 | Behaviour in gameplay, AI, World, View, shaders or a generator | level 2 + the named check(s) below with numbers against target + `reviewer` agent |
+| 3 | Behaviour in gameplay, AI, World, View, shaders or a generator | level 2 + the named check(s) below with numbers against target + `reviewer` agent (`effort: "xhigh"` if the change touches `Scripts/AI/` or `Scripts/World/`, else its default `high`) |
 | 4 | Cross-area, balance, Commander/MechBrain, anything a gate covers | level 3 + `StarForge/Evaluate AI/Full` (perf too if per-frame cost changed) + final `git diff -- <your paths>` |
 
 Bug fix: reproduce first with the check that shows it (numbers), fix, the same check shows it gone. Report as REPRODUCED / NOT REPRODUCED, then FIXED AND VERIFIED / NOT VERIFIED.
