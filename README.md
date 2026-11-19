@@ -47,7 +47,7 @@ that goes into a sharper picture).
 
 ## Quick start
 
-1. Open this folder with Unity **6000.6.8f1**.
+1. Open this folder with Unity **6000.6.9f1**.
 2. Open `Assets/StarForge/Scenes/Battlefield.unity` and press Play.
 3. Pick an opponent level on the title screen and **Deploy**.
 
