@@ -115,8 +115,6 @@ namespace StarForge.Game
                 else if (args[i] == "-sfrigfreeze") rigProbeFreeze = true;
                 else if (args[i] == "-sflogshaders") GraphicsSettings.logWhenShaderIsCompiled = true;
                 else if (args[i] == "-sfrigposes") rigProbePoses = true;
-                else if (args[i] == "-sftactical") StarForge.Sim.TacticalRules.On = true;
-                else if (args[i] == "-sfclassic") StarForge.Sim.TacticalRules.On = false;
                 else if (args[i] == "-sfcatchstall" && i + 1 < args.Length) StallCatcher.Start(args[i + 1]);
                 else if (args[i] == "-sfnoresident" && GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset noRd)
                     noRd.gpuResidentDrawerMode = GPUResidentDrawerMode.Disabled;
@@ -683,7 +681,7 @@ namespace StarForge.Game
                                   $"{(scatter.legacyDraw ? " (old draw path)" : "")}, {(plantsDrawn != null ? plantsDrawn.DrawnLastFrame : 0)} plants" +
                                   (vegProbe > 0f ? $"; camera held on the wood at zoom {vegProbe:0}" : ""));
             }
-            if (world != null && world.Tactical)
+            if (world != null)
                 sb.AppendLine($"tactical: {world.ShotsFired} rounds, {world.ShotsHit} struck; sight rules {world.SightMs / Mathf.Max(1, frames.Count):0.000} ms a frame, shots' lines {world.LinesMs / Mathf.Max(1, frames.Count):0.000}");
             sb.AppendLine($"peak entities {maxEntities} · peak projectiles {maxProjectiles} · lowest render scale {minScale:0.00}, average {(scaleFrames > 0 ? scaleSum / scaleFrames : 1.0):0.00}" +
                           (mechFrames.Count > 0 ? $" ({mechScaleSum / mechFrames.Count:0.00} with a Mech in view)" : "") +

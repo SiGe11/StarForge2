@@ -12,7 +12,7 @@ namespace StarForge.World
         [System.NonSerialized] public float planeSpeed;
         [System.NonSerialized] public int airMissiles = -1, airFlares = -1;
         [System.NonSerialized] public float airWarnedAt = -99f;
-        [System.NonSerialized] float airRearmAt, flareReadyAt, lockSince = -1f, breakUntil, breakSide;
+        [System.NonSerialized] float airRearmAt, flareReadyAt, lockSince = -1f, breakUntil, breakSide, breakLookAt;
         [System.NonSerialized] Unit lockOn;
 
         void TickAir(float dt)
@@ -83,7 +83,8 @@ namespace StarForge.World
             float now = world.time;
             if (now >= breakUntil)
             {
-                if (now < breakUntil + 3f) return false;
+                if (now < breakUntil + 3f || now < breakLookAt) return false;
+                breakLookAt = now + 0.25f;
                 var chaser = world.ChaserBehind(this);
                 if (chaser == null) return false;
                 Vector2 from = chaser.pos;

@@ -427,8 +427,8 @@ namespace StarForge.World
             // Fired at its own side's deserters (GameWorld.Morale): the burst may catch them.
             p.purge = target != null && target.deserted && target.team == shooter.team;
             // The new combat: its shells can hurt friends as a Mauler's do (the purge's own rule wins).
-            p.friendly = Tactical && splash > 0f && !p.purge;
-            if (Tactical && kind == 5 && target != null && target.def.flying) WarnAir(shooter, target);
+            p.friendly = splash > 0f && !p.purge;
+            if (kind == 5 && target != null && target.def.flying) WarnAir(shooter, target);
             p.age = 0f;
             p.flight = 0f;
             CoverStops(p, muzzle);

@@ -333,8 +333,8 @@ namespace StarForge.World
                 seenRank = u.rank;
                 if (InfantryCape.All) cape = InfantryCape.Make(body, capeBackZ, u.team, u.rank, u.id);
             }
-            // Under the new combat a soldier wears the rigged body (the rigid parts stay, hidden, for his wreck).
-            if (u.World.Tactical && u.def.bodyRadius > 0f)
+            // A soldier wears the rigged body (the rigid parts stay, hidden, for his wreck).
+            if (u.def.bodyRadius > 0f)
             {
                 rig = SoldierRigView.Attach(u, renderers);
                 if (rig != null) { renderers = rig.Renderers; rendererBaseY = new float[1]; }

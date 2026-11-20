@@ -1,9 +1,6 @@
-// TacticalRules.cs -- the one switch for the new combat, and its numbers (README "Tactical combat").
-//
-// Off, the game plays exactly as it did: nothing draws from the new random stream, sight is the old
-// circle and Defs hands out the assets themselves. On, Defs hands out copies carrying these numbers,
-// so nothing that reads def.range or def.speed needs to know. The old combat goes, and these numbers
-// move into the assets, at the switch-over.
+// TacticalRules.cs -- the combat's numbers (README "Tactical combat"); the old combat and its switch were
+// deleted at phase 8. Defs hands out copies of the unit assets carrying these numbers (Apply), so nothing
+// that reads def.range or def.speed needs to know, and the assets keep the old ones.
 using UnityEngine;
 
 namespace StarForge.Sim
@@ -12,11 +9,6 @@ namespace StarForge.Sim
 
     public static class TacticalRules
     {
-        /// <summary>Read when a match begins (GameWorld.BeginMatch). A static survives play sessions:
-        /// whoever turns it on for a run turns it off after.</summary>
-        /// <summary>The new combat is the game's (phase 8). False only for an A/B against the old rules: `-sfclassic`
-        /// on the player, `AIEvalRunner.EvalClassic`, the title screen's dev switch.</summary>
-        public static bool On = true;
         /// <summary>A trial's: nobody errs. Off at every play entry (BugTrial.ClearOnPlay).</summary>
         public static bool NoMistakes;
 

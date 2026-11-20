@@ -1,5 +1,4 @@
-// Unit.Tactical.cs -- what the new combat keeps on a unit (GameWorld.Tactical). Everything here is
-// idle while TacticalRules.On is off.
+// Unit.Tactical.cs -- what the game's combat keeps on a unit (GameWorld.Tactical.cs).
 using UnityEngine;
 using StarForge.Sim;
 

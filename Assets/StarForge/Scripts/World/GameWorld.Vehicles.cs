@@ -17,7 +17,7 @@ namespace StarForge.World
         {
             p.coverStopped = false;
             p.targetSheltered = false;
-            if (!Tactical || Sight == null || p.purge) return;
+            if (Sight == null || p.purge) return;
             var t = p.target;
             if (t == null || t.def.bodyRadius <= 0f) return;
             if (p.splash > 0f)
@@ -76,7 +76,7 @@ namespace StarForge.World
         /// <summary>A Mech's hitscan gun reaches a soldier only with nothing in the way (the new combat).</summary>
         bool MechLineGets(Vector3 muzzle, Unit t, Unit shooter)
         {
-            if (!Tactical || Sight == null || t.def.bodyRadius <= 0f || (t.deserted && t.team == shooter.team)) return true;
+            if (Sight == null || t.def.bodyRadius <= 0f || (t.deserted && t.team == shooter.team)) return true;
             if (BodyOpen(muzzle, t, shooter)) return true;
             RoundsStoppedByCover++;
             SuppressAlong(shooter, muzzle, t.Ground + Vector3.up * (t.BodyHeight * 0.55f));
@@ -120,7 +120,7 @@ namespace StarForge.World
         {
             Unit best = null;
             int lines = 0;
-            float bestScore = float.MaxValue, reach = TacticalRules.TankGunRange;
+            float bestScore = float.MaxValue, reach = Mathf.Max(TacticalRules.TankGunRange, u.def.range);
             CellRange(u.pos, reach + 2f, out int x0, out int x1, out int z0, out int z1);
             for (int z = z0; z <= z1; z++)
                 for (int x = x0; x <= x1; x++)
@@ -130,7 +130,7 @@ namespace StarForge.World
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.def.flying || o.def.building || o.def.Heavy) continue;
                         if (o.mech != null || o.Untargetable) continue;
                         float d = (o.pos - u.pos).magnitude;
-                        if (d > reach) continue;
+                        if (d - o.def.radius > reach) continue;
                         float score = d + (o == u.target ? 12f : 0f) + (o.def.bodyRadius > 0f ? 0f : 8f);
                         if (score >= bestScore || !Sees(u.team, o)) continue;
                         // At most four tried a look (NearestShootable's limit).
@@ -187,7 +187,7 @@ namespace StarForge.World
         /// <summary>An anti-tank round has just been fired at this tank, from there.</summary>
         public void WarnArmour(Unit shooter, Unit t)
         {
-            if (!Tactical || t == null || !TacticalRules.IsTank(t.Type)) return;
+            if (t == null || !TacticalRules.IsTank(t.Type)) return;
             t.armourWarnedAt = time;
             t.armourWarnedFrom = shooter.pos;
         }

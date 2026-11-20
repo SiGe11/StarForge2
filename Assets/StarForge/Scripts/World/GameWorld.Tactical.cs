@@ -1,4 +1,5 @@
-// GameWorld.Tactical.cs -- the new combat's shots and sight, behind TacticalRules.On.
+// GameWorld.Tactical.cs -- the game's combat: shots decided when fired, and sight (the old combat was deleted
+// at phase 8 of the tactical rewrite; git history before it has it).
 //
 // A small-arms shot is decided when it is fired: an aim error, then the line it flies along, to the
 // first thing in its way. The tracer is only what the player sees of it. (At 8x a round moved 11 m a
@@ -19,8 +20,6 @@ namespace StarForge.World
 {
     public sealed partial class GameWorld
     {
-        /// <summary>This match runs under the new rules (TacticalRules.On when it began).</summary>
-        public bool Tactical { get; private set; }
         public SightMap Sight { get; private set; }
 
         Rng combatRng = new Rng(0xC0B47u);
@@ -40,7 +39,6 @@ namespace StarForge.World
 
         void BeginTactical(uint seed)
         {
-            Tactical = TacticalRules.On;
             Defs.Rebind();
             combatRng = new Rng(seed ^ 0xC0B47u);
             ShotsFired = ShotsHit = 0;
@@ -50,7 +48,7 @@ namespace StarForge.World
             BeginSquads();
             BeginArms();
             BeginHulks();
-            Sight = Tactical ? new SightMap(map) : null;
+            Sight = new SightMap(map);
         }
 
         /// <summary>As ReseedMorale: the evaluation's matches share five seeds, and its opponents should
@@ -58,10 +56,10 @@ namespace StarForge.World
         public void ReseedCombat(uint seed) => combatRng = new Rng(seed ^ 0xC0B47u);
 
         /// <summary>Does this side know where this unit is? Everything that weighs or shoots at an enemy
-        /// asks this, the AI as the player's view. The old rule when the switch is off.</summary>
+        /// asks this, the AI as the player's view. Neutrals (the creatures' side) by the fog's cell.</summary>
         public bool Sees(int team, Unit e)
         {
-            if (!Tactical || e.team > 1) return Visible(team, e.pos);
+            if (e.team > 1) return Visible(team, e.pos);
             if (e.team == team) return true;
             return e.SpottedUntil(team) > time;
         }

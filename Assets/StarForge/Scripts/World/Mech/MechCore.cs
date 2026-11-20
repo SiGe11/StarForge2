@@ -129,7 +129,7 @@ namespace StarForge.World
                                  // much that it took twice the infantry a bare one did to break.
                                  * (Level(MechUpgrade.Targeting) > 0 ? (LegacyBalance ? 1.12f : 1.06f) : 1f)
                                  * (design != null && design.utility == MechUtility.Sensors ? 1.1f : 1f);
-        public float Sight => (world != null && world.Tactical ? 48f : 36f) + (Level(MechUpgrade.Targeting) > 0 ? 10f : 0f)
+        public float Sight => 48f + (Level(MechUpgrade.Targeting) > 0 ? 10f : 0f)
                               + (design != null && design.utility == MechUtility.Sensors ? 14f : 0f);
         public float Range(MechGun g) => g.part.range * RangeMul;
 
@@ -329,7 +329,7 @@ namespace StarForge.World
         /// else the target of its heaviest arm gun.</summary>
         Unit PrimaryTarget()
         {
-            if (Unit.Live(focus) && world.Hostile(unit, focus) && (!world.Tactical || focus.team == unit.team || world.Sees(unit.team, focus)))
+            if (Unit.Live(focus) && world.Hostile(unit, focus) && (focus.team == unit.team || world.Sees(unit.team, focus)))
                 foreach (var g in guns)
                     if (g.kind == MountKind.Arm && InRange(g, focus)) return focus;
             Unit best = null;
@@ -355,7 +355,7 @@ namespace StarForge.World
             Unit.Live(t) && world.Hostile(unit, t) && !t.Untargetable && (!t.def.flying || g.part.HitsAir) && InRange(g, t) &&
             // The new combat: the guns take only what its side knows of (its brain still knows everything), and a gun
             // with a burst holds while friends are by the target. Its own deserters, under the punishment, are its own.
-            (!world.Tactical || t.team == unit.team ||
+            (t.team == unit.team ||
              (world.Sees(unit.team, t) && FriendsOk(g, t)));
 
         /// <summary>A burst gun holds while friends are by its target (the flamers' splash is a cone's width, not a
@@ -394,7 +394,7 @@ namespace StarForge.World
             {
                 // The new combat: only what this gun may fire at (unseen, or a burst with friends by it, it was picked
                 // again every frame and never fired at).
-                if (world.Tactical && e.team != unit.team && !Valid(g, e)) continue;
+                if (e.team != unit.team && !Valid(g, e)) continue;
                 if (e.Untargetable || e.Type == UnitType.Ore) continue;
                 if (e.def.flying && !p.HitsAir) continue;
                 float d = unit.Dist(e) - e.def.radius;

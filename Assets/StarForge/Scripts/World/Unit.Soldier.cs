@@ -108,7 +108,7 @@ namespace StarForge.World
         public bool IsMovingUnderOrder => !hurry && Moving && (order == Order.Attack || order == Order.AttackMove || order == Order.Move || order == Order.Idle);
 
         /// <summary>A soldier sent somewhere chooses how he gets there; only a hurried one looks at nothing.</summary>
-        bool Careful => world.Tactical && def.bodyRadius > 0f && !noMind && !hurry;
+        bool Careful => def.bodyRadius > 0f && !noMind && !hurry;
 
         /// <summary>In contact, half a squad moves while the other half shoots: is it his turn, with room?</summary>
         bool SquadLetsMove()

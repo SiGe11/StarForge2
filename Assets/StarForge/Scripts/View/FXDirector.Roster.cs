@@ -243,7 +243,6 @@ namespace StarForge.View
         /// lifted off the ground (a puff born on geometry fades out), a rate per second capped by the 0.1 s step.</summary>
         void SmokeScreens(float dt)
         {
-            if (!world.Tactical) return;
             foreach (var c in world.SmokeClouds)
             {
                 Vector3 foot = new Vector3(c.at.x, world.Map.HeightAt(c.at), c.at.y);

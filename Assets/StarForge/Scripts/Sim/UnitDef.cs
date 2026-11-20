@@ -21,7 +21,7 @@ namespace StarForge.Sim
         Rocketeer, Ironclad, Gorehorn,
         // The Workshop's Mech-killer: one in the field a side, after the Armory's programme.
         MechHunter,
-        // The Garrison's belt-fed gun: under the new combat only (UnitDef.tacticalOnly).
+        // The Garrison's belt-fed gun.
         Gunner,
         Count
     }
@@ -125,7 +125,6 @@ namespace StarForge.Sim
         /// never short. How much harder its rounds keep heads down (0 reads as 1).</summary>
         [System.NonSerialized] public int magazine;
         [System.NonSerialized] public float reloadTime, suppressMul;
-        [Tooltip("Trained only under the new combat (TacticalRules); the classic game has no such unit.")] public bool tacticalOnly;
         public bool DirectFire => shotSpread > 0f || needsLine;
         /// <summary>Moves on the ground through the NavMesh (everything mobile but aircraft).</summary>
         public bool Walks => IsMobile && !flying;
@@ -138,7 +137,6 @@ namespace StarForge.Sim
     public static class Defs
     {
         static UnitDef[] table;
-        static bool tableTactical;
 
         // The copies go when play stops, and a static table outlives them with the domain reload off.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -146,22 +144,22 @@ namespace StarForge.Sim
 
         public static void Bind(UnitCatalog catalog)
         {
-            tableTactical = TacticalRules.On;
             table = new UnitDef[(int)UnitType.Count];
             foreach (var d in catalog.defs)
             {
                 if (d == null || d.type < 0 || d.type >= UnitType.Count) continue;
-                var use = d;
-                // Copies, so the assets (and the old rules) are never touched.
-                if (tableTactical) { use = Object.Instantiate(d); use.name = d.name; TacticalRules.Apply(use); }
+                // Copies with the combat's numbers (TacticalRules.Apply), so the assets are never touched.
+                var use = Object.Instantiate(d);
+                use.name = d.name;
+                TacticalRules.Apply(use);
                 table[(int)d.type] = use;
             }
         }
 
-        /// <summary>A match begins: the table the switch asks for, if it is not the one in hand.</summary>
+        /// <summary>A match begins: a table, if there is none in hand.</summary>
         public static void Rebind()
         {
-            if (table == null || tableTactical != TacticalRules.On) Bind(UnitCatalog.Load());
+            if (table == null) Bind(UnitCatalog.Load());
         }
 
         public static UnitDef Get(UnitType t)
@@ -169,7 +167,7 @@ namespace StarForge.Sim
             if (table == null) Bind(UnitCatalog.Load());
             var d = table[(int)t];
             // The copies go when play stops: edit mode after a run under the new rules.
-            if (tableTactical && d == null) { Bind(UnitCatalog.Load()); d = table[(int)t]; }
+            if (d == null) { Bind(UnitCatalog.Load()); d = table[(int)t]; }
             return d;
         }
 

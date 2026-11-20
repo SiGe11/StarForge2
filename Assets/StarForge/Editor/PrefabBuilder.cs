@@ -171,7 +171,7 @@ namespace StarForge.EditorTools
             R(UnitType.Skitter,   d => { d.producer = UnitType.Biolab; d.weapon = WeaponKind.Claws; d.hitsAir = false; d.organic = true; d.upgradeClass = UnitClass.Creature; });
             R(UnitType.Spitter,   d => { d.producer = UnitType.Biolab; d.weapon = WeaponKind.Acid; d.hitsAir = true; d.organic = true; d.upgradeClass = UnitClass.Creature; });
             R(UnitType.Razorwing, d => { d.producer = UnitType.Biolab; d.weapon = WeaponKind.Glaive; d.hitsAir = true; d.flying = true; d.organic = true; d.upgradeClass = UnitClass.Creature; });
-            R(UnitType.Gunner, d => { d.producer = UnitType.Garrison; d.requires = UnitType.Armory; d.weapon = WeaponKind.MachineGun; d.hitsAir = true; d.upgradeClass = UnitClass.Infantry; d.tacticalOnly = true; });
+            R(UnitType.Gunner, d => { d.producer = UnitType.Garrison; d.requires = UnitType.Armory; d.weapon = WeaponKind.MachineGun; d.hitsAir = true; d.upgradeClass = UnitClass.Infantry; });
             R(UnitType.Rocketeer, d => { d.producer = UnitType.Garrison; d.weapon = WeaponKind.Bazooka; d.hitsAir = false; d.upgradeClass = UnitClass.Infantry; });
             R(UnitType.Ironclad,  d => { d.producer = UnitType.Workshop; d.requires = UnitType.Armory; d.weapon = WeaponKind.Battery; d.hitsAir = true; d.heavyArmour = true; d.upgradeClass = UnitClass.Vehicle; });
             R(UnitType.Gorehorn,  d => { d.producer = UnitType.Biolab; d.requires = UnitType.Armory; d.weapon = WeaponKind.Gore; d.hitsAir = false; d.organic = true; d.heavyArmour = true; d.upgradeClass = UnitClass.Creature; });

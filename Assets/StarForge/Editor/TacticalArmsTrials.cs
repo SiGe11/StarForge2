@@ -65,10 +65,6 @@ namespace StarForge.EditorTools
         public static string Gunner() => Stage<ArmsGunnerTrial>("Gunner");
         public static string GunnerReport() => Report<ArmsGunnerTrial>();
 
-        /// <summary>From a fresh Play with the classic combat: no Gunner to be had. Target: refused, not on the card.</summary>
-        public static string GunnerClassic() => Stage<ArmsGunnerClassicTrial>("GunnerClassic");
-        public static string GunnerClassicReport() => Report<ArmsGunnerClassicTrial>();
-
         /// <summary>Pictures: the five types in three stances, a frag, a flash, a cloud (Temp/arms_look_*.png).</summary>
         public static string Look() => Stage<ArmsLookTrial>("Look");
         public static string LookReport() => Report<ArmsLookTrial>();
@@ -689,25 +685,6 @@ namespace StarForge.EditorTools
                 sb.AppendLine($"  one {type} at a man 26 m off, on Hold: pinned after{times} (target the Gunner far sooner)");
             }
             report = sb.ToString();
-            ReleaseStatics();
-        }
-    }
-
-    public sealed class ArmsGunnerClassicTrial : BugTrial
-    {
-        IEnumerator Start()
-        {
-            yield return EnsureMatch();
-            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
-            var rng = new System.Random(3);
-            HoldStatics();
-            var at = map.StartPos(0) + new Vector2(14f, 14f);
-            var armory = Put(UnitType.Armory, 0, world.NearestWalkable(at + new Vector2(-14f, 0f), 12f));
-            var garrison = Put(UnitType.Garrison, 0, world.NearestWalkable(at, 12f));
-            yield return null;
-            bool took = world.CmdTrain(garrison, UnitType.Gunner);
-            report = $"  classic combat {!world.Tactical}: a Gunner asked of a Garrison with an Armory up: {(took ? "TRAINED" : "refused")} ({world.lastRefusal}) (target true, refused)";
-            ClearSpawned();
             ReleaseStatics();
         }
     }

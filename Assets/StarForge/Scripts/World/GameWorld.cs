@@ -386,7 +386,7 @@ namespace StarForge.World
             }
             BeginMorale(seed);
             RebuildGrid();
-            if (Tactical) Sight.Refresh(this, true);
+            Sight.Refresh(this, true);
             UpdateVisibility();
         }
 
@@ -424,7 +424,7 @@ namespace StarForge.World
             // The Armory's armour for its class (World/GameWorld.Roster).
             else dmg *= ArmourMul(u);
             if (dmg <= 0f) { u.lastDamagedT = time; return; }
-            if (Tactical && u.def.bodyRadius > 0f) u.Suppress(splash ? 0.5f : 0.12f);
+            if (u.def.bodyRadius > 0f) u.Suppress(splash ? 0.5f : 0.12f);
             u.hp -= dmg;
             u.damageFlash = 1f;
             u.lastDamagedT = time;
@@ -445,7 +445,7 @@ namespace StarForge.World
             }
             // Idle defenders retaliate against whatever just hit them.
             // (A soldier under the new rules answers for himself, and from where he has cover.)
-            if (u.order == Order.Idle && !u.def.building && u.def.Armed && !u.def.Autonomous && !u.deserted && !ownSide && !(Tactical && (u.def.bodyRadius > 0f || u.def.harvester || StarForge.Sim.TacticalRules.IsTank(u.Type))))
+            if (u.order == Order.Idle && !u.def.building && u.def.Armed && !u.def.Autonomous && !u.deserted && !ownSide && !(u.def.bodyRadius > 0f || u.def.harvester || StarForge.Sim.TacticalRules.IsTank(u.Type)))
             {
                 var t = NearestEnemy(u, u.def.sight);
                 // The nearest, not necessarily the shooter: its own pick, so it may give way.
@@ -520,7 +520,8 @@ namespace StarForge.World
         void Kill(Unit u, Vector2 from, Unit source, bool splash)
         {
             var d = u.def;
-            if (Tactical) { NoteLoss(u); AddHulk(u); }
+            NoteLoss(u);
+            AddHulk(u);
             // Which way it goes down, and how hard: thrown away from a shell bursting
             // beside it (harder the closer), knocked back from whoever shot it.
             Vector2 away = u.pos - from;
@@ -668,7 +669,10 @@ namespace StarForge.World
             }
 
             UpdateProjectiles(dt);
-            if (Tactical) { TickCoverLooks(dt); TickSquads(); TickSmoke(); TickHulks(); }
+            TickCoverLooks(dt);
+            TickSquads();
+            TickSmoke();
+            TickHulks();
             CrushBoulders(dt);
             if (Plants != null) Plants.Tick(this, dt);
             StructureFires(dt);
@@ -729,7 +733,7 @@ namespace StarForge.World
             Ditches.Clear();
             CoverPlaced = null;
             if (map != null && map.transform.Find("Cover") != null) MapGenerator.CoverRoot(map, true);
-            if (!Tactical || map == null || navSurface == null) return;
+            if (map == null || navSurface == null) return;
             var rt = map.GetComponent<MapRuntime>();
             if (rt == null || rt.kit == null) return;
             uint mapSeed = MapRuntime.LastSeed != 0 ? MapRuntime.LastSeed : matchSeed;
@@ -874,7 +878,7 @@ namespace StarForge.World
                     {
                         var o = i < units.Count ? units[i] : null;
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable || !CanHit(u, o)) continue;
-                        if (Tactical && !Sees(u.team, o)) continue;
+                        if (!Sees(u.team, o)) continue;
                         if (fightsBackOnly && !FightsBack(o)) continue;
                         float within = reach + o.def.radius;
                         float d2 = (o.pos - u.pos).sqrMagnitude;
@@ -904,7 +908,7 @@ namespace StarForge.World
                     {
                         var o = i < units.Count ? units[i] : null;
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable || !CanHit(u, o)) continue;
-                        if (Tactical && !Sees(u.team, o)) continue;
+                        if (!Sees(u.team, o)) continue;
                         float d = (o.pos - u.pos).sqrMagnitude;
                         if (d < bestD) { bestD = d; best = o; }
                     }
@@ -1164,47 +1168,7 @@ namespace StarForge.World
 
         void UpdateVisibility()
         {
-            if (Tactical) { UpdateSight(); return; }
-            Array.Clear(vis[0], 0, vis[0].Length);
-            Array.Clear(vis[1], 0, vis[1].Length);
-            float cell = VisCell;
-            foreach (var e in units)
-            {
-                if (e == null || e.dying || e.team > 1) continue;
-                float sight = e.mech != null ? e.mech.Sight : e.def.sight;
-                if (!e.Complete) sight *= 0.5f;
-                if (sight <= 0f) continue;
-                int t = e.team;
-                var visT = vis[t];
-                var exploredT = explored[t];
-                var seenT = lastSeen[t];
-                float px = e.pos.x, pz = e.pos.y, sight2 = sight * sight;
-                int r = (int)(sight / cell) + 1;
-                int cx = (int)(px / cell), cz = (int)(pz / cell);
-                int x0 = Math.Max(0, cx - r), x1 = Math.Min(VIS - 1, cx + r);
-                int z0 = Math.Max(0, cz - r), z1 = Math.Min(VIS - 1, cz + r);
-                for (int z = z0; z <= z1; z++)
-                {
-                    float dz = (z + 0.5f) * cell - pz;
-                    for (int x = x0; x <= x1; x++)
-                    {
-                        float dx = (x + 0.5f) * cell - px;
-                        if (dx * dx + dz * dz > sight2) continue;
-                        int i = z * VIS + x;
-                        visT[i] = 1;
-                        exploredT[i] = 1;
-                        seenT[i] = time;
-                    }
-                }
-            }
-            VisVersion++;
-            foreach (var e in units)
-            {
-                if (e == null) continue;
-                bool seen = e.team == 0 || Visible(0, e.pos);
-                e.visibleToPlayer = seen;
-                if (seen) e.everSeenByPlayer = true;
-            }
+            UpdateSight();
         }
 
         // ------------------------------------------------------------ combat
@@ -1212,7 +1176,7 @@ namespace StarForge.World
         {
             var D = shooter.def;
             // Shots at aircraft stay real rounds: they have a flight of their own to catch.
-            if (Tactical && D.shotSpread > 0f && !target.def.flying) { FireShot(shooter, target); return; }
+            if (D.shotSpread > 0f && !target.def.flying) { FireShot(shooter, target); return; }
             if (D.weapon != WeaponKind.Auto) { FireRoster(shooter, target); return; }
             float ang = shooter.HasTurret ? shooter.turretYaw : shooter.yaw;
             Vector3 fwd = new Vector3(Mathf.Sin(ang), 0f, Mathf.Cos(ang));
@@ -1237,7 +1201,7 @@ namespace StarForge.World
             p.target = target;
             p.shooter = shooter;
             p.team = shooter.team;
-            p.friendly = Tactical && kind == 1 && shooter.Type == UnitType.Mauler;
+            p.friendly = kind == 1 && shooter.Type == UnitType.Mauler;
             p.dmg = D.damage * (1f + 0.15f * shooter.rank) * WeaponMul(shooter);
             p.splash = D.splash;
             p.bonusVsWorkers = D.bonusVsWorkers;
@@ -1409,7 +1373,7 @@ namespace StarForge.World
                         if (d > p.splash + e.def.radius || e.Untargetable) continue;
                         float falloff = 1f - Saturate((d - e.def.radius) / p.splash) * 0.6f;
                         // Under the new combat what stands between the burst and a man shelters him, as from a frag.
-                        if (Tactical && e.def.bodyRadius > 0f && Sight != null &&
+                        if (e.def.bodyRadius > 0f && Sight != null &&
                             (!RoundGets(hitAt + Vector3.up * 0.3f, e.Ground + Vector3.up * (e.BodyHeight * 0.55f), p.target, e) || (e == p.target && p.targetSheltered))) falloff *= 0.12f;
                         if (ownSide) FriendHurt++;
                         // A friend's source is himself: the alarm and the kill count know a same-side hit by it.
@@ -1477,7 +1441,7 @@ namespace StarForge.World
         // ------------------------------------------------------------ commands
         public void CmdMove(IReadOnlyList<Unit> sel, Vector2 dest, bool attackMove, bool hurry = false)
         {
-            if (Tactical) SquadFromOrder(sel, dest, null);
+            SquadFromOrder(sel, dest, null);
             // Spread the destination over a ring so a group does not stack on one point.
             int n = 0;
             foreach (var u in sel) if (Unit.Live(u) && u.def.IsMobile && !u.def.Autonomous && !u.deserted) n++;
@@ -1517,7 +1481,7 @@ namespace StarForge.World
         public void CmdAttack(IReadOnlyList<Unit> sel, Unit target, bool hurry = false)
         {
             if (!Unit.Live(target)) return;
-            if (Tactical) SquadFromOrder(sel, target.pos, target);
+            SquadFromOrder(sel, target.pos, target);
             List<Unit> cannot = null;
             foreach (var u in sel)
             {
@@ -1619,7 +1583,6 @@ namespace StarForge.World
             if (what < 0 || what >= UnitType.Count) return false;
             var D = Defs.Get(what);
             int team = building.team;
-            if (D.tacticalOnly && !Tactical) return Refuse(team, "Not in this game");
             if (D.producer != building.Type) return Refuse(team, $"{building.def.displayName} cannot train that");
             if (D.requires != UnitType.None && !HasComplete(team, D.requires))
                 return Refuse(team, $"Requires a {Defs.Get(D.requires).displayName}");

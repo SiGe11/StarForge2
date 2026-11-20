@@ -528,7 +528,7 @@ namespace StarForge.View
                 for (int i = 0; i < (int)UnitType.Count; i++)
                 {
                     var d = Defs.Get((UnitType)i);
-                    if (d == null || d.producer != structureType || (d.tacticalOnly && !world.Tactical)) continue;
+                    if (d == null || d.producer != structureType) continue;
                     bool supplyOk = F.supplyUsed + d.supplyCost <= world.SupplyCap(team);
                     bool reqOk = d.requires == UnitType.None || world.HasComplete(team, d.requires);
                     // The Mech-Hunter: the Armory's programme, one at a time, a wait after it falls.

@@ -101,6 +101,9 @@ namespace StarForge.EditorTools
                 for (int i = 0; i < 4; i++) { var m = Soldier(1, a + d * 18f + side * ((i - 1.5f) * 2.5f)); men.Add(m); }
                 var lancer = Put(UnitType.Lancer, 1, a + d * 24f + side * 6f);
                 lancer.hp = 1e6f;
+                // It only stands as the main gun's mark: since the range pass (Lancer 30 m) its fire made the Mauler
+                // smoke itself in and lose sight of everything, which is the Smoke trial's business, not this one's.
+                lancer.cooldown = 1e9f;
                 world.CmdHold(new List<Unit> { lancer });
                 int mg0 = mgAtMen + mgOther, main0 = mainAtTank + mainOther;
                 float t0 = world.time;
@@ -249,7 +252,7 @@ namespace StarForge.EditorTools
             var sb = new StringBuilder();
             HoldStatics();
             var rng = new System.Random(1111);
-            int ran = 0, back = 0, tried = 0;
+            int ran = 0, back = 0, tried = 0, homeTried = 0;
             foreach (var u in new List<Unit>(world.units))
             {
                 if (tried >= 5) break;
@@ -265,9 +268,13 @@ namespace StarForge.EditorTools
                 float t1 = world.time, nearest = float.MaxValue;
                 while (world.time - t1 < 20f) { nearest = Mathf.Min(nearest, (u.pos - start).magnitude); yield return null; }
                 bool r = far >= 20f, b = nearest < 5f && (u.order == Order.Harvest || u.order == Order.Return);
-                if (r) ran++;
+                // By its own Foundry it works on (phase 8's rule, TacticalRules.WorkerStaysNear): not a flight to expect.
+                var depot = world.NearestDropoff(u);
+                bool home = depot != null && (depot.pos - start).magnitude < TacticalRules.WorkerStaysNear;
+                if (home) homeTried++;
+                else if (r) ran++;
                 if (b) back++;
-                sb.AppendLine($"  Digger {tried}: {far:0.0} m from the rifleman at most (12 at first), back within {nearest:0.0} m of where it worked, order {u.order}");
+                sb.AppendLine($"  Digger {tried}: {far:0.0} m from the rifleman at most (12 at first), back within {nearest:0.0} m of where it worked, order {u.order}{(home ? ", within 25 m of its Foundry (works on by rule)" : "")}");
             }
             // A creature at a quarter of its hull.
             int broke = 0, returned = 0, fields = 0;
@@ -295,7 +302,7 @@ namespace StarForge.EditorTools
                 ClearSpawned();
                 yield return null;
             }
-            report = $"Diggers: ran {ran} of {tried}, back at work {back} of {tried} (target 5 of 5); creatures: broke off {broke} of {fields}, came back {returned} of {fields}; flights {world.WorkerFlights} workers, {world.CreatureFlights} creatures\n" + sb;
+            report = $"Diggers: ran {ran} of {tried - homeTried} away from their Foundry ({homeTried} within 25 m of it, which work on by rule), back at work {back} of {tried} (target all); creatures: broke off {broke} of {fields}, came back {returned} of {fields}; flights {world.WorkerFlights} workers, {world.CreatureFlights} creatures\n" + sb;
             ReleaseStatics();
         }
 

@@ -46,10 +46,6 @@ namespace StarForge.Game
         /// <summary>The AI's level for the next run (Commander unless a trial asks for another:
         /// players meet Recruit and Veteran, which no run had measured); put back when the run ends.</summary>
         public static AIDifficulty EvalDifficulty = AIDifficulty.Commander;
-        /// <summary>The next run under the new combat, asked for each time (TacticalTrials.EvalNewCombat).</summary>
-        /// <summary>The evaluation runs under the new combat (the game's since phase 8); `EvalClassic` for an A/B.</summary>
-        public static bool EvalTactical = true;
-        public static bool EvalClassic;
         static int kind, game, gamesPerKind, onlyKind = -1, firstGame;
         static float maxSeconds;
         static KindStats[] stats;
@@ -122,7 +118,6 @@ namespace StarForge.Game
             MatchSettings.spectate = false;
             MatchSettings.aiMemory = false;          // every match starts from doctrine
             MatchSettings.difficulty = EvalDifficulty;
-            StarForge.Sim.TacticalRules.On = EvalTactical && !EvalClassic;
             MatchSettings.seed = 1000u + (uint)(game * 37);
             MatchSettings.fixedSeed = true;
             QualitySettings.vSyncCount = 0;
@@ -330,7 +325,7 @@ namespace StarForge.Game
 
             Debug.Log($"[AIEval] vs {(ScriptedOpponent.Kind)kind} game {game + 1}: " +
                       $"{(world.winner == 1 ? "AI won" : world.winner == 0 ? "AI lost" : world.winner == 2 ? "draw" : "time cap")} at {world.time:0}s, " +
-                      (world.Tactical ? $"new combat: {world.ShotsFired} rounds, {world.ShotsHit} struck, {world.SquadsMade[0] + world.SquadsMade[1]} squads formed, reports {world.ReportsMade[0]} and {world.ReportsMade[1]}; " : "") +
+                      $"combat: {world.ShotsFired} rounds, {world.ShotsHit} struck, {world.SquadsMade[0] + world.SquadsMade[1]} squads formed, reports {world.ReportsMade[0]} and {world.ReportsMade[1]}; " +
                       $"read correctly {(samples > 0 ? 100f * correct / samples : 0f):0}% of the time; " +
                       $"style {ai.Dbg.personality}; {ai.Dbg.waves} attack waves, last {ai.Dbg.wave}; " +
                       $"Mechs: AI {MechLine(1)}, opponent {MechLine(0)}; advice heeded {ai.Dbg.adviceHeeded}, ignored {ai.Dbg.adviceIgnored}, upgrades bought {ai.Dbg.upgradesBought}, wider roster trained {RosterTrained(ai)}, Armory research {ai.Dbg.researchBought}, waves while their Mech was away {ai.Dbg.mechWindows}, gathered on its Mech {ai.Dbg.stagedWithMech}; " +
@@ -462,9 +457,6 @@ namespace StarForge.Game
         static void RestoreUserSettings()
         {
             EvalDifficulty = AIDifficulty.Commander;   // a run at another level is asked for each time
-            StarForge.Sim.TacticalRules.On = true;
-            EvalClassic = false;
-            EvalTactical = true;
             if (!userSaved) return;
             userSaved = false;
             MatchSettings.aiMemory = userMemory || !MatchSettings.debugAI;   // players cannot turn it off (a trial may have)

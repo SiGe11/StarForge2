@@ -1,6 +1,5 @@
-// TacticalTrials.cs -- checks for the new combat's shots and sight (Scripts/World/GameWorld.Tactical.cs).
-// Each turns TacticalRules.On on for the match it starts, so call them from a fresh Play at the menu,
-// and turns it off again. Targets: ../Scripts/World/CLAUDE.md, "Tactical combat".
+// TacticalTrials.cs -- checks for the combat's shots and sight (Scripts/World/GameWorld.Tactical.cs). Call them
+// from a fresh Play at the menu. Targets: ../Scripts/World/CLAUDE.md, "Tactical combat".
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
@@ -69,9 +68,6 @@ namespace StarForge.EditorTools
         public static string Squads() => Stage<TacticalSquadsTrial>("Squads");
         public static string SquadsReport() => Report<TacticalSquadsTrial>();
 
-        /// <summary>The next evaluation runs under the new combat (Commander not yet tuned to it: phase 8).</summary>
-        public static string EvalClassicNext() { StarForge.Game.AIEvalRunner.EvalClassic = true; return "the next evaluation runs under the old rules (once)"; }
-        public static string EvalNewCombat() { StarForge.Game.AIEvalRunner.EvalTactical = true; return "the next evaluation runs under the new combat"; }
 
         /// <summary>Sent under fire to a place just behind a rock: the order ends there and he stays.
         /// Target: order Idle within 6 m of it, under 2 m moved after.</summary>
@@ -87,21 +83,6 @@ namespace StarForge.EditorTools
         public static string SquadWalk() => Stage<TacticalSquadWalkTrial>("SquadWalk");
         public static string SquadWalkReport() => Report<TacticalSquadWalkTrial>();
 
-        /// <summary>At the menu: does the title's row hold the combat button, and does it switch and say so?</summary>
-        public static string TitleRow()
-        {
-            var doc = Object.FindAnyObjectByType<UnityEngine.UIElements.UIDocument>();
-            var root = doc != null ? doc.rootVisualElement : null;
-            var b = root != null ? UnityEngine.UIElements.UQueryExtensions.Q<UnityEngine.UIElements.Button>(root, "combatButton") : null;
-            var quit = root != null ? UnityEngine.UIElements.UQueryExtensions.Q<UnityEngine.UIElements.Button>(root, "quitButton") : null;
-            if (b == null || quit == null) return "no combat button";
-            string first = b.text;
-            var invoke = typeof(UnityEngine.UIElements.Clickable).GetMethod("Invoke", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            invoke?.Invoke(b.clickable, new object[] { null });
-            string on = $"{b.text} (On {TacticalRules.On})";
-            invoke?.Invoke(b.clickable, new object[] { null });
-            return $"combat {b.worldBound}, quit {quit.worldBound}, row {b.parent.worldBound}, panel {root.worldBound}; text {first} -> {on} -> {b.text} (On {TacticalRules.On})";
-        }
 
         /// <summary>Orders over his own judgement. Under fire and in cover: Move leaves it and gets there,
         /// Hold stays and shoots, the same attack-move asked again every half second stays in cover. Idle and
@@ -126,12 +107,19 @@ namespace StarForge.EditorTools
             return s;
         }
 
+        /// <summary>FightWalls' both-thinking pass alone, saying where the six were and where they were hurt
+        /// (one field or none a map: replay on fresh maps; Art/Source/staged/combat/fightdiag_*.txt).</summary>
+        public static string FightWallsDiag()
+        {
+            TacticalFightTrial.Diag = true;
+            TacticalFightTrial.BothOnly = true;
+            var s = FightWalls();
+            if (!s.StartsWith("staging")) TacticalFightTrial.Diag = TacticalFightTrial.BothOnly = false;
+            return s;
+        }
         /// <summary>The map the next Play draws: for runs that must compare. ClearSeed puts it back.</summary>
         public static string UseSeed1000() { StarForge.Game.MatchSettings.mapSeed = 1000; return "next Play on map 1000"; }
         public static string ClearSeed() { StarForge.Game.MatchSettings.mapSeed = 0; return "map seed free"; }
-        /// <summary>Every match begun from now until play stops (scene reloads included) is under the new combat:
-        /// for trials that start their own matches (RosterTrials.Duels, MechDuel) on the new combat's path.</summary>
-        public static string NewCombatOn() { TacticalRules.On = true; return "matches begun from now on are under the new combat, until play stops"; }
 
         /// <summary>How long steady fire takes to pin a man: one and then three rifles at a soldier holding
         /// in the open at 25 m. Target: about 5 s from three, and the brave later than the timid.</summary>
@@ -217,17 +205,13 @@ namespace StarForge.EditorTools
             return false;
         }
 
-        /// <summary>The new rules are read when a match begins: only a match this trial started has them.</summary>
         /// <summary>A trial of the rules themselves runs with nobody getting it wrong: its numbers were set before mistakes.</summary>
         protected virtual bool RulesOnly => false;
 
         protected IEnumerator TacticalMatch()
         {
-            TacticalRules.On = true;
             yield return EnsureMatch();
-            TacticalRules.On = true;
             if (RulesOnly) TacticalRules.NoMistakes = true;
-            if (Ready && !world.Tactical) { report = "this match began under the old rules: stop, play and call again at the menu"; world = null; }
         }
     }
 
@@ -470,13 +454,11 @@ namespace StarForge.EditorTools
         {
             StarForge.Game.MatchSettings.spectate = true;
             StarForge.Game.MatchSettings.aiMemory = false;
-            TacticalRules.On = true;
             var boot = StarForge.Game.GameBootstrap.Instance;
             world = GameWorld.Instance;
             map = MapInfo.Instance;
-            if (boot == null || world == null || world.running) { TacticalRules.On = true; report = "call this from a fresh Play at the menu"; yield break; }
+            if (boot == null || world == null || world.running) { report = "call this from a fresh Play at the menu"; yield break; }
             boot.StartMatch();
-            TacticalRules.On = true;
             yield return new WaitForSecondsRealtime(1.5f);
             Time.timeScale = 8f;
             float hurt = 0f;
@@ -488,7 +470,7 @@ namespace StarForge.EditorTools
             foreach (var u in world.units) if (u != null && !u.dying && u.team < 2) alive[u.team]++;
             Time.timeScale = 1f;
             StarForge.Game.MatchSettings.spectate = false;
-            report = $"match under the new rules {world.Tactical}, {world.time:0} s, winner {world.winner}: {world.ShotsFired} rounds, {world.ShotsHit} struck ({100f * world.ShotsHit / Mathf.Max(1, world.ShotsFired):0}%), {hurt:0} under-attack alarms, units left {alive[0]} and {alive[1]}, kills {world.factions[0].killed} and {world.factions[1].killed}; squads now {world.Squads.Count}, {60f * (world.SquadsMade[0] + world.SquadsMade[1]) / Mathf.Max(1f, world.time):0.0} formed a minute, reports {world.ReportsMade[0]} and {world.ReportsMade[1]} ({60f * (world.ReportsMade[0] + world.ReportsMade[1]) / Mathf.Max(1f, world.time):0.0} a minute both sides, target about 2 or fewer a side)";
+            report = $"match: {world.time:0} s, winner {world.winner}: {world.ShotsFired} rounds, {world.ShotsHit} struck ({100f * world.ShotsHit / Mathf.Max(1, world.ShotsFired):0}%), {hurt:0} under-attack alarms, units left {alive[0]} and {alive[1]}, kills {world.factions[0].killed} and {world.factions[1].killed}; squads now {world.Squads.Count}, {60f * (world.SquadsMade[0] + world.SquadsMade[1]) / Mathf.Max(1f, world.time):0.0} formed a minute, reports {world.ReportsMade[0]} and {world.ReportsMade[1]} ({60f * (world.ReportsMade[0] + world.ReportsMade[1]) / Mathf.Max(1f, world.time):0.0} a minute both sides, target about 2 or fewer a side)";
         }
     }
 
@@ -750,7 +732,7 @@ namespace StarForge.EditorTools
                     world.CmdMove(eight, a, true);
                 }
                 yield return Wait(15f);
-                sb.AppendLine($"  match {match}: new rules {world.Tactical}, {world.Squads.Count} squads, {world.SquadsMade[0] + world.SquadsMade[1]} formed, {world.ShotsFired} rounds, {world.ReportsMade[0] + world.ReportsMade[1]} reports");
+                sb.AppendLine($"  match {match}: {world.Squads.Count} squads, {world.SquadsMade[0] + world.SquadsMade[1]} formed, {world.ShotsFired} rounds, {world.ReportsMade[0] + world.ReportsMade[1]} reports");
                 ReleaseStatics();
                 if (match == 2) break;
                 var was = world;
@@ -1149,7 +1131,27 @@ namespace StarForge.EditorTools
     {
         protected override bool RulesOnly => true;
         public static int Fields = 5;
-        public static bool AtWalls;
+        public static bool AtWalls, Diag, BothOnly;
+        bool diag;
+        // A trial staged and then cut off before its Start (play stopped in between) must not shape the next one.
+        [InitializeOnEnterPlayMode] static void ClearStaged() { AtWalls = Diag = BothOnly = false; Fields = 5; }
+
+        static readonly string[] DiagNames = { "open", "open but sheltered", "running", "in cover, down", "in cover, risen over it", "in cover, showing at an edge", "in cover, flanked", "pinned", "other" };
+        int DiagBucket(Unit u, Unit near)
+        {
+            switch (u.mode)
+            {
+                case SoldierMode.Free: return near != null && world.CoversFrom(u.pos, near) ? 1 : 0;
+                case SoldierMode.ToCover: return 2;
+                case SoldierMode.InCover:
+                    if (near != null && !world.CoversFrom(u.coverAt, near)) return 6;
+                    if (u.risen) return 4;
+                    if (u.Ducked || u.hiding) return 3;
+                    return 5;
+                case SoldierMode.Pinned: return 7;
+                default: return 8;
+            }
+        }
 
         /// <summary>Behind a run of the map's walls, the eight's open ground beyond it.</summary>
         bool FindWallSite(System.Random rng, List<(Vector2 c, Vector2 d)> taken, out Vector2 at, out Vector2 dir)
@@ -1221,11 +1223,44 @@ namespace StarForge.EditorTools
             int cover = 0, run = 0, pinned = 0, frames = 0;
             var at0 = (int[])world.RoundsAt.Clone();
             var hit0 = (int[])world.StruckAt.Clone();
+            var hpWas = new float[6]; var lastB = new int[6]; var firstIn = new float[6]; var firstInAt = new float[6];
+            for (int i = 0; i < 6; i++) { hpWas[i] = six[i].hp; firstIn[i] = -1f; }
+            var tB = new float[DiagNames.Length]; var hB = new float[DiagNames.Length]; var dB = new float[DiagNames.Length];
+            float tPrev = world.time, first6 = -1f, first8 = -1f, seen8 = -1f;
+            int shots6 = 0, shots8 = 0;
+            if (diag) ListenWhileHeld(e =>
+            {
+                if (e.kind != GameEventKind.Fire || e.unit == null) return;
+                if (six.Contains(e.unit)) { shots6++; if (first6 < 0f) first6 = world.time - t0; }
+                else if (eight.Contains(e.unit)) { shots8++; if (first8 < 0f) first8 = world.time - t0; }
+            });
             while (world.time - t0 < 120f)
             {
                 int a = 0, b = 0;
                 foreach (var u in six) if (Unit.Live(u)) { a++; frames++; if (u.mode == SoldierMode.InCover) cover++; if (u.mode == SoldierMode.ToCover) run++; if (u.mode == SoldierMode.Pinned) pinned++; }
                 foreach (var u in eight) if (Unit.Live(u)) b++;
+                if (diag)
+                {
+                    float dtw = world.time - tPrev;
+                    tPrev = world.time;
+                    if (seen8 < 0f) foreach (var e in eight) if (Unit.Live(e) && world.Sees(0, e)) { seen8 = world.time - t0; break; }
+                    for (int i = 0; i < 6; i++)
+                    {
+                        var u = six[i];
+                        if (!Unit.Live(u)) { if (hpWas[i] > 0f) { hB[lastB[i]] += hpWas[i]; hpWas[i] = 0f; } continue; }
+                        Unit near = null;
+                        float nd = float.MaxValue;
+                        foreach (var e in eight) if (Unit.Live(e)) { float dd = (e.pos - u.pos).magnitude; if (dd < nd) { nd = dd; near = e; } }
+                        if (near == null) continue;
+                        int bk = DiagBucket(u, near);
+                        tB[bk] += dtw;
+                        dB[bk] += nd * dtw;
+                        if (u.hp < hpWas[i]) hB[bk] += hpWas[i] - u.hp;
+                        hpWas[i] = u.hp;
+                        lastB[i] = bk;
+                        if (firstIn[i] < 0f && u.mode == SoldierMode.InCover) { firstIn[i] = world.time - t0; firstInAt[i] = nd; }
+                    }
+                }
                 if (a == 0 || b == 0) break;
                 yield return null;
             }
@@ -1246,6 +1281,20 @@ namespace StarForge.EditorTools
                 return line.ToString();
             }
             sb.AppendLine($"  {what}: {won} won in {world.time - t0:0} s, {left} of 6, {right} of 8; the six in cover {100f * cover / Mathf.Max(1, frames):0}%, running {100f * run / Mathf.Max(1, frames):0}%, pinned {100f * pinned / Mathf.Max(1, frames):0}%; rounds at the six{Modes(0)}; at the eight{Modes(1)}");
+            if (diag)
+            {
+                ListenWhileHeld(null);
+                float tt = 0f;
+                foreach (var x in tB) tt += x;
+                var line = new StringBuilder("    the six:");
+                for (int k = 0; k < DiagNames.Length; k++)
+                    if (tB[k] > 0f || hB[k] > 0f)
+                        line.Append($" {DiagNames[k]} {100f * tB[k] / Mathf.Max(1e-3f, tt):0}% at {dB[k] / Mathf.Max(1e-3f, tB[k]):0} m, {hB[k]:0} hp lost;");
+                sb.AppendLine(line.ToString());
+                var fl = new StringBuilder("    first in cover (s @ nearest of the eight, m):");
+                for (int i = 0; i < 6; i++) fl.Append(firstIn[i] < 0f ? " never" : $" {firstIn[i]:0.0}@{firstInAt[i]:0}");
+                sb.AppendLine(fl + $"; the six first saw them at {seen8:0.0} s; first round of the six {first6:0.0} s ({shots6} in all), of the eight {first8:0.0} s ({shots8})");
+            }
             ClearSpawned();
             yield return Wait(2f);
         }
@@ -1253,8 +1302,9 @@ namespace StarForge.EditorTools
         IEnumerator Start()
         {
             // Read first: a trial that stops at staging must not leave the next plain Fight at walls.
-            bool atWalls = AtWalls;
-            AtWalls = false;
+            bool atWalls = AtWalls, bothOnly = BothOnly;
+            diag = Diag;
+            AtWalls = Diag = BothOnly = false;
             yield return TacticalMatch();
             if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
             var sb = new StringBuilder();
@@ -1270,11 +1320,11 @@ namespace StarForge.EditorTools
             if (atWalls) sb.AppendLine($"  at walls: {world.Walls.Count} runs of wall on the map ({world.CoverPlaced})");
             var thinking = new int[2]; var plain = new int[2]; var both = new int[2];
             foreach (var (c, d) in sites) yield return OneFight(sb, "both thinking", c, d, true, true, both);
-            foreach (var (c, d) in sites) yield return OneFight(sb, "plain six, plain eight", c, d, false, false, plain);
-            if (Fields <= 5) foreach (var (c, d) in sites) yield return OneFight(sb, "thinking six, plain eight", c, d, true, false, thinking);
+            if (!bothOnly) foreach (var (c, d) in sites) yield return OneFight(sb, "plain six, plain eight", c, d, false, false, plain);
+            if (Fields <= 5 && !bothOnly) foreach (var (c, d) in sites) yield return OneFight(sb, "thinking six, plain eight", c, d, true, false, thinking);
             Fields = 5;
             sb.AppendLine($"  thrown in all: {world.ThrownCount[1]} frags, {world.ThrownCount[2]} smoke, {world.ThrownCount[3]} flash; {world.FragFriendAtLanding} frags landed with a friend in reach, {world.FriendHurt} friends hurt, {world.Stunned} men stunned, {world.PistolShots} pistol rounds, {world.Stabs} stabs");
-            sb.Insert(0, $"map {map.seed}, {sites.Count} fields, the same ones each time: six {(atWalls ? "behind a wall" : "among cover")} against eight coming over open ground, both thinking, won {both[0]} of {sites.Count} (target 4 of 5); plain six against plain eight {plain[0]}; thinking six against plain eight, who feel no fire at all, {thinking[0]}\n");
+            sb.Insert(0, $"map {map.seed}, {sites.Count} fields, the same ones each time: six {(atWalls ? "behind a wall" : "among cover")} against eight coming over open ground, both thinking, won {both[0]} of {sites.Count} (target 4 of 5)" + (bothOnly ? "\n" : $"; plain six against plain eight {plain[0]}; thinking six against plain eight, who feel no fire at all, {thinking[0]}\n"));
             report = sb.ToString();
             ReleaseStatics();
         }

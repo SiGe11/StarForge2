@@ -1322,7 +1322,7 @@ namespace StarForge.AI
                             (UnitType.Scorcher, Few(s, UnitType.Scorcher, 0.2f + 1.1f * light)),
                             (UnitType.Thumper, armory ? Few(s, UnitType.Thumper, 0.15f + (s.eSentinels > 0 ? 0.6f : 0f) + 0.4f * light) : 0f),
                             (UnitType.Marksman, armory ? Few(s, UnitType.Marksman, 0.1f + 0.9f * air + 0.2f * light) : 0f),
-                            (UnitType.Gunner, armory && w.Tactical ? Few(s, UnitType.Gunner, 0.15f + 0.8f * light) : 0f));
+                            (UnitType.Gunner, armory ? Few(s, UnitType.Gunner, 0.15f + 0.8f * light) : 0f));
         }
 
         /// <summary>The Workshop's tank: Maulers by default (towers above all), Lancers against
@@ -1463,7 +1463,7 @@ namespace StarForge.AI
         {
             if (e.kind == GameEventKind.UnderAttack && e.team == team && e.unit != null && e.unit.def.harvester) lastWorkerHitAt = w.time;
             if (e.kind == GameEventKind.UnitReady && e.team == team && e.type >= 0 && e.type < UnitType.Count) Dbg.trained[(int)e.type]++;
-            if (e.kind == GameEventKind.SquadReport && e.team == team && w.Tactical && w.winner < 0 && !Suspended && heardReports.Count < 8)
+            if (e.kind == GameEventKind.SquadReport && e.team == team && w.winner < 0 && !Suspended && heardReports.Count < 8)
                 heardReports.Add((e, w.time + reactionDelay));
             if (e.kind != GameEventKind.MechAdvice || e.team != team || w.winner >= 0) return;
             HearMech(e.advice, new Vector2(e.pos.x, e.pos.z));
@@ -1471,7 +1471,7 @@ namespace StarForge.AI
 
         /// <summary>A report from one of its squads (the new combat): "fall back" pulls the men still with it back
         /// toward home, hurried (a plain Move bounds cover to cover and they were dying on the way); "we need air"
-        /// sends up to three of its armed aircraft that are not already fighting to attack-move there.</summary>
+        /// sends up to three of its idle armed aircraft that hurt armour to attack-move there.</summary>
         readonly List<(GameEvent e, float at)> heardReports = new List<(GameEvent e, float at)>(8);
 
         void HearSquad(GameEvent e)
@@ -1486,6 +1486,8 @@ namespace StarForge.AI
                 // Defending its own base it stays: home defence's orders decide there, and a hurried move took them out of cover.
                 if ((at - home).magnitude < 55f) return;
                 if (men.Count == 0 || !Budget.Can(2) || !Pay(2, "HearSquad", 9101)) return;
+                Budget.Note(w.time);
+                lastSelHash = -1f;
                 Vector2 back = at + (home - at).normalized * Mathf.Min(35f, (home - at).magnitude);
                 w.CmdMove(men, w.NearestReachable(men[0], back), false, true);
                 w.SquadFallBacksHeard++;
@@ -1497,10 +1499,12 @@ namespace StarForge.AI
                 {
                     if (air.Count >= 3) break;
                     if (u == null || u.dying || u.team != team || !u.def.flying || !u.def.Armed || u.deserted || u.def.Autonomous || u.def.vsHeavy < 0.5f) continue;
-                    if (Unit.Live(u.target) && u.order == Order.Attack) continue;
+                    if (u.order != Order.Idle) continue;
                     air.Add(u);
                 }
                 if (air.Count == 0 || !Budget.Can(2) || !Pay(2, "HearSquad", 9102)) return;
+                Budget.Note(w.time);
+                lastSelHash = -1f;
                 w.CmdMove(air, at, true);
                 w.SquadAirCallsHeard++;
             }

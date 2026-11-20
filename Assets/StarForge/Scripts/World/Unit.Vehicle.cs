@@ -21,12 +21,13 @@ namespace StarForge.World
         [System.NonSerialized] Vector2 tankBackOrderAt, creatureFleeOrderAt;
         [System.NonSerialized] Order tankBackOrder, creatureFleeOrder;
         [System.NonSerialized] Vector2 tankBackGoal;
+        [System.NonSerialized] Unit creatureFleeTarget;
 
         /// <summary>Running from an enemy (a worker), breaking off (a creature) or backing away (a tank): nothing
         /// re-paths it meanwhile (`SoldierBusy`).</summary>
-        bool Fleeing => world.Tactical && (world.time < workerFleeUntil || world.time < creatureFleeUntil || world.time < tankBackUntil);
+        bool Fleeing => (world.time < workerFleeUntil || world.time < creatureFleeUntil || world.time < tankBackUntil);
         /// <summary>Backing away: the hull keeps its front on the threat (UpdateFacing).</summary>
-        public bool Reversing => world.Tactical && world.time < tankBackUntil;
+        public bool Reversing => world.time < tankBackUntil;
 
         /// <summary>A worker runs from an armed enemy its side sees within `WorkerFleeReach`, away from it and toward
         /// its dropoff, then goes back to its order (kept: its ore, its load, what it builds). Only while at work or
@@ -67,7 +68,7 @@ namespace StarForge.World
             float now = world.time;
             if (now < creatureFleeUntil)
             {
-                if (order == creatureFleeOrder && (orderPos - creatureFleeOrderAt).sqrMagnitude <= 4f) return true;
+                if (order == creatureFleeOrder && (orderPos - creatureFleeOrderAt).sqrMagnitude <= 4f && (target == null || target == creatureFleeTarget)) return true;
                 creatureFleeUntil = 0f;   // a new order: it is obeyed
                 return false;
             }
@@ -87,6 +88,7 @@ namespace StarForge.World
             MoveTo(goal);
             creatureFleeOrder = order;
             creatureFleeOrderAt = orderPos;
+            creatureFleeTarget = target;
             creatureFleeUntil = now + 5f;
             creatureFleeAgainAt = now + 25f;
             world.CreatureFlights++;
@@ -94,8 +96,9 @@ namespace StarForge.World
         }
 
         /// <summary>A tank idle or below half its hull backs away from an anti-tank man it sees within his reach and
-        /// `TankBackMargin`; any tank backs out of its own smoke after popping it; front and turret on him. Not on Hold,
-        /// hurried, or sent after him.</summary>
+        /// `TankBackMargin`, unless, unhurt, its machine gun is already on him (it holds and keeps his head down); any
+        /// tank backs out of its own smoke after popping it; front and turret on him. Not on Hold, hurried, or sent
+        /// after a target.</summary>
         void TankTactics(float now)
         {
             if (TacticalRules.NoTankTactics) return;
@@ -117,7 +120,10 @@ namespace StarForge.World
             var at = world.NearestAntiTank(this, out float reachOf);
             // Idle, or below half its hull: sent forward, it goes (backing off fought every order that sent it on).
             bool mayBack = order == Order.Idle || hp < MaxHp * 0.5f;
-            if (at != null && mayBack && !(targetOrdered && target == at))
+            // Unhurt, with its machine gun already on him, it holds and keeps his head down: backing out of its own
+            // reach let him up to fire (Backoff over 15 fields: hull lost 221 against 186 standing).
+            if (mayBack && at != null && hp >= MaxHp * 0.5f && tankGunTarget == at) mayBack = false;
+            if (at != null && mayBack && !targetOrdered)
             {
                 from = at.pos;
                 want = reachOf + TacticalRules.TankBackMargin - (at.pos - pos).magnitude;

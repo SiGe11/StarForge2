@@ -290,7 +290,8 @@ namespace StarForge.UI
             root.Q<Button>("playButton").clicked += () => { MatchSettings.spectate = false; bootstrap.StartMatch(); };
             root.Q<Button>("spectateButton").clicked += () => { MatchSettings.spectate = true; bootstrap.StartMatch(); };
             combatButton = root.Q<Button>("combatButton");
-            if (combatButton != null) combatButton.clicked += () => { StarForge.Sim.TacticalRules.On = !StarForge.Sim.TacticalRules.On; RefreshTitle(); };
+            // The combat switch went with the old combat (tactical phase 8).
+            if (combatButton != null) combatButton.style.display = DisplayStyle.None;
             root.Q<Button>("controlsButton").clicked += () =>
             {
                 opponentText.RemoveFromClassList("controls-text--visible");
@@ -333,7 +334,6 @@ namespace StarForge.UI
         {
             for (int i = 0; i < segments.Length; i++)
                 segments[i].EnableInClassList("segment--active", (int)MatchSettings.difficulty == i);
-            if (combatButton != null) combatButton.text = StarForge.Sim.TacticalRules.On ? "Combat: new" : "Combat: classic";
             switch (MatchSettings.difficulty)
             {
                 case AIDifficulty.Recruit:
@@ -414,7 +414,7 @@ namespace StarForge.UI
         /// <summary>What a soldier of ours has left to throw.</summary>
         string ArmsText(Unit s)
         {
-            if (!world.Tactical || s.def.bodyRadius <= 0f || s.team != player.team) return "";
+            if (s.def.bodyRadius <= 0f || s.team != player.team) return "";
             string ammo = s.def.magazine > 1 ? (s.Reloading ? "  ·  RELOADING" : $"  ·  AMMO {s.rounds}/{s.def.magazine}") : "";
             return ammo + (s.flashes > 0 ? $"  ·  FRAG {s.frags}  ·  SMOKE {s.smokes}  ·  FLASH {s.flashes}" : $"  ·  FRAG {s.frags}  ·  SMOKE {s.smokes}");
         }

@@ -531,7 +531,7 @@ as the Mauler's cannon (158-192 Hz, 41-58%), the deepest sounds in the game.
   it fields most, and answers what it has seen of yours: Aegis tanks, Swifts,
   Spitters and Marksmen against your aircraft, Lancers and Rocketeers against your
   armour, Ironclads and Gorehorns to break your line, Scorchers against massed infantry, Thumpers and Maulers against your towers, and
-  gunships or Razorwings where little of yours can shoot up (and, under the new combat, Gunners once its Armory
+  gunships or Razorwings where little of yours can shoot up (and Gunners once its Armory
   stands). It adds Haulers to its
   ore lines from four minutes, and Prospectors -- armed ore trucks -- while you raid
   them. Once it knows of your Mech, its bay or your Ironclads it buys the Armory's
@@ -603,8 +603,8 @@ Perception ──► OpponentModel ──► StrategySelector ──┬──►
 
 The rules above are enforced in code, not just promised:
 
-- **Fog of war.** It reads enemy units only through `GameWorld.Visible`, from the
-  same per-team visibility grid that drives your fog. It guesses your base from
+- **Fog of war.** It reads enemy units only through `GameWorld.Sees` (whether its side has spotted
+  them, as yours does) and ground through the same per-team visibility grid that drives your fog. It guesses your base from
   map symmetry and has to scout to confirm it.
 - **It clicks.** Every order goes through the same `GameWorld.Cmd*` methods the
   mouse uses.
@@ -868,13 +868,11 @@ To regenerate the models (Blender 5.x):
   --python Tools/blender/export_fbx.py -- Assets/StarForge/Art/Models Tools/blender/starforge_models.blend
 ```
 
-## Tactical combat (the game's combat since phase 8)
+## Tactical combat
 
-Combat is being rebuilt so that soldiers fight like soldiers: the player gives the same orders, and
-units decide how to carry them out. It is what a match plays since phase 8; the old rules stay behind one
-switch for comparison until the new combat is signed off (the title screen's "Combat" button, not
-remembered between runs, or `-sfclassic` on a benchmark or test run), and with the switch off the game
-plays as described in the rest of this file.
+Combat was rebuilt so that soldiers fight like soldiers: the player gives the same orders, and units
+decide how to carry them out. This is the game's only combat since phase 8 (the old rules were deleted
+then); where an older part of this file says otherwise about fighting, this section is the one that holds.
 So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.md`):
 
 - **Shots can miss.** A round goes where it goes: an aim error, then the first thing on its line. A far
@@ -911,24 +909,26 @@ So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
   a benchmark match from 49.9 to 51.0 fps (48.8 to 51.4 with a Mech in view; these and the rigged
   numbers above were measured before *High* gave its spare frames to resolution, see Performance).
 - **The ground is something to fight over.** Under the new combat every map gets low field walls, the broken
-  outlines of ruined houses and a few ditches, laid out when the match begins (a classic map is left as it
-  was). The low walls stand 1.2 m: a man ducked behind one is out of a round's way (in a trial not one of
+  outlines of ruined houses and a few ditches, laid out when the match begins. The low walls stand 1.2 m: a man ducked behind one is out of a round's way (in a trial not one of
   9,000 rounds from 10-30 m struck him, against a quarter to nine tenths of them in front of the same wall),
   and he comes up over it to fire, when he can be hit, then goes down again; soldiers vault low walls
   (vehicles go round, a Mauler drives through and breaks them), a ruin's tall corners stop everyone, and a
   man lying in a ditch or a shell crater, or behind a fallen tree, has something between him and the
   rounds. Over 200 random maps the walls never cut a base off from the other or from its ore, and no ditch
   made a vehicle go round.
-- **Not there yet:** cover does not win fights by itself. Six behind a wall won 2 of 5 fights and drew one
-  against eight coming over open ground (1 of 9 before the walls were raised): even with room for three
-  behind each wall, the six spent only a quarter to two thirds of each fight in cover, and why is not yet
-  traced. That is for the balancing at the end.
+- **Not there yet:** cover does not win fights by itself. Six behind a wall win about half their fights
+  against eight coming over open ground (3 of 5 on the final code; the aim was 4 of 5, and about half is
+  now the accepted result). Traced: attackers
+  lying prone in the open at 30 m are about as hard to hit as a man firing over a wall, so the extra two
+  rifles decide it. Four changes to how men fire from and at a wall were tried and taken out again, since
+  none moved the result.
 - **Tanks fight like tanks.** The Mauler, Lancer, Aegis and Ironclad carry a roof machine gun of their own
   that takes the infantry while the main gun turns on armour or a building, and two smoke launchers popped
   the moment an anti-tank round is fired at them (refilled at a depot or a Workshop). A tank holds its
   shell while its own men are by the target, since a shell can hurt friends now, and a wall or rock between
   a burst and a soldier shelters him as it would from a grenade. Idle or badly hurt, a tank backs away from
-  rocket men out of their reach and reverses out of its own smoke, front and turret toward the threat.
+  rocket men out of their reach, unless its machine gun already has one pinned, and reverses out of its own
+  smoke, front and turret toward the threat.
   Rounds fired straight at a soldier by a vehicle or the Mech are decided when fired, so cover stops them as
   it stops a rifleman's: in a trial a man behind a wall lost nothing to a Lancer and a Skimmer that cost the
   same man in front of it 1,307 hit points (on another map one wall let 793 through against 1,391; not yet
@@ -941,8 +941,7 @@ So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
   carries two missiles and two flares, and rearms by its Airfield; the Kestrel stays a hovering gunship with
   rockets, a machine gun and flares. Two Swifts duel for 40-50 s over eight to ten passes, the same at 1x
   and 8x.
-- **The switch-over.** The new combat is now what a match plays; the old rules stay for comparison only (the
-  menu's rules switch and `-sfclassic`), and will be removed once the new combat is signed off. The AI
+- **The switch-over.** The new combat is what every match plays, and the old rules are gone. The AI
   commander hears its squads' reports: a squad that must fall back is pulled back, and a squad held by
   armour gets the aircraft that can help.
 

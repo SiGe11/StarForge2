@@ -682,7 +682,7 @@ namespace StarForge.View
                     }
                     break;
                 case GameEventKind.Promoted:
-                    if (!Seen(e.pos) || (world.Tactical && e.unit != null && !e.unit.visibleToPlayer && !MatchSettings.spectate)) return;
+                    if (!Seen(e.pos) || (e.unit != null && !e.unit.visibleToPlayer && !MatchSettings.spectate)) return;
                     for (int i = 0; i < 18; i++)
                         Emit(sparks, e.pos + Vector3.up * 0.5f, new Vector3(Random.Range(-2f, 2f), Random.Range(4f, 9f), Random.Range(-2f, 2f)),
                              0.35f, Random.Range(0.5f, 0.9f), new Color(1f, 0.85f, 0.35f));

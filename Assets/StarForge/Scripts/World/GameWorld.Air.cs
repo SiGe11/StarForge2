@@ -54,7 +54,7 @@ namespace StarForge.World
         /// <summary>A missile has just been launched at this aircraft.</summary>
         public void WarnAir(Unit shooter, Unit t)
         {
-            if (!Tactical || t == null || !t.def.flying) return;
+            if (t == null || !t.def.flying) return;
             t.airWarnedAt = time;
         }
 

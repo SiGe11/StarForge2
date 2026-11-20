@@ -68,7 +68,7 @@ namespace StarForge.World
                     {
                         var o = i < units.Count ? units[i] : null;
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable || !CanHit(u, o)) continue;
-                        if (Tactical && !Sees(u.team, o)) continue;
+                        if (!Sees(u.team, o)) continue;
                         float d = (o.pos - u.pos).magnitude - o.def.radius;
                         if (d < min || d >= bestD) continue;
                         bestD = d; best = o;
@@ -260,7 +260,7 @@ namespace StarForge.World
             p.purge = false;
             p.flight = 0f;
             p.age = 0f;
-            if (Tactical && kind == 5 && t != null && t.def.flying) WarnAir(s, t);
+            if (kind == 5 && t != null && t.def.flying) WarnAir(s, t);
             p.life = 2f;
             p.vel = (AimPoint(t) - muzzle).normalized * speed;
             CoverStops(p, muzzle);
@@ -301,7 +301,7 @@ namespace StarForge.World
                     // Lobbed high over whatever is in the way, led a little on a moving target.
                     Vector3 m = Muzzle(s, 1.5f, 0.3f);
                     var p = Round(s, t, ProjLob, m, 1f);
-                    p.friendly = Tactical;
+                    p.friendly = true;
                     Vector3 lead = aim;
                     float dist0 = new Vector2(aim.x - m.x, aim.z - m.z).magnitude;
                     float time = Mathf.Clamp(dist0 / 13f, 1.3f, 2.6f);
@@ -401,7 +401,7 @@ namespace StarForge.World
                     Vector3 m = Muzzle(s, -0.1f, 1.2f);
                     var p = Round(s, t, 4, m, 180f);
                     p.life = 1.0f;
-                    if (Tactical && t.def.flying) DecideCannon(s, t, p);
+                    if (t.def.flying) DecideCannon(s, t, p);
                     RaiseFire(s, m, (aim - m).normalized, 4);
                     break;
                 }
@@ -425,7 +425,7 @@ namespace StarForge.World
                 {
                     // A rocket off the shoulder: straight, quick, a small burst where it strikes.
                     Vector3 m = Muzzle(s, 1.66f, 1.0f);
-                    Round(s, t, ProjRocket, m, 42f).friendly = Tactical;
+                    Round(s, t, ProjRocket, m, 42f).friendly = true;
                     RaiseFire(s, m, (aim - m).normalized, ProjRocket);
                     break;
                 }
