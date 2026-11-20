@@ -61,9 +61,9 @@ rebuilt from the **StarForge** menu; **StarForge ▸ Build All** runs every step
 | **Camera** | `W` `A` `S` `D`, arrow keys or push the pointer to a screen edge · `Q`/`E` rotate · wheel zoom · middle-drag · `Space` centre on selection |
 | **Select** | Click · drag a box · double-click selects that type on screen · `Shift` adds · `F2` whole army |
 | **Groups** | `Ctrl`/`Cmd`+`1`–`0` assign · `1`–`0` recall (double-tap to centre) |
-| **Orders** | Right-click: move / attack / mine / rally · double right-click: hurry (new combat only) · `R` attack-move · `C` stop · `H` hold |
+| **Orders** | Right-click: move / attack / mine / rally · double right-click: hurry · `R` attack-move · `C` stop · `H` hold |
 | **Build** | Digger selected: `B` basic structures (`F` Foundry · `B` Bunkhouse · `G` Garrison · `N` Sentinel · `V` Workshop) · `V` advanced structures (`U` Armory · `L` Airfield · `O` Biolab · `Y` Mech Bay) · `X` or `Esc` back |
-| **Train** | Foundry `U` Digger, `J` Hauler, `K` Prospector · Garrison `T` Trooper, `K` Skimmer, `F` Scorcher, `M` Thumper, `N` Marksman, `B` Rocketeer, `G` Gunner (new combat only) · Workshop `M` Mauler, `L` Lancer, `F` Aegis, `T` Ironclad, `K` Mech-Hunter · Airfield `G` Kestrel, `F` Swift · Biolab `Z` Skitter, `T` Spitter, `V` Razorwing, `G` Gorehorn · `X` cancel. With Diggers in the selection the card shows only their builds |
+| **Train** | Foundry `U` Digger, `J` Hauler, `K` Prospector · Garrison `T` Trooper, `K` Skimmer, `F` Scorcher, `M` Thumper, `N` Marksman, `B` Rocketeer, `G` Gunner · Workshop `M` Mauler, `L` Lancer, `F` Aegis, `T` Ironclad, `K` Mech-Hunter · Airfield `G` Kestrel, `F` Swift · Biolab `Z` Skitter, `T` Spitter, `V` Razorwing, `G` Gorehorn · `X` cancel. With Diggers in the selection the card shows only their builds |
 | **Armory** | The Armory selected on its own: `T` Infantry Weapons · `G` Infantry Armour · `V` Vehicle Weapons · `B` Vehicle Plating · `N` Creature Venom · `M` Creature Carapace · `K` Mech-Hunter Programme · `X` cancel |
 | **Mech Bay** | The bay selected on its own: `V` Servo Actuators · `B` Ablative Armour · `N` Weapon Overcharge · `M` Extra Hardpoint · `K` Targeting Uplink · `X` cancel · click the Mech strip (top left) to find the Mech |
 | **Other** | `P` pause (no orders go in until you resume) · `,` `.` game speed, kept through a pause · `Esc` unwinds placement → build card → selection → menu |
@@ -98,7 +98,7 @@ the deserters alone, and they do not stop until you have lost.
 | **Thumper** | 100 | 2 | 70 | Mortar infantry: lobs shells 26 m over cover with splash; cannot fire inside 7 m or at aircraft (needs an Armory) |
 | **Marksman** | 125 | 2 | 55 | Sniper: 30 m, one shot fells a rifleman; slow to fire, fragile, poor against armour; shoots at aircraft (needs an Armory) |
 | **Rocketeer** | 90 | 2 | 90 | Anti-armour infantry: a shoulder rocket (19 m, 1.6x against armour) that wrecks tanks, Mechs and buildings; poor against infantry, cannot fire at aircraft |
-| **Gunner** | 110 | 2 | 80 | Machine gunner (Garrison, needs an Armory; **new combat only**): a belt-fed gun that pins whole squads from 40 m and also fires at aircraft, but must stop to fire and is slow to reload; little use against armour or walls |
+| **Gunner** | 110 | 2 | 80 | Machine gunner (Garrison, needs an Armory): a belt-fed gun that pins whole squads from 40 m and also fires at aircraft, but must stop to fire and is slow to reload; little use against armour or walls |
 | **Lancer** | 175 | 3 | 280 | Tank destroyer: armour-piercing cannon, 1.5x against armour, wasteful against infantry |
 | **Aegis** | 150 | 3 | 200 | Anti-aircraft tank: flak that bursts round aircraft (2.2x against them), light work against ground targets |
 | **Ironclad** | 300 | 6 | 480 | Walking mini-mech (Workshop, needs an Armory): twin shoulder cannons against the ground, missile pods against aircraft; slow, very hard to stop |
@@ -897,7 +897,7 @@ So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
 - **They tell you how it is going.** "We should fall back" and "we need air support" arrive as text in the
   comms feed, with no button to accept. Clicking one looks at them and selects them; what to do is yours.
 - **They carry more than a gun.** All five infantry types are on the new rules. A Trooper has a pistol, a knife, two frags, a smoke grenade and a flashbang; the others their own gun, pistol, knife, a frag and a smoke grenade, all restocked near base. Nobody orders any of it: a frag goes at men behind cover or bunched up, flash at men about to be rushed, smoke when pinned or caught in the open, and it blocks sight for both sides. Grenades and shells can hurt friends, so a man looks where they will be first, and his squad waits for it to go off. Guns have magazines, never an empty pouch: a Trooper reloads every twenty rounds, a Marksman every five, and a man reloading near an enemy draws his pistol. The pistol is for when the main gun cannot be used, reloading, on the run or too close for it; the knife is for arm's length. Pistol, knife and grenade are in his hand when he uses them.
-- **The Gunner** (new combat only) carries a belt-fed gun: slow, stops to fire, slow to reload, and pins a man at 26 m in two or three seconds where a rifle takes far longer.
+- **The Gunner** carries a belt-fed gun: slow, stops to fire, slow to reload, and pins a man at 26 m in two or three seconds where a rifle takes far longer.
 - **Wrecks and tanks are cover.** A tank's wreck stands where it died, stopping rounds and sight, for at least a minute and for as long as someone is behind it or a fight goes on round it; a friend's tank shelters the men behind it.
 - **Nobody is perfect.** Now and then a man picks poor cover, stays put, pushes on under fire or throws a grenade at a lone target, and a squad's turn goes wrong; a green squad does it about one judgement in four, veterans one in twenty-five, and a green man with a veteran in his squad judges as the veteran.
 - **A report says who and where** ("Juliet: 4 men 150 m north-east of our base"), and pointing at it rings those men on the map.
@@ -908,7 +908,7 @@ So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
   palette texture, which took 896 draws a pass down to 233 across the models and, with no visible change,
   a benchmark match from 49.9 to 51.0 fps (48.8 to 51.4 with a Mech in view; these and the rigged
   numbers above were measured before *High* gave its spare frames to resolution, see Performance).
-- **The ground is something to fight over.** Under the new combat every map gets low field walls, the broken
+- **The ground is something to fight over.** Every map gets low field walls, the broken
   outlines of ruined houses and a few ditches, laid out when the match begins. The low walls stand 1.2 m: a man ducked behind one is out of a round's way (in a trial not one of
   9,000 rounds from 10-30 m struck him, against a quarter to nine tenths of them in front of the same wall),
   and he comes up over it to fire, when he can be hit, then goes down again; soldiers vault low walls
@@ -927,23 +927,24 @@ So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
   the moment an anti-tank round is fired at them (refilled at a depot or a Workshop). A tank holds its
   shell while its own men are by the target, since a shell can hurt friends now, and a wall or rock between
   a burst and a soldier shelters him as it would from a grenade. Idle or badly hurt, a tank backs away from
-  rocket men out of their reach, unless its machine gun already has one pinned, and reverses out of its own
+  rocket men out of their reach (unhurt, it holds instead while its machine gun is already on one), and,
+  unless sent after a target, reverses out of its own
   smoke, front and turret toward the threat.
   Rounds fired straight at a soldier by a vehicle or the Mech are decided when fired, so cover stops them as
   it stops a rifleman's: in a trial a man behind a wall lost nothing to a Lancer and a Skimmer that cost the
   same man in front of it 1,307 hit points (on another map one wall let 793 through against 1,391; not yet
   traced).
 - **Everything else has instincts.** Unarmed workers run from enemies they see within 20 m and go back to
-  work; creatures that are badly hurt break off and come back; the Mech's guns fire only at what its side
+  work, except within 25 m of their own Foundry, where they work on; creatures that are badly hurt break off and come back; the Mech's guns fire only at what its side
   can see, its shells can hurt friends, and its hitscan guns stop at cover.
 - **Dogfights.** The Swift flies with speed and height as energy, chases from behind, is built to break hard
   when an enemy plane is on its tail (not yet seen in a trial, nor its dive), fires a cannon whose hits depend on how well its nose is on the target,
   carries two missiles and two flares, and rearms by its Airfield; the Kestrel stays a hovering gunship with
-  rockets, a machine gun and flares. Two Swifts duel for 40-50 s over eight to ten passes, the same at 1x
+  rockets, a machine gun and flares. Two Swifts duel for about 35-50 s over eight to ten passes, alike at 1x
   and 8x.
 - **The switch-over.** The new combat is what every match plays, and the old rules are gone. The AI
   commander hears its squads' reports: a squad that must fall back is pulled back, and a squad held by
-  armour gets the aircraft that can help.
+  armour gets the idle aircraft that can help.
 
 `Editor/TacticalTrials.cs` holds the checks; `Assets/StarForge/Scripts/World/CLAUDE.md` the rules and
 their numbers.

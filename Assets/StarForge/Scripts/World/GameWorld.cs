@@ -178,7 +178,7 @@ namespace StarForge.World
 
         public readonly List<Unit> units = new List<Unit>(1024);
         public readonly List<Boulder> boulders = new List<Boulder>(64);
-        /// <summary>Low walls and ruins: the new combat's only (PlaceWalls).</summary>
+        /// <summary>Low walls and ruins (PlaceWalls).</summary>
         public readonly List<CoverWall> Walls = new List<CoverWall>(128);
         /// <summary>The ditches dug when the match began (the new combat's), as their bottoms' lines.</summary>
         public readonly List<(Vector2 a, Vector2 b)> Ditches = new List<(Vector2 a, Vector2 b)>(8);

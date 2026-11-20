@@ -1,4 +1,4 @@
-// Unit.Vehicle.cs -- the new combat's tanks (phase 6, TacticalRules.IsTank): a mounted machine gun with a target
+// Unit.Vehicle.cs -- the tanks (tactical phase 6, TacticalRules.IsTank): a mounted machine gun with a target
 // and a cooldown of its own (UnitView's recoil reads `cooldown`: the main gun's alone), the main gun turned on armour
 // while it takes the men, and two smoke launchers popped as an anti-tank round comes at it.
 using UnityEngine;
@@ -10,7 +10,7 @@ namespace StarForge.World
     {
         [System.NonSerialized] public Unit tankGunTarget;
         [System.NonSerialized] float tankGunReadyAt, tankLookAt, tankMainLookAt, tankRestockAt, tankSmokeReadyAt, friendsHeldSince = -1f;
-        /// <summary>Smoke charges left (-1 until first ticked under the new combat).</summary>
+        /// <summary>Smoke charges left (-1 until first ticked).</summary>
         [System.NonSerialized] public int tankSmokes = -1;
         /// <summary>When an anti-tank round was last fired at it, and from where; when it last popped smoke.</summary>
         [System.NonSerialized] public float armourWarnedAt = -99f, smokedAt = -99f;
@@ -128,7 +128,7 @@ namespace StarForge.World
                 from = at.pos;
                 want = reachOf + TacticalRules.TankBackMargin - (at.pos - pos).magnitude;
             }
-            else if (now - smokedAt < 1f)
+            else if (now - smokedAt < 1f && !targetOrdered)
             {
                 from = armourWarnedFrom;
                 want = 10f;
@@ -165,13 +165,13 @@ namespace StarForge.World
                 tankRestockAt = now + 10f;
                 if (world.NearTankDepot(this)) tankSmokes++;
             }
-            TankTactics(now);
             bool look = now >= tankLookAt;
             if (look)
             {
                 tankLookAt = now + 0.5f;
                 tankGunTarget = world.TankGunTarget(this);
             }
+            TankTactics(now);
             // While the machine gun has the men, the main gun goes for armour or a structure in its reach: asked at each
             // look and, at most four times a second, while it is ready to fire (its first shell went at the men).
             bool gunHasMen = tankGunTarget != null && tankGunTarget.def.bodyRadius > 0f;

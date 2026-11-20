@@ -211,7 +211,7 @@ namespace StarForge.EditorTools
         protected IEnumerator TacticalMatch()
         {
             yield return EnsureMatch();
-            if (RulesOnly) TacticalRules.NoMistakes = true;
+            if (RulesOnly && Ready) TacticalRules.NoMistakes = true;
         }
     }
 

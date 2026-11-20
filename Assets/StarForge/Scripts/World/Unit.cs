@@ -180,7 +180,7 @@ namespace StarForge.World
                                         : d.type == UnitType.Skimmer || d.type == UnitType.Skitter ? 60 : 50;
                 // Boulders stand on Rubble ground: only a Mauler's path runs
                 // through them, and a Mech's (they crush them, GameWorld.CrushBoulders).
-                // Soldiers vault low walls (the new combat's Vault area; none on a classic map).
+                // Soldiers vault low walls (the Vault area).
                 agent.areaMask = d.type == UnitType.Mauler || d.type == UnitType.Mech ? NavMesh.AllAreas
                                : d.bodyRadius > 0f && d.upgradeClass == UnitClass.Infantry ? GameWorld.FootAreas : GameWorld.GroundAreas;
                 if (NavMesh.SamplePosition(transform.position, out var hit, 10f, NavMesh.AllAreas))

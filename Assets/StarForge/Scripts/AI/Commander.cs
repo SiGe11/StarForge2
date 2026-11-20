@@ -1469,7 +1469,7 @@ namespace StarForge.AI
             HearMech(e.advice, new Vector2(e.pos.x, e.pos.z));
         }
 
-        /// <summary>A report from one of its squads (the new combat): "fall back" pulls the men still with it back
+        /// <summary>A report from one of its squads: "fall back" pulls the men still with it back
         /// toward home, hurried (a plain Move bounds cover to cover and they were dying on the way); "we need air"
         /// sends up to three of its idle armed aircraft that hurt armour to attack-move there.</summary>
         readonly List<(GameEvent e, float at)> heardReports = new List<(GameEvent e, float at)>(8);
