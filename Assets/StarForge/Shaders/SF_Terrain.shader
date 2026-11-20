@@ -3,8 +3,11 @@
 // Why not TerrainLit: the map is terraced, so a third of what the camera sees
 // is cliff face, and a planar XZ projection smears the cliff texture into
 // vertical streaks. This keeps Unity's splatmap workflow (paint layers with
-// the terrain tools as usual) but samples the cliff layer biplanar with world
-// height as V, so its strata run along the terraces, and height-blends the
+// the terrain tools as usual) but samples the cliff layer on three planes, the
+// two side ones with world height as V, so a wall shows rock rather than a
+// planar smear. The scan is drawn 1.8 times taller than wide there
+// (_CliffStretch 0.55): upright joints that read as a cliff from the RTS
+// camera, and as streaks on a face seen close and square-on. It height-blends the
 // layers on the scanned height each layer carries in its alpha
 // (Tools/blender/pack_textures.py), so stones stand out of the sand and moss
 // fills the hollows between them rather than the two cross-fading. The same
@@ -46,9 +49,16 @@ Shader "StarForge/Terrain"
         _MacroTex("Macro mottling", 2D) = "grey" {}
         _MacroScale("Macro scale", Float) = 0.011
         _MacroStrength("Macro strength", Range(0, 1)) = 0.4
-        _CliffStretch("Cliff strata stretch", Float) = 0.55
+        _CliffStretch("Cliff scan height share (1 = as tall as wide; under 1 draws it taller)", Float) = 0.55
         _BlendSharpness("Height blend sharpness", Range(0.02, 1)) = 0.22
         _WaterLevel("Water level", Float) = 2.4
+        // Detail photographs (Tools/blender/pack_turf.py): each is its picture over its
+        // own mean, a quarter = the mean, so they shape the turf and the ash without
+        // deciding their colour. Strength 0 until MapBuilder binds them.
+        _TurfLush("Meadow turf detail, lush", 2D) = "grey" {}
+        _TurfDry("Meadow turf detail, dry", 2D) = "grey" {}
+        _BurntTex("Burnt ground detail", 2D) = "grey" {}
+        _TurfTile("Turf tile (m), burnt tile (m), turf strength, burnt strength", Vector) = (5.3, 4.1, 0, 0)
         [Toggle(_SF_AUTOSPLAT)] _AutoSplat("Procedural splat (backdrop)", Float) = 0
     }
 
@@ -90,6 +100,9 @@ Shader "StarForge/Terrain"
             TEXTURE2D(_Normal3);
             TEXTURE2D(_AOTex);    SAMPLER(sampler_AOTex);
             TEXTURE2D(_MacroTex); SAMPLER(sampler_MacroTex);
+            TEXTURE2D(_TurfLush);
+            TEXTURE2D(_TurfDry);
+            TEXTURE2D(_BurntTex);
             TEXTURE2D(_SF_GroundMask); SAMPLER(sampler_SF_GroundMask);
             float4 _SF_GroundMaskParams;   // x: 1 / map size, y: enabled (GroundMask.cs)
             TEXTURE2D(_SF_BurntGrass); SAMPLER(sampler_SF_BurntGrass);
@@ -106,6 +119,7 @@ Shader "StarForge/Terrain"
             float _MacroScale, _CliffStretch;
             half _MacroStrength, _BlendSharpness;
             float _WaterLevel;
+            float4 _TurfTile;
 
             struct Attributes
             {
@@ -162,6 +176,16 @@ Shader "StarForge/Terrain"
                 float2 cuv = (i.uv * (_Control_TexelSize.zw - 1.0) + 0.5) * _Control_TexelSize.xy;
                 w = SAMPLE_TEXTURE2D(_Control, sampler_Control, cuv);
             #endif
+                // A steep face is rock whatever the splat says. The splat's own slope
+                // rule (MapGenerator.SplatAt) works on the generator's 2 m cells, so a
+                // step narrower than them can keep its meadow or gravel layer, planar XZ,
+                // on a wall. (Insurance: no such face has been found in a picture, and
+                // the smear this was written for was the cliff scan's stretch.) It begins at the
+                // steepest slope a unit climbs (40 degrees is n.y 0.77, where it gives under
+                // 1% rock), so ground in play is all but unchanged; the normal is the
+                // terrain's smoothed one, so a terrace's lip and foot take a trace of it.
+                half steep = (1.0 - smoothstep(0.60, 0.78, n.y)) * saturate(1.0 + _SF_TuneD.x);
+                w = lerp(w, half4(0, 0, 1, 0), steep);
 
             #if defined(_SF_AUTOSPLAT)
                 half ao = lerp(0.5, 1.0, i.aoVar.x);
@@ -203,14 +227,15 @@ Shader "StarForge/Terrain"
                 if (w.g > on) SF_PLANAR(_Splat1, _Tile.y, c1)
                 if (w.a > on) SF_PLANAR(_Splat3, _Tile.w, c3)
 
-                // Cliff layer: biplanar sides with height as V, plus a top plane.
+                // Cliff layer: two side planes with height as V, plus a top plane.
                 half3 an = abs(n);
                 half3 tw = an * an; tw *= tw;
                 tw /= max(1e-4, tw.x + tw.y + tw.z);
                 float cs = 1.0 / _Tile.z;
-                float2 uvX = float2(wp.z, wp.y * _CliffStretch) * cs;
+                float cv = wp.y * (_CliffStretch + _SF_TuneD.y);   // -sftune _SF_TuneD=0,0.45: the scan unstretched
+                float2 uvX = float2(wp.z, cv) * cs;
                 float2 uvY = wp.xz * cs;
-                float2 uvZ = float2(wp.x, wp.y * _CliffStretch) * cs;
+                float2 uvZ = float2(wp.x, cv) * cs;
                 float2 gxX = ddx(uvX), gyX = ddy(uvX), gxZ = ddx(uvZ), gyZ = ddy(uvZ);
                 if (w.b > on)
                 {
@@ -248,11 +273,29 @@ Shader "StarForge/Terrain"
                     half dryShore = smoothstep(_WaterLevel + 0.3, _WaterLevel + 0.9, wp.y);
                     half turf = lush * b.r * level * dryShore * (1.0 - stones * 0.75)
                               * saturate(lerp(0.50, 0.80, patch) + _SF_TuneA.x);
+                    // The turf's own surface: photographs of lush and of dry meadow turf as
+                    // detail (x4: a quarter is their mean), each only where its patch shows,
+                    // the dry one turned so the two never tile in step. They say where the
+                    // turf is lighter, darker, greener, yellower; SFTurfColor says what
+                    // colour it is, so from far off, where they blur to their mean, the
+                    // meadow is the colour it was. The scan's sand and stones underneath
+                    // keep less than half their say in the light and dark.
+                    half3 turfDetail = 1.0;
+                    half turfTex = saturate(_TurfTile.z + _SF_TuneC.x);
+                    if (turfTex > on)
+                    {
+                        float kt = 1.0 / (_TurfTile.x * (1.0 + _SF_TuneC.y));
+                        half3 td = 0, tl = 0;
+                        if (patch < 1.0 - on) td = SAMPLE_TEXTURE2D_GRAD(_TurfDry, sampler_Splat0, (wr - 0.37) * (2.7 * kt), gxr * (2.7 * kt), gyr * (2.7 * kt)).rgb;
+                        if (patch > on)       tl = SAMPLE_TEXTURE2D_GRAD(_TurfLush, sampler_Splat0, wp.xz * kt, gx * kt, gy * kt).rgb;
+                        turfDetail = lerp(half3(1, 1, 1), lerp(td, tl, patch) * 4.0, turfTex);
+                        detail = lerp(1.0, detail, saturate(0.45 + _SF_TuneC.w));
+                    }
                     // The terrain's own variation factor further down (0.86..1.12) follows
                     // the same channel as the patch, so it is taken out of the turf here:
                     // left in, a dry patch's pale turf was darkened under blades that
                     // SFGrassPatchTint brightens, and the tufts stood out of it again.
-                    albedo = lerp(albedo, SFTurfColor(patch) * detail * rcp(lerp(0.86, 1.12, variation)), turf);
+                    albedo = lerp(albedo, SFTurfColor(patch) * detail * turfDetail * rcp(lerp(0.86, 1.12, variation)), turf);
                     smooth = lerp(smooth, 0.08, turf);
                 }
 
@@ -322,7 +365,17 @@ Shader "StarForge/Terrain"
                         half ash = smoothstep(0.3, 0.9, gone) * smoothstep(0.1, 0.4, w.r);
                         // Grey ash, not a darker green: the turf under it burnt with the grass.
                         half ashLum = dot(albedo, half3(0.2126, 0.7152, 0.0722));
-                        albedo = lerp(albedo, lerp(albedo, ashLum.xxx, 0.8) * half3(0.34, 0.31, 0.29), ash);
+                        half3 ashCol = lerp(albedo, ashLum.xxx, 0.8) * half3(0.34, 0.31, 0.29);
+                        // Ash, char and stubble from a photograph of burnt ground, as detail
+                        // on that grey (x4: a quarter is its mean).
+                        half burntTex = saturate(_TurfTile.w + _SF_TuneC.z);
+                        if (burntTex > on && ash > on)
+                        {
+                            float kb = 1.0 / _TurfTile.y;
+                            half3 bd = SAMPLE_TEXTURE2D_GRAD(_BurntTex, sampler_Splat0, wp.xz * kb, gx * kb, gy * kb).rgb * 4.0;
+                            ashCol *= lerp(half3(1, 1, 1), bd, burntTex);
+                        }
+                        albedo = lerp(albedo, ashCol, ash);
                         smooth *= 1.0 - ash * 0.45;
                     }
                     // Craters (A): a scorched, blasted centre inside a ring of lighter,

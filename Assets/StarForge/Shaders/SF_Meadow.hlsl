@@ -16,8 +16,14 @@
 // zero in any normal run, so the numbers in the shaders are what ships.
 //   _SF_TuneA  x turf strength, y grass brightness, z far thinning, w flowers
 //   _SF_TuneB  x leaf wrap, y leaf self-shadow floor, z light through leaves, w leaf ambient
+//   _SF_TuneC  x turf photograph's strength, y its tile size (share), z burnt photograph's
+//              strength, w how much of the scan's light and dark the turf keeps
 float4 _SF_TuneA;
 float4 _SF_TuneB;
+//   _SF_TuneD  x -1: steep faces keep their splat (SF_Terrain's slope-to-rock rule off)
+//              y added to SF_Terrain's _CliffStretch (0.55; +0.45 = the cliff scan as tall as it is wide)
+float4 _SF_TuneC;
+float4 _SF_TuneD;
 
 // 0 a dry, yellower patch .. 1 a lush, deeper one, from the terrain's variation
 // channel (MapGenerator.Variation, in the AO texture's G: fBm about 18 m across).

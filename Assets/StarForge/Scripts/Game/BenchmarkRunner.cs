@@ -54,6 +54,12 @@ namespace StarForge.Game
         // -sfvegprobe [zoom]: the camera held on the densest wood for the whole run (grass,
         // trees and their shadows filling the view), for costing vegetation changes.
         float vegProbe;
+        // -sflook x,z[,zoom]: the camera held on that spot of the map for the whole run,
+        // so -sfshot or -sfburst photographs any place on a seed (a gallery log line
+        // gives a shot's "focus"). Without a gallery; after -sfvegprobe it wins.
+        bool lookSet;
+        Vector2 lookAt;
+        float lookZoom = 40f;
         int rigProbe = -1;
         bool rigProbeRigid, rigProbePoses, rigProbeFollow, rigProbeFreeze;
         SoldierRigProbe rigProbeOn;
@@ -108,6 +114,19 @@ namespace StarForge.Game
                     vegProbe = 55f;
                     if (i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float,
                                                               System.Globalization.CultureInfo.InvariantCulture, out float vz) && vz > 5f) vegProbe = vz;
+                }
+                else if (args[i] == "-sflook" && i + 1 < args.Length)
+                {
+                    string[] lp = args[i + 1].Split(',');
+                    var inv = System.Globalization.CultureInfo.InvariantCulture;
+                    var num = System.Globalization.NumberStyles.Float;
+                    if (lp.Length >= 2 && float.TryParse(lp[0], num, inv, out float lx) && float.TryParse(lp[1], num, inv, out float lz))
+                    {
+                        lookSet = true;
+                        lookAt = new Vector2(lx, lz);
+                        if (lp.Length >= 3 && float.TryParse(lp[2], num, inv, out float lzoom) && lzoom > 5f) lookZoom = lzoom;
+                    }
+                    else Debug.LogWarning($"[StarForge] -sflook {args[i + 1]}: not x,z[,zoom]");
                 }
                 else if (args[i] == "-sfrigprobe" && i + 1 < args.Length && int.TryParse(args[i + 1], out int rp)) rigProbe = rp;
                 else if (args[i] == "-sfrigrigid") rigProbeRigid = true;
@@ -183,6 +202,11 @@ namespace StarForge.Game
             {
                 holdCamera = true;
                 StartCoroutine(VegProbe());
+            }
+            if (active && lookSet && galleryDir == null && rig != null)
+            {
+                holdCamera = true;
+                StartCoroutine(LookAt());
             }
             if (active && galleryDir != null)
             {
@@ -318,6 +342,15 @@ namespace StarForge.Game
             var c = new List<float>(v);
             c.Sort();
             return c[Mathf.Clamp(Mathf.RoundToInt(q * (c.Count - 1)), 0, c.Count - 1)];
+        }
+
+        IEnumerator LookAt()
+        {
+            // After VegProbe's second, so this one has the last word when both are given.
+            yield return new WaitForSecondsRealtime(1.2f);
+            rig.JumpTo(lookAt);
+            rig.ZoomTo(lookZoom);
+            Debug.Log($"[StarForge] -sflook: camera held on ({lookAt.x:0.00}, {lookAt.y:0.00}) at zoom {lookZoom:0}");
         }
 
         IEnumerator VegProbe()

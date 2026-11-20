@@ -263,6 +263,17 @@ namespace StarForge.EditorTools
             mat.SetVector("_Tile", tile);
             mat.SetTexture("_MacroTex", macro);
             mat.SetFloat("_WaterLevel", HeightfieldGenerator.WATER);
+            // The meadow turf's and the burnt ground's detail photographs
+            // (Tools/blender/pack_turf.py; made for this project with an image model).
+            // Without them the strengths stay 0 and the turf is the plain colour.
+            var turfLush = AssetDatabase.LoadAssetAtPath<Texture2D>(SFAssetPostprocessor.TextureDir + "turf_lush.jpg");
+            var turfDry = AssetDatabase.LoadAssetAtPath<Texture2D>(SFAssetPostprocessor.TextureDir + "turf_dry.jpg");
+            var burnt = AssetDatabase.LoadAssetAtPath<Texture2D>(SFAssetPostprocessor.TextureDir + "ground_burnt.jpg");
+            bool turf = turfLush != null && turfDry != null;
+            mat.SetTexture("_TurfLush", turfLush);
+            mat.SetTexture("_TurfDry", turfDry);
+            mat.SetTexture("_BurntTex", burnt);
+            mat.SetVector("_TurfTile", new Vector4(5.3f, 4.1f, turf ? 1f : 0f, burnt != null ? 1f : 0f));
             EditorUtility.SetDirty(mat);
 
             // The backdrop needs the layer textures bound by hand (no TerrainData).
@@ -276,6 +287,20 @@ namespace StarForge.EditorTools
             back.EnableKeyword("_SF_AUTOSPLAT");
             EditorUtility.SetDirty(back);
             return mat;
+        }
+
+        /// <summary>Rebuilds the terrain and backdrop materials alone (and the layer
+        /// assets they are made with), without regenerating the map scene: for a change
+        /// to what <see cref="BuildTerrainMaterial"/> sets. The scene's kit refers to
+        /// the same material assets, so Build step 3 is not needed for it.</summary>
+        public static string RefreshTerrainMaterial()
+        {
+            var mat = BuildTerrainMaterial(out var layers);
+            AssetDatabase.SaveAssets();
+            Vector4 t = mat.GetVector("_TurfTile");
+            return $"terrain material rebuilt: {layers.Length} layers, turf detail {(mat.GetTexture("_TurfLush") != null ? "bound" : "none")}" +
+                   $" / {(mat.GetTexture("_TurfDry") != null ? "bound" : "none")}, burnt detail {(mat.GetTexture("_BurntTex") != null ? "bound" : "none")}," +
+                   $" _TurfTile {t.x:0.0} {t.y:0.0} {t.z:0} {t.w:0}";
         }
 
         static TerrainLayer Layer(string name, Texture2D diffuse, Texture2D normal, float tile)

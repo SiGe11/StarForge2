@@ -1,0 +1,112 @@
+{
+  "turf_lush": {
+    "source": "Art/Source/llm/turf_lush.jpg",
+    "made_with": "Google Gemini, by the author, 2026-11-20",
+    "mean_linear": [
+      0.1229,
+      0.1476,
+      0.0603
+    ],
+    "mean_srgb": [
+      0.385,
+      0.42,
+      0.272
+    ],
+    "detail_mean_x4": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "half_shift_error_source_x_y_xy": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "half_shift_error_packed_x_y_xy": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "wrap_step_x_y": [
+      0.86,
+      0.9
+    ],
+    "lapped_px_before_resize": 1792,
+    "share_clipped": 0.01702,
+    "notes": []
+  },
+  "turf_dry": {
+    "source": "Art/Source/llm/turf_dry.jpg",
+    "made_with": "Google Gemini, by the author, 2026-11-20",
+    "mean_linear": [
+      0.343,
+      0.252,
+      0.1299
+    ],
+    "mean_srgb": [
+      0.621,
+      0.539,
+      0.396
+    ],
+    "detail_mean_x4": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "half_shift_error_source_x_y_xy": [
+      0.55,
+      0.98,
+      0.99
+    ],
+    "half_shift_error_packed_x_y_xy": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "wrap_step_x_y": [
+      0.96,
+      1.01
+    ],
+    "lapped_px_before_resize": 1792,
+    "share_clipped": 0.00152,
+    "notes": []
+  },
+  "ground_burnt": {
+    "source": "Art/Source/llm/burnt_ground.jpg",
+    "made_with": "Google Gemini, by the author, 2026-11-20",
+    "mean_linear": [
+      0.1202,
+      0.1162,
+      0.1232
+    ],
+    "mean_srgb": [
+      0.381,
+      0.375,
+      0.386
+    ],
+    "detail_mean_x4": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "half_shift_error_source_x_y_xy": [
+      0.29,
+      0.69,
+      0.69
+    ],
+    "half_shift_error_packed_x_y_xy": [
+      0.99,
+      0.99,
+      1.0
+    ],
+    "wrap_step_x_y": [
+      1.02,
+      1.03
+    ],
+    "lapped_px_before_resize": 896,
+    "share_clipped": 0.03313,
+    "notes": [
+      "one period of a repeated tile (a quarter of the picture)"
+    ]
+  }
+}

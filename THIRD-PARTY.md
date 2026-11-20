@@ -200,6 +200,16 @@ Not third party, and not on the list above:
 - **Generated textures** — `armor.png`/`armor_n.png`, `flames.png`,
   `smoke_puffs.png`, `foliage_*.png`, the icons, the cloud cookie and the lens
   dirt: made by the `Tools/make_*.py` generators.
+- **Images made with an image model** — `Art/Textures/turf_lush.jpg`,
+  `turf_dry.jpg` and `ground_burnt.jpg` (the meadow turf's and the burnt
+  ground's detail): three top-down ground pictures the author made with Google
+  Gemini on 2026-11-20, turned into tiling detail textures by
+  `Tools/blender/pack_turf.py` (the 2048 px originals are kept outside the
+  repository). They are AI-generated, not photographs. Google's Terms of Service
+  (<https://policies.google.com/terms>, effective 30 July 2026, read 2026-11-20)
+  say of content its services generate: "Google won't claim ownership over that
+  content", and put no condition on publishing it; its generative-AI use policy
+  only forbids passing such content off as made by a human.
 - **Menu illustrations, made with an image model** — `UI/Art/keyart.jpg` (the
   splash and loading-screen key art, 2752×1536) and `UI/Art/opponent_recruit.jpg`,
   `opponent_veteran.jpg` and `opponent_commander.jpg` (the opponent's three
