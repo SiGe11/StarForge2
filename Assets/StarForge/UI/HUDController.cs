@@ -1,5 +1,6 @@
 // HUDController.cs — binds the UI Toolkit HUD to the match: resources, minimap,
-// selection, command card, alerts, the AI inspector and the menus.
+// selection, command card, alerts and the AI inspector. The menus (title, pause, the
+// after-action report) are MenuController's, which this adds to the same document.
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -26,19 +27,13 @@ namespace StarForge.UI
         const int CardSlots = 12;
         const int MinimapRes = 256;
 
-        VisualElement root, hud, titleScreen, pauseMenu, endScreen, inspector, tooltip, alerts, commandCard;
+        VisualElement root, hud, inspector, tooltip, alerts, commandCard;
         VisualElement singleInfo, multiGrid, queue;
         Label oreLabel, supplyLabel, clockLabel, perfLabel, intelLabel;
         Label unitName, unitStats, unitStatus, selectionHint;
         Label tooltipTitle, tooltipCost, tooltipBody;
         Label inspStrategy, inspReason, inspStats;
-        Label endTitle, endSubtitle, endStats, endDossier;
-        Label difficultyBlurb, memoryStatus, controlsText, qualityBlurb, opponentText;
-        Button combatButton;
         Button inspectorButton;
-        Button[] segments;
-        Button[] qualitySegments;
-        Toggle memoryToggle;
         Image portrait;
         BarElement hpBar;
         // The queue row as last built: rebuilt only when what it shows changes, its bars moved
@@ -48,7 +43,7 @@ namespace StarForge.UI
         int queueResearch = -2;
         readonly List<UnitType> queueShown = new List<UnitType>(5);
         BarElement queueBar, researchBar;
-        BarChartElement beliefChart, strategyChart, profileChart, endStyleChart;
+        BarChartElement beliefChart, strategyChart, profileChart;
         MinimapElement minimap;
         OverlayElement screenOverlay;
         bool overlayHadBox;
@@ -117,9 +112,6 @@ namespace StarForge.UI
 
             root = GetComponent<UIDocument>().rootVisualElement;
             hud = root.Q("hud");
-            titleScreen = root.Q("titleScreen");
-            pauseMenu = root.Q("pauseMenu");
-            endScreen = root.Q("endScreen");
             inspector = root.Q("inspector");
             tooltip = root.Q("tooltip");
             alerts = root.Q("alerts");
@@ -142,25 +134,14 @@ namespace StarForge.UI
             inspStrategy = root.Q<Label>("inspStrategy");
             inspReason = root.Q<Label>("inspReason");
             inspStats = root.Q<Label>("inspStats");
-            endTitle = root.Q<Label>("endTitle");
-            endSubtitle = root.Q<Label>("endSubtitle");
-            endStats = root.Q<Label>("endStats");
-            endDossier = root.Q<Label>("endDossier");
-            difficultyBlurb = root.Q<Label>("difficultyBlurb");
-            memoryStatus = root.Q<Label>("memoryStatus");
-            qualityBlurb = root.Q<Label>("qualityBlurb");
-            opponentText = root.Q<Label>("opponentText");
-            controlsText = root.Q<Label>("controlsText");
             portrait = root.Q<Image>("portrait");
             hpBar = root.Q<BarElement>("hpBar");
             beliefChart = root.Q<BarChartElement>("beliefChart");
             strategyChart = root.Q<BarChartElement>("strategyChart");
             profileChart = root.Q<BarChartElement>("profileChart");
-            endStyleChart = root.Q<BarChartElement>("endStyleChart");
             minimap = root.Q<MinimapElement>("minimap");
             screenOverlay = root.Q<OverlayElement>("screenOverlay");
             screenOverlay.DrawOverlay = DrawScreenOverlay;
-            memoryToggle = root.Q<Toggle>("memoryToggle");
             inspectorButton = root.Q<Button>("inspectorButton");
             mechStrip = root.Q("mechStrip");
             commsFeed = root.Q("commsFeed");
@@ -175,18 +156,16 @@ namespace StarForge.UI
             mechStrip.RegisterCallback<ClickEvent>(_ => FocusMech());
 
             BuildCommandCard();
-            WireMenus();
             WireMinimap();
-            controlsText.text = MatchSettings.debugAI ? ControlsHelp + " · I AI inspector" : ControlsHelp;
-            opponentText.text = OpponentHelp;
+            root.Q<Button>("menuButton").clicked += () => bootstrap.TogglePause();
+            inspectorButton.clicked += ToggleInspector;
 
             // The AI's internals are a developer tool, not part of the game: a player
-            // learns the opponent by playing it (and from "About the opponent").
+            // learns the opponent by playing it (and from the Field manual's "The opponent").
             SetDisplay(inspectorButton, MatchSettings.debugAI);
-            SetDisplay(memoryToggle, MatchSettings.debugAI);
-            SetDisplay(memoryStatus, MatchSettings.debugAI);
-            SetDisplay(root.Q("resetMemoryButton"), MatchSettings.debugAI);
-            SetDisplay(root.Q("endDossierColumn"), MatchSettings.debugAI);
+
+            // The menus live in this document (StarForgeMenu.uxml, instanced by the HUD's).
+            if (GetComponent<MenuController>() == null) gameObject.AddComponent<MenuController>();
         }
 
         void OnEnable()
@@ -194,7 +173,6 @@ namespace StarForge.UI
             if (bootstrap != null)
             {
                 bootstrap.StateChanged += OnStateChanged;
-                bootstrap.MatchEnded += OnMatchEnded;
             }
             if (world != null) world.Event += OnWorldEvent;
             if (player != null)
@@ -213,7 +191,6 @@ namespace StarForge.UI
             if (bootstrap != null)
             {
                 bootstrap.StateChanged -= OnStateChanged;
-                bootstrap.MatchEnded -= OnMatchEnded;
             }
             if (world != null) world.Event -= OnWorldEvent;
             if (player != null)
@@ -246,12 +223,8 @@ namespace StarForge.UI
         // ------------------------------------------------------------ screens
         void OnStateChanged(MatchState s)
         {
-            Show(titleScreen, s == MatchState.Menu);
-            Show(pauseMenu, s == MatchState.Paused);
-            Show(endScreen, s == MatchState.Ended);
             hud.style.display = s == MatchState.Playing || s == MatchState.Paused || s == MatchState.Ended
                 ? DisplayStyle.Flex : DisplayStyle.None;
-            if (s == MatchState.Menu) RefreshTitle();
             if (s == MatchState.Playing)
             {
                 intelLabel.text = IntelText();
@@ -264,96 +237,7 @@ namespace StarForge.UI
             if (e != null) e.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
-        static void Show(VisualElement e, bool visible) =>
-            e.EnableInClassList("screen--visible", visible);
-
         void OnMenuRequested() => bootstrap.TogglePause();
-
-        void WireMenus()
-        {
-            segments = new[] { root.Q<Button>("diffRecruit"), root.Q<Button>("diffVeteran"), root.Q<Button>("diffCommander") };
-            for (int i = 0; i < segments.Length; i++)
-            {
-                int idx = i;
-                segments[i].clicked += () => { MatchSettings.difficulty = (AIDifficulty)idx; RefreshTitle(); };
-            }
-            qualitySegments = new[] { root.Q<Button>("qualityHigh"), root.Q<Button>("qualityBalanced"), root.Q<Button>("qualityBattery") };
-            for (int i = 0; i < qualitySegments.Length; i++)
-            {
-                int idx = i;
-                qualitySegments[i].clicked += () => { QualityController.Current = (SFQuality)idx; RefreshTitle(); };
-            }
-
-            memoryToggle.value = MatchSettings.aiMemory;
-            memoryToggle.RegisterValueChangedCallback(e => { MatchSettings.aiMemory = e.newValue; RefreshTitle(); });
-
-            root.Q<Button>("playButton").clicked += () => { MatchSettings.spectate = false; bootstrap.StartMatch(); };
-            root.Q<Button>("spectateButton").clicked += () => { MatchSettings.spectate = true; bootstrap.StartMatch(); };
-            combatButton = root.Q<Button>("combatButton");
-            // The combat switch went with the old combat (tactical phase 8).
-            if (combatButton != null) combatButton.style.display = DisplayStyle.None;
-            root.Q<Button>("controlsButton").clicked += () =>
-            {
-                opponentText.RemoveFromClassList("controls-text--visible");
-                controlsText.ToggleInClassList("controls-text--visible");
-            };
-            root.Q<Button>("opponentButton").clicked += () =>
-            {
-                controlsText.RemoveFromClassList("controls-text--visible");
-                opponentText.ToggleInClassList("controls-text--visible");
-            };
-            root.Q<Button>("resetMemoryButton").clicked += () => { AIMemory.Reset(); RefreshTitle(); };
-            root.Q<Button>("quitButton").clicked += Quit;
-
-            root.Q<Button>("resumeButton").clicked += () => bootstrap.TogglePause();
-            root.Q<Button>("restartButton").clicked += () => bootstrap.Restart();
-            root.Q<Button>("surrenderButton").clicked += () => bootstrap.Surrender();
-            root.Q<Button>("fullscreenButton").clicked += ToggleFullscreen;
-            root.Q<Button>("menuReturnButton").clicked += () => bootstrap.ReturnToMenu();
-            root.Q<Button>("quitButton2").clicked += Quit;
-
-            root.Q<Button>("rematchButton").clicked += () => bootstrap.Restart();
-            root.Q<Button>("endMenuButton").clicked += () => bootstrap.ReturnToMenu();
-
-            root.Q<Button>("menuButton").clicked += () => bootstrap.TogglePause();
-            inspectorButton.clicked += ToggleInspector;
-        }
-
-        static void Quit()
-        {
-#if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-#else
-            Application.Quit();
-#endif
-        }
-
-        static void ToggleFullscreen() => DisplayModes.Toggle();
-
-        void RefreshTitle()
-        {
-            for (int i = 0; i < segments.Length; i++)
-                segments[i].EnableInClassList("segment--active", (int)MatchSettings.difficulty == i);
-            switch (MatchSettings.difficulty)
-            {
-                case AIDifficulty.Recruit:
-                    difficultyBlurb.text = "90 actions per minute, slow reactions. Still scouts, still reads you."; break;
-                case AIDifficulty.Veteran:
-                    difficultyBlurb.text = "180 APM with half-second reactions. A solid club player."; break;
-                default:
-                    difficultyBlurb.text = "330 APM with 0.22 s reactions — sized against a top StarCraft II professional."; break;
-            }
-            for (int i = 0; i < qualitySegments.Length; i++)
-                qualitySegments[i].EnableInClassList("segment--active", (int)QualityController.Current == i);
-            qualityBlurb.text = QualityController.Blurb(QualityController.Current);
-
-            if (!MatchSettings.debugAI) return;
-            var mem = AIMemory.Load();
-            if (!MatchSettings.aiMemory) memoryStatus.text = "Memory off: every match starts from its default doctrine.";
-            else if (mem.games == 0) memoryStatus.text = "It has never played you.";
-            else memoryStatus.text =
-                $"It has played you {mem.games} time{(mem.games == 1 ? "" : "s")} (won {mem.aiWins}). Last read: {mem.lastRead}.";
-        }
 
         void ToggleInspector()
         {
@@ -1237,68 +1121,19 @@ namespace StarForge.UI
             if (lit != cheatLit) { cheatLit = lit; cheatLabel.style.opacity = lit ? 1f : 0.1f; }
         }
 
-        // ------------------------------------------------------------ end of match
-        void OnMatchEnded(int winner)
-        {
-            int me = player != null ? player.team : 0;
-            bool won = winner == me;
-            if (MatchSettings.spectate)
-            {
-                endTitle.text = winner > 1 ? "DRAW" : winner == 0 ? "BLUE WINS" : "RED WINS";
-                endTitle.EnableInClassList("end-title--defeat", winner == 1);
-            }
-            else
-            {
-                endTitle.text = winner > 1 ? "DRAW" : won ? "VICTORY" : "DEFEAT";   // both sides gone in one tick
-                endTitle.EnableInClassList("end-title--defeat", !won && winner <= 1);
-            }
-            int t = Mathf.FloorToInt(world.time);
-            endSubtitle.text = $"{t / 60}:{t % 60:00} · opponent {bootstrap.AI.Difficulty}";
-            if (world.ReckoningTeam == me) endSubtitle.text += " · cheat mode: the animals had the last word";
-
-            var F = world.factions[me];
-            var E = world.factions[1 - me];
-            endStats.text =
-                $"Ore mined          {F.oreMined}   vs {E.oreMined}\n" +
-                $"Units produced     {F.unitsProduced}   vs {E.unitsProduced}\n" +
-                $"Structures built   {F.structuresBuilt}   vs {E.structuresBuilt}\n" +
-                $"Enemy losses       {F.killed}\n" +
-                $"Your losses        {F.lost}";
-
-            if (!MatchSettings.debugAI) return;   // the dossier is the AI's internal read of you
-            var ai = bootstrap.AI;
-            var vals = new float[BeliefLabels.Length];
-            var txt = new string[BeliefLabels.Length];
-            for (int i = 0; i < vals.Length; i++)
-            {
-                vals[i] = ai.StyleShare((PlayerStrat)i);
-                txt[i] = $"{vals[i] * 100f:0}%";
-            }
-            endStyleChart.SetData(BeliefLabels, vals, txt, (int)ai.DominantStyle());
-
-            int favourite = 0;
-            for (int i = 1; i < (int)Strategy.Count; i++)
-                if (ai.Selector.timeIn[i] > ai.Selector.timeIn[favourite]) favourite = i;
-            var sb = new StringBuilder();
-            sb.Append($"It read you as mostly {AINames.Of(ai.DominantStyle())}, and spent most of the match on ");
-            sb.Append($"{AINames.Of((Strategy)favourite)} (switched plans {ai.Dbg.switches} times).");
-            if (MatchSettings.spectate) sb.Append("\nSpectated matches are not remembered.");
-            else if (MatchSettings.aiMemory)
-                sb.Append($"\nIt will remember this. Matches on record: {ai.Memory.games}. Next time it starts from what worked against you.");
-            else sb.Append("\nMemory was off, so it will not remember this match.");
-            endDossier.text = sb.ToString();
-        }
-
-        const string ControlsHelp =
+        // ------------------------------------------------------------ player-facing text
+        // Read by the menus (Field manual, Settings > Controls); keep OpponentHelp consistent
+        // with Commander and the README's "The opponent AI".
+        public const string ControlsHelp =
             "Camera   WASD / arrows / screen edge pan · Q E rotate · wheel zoom · middle-drag · Space centre\n" +
             "Select   click · drag box · double-click type · Shift add · Ctrl+1-0 group · 1-0 recall · F2 army\n" +
-            "Orders   right-click move/attack/mine · double right-click hurry (new combat) · R attack-move · C stop · H hold\n" +
+            "Orders   right-click move/attack/mine · double right-click hurry · R attack-move · C stop · H hold\n" +
             "Build    Digger: B basic (F foundry · B bunkhouse · G garrison · N sentinel · V workshop) · V advanced (U armory · L airfield · O biolab · Y mech bay) · X/Esc back\n" +
-            "Train    Foundry U J K · Garrison T K F M N B · Workshop M L F T K · X cancel\n" +
+            "Train    Foundry U J K · Garrison T K F M N B G · Workshop M L F T K · Airfield F G · Biolab T G V Z · X cancel\n" +
             "Mech     Mech Bay: V servos · B armour · N weapons · M hardpoint · K targeting · click the Mech strip to find it\n" +
             "Other    P pause · , . game speed · Esc menu";
 
-        const string OpponentHelp =
+        public const string OpponentHelp =
             "It plays by your rules. It sees only what its own units see, gives orders through the same commands you do, " +
             "and has a limited number of actions a minute: about 90 on Recruit, 180 on Veteran and 330 on Commander, " +
             "with reactions from nearly a second down to a fifth of one.\n\n" +
@@ -1329,7 +1164,7 @@ namespace StarForge.UI
             "Thumpers and Maulers against your towers, and gunships or Razorwings where little of yours can shoot up. It adds " +
             "Haulers to its ore lines from four minutes, and Prospectors -- armed ore trucks -- while you raid them. Once it knows of " +
             "your Mech, its bay or your Ironclads it buys the Armory's Mech-Hunter Programme and keeps a Mech-Hunter in the field. " +
-            "Under the new combat it also trains Gunners once its Armory stands.\n\n" +
+            "It also trains Gunners once its Armory stands.\n\n" +
             "It has a Mech too. It raises a Mech Bay early (its Mech lands seven minutes later), buys its Mech upgrades from spare " +
             "ore once that Mech is two minutes from landing -- guns and hardpoints when it means to attack, armour when it means to hold -- " +
             "and goes for your Mech Bay while your Mech has not yet landed. " +

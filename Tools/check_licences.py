@@ -241,6 +241,7 @@ OWN = [
     "Assets/StarForge/Map/*.png",
     "Assets/StarForge/Art/Icons/*.png",
     "Assets/StarForge/Art/AppIcon.png",
+    "Assets/StarForge/UI/Art/*.jpg",      # menu key art and opponent holograms: the author with Google Gemini, 2026-11-20
     "Assets/icon.png", "Assets/cursor.png",
     A + "Ambience/*.wav",
     A + "Sfx/mech_radio_*.wav", A + "Sfx/mech_flamer.wav",   # synthesised by make_audio.py --mech

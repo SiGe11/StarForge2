@@ -29,6 +29,12 @@ namespace StarForge.View
         public System.Func<Vector2, bool> BlocksEdgeScroll;
         [Tooltip("Ignore keyboard and mouse (the screenshot gallery drives the camera).")]
         public bool scripted;
+        /// <summary>Set by the menus while a page covers the screen: keys and the wheel belong to
+        /// the menu then. Separate from <see cref="scripted"/>, which tools save and restore.</summary>
+        [System.NonSerialized] public bool inputLocked;
+        /// <summary>Counts JumpTo, CenterOn and ZoomTo: the menu's slow drift (<see cref="Glide"/>)
+        /// stops for good once anything else has moved the camera.</summary>
+        public int Moves { get; private set; }
 
         Vector2 focus, focusTarget;
         float distTarget, yawTarget, groundY;
@@ -52,14 +58,33 @@ namespace StarForge.View
 
         public void JumpTo(Vector2 p)
         {
+            Moves++;
             focus = focusTarget = p;
             if (map != null) groundY = map.HeightAt(p);
             Apply();
         }
 
-        public void CenterOn(Vector2 p) => focusTarget = p;
+        public void CenterOn(Vector2 p) { Moves++; focusTarget = p; }
 
-        public void ZoomTo(float dist) => distTarget = Mathf.Clamp(dist, minDistance, maxDistance);
+        public void ZoomTo(float dist) { Moves++; distTarget = Mathf.Clamp(dist, minDistance, maxDistance); }
+
+        /// <summary>The title screen's drift: aims the camera without counting as a move.</summary>
+        public void Glide(Vector2 p, float yawDeg, float dist)
+        {
+            focusTarget = p;
+            yawTarget = yawDeg;
+            distTarget = Mathf.Clamp(dist, minDistance, maxDistance);
+        }
+
+        /// <summary>Puts the camera at once where a match starts it (after the title's drift).</summary>
+        public void Snap(Vector2 p, float yawDeg, float dist)
+        {
+            focus = focusTarget = p;
+            yaw = yawTarget = yawDeg;
+            distance = distTarget = Mathf.Clamp(dist, minDistance, maxDistance);
+            if (map != null) groundY = map.HeightAt(p);
+            Apply();
+        }
 
         public static float PitchFor(float dist) =>
             Mathf.Lerp(0.55f, 0.95f, Mathf.Clamp01((dist - 28f) / 110f)) * Mathf.Rad2Deg;
@@ -67,8 +92,9 @@ namespace StarForge.View
         void Update()
         {
             float dt = Time.unscaledDeltaTime;
-            var kb = scripted ? null : Keyboard.current;
-            var mouse = scripted ? null : Mouse.current;
+            var kb = scripted || inputLocked ? null : Keyboard.current;
+            var mouse = scripted || inputLocked ? null : Mouse.current;
+            if (mouse == null) dragging = false;   // a drag released while the menu had the mouse
 
             Vector2 pan = Vector2.zero;
             if (kb != null)

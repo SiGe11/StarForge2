@@ -74,6 +74,30 @@ namespace StarForge.View
         [Range(0f, 1f)] public float masterVolume = 0.7f;
         [Range(0f, 0.2f), Tooltip("The RMS level every music track is played at (before the master volume): low, under the effects.")]
         public float musicLoudness = 0.05f;
+        /// <summary>The player's music slider (Settings > Audio), on top of the master volume.</summary>
+        [System.NonSerialized] public float musicVolume = 1f;
+
+        /// <summary>Saved by the settings menu, read back here at every scene start. Absent keys
+        /// leave the scene's values, so a machine that never opened the menu sounds as before.
+        /// Nothing here touches <c>AudioListener.volume</c> (the test runs' mute).</summary>
+        public const string MasterKey = "sf_vol_master", MusicKey = "sf_vol_music";
+
+        public enum MenuCue { Hover, Select, Back, Open, Confirm, Error }
+
+        /// <summary>The menus' sounds, on the interface source, scaled by the master volume and <paramref name="gain"/>.</summary>
+        public void Menu(MenuCue cue, float gain)
+        {
+            if (ui == null || gain <= 0f) return;
+            switch (cue)
+            {
+                case MenuCue.Hover: PlayUI(bank.uiClick != null ? bank.uiClick : click, 0.07f * gain, 1.45f); break;
+                case MenuCue.Select: PlayUI(bank.uiSelect != null ? bank.uiSelect : click, 0.28f * gain, 1f); break;
+                case MenuCue.Back: PlayUI(bank.uiMove != null ? bank.uiMove : click, 0.22f * gain, 0.85f); break;
+                case MenuCue.Open: PlayUI(bank.uiNotice != null ? bank.uiNotice : good, 0.18f * gain, 1.1f); break;
+                case MenuCue.Confirm: PlayUI(bank.uiDone != null ? bank.uiDone : good, 0.4f * gain, 1f); break;
+                default: PlayUI(bank.uiError != null ? bank.uiError : warn, 0.3f * gain, 1f); break;
+            }
+        }
 
         const int SR = 44100;
         AudioClip rifle, cannon, pulse, bolt, boom, bigBoom, crystal, click, warn, good, promote, wind;
@@ -117,6 +141,8 @@ namespace StarForge.View
             if (world == null) world = FindAnyObjectByType<GameWorld>();
             if (player == null) player = FindAnyObjectByType<PlayerController>();
             if (rig == null) rig = FindAnyObjectByType<RTSCamera>();
+            masterVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(MasterKey, masterVolume));
+            musicVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(MusicKey, 1f));
             Synthesize();
             for (int i = 0; i < 24; i++)
             {
@@ -710,7 +736,7 @@ namespace StarForge.View
                 var src = music[i];
                 if (src.clip == null) continue;
                 float level = i == front ? k : (1f - k) * (musicMood[i] >= 0 ? 1f : 0f);
-                src.volume = level * musicGain[i] * masterVolume;
+                src.volume = level * musicGain[i] * masterVolume * musicVolume;
                 if (i != front && k >= 1f && src.isPlaying) src.Stop();
             }
             for (int m = 0; m < 3; m++) moodLevel[m] = 0f;

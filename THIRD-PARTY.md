@@ -200,6 +200,17 @@ Not third party, and not on the list above:
 - **Generated textures** — `armor.png`/`armor_n.png`, `flames.png`,
   `smoke_puffs.png`, `foliage_*.png`, the icons, the cloud cookie and the lens
   dirt: made by the `Tools/make_*.py` generators.
+- **Menu illustrations, made with an image model** — `UI/Art/keyart.jpg` (the
+  splash and loading-screen key art, 2752×1536) and `UI/Art/opponent_recruit.jpg`,
+  `opponent_veteran.jpg` and `opponent_commander.jpg` (the opponent's three
+  holograms, scaled down from 2816×1536 to 1408×768): made by the author with
+  Google Gemini (Google AI Pro) on 2026-11-20 from prompts written for the menus
+  (the originals are kept outside the repository). AI-generated; the game's
+  Credits page says so. Google's Terms of Service
+  (<https://policies.google.com/terms>, effective 30 July 2026, read 2026-11-20)
+  say Google won't claim ownership of content its services generate, and put no
+  condition on publishing it; its generative-AI use policy only forbids passing
+  such content off as made by a human.
 - **Synthesised audio** — `Audio/Ambience/*.wav` (wind, water, fire, birds),
   and the Mech's comms chirp and flamer roar (`Audio/Sfx/mech_radio_*.wav`,
   `mech_flamer.wav`), written by `Tools/make_audio.py` out of filtered noise and tones.

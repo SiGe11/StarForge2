@@ -49,10 +49,39 @@ that goes into a sharper picture).
 
 1. Open this folder with Unity **6000.6.9f1**.
 2. Open `Assets/StarForge/Scenes/Battlefield.unity` and press Play.
-3. Pick an opponent level on the title screen and **Deploy**.
+3. Press any key at the title, choose **Skirmish**, pick an opponent in *Operation setup* and **Deploy**.
 
 Everything generated (render pipeline, materials, prefabs, the map scene) can be
 rebuilt from the **StarForge** menu; **StarForge ▸ Build All** runs every step in order.
+
+## Menus
+
+The title sits over the live battlefield, the camera drifting through slow shots of the
+new map. The splash and the loading screen carry key art, and the opponent appears as a hologram
+for each of its three tiers (on Operation setup, in the field manual and in the after-action
+report): pictures the author made for StarForge with an image model (Google Gemini; see
+THIRD-PARTY.md). Arrows or WASD, Enter and Esc drive every page (Q and E or Tab switch tabs), and so
+does the mouse.
+
+- **Skirmish** opens *Operation setup*: the battlefield from above with both bases and the
+  ore, the opponent (Recruit, Veteran, Commander, with its actions a minute and reaction
+  time), the starting game speed, and **New map** for another battlefield.
+  **Observe** is the same page for two AIs.
+- **Field manual**: every unit and structure from the game's own data (cost, what trains it,
+  what it needs, hit points, damage a second, range, speed, sight), how the opponent thinks,
+  and the keys.
+- **Service record**: victories, defeats, win rate, time in command and the last eight
+  engagements. Only matches started from Operation setup (and their rematches) count:
+  never spectated ones, ones played with the cheat, or anything the benchmark, the
+  evaluation or a trial runs.
+- **Settings**, saved as they change: edge panning, camera pan and turn speed, starting game
+  speed, the frame-rate readout; the graphics preset and full screen or window; master,
+  music and interface volume. *Reset to defaults* puts back how the game came.
+- **Credits**: the people and the free assets behind the game.
+- **Esc** in a match opens the pause menu (resume, settings, field manual, restart,
+  surrender, main menu, quit), with a situation report; anything that loses the match asks
+  first. The match ends in an **after-action report** (both sides' ore, units, structures,
+  kills and losses), with *View battlefield* to look round the field before a rematch.
 
 ## Controls
 
@@ -508,8 +537,8 @@ as the Mauler's cannon (158-192 Hz, 41-58%), the deepest sounds in the game.
 
 ## The opponent AI
 
-*This is what a player needs to know; the title screen shows the same text under
-**About the opponent**.*
+*This is what a player needs to know; the **Field manual** (from the main menu or the
+pause menu) shows the same text under *The opponent*.*
 
 - **It plays by your rules.** It sees only what its own units see, gives orders
   through the same commands you do, and has a limited number of actions a minute:
@@ -623,7 +652,7 @@ New in this edition:
   your Sentinels and Skimmers is evidence in the opponent model.
 - **GPU influence field.** The spatial influence map runs as a Metal compute
   kernel with asynchronous readback, with the CPU path as fallback.
-- **Watch AI vs AI** from the title screen.
+- **Observe** (AI vs AI) from the main menu.
 
 ### Developer view
 
@@ -641,9 +670,9 @@ That brings back:
   and why, the posterior over the six player styles, every plan's bandit score,
   the behaviour profile, APM and how many intended actions the cap refused, plus
   minimap marks for where the AI believes your base is and where its scout is heading;
-- the **memory toggle** and **"Make the AI forget me"** on the title screen, and
+- the **memory toggle** and **"Forget me"** in *Operation setup*, and
   the memory state in the top bar;
-- the **AI's dossier** on the end screen: how it read you and which plans it used.
+- the **AI's dossier** in the after-action report: how it read you and which plans it used.
 
 **StarForge ▸ Evaluate AI** plays the adaptive AI against four scripted
 archetypes (rusher, macro, turtle, harasser) in the real scene and reports win
@@ -745,7 +774,7 @@ of intended actions.
 | Occlusion | **SSAO** at half resolution, normals reconstructed from the depth texture the fog pass already needs, applied after opaques as a single multiply — the cheap path on a tile-based GPU. Its sampling noise is fixed per pixel: URP's default blue noise is re-rolled every frame for TAA to average out, and without TAA it made the grass boil. |
 | Effects | Layered explosions: a white-hot flash, then a **simulated fireball** — a real fluid simulation (JangaFX's CC0 *Ground Explosion*, made in EmberGen) rendered in Blender into a flipbook that plays from the flash through a rolling fireball into the smoke column it leaves, glowing at its foot as it dies. Each frame of the sheet carries the smoke lit by the sun and by the sky separately, the fire's own light and its coverage, so the game relights the smoke with the scene's sun and colours the fire by its heat (dark red at the fringe, orange, a yellow heart that bloom picks up; a paler core came out cream under the tone mapper), and the sheet's frames crossfade so a short-lived burst does not step. Its frames are 384 pixels across (at 256 the simulation's grain showed as blotches with the camera close). It is composited premultiplied, so the smoke in it darkens what is behind it: the old photographed fireball was drawn additively, its smoke could only ever brighten the scene, and every explosion read as a flat orange blob. Burning trees, grass, buildings and wrecks are licked by flames from the same kind of sheet (the CC0 *Small Camp Fire* simulation), mirrored at random so no two tongues match. Around the fireball, dark smoke billows while the fire burns and rises into a column as it dies (smoke, dust and mist are lit cloud puffs, `SF_Smoke`: four cauliflower clusters with their own normals, occlusion and ragged coverage, made by `Tools/make_smoke_puffs.py`, lit by the sun and from above so the tops of the billows catch the light and the folds stay dark, and eaten into wisps as they age — the photographed smoke sheet drew every puff as the same flat grey sprite. **A puff never reaches opaque**: its coverage is soft-edged and eaten at two scales, so a cloud is built from many faint puffs over one another rather than from one solid sprite, and its outline stays ragged close up and far away. The first version of the atlas got both wrong — perfect hemispheres you could count, under a coverage that saturated in the core — and a burst drew as a hard dark lump of rock sitting on the ground. Colours are grey rather than near-black, too: dark smoke over a sunlit landscape still reads grey, and the old values came out as a hole in the scene), short hot sparks that strike the ground and skip off it, small charred debris that trails fire and bounces off the terrain, a fountain of earth and a dust ring for ground bursts, drifting embers, a point-light flash, scorch marks and camera shake — with structures coming apart in a short chain of secondary blasts. Guns fire shaped muzzle blasts (flares drawn with the streaks): the Mauler's is a white-hot core in a long orange blast with jets from the muzzle brake, a cone of smoke dragged to a stop and dust kicked off the ground, and its shell flies as a glowing slug leaving a smoke trail. **The Mauler is meant to feel heavy.** Its engine smokes from the two stacks on the deck — a wisp at idle, a grey-black plume under load, a belch as it pulls away from a standstill, and dirtiest while it leans on a boulder or a tree with the engine at full and the hull going nowhere — laid out behind the hull as it drives and leaning with the wind. (It took three rounds: the first poured out a cloud the size of the tank, the second was a haze nobody could see. The puffs were also being born on the engine deck, where the smoke shader's soft edge — which lets smoke meet the ground without a hard line — faded them out against the hull behind them; they now start half a metre above the stacks.) Its tracks roll a pale dust trail off the back of each run, more the faster it goes and none at all off wet ground, leave a low wake hanging over the ruts for a few seconds, and flick stones out from under the cleats. The ground remembers it: the cleated tread marks last a minute, and under them the tank churns a band of turned earth that heals over minutes, like a crater's thrown soil. When it fires, the whole tank is shoved: the hull is thrown back on its suspension and the nose comes up, rocks down past level and settles, a heavier flash and a bigger cone of smoke go out of the muzzle and hang in the air for seconds, the gun goes on smoking for a couple more, and the blast throws a wall of air forward over the growth in front of it. Its shell lands a size up from its splash — the heaviest thing in the game short of a building going up — and throws its own front all round. Zoomed out the engine smoke thins, since a plume nobody can see is not worth the particle budget. A Mauler crushing a boulder throws rock and dust and leaves a scorch; a tree coming down shakes out leaves and splinters and throws up dust all along the trunk where it lands; burning trees carry flames, smoke, embers and a flickering firelight. A Mech's autocannon and rotary cannon throw their spent brass out of the breech, tumbling end over end and bouncing and rolling on the ground. Its feet throw up the ground they land on, read from the same rule the terrain is painted by: a pale plume off sand, torn turf and little dust off a meadow, brown dust and stones off gravel, chips off rock, a puff of ash off burnt grass, mud and no dust at the water's edge or after a shower; a tracked Mech's runs leave dust of the same colours, and a foot coming down beside a body or a wreck kicks it. Each Mech carries its side's standard as real cloth (Unity's cloth simulation, pinned to a crossbar), thrown about by the Mech's stride and the gusts of the same wind the grass and the smoke follow. Plus a single instanced depth-decal shader for selection rings, footprints, order markers, scorch marks, tread marks and the light under ore, and instanced health bars and tracer streaks. |
 | Audio | **Weapons** are real firearms, from the CC0 Free Firearm Sound Library: every gun in it was recorded from beside the shooter and again from a distance, and a shot is mixed from both — the crack from the near take, the report rolling back off the ground from the far one a moment later — with a slap-back off the terrain behind. A Trooper's rifle is an AK-47 (two takes, a little apart in pitch), an SKS and an AR-15, with a short thump of body under each crack (four takes, so a firing line is not one sample repeated). (Before, the rifles were the thinnest takes in the library at a fifth of the level of the music, and players heard no shot at all: measured, every shot did play, it was simply buried. Now the shot is full-bodied, played at 0.4 against the music's 0.54 rather than 0.15, and a new shot takes a free voice, or else the one closest to finishing, instead of cutting off whichever voice came round next; the tank engines' idle loops are paused while no Mauler needs them. Staged fire-fight: 16 shots, every one heard.) The Mauler's gun is a 12-gauge, a .30-06 and a pump gun pitched down more than an octave and rolled off below a kilohertz, which is what a gun that size sounds like from across a valley, played louder than anything but a structure going up, with a **falling sub thump** under the crack and the **report rolling away** over the ground for two seconds after it (a loud bang is not frightening; the thing you feel and the thing that goes on after it are); the Sentinel's bolt and the Skimmer's plasma keep their Kenney energy sound with a real muzzle crack under it, which is what they were missing. Every take of a sound is levelled to the same loudness with its peaks rounded off, so a volley does not lurch about. **A tree** cracks and groans as it goes over and crashes with a rush of leaves as it lands (a felled tree, a tree creaking and wood breaks, all CC0); a bush flattened under a Mauler just rustles, and a fallen trunk splits under its tracks. A rifleman does not explode: his death is the round ringing off his armour and the thud of him going down. **Shells landing and things blowing up** are built the same way, from Kenney's explosion crunches: the crunch carries the detail, and under it go the thump and the long rolling report the recordings have no low end for — three takes for a shell (3.2 s), two deeper and slower ones for a structure (5 s). **The Mauler's engine** is Kenney's low engine dropped an octave with a harsh diesel knock under it and a growl, and its **tracks clatter** over the top, built from rubberduck's CC0 metal hits — the giveaway that a thing is tracked rather than wheeled, and the part of a tank you hear before you see it. **Each Mauler is heard as itself**: the three loudest in earshot get a voice each, panned to where they are on screen, the engine murmuring at idle and climbing in pitch and level as it works (a standing start, a hill, a boulder being shouldered aside), the clatter coming in with speed and running faster the faster it goes. Measured on one tank: idle, engine at 0.08 and pitch 0.80 with the tracks silent; flat out at 4.1 m/s, engine 0.26 at pitch 1.14 and tracks 0.20 at 1.23. (They used to share one bed that could not say where the tank coming at you was, or that it had just started to move.) All of it is aimed at 80–400 Hz rather than at 40: a laptop speaker moves no air down there, so weight put in the sub-bass is not felt, it is simply lost, and the rest gets turned down to make room for it. Measured, the family runs bright to deep — a rifle's energy centres at 800 Hz, the cannon at about 180, the engine at 220, a shell landing at 240–320, a structure going up at 150–200. The rest are Kenney's CC0 packs (glass for crystal, mining knocks, the Skimmer's drive, interface clicks and alerts), several takes of each picked at random and pitched a little; anything missing falls back to the sounds the game used to synthesise. **Ambience** is synthesised into seamless loops by `Tools/make_audio.py`: wind that gusts (stronger zoomed out), water lapping when the view holds a lake, a fire's roar and crackle near burning plants, and birdsong over the green that falls silent for half a minute after an explosion nearby. **Music** is thirteen recorded CC0 tracks from OpenGameArt, one mood at a time: six calm ones played in turn when nothing is happening — *At Home* (wolfgang), *First Light Particles* (yoiyami), *Contemplation* (Joth), *Peaceful Forest* (Samza), *Calm Ambient 1* (cynicmusic) and *A Place I Call Home* (Juhani Junkala): warm orchestral, piano over pads, drifting ambience and soft synth pads, all major-key and consonant by `Tools/measure_music.py`; three dark ones by yd — *Insistent*, *Pressure*, *Menace* — when armies gather or the enemy comes into sight; and four battle pieces while fighting is on screen — *Battle Theme A* (cynicmusic), *Determined Pursuit* and *QaziJamJam* (Emma_MA) and *Epic Boss Battle* (Juhani Junkala), strings, horns, choir and drums. Each time the music turns tense or to battle it picks one of that mood's tracks at random and loops it. A mood has to hold a few seconds before the music follows it (quicker going up than coming down), the moods crossfade over several seconds, and every track is played at one measured loudness well under the effects. (The music used to be synthesised; its plucks and tremolo beeped. The calm set that replaced it was minor-key piano, which sounded creepy rather than peaceful under a quiet base; the tracks there now are major and consonant, measured with `Tools/measure_music.py`.) Everything is heard only if the player could see it. |
-| UI | **UI Toolkit** (`Assets/StarForge/UI`): HUD, minimap, command card, title (with *About the opponent*), pause and end screens, and the developer-only AI inspector. |
+| UI | **UI Toolkit** (`Assets/StarForge/UI`): HUD, minimap, command card and the developer-only AI inspector (`HUDController`); the menus — title, main menu, Operation setup, Settings, Field manual, Service record, Credits, pause menu and after-action report — in `StarForgeMenu.uxml`/`.uss` and `MenuController`, drawn without textures (`MenuElements`: gradients, chamfered frames, the emblem, the operation map). |
 
 ### Folder map
 
@@ -777,8 +806,10 @@ Tools/blender/     model authoring + FBX export, pack_textures.py, build_rocks.p
 ### Third-party assets
 
 Everything committed here is free to **redistribute**, not merely free to use:
-the repository is public. The art and the audio are all CC0 (public domain
+the repository is public. The third-party art and audio are all CC0 (public domain
 dedication — credited here anyway, because the people who made them deserve it);
+the pictures the author made with an image model (each listed in THIRD-PARTY.md)
+are the project's own;
 the two font families are OFL 1.1 and Apache 2.0, whose licence texts travel with
 them in [`LICENSES/`](LICENSES). [**THIRD-PARTY.md**](THIRD-PARTY.md) is the full
 register: every source, its author, its licence, and which committed file came
@@ -967,7 +998,7 @@ their numbers.
   16.7 ms however light the load, so the old rule could never see room to climb, and one
   heavy fight left the picture at its floor for the rest of the match. The share settles
   well under the limit: on *High*, near 44%, about 42 fps.
-- **Three graphics presets** on the title screen, remembered between runs, each
+- **Three graphics presets** in Settings ▸ Graphics, remembered between runs, each
   trading the three things that actually cost on a fanless laptop: how far
   shadows are drawn, how much ground cover is grown, and how far the adaptive
   controller may drop before it gives frames back. *High* is the measurement
@@ -993,7 +1024,7 @@ their numbers.
 - Instanced overlays and pooled particles keep draw calls flat as battles grow;
   a spatial hash keeps target acquisition from going quadratic.
 - UI scales from a 1920×1080 reference, ~1.3× on the Neo's panel.
-- Switching between full screen and a window (the pause menu's button, or the
+- Switching between full screen and a window (Settings ▸ Graphics ▸ Display, or the
   window's own controls) always sets a resolution of the display's shape.
   Switching the mode alone had left a window the size of the display, which
   macOS shrank to fit under the menu bar (2816×1526); going back to full screen

@@ -79,6 +79,9 @@ namespace StarForge.View
         }
         public event Action<Vector3, int> OrderMarker;   // 0 move, 1 attack, 2 rally, 3 build
         public event Action MenuRequested;
+        /// <summary>Asked when Esc is pressed while paused: true if the menu used it (closed a page
+        /// or a dialog), false to resume.</summary>
+        public Func<bool> PausedEscape;
         public event Action InspectorToggled;
 
         Camera cam;
@@ -114,7 +117,9 @@ namespace StarForge.View
 
             if (bs.State == MatchState.Paused)
             {
-                if (kb.escapeKey.wasPressedThisFrame || kb.pKey.wasPressedThisFrame) bs.TogglePause();
+                // Esc first closes whatever the pause menu has open (PausedEscape); P always resumes.
+                if (kb.escapeKey.wasPressedThisFrame) { if (PausedEscape == null || !PausedEscape()) bs.TogglePause(); }
+                else if (kb.pKey.wasPressedThisFrame) bs.TogglePause();
                 return;
             }
             if (bs.State != MatchState.Playing) return;

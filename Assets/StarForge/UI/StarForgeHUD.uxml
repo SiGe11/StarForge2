@@ -1,5 +1,6 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:sf="StarForge.UI">
   <ui:Style src="StarForgeHUD.uss" />
+  <ui:Template name="Menus" src="StarForgeMenu.uxml" />
   <ui:VisualElement name="root" class="root" picking-mode="Ignore">
 
     <ui:VisualElement name="hud" class="hud" picking-mode="Ignore">
@@ -79,75 +80,9 @@
       </ui:VisualElement>
     </ui:VisualElement>
 
-    <ui:VisualElement name="titleScreen" class="screen title-screen">
-      <ui:VisualElement class="title-card">
-        <ui:Label class="logo" text="STARFORGE" />
-        <ui:Label class="tagline" text="Real-time strategy against an opponent that scouts, reads and remembers you." />
-        <ui:Label class="field-label" text="OPPONENT" />
-        <ui:VisualElement class="segmented">
-          <ui:Button name="diffRecruit" class="segment" text="RECRUIT" />
-          <ui:Button name="diffVeteran" class="segment" text="VETERAN" />
-          <ui:Button name="diffCommander" class="segment" text="COMMANDER" />
-        </ui:VisualElement>
-        <ui:Label name="difficultyBlurb" class="blurb" text="" />
-        <ui:Toggle name="memoryToggle" class="memory-toggle" label="The AI remembers me between matches" />
-        <ui:Label name="memoryStatus" class="blurb" text="" />
-        <ui:Label class="field-label" text="GRAPHICS" />
-        <ui:VisualElement class="segmented">
-          <ui:Button name="qualityHigh" class="segment" text="HIGH" />
-          <ui:Button name="qualityBalanced" class="segment" text="BALANCED" />
-          <ui:Button name="qualityBattery" class="segment" text="BATTERY" />
-        </ui:VisualElement>
-        <ui:Label name="qualityBlurb" class="blurb" text="" />
-        <ui:VisualElement class="button-row">
-          <ui:Button name="playButton" class="primary-button" text="DEPLOY" />
-          <ui:Button name="spectateButton" class="secondary-button" text="WATCH AI VS AI" />
-        </ui:VisualElement>
-        <ui:VisualElement class="button-row">
-          <ui:Button name="combatButton" class="link-button" text="Combat: classic" />
-          <ui:Button name="controlsButton" class="link-button" text="Controls" />
-          <ui:Button name="opponentButton" class="link-button" text="About the opponent" />
-          <ui:Button name="resetMemoryButton" class="link-button" text="Make the AI forget me" />
-          <ui:Button name="quitButton" class="link-button" text="Quit" />
-        </ui:VisualElement>
-        <ui:Label name="controlsText" class="controls-text" text="" />
-        <ui:Label name="opponentText" class="controls-text opponent-text" text="" />
-      </ui:VisualElement>
-    </ui:VisualElement>
-
-    <ui:VisualElement name="pauseMenu" class="screen pause-screen">
-      <ui:VisualElement class="menu-card">
-        <ui:Label class="menu-title" text="PAUSED" />
-        <ui:Button name="resumeButton" class="primary-button" text="RESUME" />
-        <ui:Button name="restartButton" class="secondary-button" text="RESTART" />
-        <ui:Button name="surrenderButton" class="secondary-button" text="SURRENDER" />
-        <ui:Button name="fullscreenButton" class="secondary-button" text="TOGGLE FULL SCREEN" />
-        <ui:Button name="menuReturnButton" class="secondary-button" text="MAIN MENU" />
-        <ui:Button name="quitButton2" class="link-button" text="Quit to desktop" />
-      </ui:VisualElement>
-    </ui:VisualElement>
-
-    <ui:VisualElement name="endScreen" class="screen end-screen">
-      <ui:VisualElement class="end-card">
-        <ui:Label name="endTitle" class="end-title" text="VICTORY" />
-        <ui:Label name="endSubtitle" class="end-subtitle" text="" />
-        <ui:VisualElement class="end-columns">
-          <ui:VisualElement class="end-column">
-            <ui:Label class="section-title" text="MATCH REPORT" />
-            <ui:Label name="endStats" class="end-text" text="" />
-          </ui:VisualElement>
-          <ui:VisualElement name="endDossierColumn" class="end-column end-column--wide">
-            <ui:Label class="section-title" text="THE AI'S DOSSIER ON YOU" />
-            <sf:BarChartElement name="endStyleChart" class="chart chart--six" />
-            <ui:Label name="endDossier" class="end-text" text="" />
-          </ui:VisualElement>
-        </ui:VisualElement>
-        <ui:VisualElement class="button-row">
-          <ui:Button name="rematchButton" class="primary-button" text="REMATCH" />
-          <ui:Button name="endMenuButton" class="secondary-button" text="MAIN MENU" />
-        </ui:VisualElement>
-      </ui:VisualElement>
-    </ui:VisualElement>
+    <!-- The menus (MenuController): title, pause, after-action report. Kept before the
+         cheat's mark, which must stay the root's last child. -->
+    <ui:Instance template="Menus" name="menuLayer" class="menu-layer" picking-mode="Ignore" />
 
     <ui:Label name="cheatLabel" class="cheat-label" text="CHEAT MODE" picking-mode="Ignore" />
   </ui:VisualElement>

@@ -38,87 +38,13 @@
     margin-bottom: 4px;
 }
 
-.screen {
+/* The menus' layer (StarForgeMenu.uxml): over the HUD, under the cheat's mark. */
+.menu-layer {
     position: absolute;
     left: 0;
     top: 0;
     right: 0;
     bottom: 0;
-    align-items: center;
-    justify-content: center;
-    background-color: var(--screen-dim);
-    display: none;
-}
-
-.screen--visible {
-    display: flex;
-}
-
-.primary-button,
-.secondary-button,
-.link-button,
-.top-button,
-.segment {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
-    border-radius: 4px;
-    border-width: 1px;
-    margin: 4px;
-    padding: 8px 18px;
-    color: var(--text);
-    letter-spacing: 1px;
-    transition-duration: 0.12s;
-}
-
-.primary-button {
-    background-color: rgba(79, 209, 255, 0.22);
-    border-color: var(--accent);
-    color: #ffffff;
-    font-size: 17px;
-    padding: 11px 34px;
-}
-
-.primary-button:hover {
-    background-color: rgba(79, 209, 255, 0.42);
-    scale: 1.03 1.03;
-}
-
-.secondary-button {
-    background-color: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.18);
-}
-
-.secondary-button:hover,
-.top-button:hover,
-.segment:hover {
-    background-color: var(--accent-faint);
-    border-color: var(--accent-dim);
-}
-
-.link-button {
-    background-color: rgba(0, 0, 0, 0);
-    border-color: rgba(0, 0, 0, 0);
-    color: var(--muted);
-    font-size: 13px;
-    padding: 4px 10px;
-}
-
-.link-button:hover {
-    color: var(--accent);
-}
-
-.button-row {
-    flex-direction: row;
-    justify-content: center;
-    margin-top: 12px;
-}
-
-.blurb {
-    color: var(--muted);
-    font-size: 13px;
-    white-space: normal;
-    margin-top: 4px;
-    margin-bottom: 4px;
-    -unity-text-align: middle-center;
 }
 
 /* ------------------------------------------------------------ HUD */
@@ -205,10 +131,22 @@
 }
 
 .top-button {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    border-radius: 4px;
+    border-width: 1px;
+    margin: 4px;
+    color: var(--text);
+    letter-spacing: 1px;
+    transition-duration: 0.12s;
     background-color: rgba(255, 255, 255, 0.04);
     border-color: rgba(255, 255, 255, 0.14);
     font-size: 12px;
     padding: 5px 12px;
+}
+
+.top-button:hover {
+    background-color: var(--accent-faint);
+    border-color: var(--accent-dim);
 }
 
 .top-button--active {
@@ -755,168 +693,6 @@
     color: var(--muted);
     margin-top: 10px;
     white-space: normal;
-}
-
-/* ------------------------------------------------------------ title */
-.title-screen {
-    background-color: rgba(3, 6, 10, 0.35);
-}
-
-.title-card {
-    width: 620px;
-    padding: 34px 40px;
-    align-items: center;
-    background-color: rgba(5, 9, 15, 0.82);
-    border-width: 1px;
-    border-color: var(--panel-edge);
-    border-radius: 10px;
-}
-
-.logo {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
-    font-size: 64px;
-    letter-spacing: 16px;
-    color: #ffffff;
-    text-shadow: 0 0 18px rgba(79, 209, 255, 0.85);
-    margin-left: 16px;
-}
-
-.tagline {
-    color: var(--muted);
-    font-size: 15px;
-    white-space: normal;
-    -unity-text-align: middle-center;
-    margin-bottom: 22px;
-}
-
-.field-label {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
-    font-size: 11px;
-    letter-spacing: 3px;
-    color: var(--accent);
-}
-
-.segmented {
-    flex-direction: row;
-    margin-top: 6px;
-}
-
-.segment {
-    background-color: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.14);
-    font-size: 14px;
-    margin: 0 3px;
-    padding: 8px 16px;
-}
-
-.segment--active {
-    background-color: rgba(255, 181, 71, 0.18);
-    border-color: var(--amber);
-    color: var(--amber);
-}
-
-.memory-toggle {
-    margin-top: 14px;
-}
-
-.memory-toggle > Label {
-    color: var(--text);
-    min-width: 0;
-    margin-right: 10px;
-}
-
-.memory-toggle #unity-checkmark {
-    border-color: var(--accent-dim);
-    background-color: rgba(255, 255, 255, 0.06);
-    -unity-background-image-tint-color: var(--accent);
-}
-
-.controls-text {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
-    font-size: 12px;
-    color: var(--muted);
-    white-space: normal;
-    margin-top: 10px;
-    display: none;
-}
-
-.controls-text--visible {
-    display: flex;
-}
-
-.opponent-text {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-Regular.ttf");
-    font-size: 12px;
-    color: var(--text);
-    max-width: 640px;
-}
-
-/* ------------------------------------------------------------ pause & end */
-.menu-card {
-    width: 340px;
-    padding: 26px;
-    align-items: stretch;
-    background-color: rgba(5, 9, 15, 0.9);
-    border-width: 1px;
-    border-color: var(--panel-edge);
-    border-radius: 10px;
-}
-
-.menu-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
-    font-size: 30px;
-    letter-spacing: 8px;
-    -unity-text-align: middle-center;
-    margin-bottom: 14px;
-}
-
-.end-card {
-    width: 900px;
-    padding: 30px 36px;
-    background-color: rgba(5, 9, 15, 0.92);
-    border-width: 1px;
-    border-color: var(--panel-edge);
-    border-radius: 10px;
-}
-
-.end-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
-    font-size: 54px;
-    letter-spacing: 14px;
-    -unity-text-align: middle-center;
-    color: var(--ok);
-    text-shadow: 0 0 20px rgba(89, 227, 140, 0.7);
-}
-
-.end-title--defeat {
-    color: var(--danger);
-    text-shadow: 0 0 20px rgba(255, 90, 79, 0.7);
-}
-
-.end-subtitle {
-    color: var(--muted);
-    -unity-text-align: middle-center;
-    margin-bottom: 16px;
-}
-
-.end-columns {
-    flex-direction: row;
-}
-
-.end-column {
-    flex-grow: 1;
-    flex-basis: 0;
-    margin: 0 10px;
-}
-
-.end-column--wide {
-    flex-grow: 1.6;
-}
-
-.end-text {
-    font-size: 14px;
-    white-space: normal;
-    margin-top: 6px;
 }
 
 /* The cheat's mark: over everything, the end screen included, and it never goes away. */

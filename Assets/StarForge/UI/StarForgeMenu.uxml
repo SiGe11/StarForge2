@@ -1,0 +1,305 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:sf="StarForge.UI">
+  <ui:Style src="StarForgeMenu.uss" />
+  <!-- The menus (MenuController): the title's pages over the live battlefield, the pause
+       menu and the after-action report over the match. Lists and rows are built in code. -->
+  <ui:VisualElement name="menuRoot" class="m-root" picking-mode="Ignore">
+
+    <!-- Shading over the battlefield behind the title's pages. -->
+    <ui:VisualElement name="menuBackdrop" class="m-backdrop" picking-mode="Ignore">
+      <sf:SFShade class="m-fill" direction="Vignette" from="#00000000" to="#000000C8" power="1.2" />
+      <sf:SFShade class="m-shade-side" direction="Horizontal" from="#02060BF4" to="#02060B00" power="1.4" />
+      <sf:SFShade class="m-shade-top" direction="Vertical" from="#000000A8" to="#00000000" />
+      <sf:SFShade class="m-shade-bottom" direction="Vertical" from="#00000000" to="#000000D0" />
+      <ui:VisualElement name="menuDeep" class="m-fill m-deep" picking-mode="Ignore" />
+      <ui:VisualElement name="menuDip" class="m-dip" picking-mode="Ignore" />
+    </ui:VisualElement>
+
+    <!-- ============================================================ main -->
+    <ui:VisualElement name="pageMain" class="m-page m-page--main">
+      <ui:VisualElement class="m-main-col">
+        <ui:VisualElement class="m-brand" picking-mode="Ignore">
+          <sf:SFEmblem name="mainEmblem" class="m-emblem" />
+          <ui:VisualElement class="m-brand-text" picking-mode="Ignore">
+            <ui:Label class="m-logo" text="STARFORGE" />
+            <ui:Label class="m-logo-sub" text="ADAPTIVE  WARFARE" />
+          </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="mainNav" class="m-nav" />
+      </ui:VisualElement>
+      <ui:VisualElement class="m-main-side" picking-mode="Ignore">
+        <ui:VisualElement class="m-profile" picking-mode="Ignore">
+          <ui:Label class="m-kicker" text="COMMANDER" />
+          <ui:Label name="profileRecord" class="m-profile-record" text="NO ENGAGEMENTS" />
+          <ui:Label name="profileOpponent" class="m-profile-sub" text="" />
+        </ui:VisualElement>
+        <ui:VisualElement class="m-grow" picking-mode="Ignore" />
+        <sf:SFFrame class="m-card m-side-card" picking-mode="Ignore">
+          <ui:Label class="m-card-title" text="LAST ENGAGEMENT" />
+          <ui:Label name="lastEngagement" class="m-text" text="" />
+        </sf:SFFrame>
+        <sf:SFFrame class="m-card m-side-card" picking-mode="Ignore">
+          <ui:Label class="m-card-title" text="FIELD INTEL" />
+          <ui:Label name="intelTip" class="m-text" text="" />
+        </sf:SFFrame>
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- ============================================================ operation setup -->
+    <ui:VisualElement name="pageSetup" class="m-page m-page--sub">
+      <ui:VisualElement class="m-header" picking-mode="Ignore">
+        <ui:Label name="setupCrumb" class="m-crumb" text="MAIN MENU  /  SKIRMISH" />
+        <ui:Label name="setupTitle" class="m-title" text="OPERATION SETUP" />
+      </ui:VisualElement>
+      <ui:VisualElement class="m-body m-row">
+        <sf:SFFrame class="m-card m-map-card">
+          <ui:Label class="m-card-title" text="AREA OF OPERATIONS" />
+          <sf:SFMapPreview name="mapPreview" class="m-map" />
+          <ui:Label name="mapName" class="m-map-name" text="SECTOR" />
+          <ui:Label name="mapStats" class="m-mono m-mono--muted" text="" />
+          <ui:VisualElement class="m-legend" picking-mode="Ignore">
+            <ui:VisualElement class="m-dot m-dot--blue" /><ui:Label class="m-legend-text" text="YOUR BASE" />
+            <ui:VisualElement class="m-dot m-dot--red" /><ui:Label class="m-legend-text" text="HOSTILE" />
+            <ui:VisualElement class="m-dot m-dot--ore" /><ui:Label class="m-legend-text" text="ORE" />
+          </ui:VisualElement>
+        </sf:SFFrame>
+        <ui:VisualElement class="m-setup-col">
+          <sf:SFFrame class="m-card">
+            <ui:Label class="m-card-title" text="PARAMETERS" />
+            <ui:VisualElement name="setupRows" class="m-rows" />
+          </sf:SFFrame>
+          <sf:SFFrame class="m-card m-grow m-row">
+            <ui:VisualElement class="m-opp-text">
+              <ui:Label name="oppKicker" class="m-card-title" text="OPPONENT PROFILE" />
+              <ui:Label name="oppName" class="m-opp-name" text="" />
+              <ui:Label name="oppBlurb" class="m-text" text="" />
+              <ui:VisualElement name="oppBars" class="m-opp-bars" />
+              <ui:Label name="memoryStatus" class="m-text m-text--muted" text="" />
+            </ui:VisualElement>
+            <!-- The opponent's hologram (Art/opponent_*.jpg; the tier's portrait class picks it). -->
+            <ui:VisualElement name="oppPortrait" class="m-portrait m-opp-portrait" picking-mode="Ignore">
+              <sf:SFShade class="m-fill" direction="Vertical" from="#02060B00" to="#02060BD0" power="2.2" />
+              <ui:Label name="oppPortraitTag" class="m-portrait-tag" text="" />
+            </ui:VisualElement>
+          </sf:SFFrame>
+        </ui:VisualElement>
+      </ui:VisualElement>
+      <ui:VisualElement class="m-actions">
+        <ui:Button name="setupBack" class="m-btn m-btn--ghost" text="BACK" />
+        <ui:VisualElement class="m-grow" picking-mode="Ignore" />
+        <ui:Button name="deployButton" class="m-btn m-btn--primary" text="DEPLOY" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- ============================================================ settings -->
+    <ui:VisualElement name="pageSettings" class="m-page m-page--sub">
+      <ui:VisualElement class="m-header" picking-mode="Ignore">
+        <ui:Label name="settingsCrumb" class="m-crumb" text="MAIN MENU  /" />
+        <ui:Label class="m-title" text="SETTINGS" />
+      </ui:VisualElement>
+      <ui:VisualElement name="settingsTabs" class="m-tabs" />
+      <ui:VisualElement class="m-body m-row">
+        <sf:SFFrame class="m-card m-grow m-card--list">
+          <ui:ScrollView name="settingsRows" class="m-scroll" />
+        </sf:SFFrame>
+        <sf:SFFrame name="settingsDesc" class="m-card m-desc-card" tab="false">
+          <ui:Label name="settingsDescTitle" class="m-desc-title" text="" />
+          <ui:Label name="settingsDescText" class="m-text" text="" />
+        </sf:SFFrame>
+      </ui:VisualElement>
+      <ui:VisualElement class="m-actions">
+        <ui:Button name="settingsBack" class="m-btn m-btn--ghost" text="BACK" />
+        <ui:VisualElement class="m-grow" picking-mode="Ignore" />
+        <ui:Button name="settingsReset" class="m-btn m-btn--ghost" text="RESET TO DEFAULTS" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- ============================================================ field manual -->
+    <ui:VisualElement name="pageManual" class="m-page m-page--sub">
+      <ui:VisualElement class="m-header" picking-mode="Ignore">
+        <ui:Label name="manualCrumb" class="m-crumb" text="MAIN MENU  /" />
+        <ui:Label class="m-title" text="FIELD MANUAL" />
+      </ui:VisualElement>
+      <ui:VisualElement name="manualTabs" class="m-tabs" />
+      <ui:VisualElement name="manualUnits" class="m-body m-row">
+        <sf:SFFrame class="m-card m-card--list m-unit-list-card">
+          <ui:ScrollView name="unitList" class="m-scroll" />
+        </sf:SFFrame>
+        <sf:SFFrame class="m-card m-grow m-unit-detail">
+          <ui:VisualElement class="m-row m-unit-head" picking-mode="Ignore">
+            <ui:Image name="unitIcon" class="m-unit-icon" />
+            <ui:VisualElement class="m-grow" picking-mode="Ignore">
+              <ui:Label name="unitKicker" class="m-kicker" text="" />
+              <ui:Label name="unitTitle" class="m-unit-title" text="" />
+              <ui:Label name="unitRole" class="m-mono m-mono--muted" text="" />
+            </ui:VisualElement>
+          </ui:VisualElement>
+          <ui:Label name="unitBlurb" class="m-text m-unit-blurb" text="" />
+          <ui:VisualElement name="unitStatRows" class="m-unit-stats" />
+          <ui:VisualElement name="unitTags" class="m-tags" />
+        </sf:SFFrame>
+      </ui:VisualElement>
+      <ui:VisualElement name="manualOpponent" class="m-body m-row">
+        <sf:SFFrame class="m-card m-grow m-card--list">
+          <ui:ScrollView name="opponentScroll" class="m-scroll m-prose" />
+        </sf:SFFrame>
+        <sf:SFFrame class="m-card m-opp-roster" picking-mode="Ignore">
+          <ui:Label class="m-card-title" text="THREE TIERS" />
+          <ui:VisualElement class="m-portrait m-roster-tile m-portrait--0" picking-mode="Ignore">
+            <sf:SFShade class="m-fill" direction="Vertical" from="#02060B00" to="#02060BD8" power="2" />
+            <ui:Label name="rosterTag0" class="m-portrait-tag" text="" />
+          </ui:VisualElement>
+          <ui:VisualElement class="m-portrait m-roster-tile m-portrait--1" picking-mode="Ignore">
+            <sf:SFShade class="m-fill" direction="Vertical" from="#02060B00" to="#02060BD8" power="2" />
+            <ui:Label name="rosterTag1" class="m-portrait-tag" text="" />
+          </ui:VisualElement>
+          <ui:VisualElement class="m-portrait m-roster-tile m-portrait--2" picking-mode="Ignore">
+            <sf:SFShade class="m-fill" direction="Vertical" from="#02060B00" to="#02060BD8" power="2" />
+            <ui:Label name="rosterTag2" class="m-portrait-tag" text="" />
+          </ui:VisualElement>
+        </sf:SFFrame>
+      </ui:VisualElement>
+      <ui:VisualElement name="manualControls" class="m-body m-row">
+        <sf:SFFrame class="m-card m-grow m-card--list">
+          <ui:ScrollView name="manualKeys" class="m-scroll" />
+        </sf:SFFrame>
+      </ui:VisualElement>
+      <ui:VisualElement class="m-actions">
+        <ui:Button name="manualBack" class="m-btn m-btn--ghost" text="BACK" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- ============================================================ service record -->
+    <ui:VisualElement name="pageRecord" class="m-page m-page--sub">
+      <ui:VisualElement class="m-header" picking-mode="Ignore">
+        <ui:Label class="m-crumb" text="MAIN MENU  /" />
+        <ui:Label class="m-title" text="SERVICE RECORD" />
+      </ui:VisualElement>
+      <ui:VisualElement class="m-body m-col-body">
+        <ui:VisualElement name="recordTiles" class="m-tiles" />
+        <ui:VisualElement class="m-row m-grow">
+          <sf:SFFrame class="m-card m-record-card">
+            <ui:Label class="m-card-title" text="BY OPPONENT" />
+            <ui:VisualElement name="recordByOpponent" />
+          </sf:SFFrame>
+          <sf:SFFrame class="m-card m-grow">
+            <ui:Label class="m-card-title" text="RECENT ENGAGEMENTS" />
+            <ui:VisualElement name="recordRecent" />
+          </sf:SFFrame>
+        </ui:VisualElement>
+      </ui:VisualElement>
+      <ui:VisualElement class="m-actions">
+        <ui:Button name="recordBack" class="m-btn m-btn--ghost" text="BACK" />
+        <ui:VisualElement class="m-grow" picking-mode="Ignore" />
+        <ui:Button name="recordErase" class="m-btn m-btn--ghost" text="ERASE RECORD" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- ============================================================ credits -->
+    <ui:VisualElement name="pageCredits" class="m-page m-page--sub">
+      <ui:VisualElement class="m-header" picking-mode="Ignore">
+        <ui:Label class="m-crumb" text="MAIN MENU  /" />
+        <ui:Label class="m-title" text="CREDITS" />
+      </ui:VisualElement>
+      <ui:VisualElement name="creditsViewport" class="m-body m-credits-viewport" picking-mode="Ignore">
+        <ui:VisualElement name="creditsRoll" class="m-credits-roll" picking-mode="Ignore" />
+      </ui:VisualElement>
+      <ui:VisualElement class="m-actions">
+        <ui:Button name="creditsBack" class="m-btn m-btn--ghost" text="BACK" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- ============================================================ pause -->
+    <ui:VisualElement name="pagePause" class="m-page m-page--overlay">
+      <ui:VisualElement class="m-fill m-dim" picking-mode="Ignore" />
+      <sf:SFShade class="m-pause-shade" direction="Horizontal" from="#02060BF6" to="#02060B00" power="0.9" />
+      <ui:VisualElement class="m-pause-col">
+        <ui:Label class="m-kicker" text="TACTICAL PAUSE" />
+        <ui:Label class="m-title m-title--big" text="PAUSED" />
+        <ui:Label name="pauseInfo" class="m-mono m-mono--muted" text="" />
+        <ui:VisualElement name="pauseNav" class="m-nav m-nav--compact" />
+      </ui:VisualElement>
+      <sf:SFFrame name="sitrep" class="m-card m-sitrep" picking-mode="Ignore">
+        <ui:Label class="m-card-title" text="SITUATION REPORT" />
+        <ui:VisualElement name="sitrepRows" picking-mode="Ignore" />
+      </sf:SFFrame>
+    </ui:VisualElement>
+
+    <!-- ============================================================ after-action report -->
+    <ui:VisualElement name="pageDebrief" class="m-page m-page--overlay">
+      <sf:SFShade name="debriefShade" class="m-fill" direction="Vignette" from="#02060B90" to="#02060BF2" power="0.8" />
+      <ui:VisualElement name="debriefPanel" class="m-debrief">
+        <ui:Label class="m-kicker m-kicker--center" text="AFTER-ACTION REPORT" />
+        <ui:Label name="endTitle" class="m-end-title" text="VICTORY" />
+        <ui:Label name="endSubtitle" class="m-end-sub" text="" />
+        <ui:VisualElement class="m-row m-debrief-body">
+          <sf:SFFrame class="m-card m-grow">
+            <ui:Label class="m-card-title" text="ENGAGEMENT SUMMARY" />
+            <ui:VisualElement class="m-vs-head" picking-mode="Ignore">
+              <ui:Label name="vsLeft" class="m-vs-side m-vs-side--you" text="YOU" />
+              <ui:VisualElement class="m-grow" />
+              <ui:Label name="vsRight" class="m-vs-side m-vs-side--them" text="OPPONENT" />
+            </ui:VisualElement>
+            <ui:VisualElement name="endBars" />
+            <ui:Label name="endRecord" class="m-text m-text--muted m-end-record" text="" />
+          </sf:SFFrame>
+          <sf:SFFrame name="endDossierColumn" class="m-card m-grow">
+            <ui:Label class="m-card-title" text="THE AI'S DOSSIER ON YOU" />
+            <sf:BarChartElement name="endStyleChart" class="chart chart--six" />
+            <ui:Label name="endDossier" class="m-text" text="" />
+          </sf:SFFrame>
+          <sf:SFFrame name="endOpponentColumn" class="m-card m-end-opp" picking-mode="Ignore">
+            <ui:Label class="m-card-title" text="OPPONENT" />
+            <ui:VisualElement name="endPortrait" class="m-portrait m-end-portrait" picking-mode="Ignore">
+              <sf:SFShade class="m-fill" direction="Vertical" from="#02060B00" to="#02060BD0" power="2.2" />
+              <ui:Label name="endPortraitTag" class="m-portrait-tag" text="" />
+            </ui:VisualElement>
+            <ui:Label name="endOppName" class="m-opp-name m-end-opp-name" text="" />
+            <ui:Label name="endOppLine" class="m-text m-text--muted" text="" />
+          </sf:SFFrame>
+        </ui:VisualElement>
+        <ui:VisualElement name="debriefNav" class="m-actions m-actions--center" />
+      </ui:VisualElement>
+      <ui:Button name="showReportButton" class="m-chip m-show-report" text="SHOW REPORT   ESC" />
+    </ui:VisualElement>
+
+    <!-- ============================================================ shared -->
+    <ui:VisualElement name="menuFooter" class="m-footer" picking-mode="Ignore">
+      <ui:VisualElement name="footerHints" class="m-hints" picking-mode="Ignore" />
+      <ui:VisualElement class="m-grow" picking-mode="Ignore" />
+      <ui:Label name="footerVersion" class="m-version" text="" />
+    </ui:VisualElement>
+
+    <ui:VisualElement name="confirmDialog" class="m-modal">
+      <sf:SFFrame class="m-modal-card" accent="#FF5A4FFF">
+        <ui:Label name="confirmTitle" class="m-modal-title" text="" />
+        <ui:Label name="confirmBody" class="m-text" text="" />
+        <ui:VisualElement class="m-actions m-actions--right">
+          <ui:Button name="confirmCancel" class="m-btn m-btn--ghost" text="CANCEL" />
+          <ui:Button name="confirmOk" class="m-btn m-btn--danger" text="CONFIRM" />
+        </ui:VisualElement>
+      </sf:SFFrame>
+    </ui:VisualElement>
+
+    <!-- Splash and veil carry the key art (Art/keyart.jpg); MenuController drifts its scale. -->
+    <ui:VisualElement name="menuSplash" class="m-splash">
+      <ui:VisualElement name="splashArt" class="m-art" picking-mode="Ignore" />
+      <sf:SFShade class="m-fill" direction="Vignette" from="#02060B60" to="#02060BF4" power="0.9" />
+      <sf:SFShade class="m-fill" direction="Vertical" from="#02060B00" to="#02060BB0" power="1.6" />
+      <sf:SFEmblem name="splashEmblem" class="m-splash-emblem" />
+      <ui:Label class="m-splash-logo" text="STARFORGE" />
+      <ui:Label class="m-splash-sub" text="ADAPTIVE  WARFARE" />
+      <ui:Label name="splashPrompt" class="m-splash-prompt" text="PRESS ANY KEY" />
+    </ui:VisualElement>
+
+    <ui:VisualElement name="menuVeil" class="m-veil" picking-mode="Ignore">
+      <ui:VisualElement name="veilArt" class="m-art" picking-mode="Ignore" />
+      <sf:SFShade class="m-fill" direction="Vignette" from="#02060BA8" to="#02060BF8" power="0.9" />
+      <sf:SFEmblem name="veilEmblem" class="m-veil-emblem" />
+      <ui:Label name="veilTitle" class="m-veil-title" text="" />
+      <ui:VisualElement class="m-veil-bar" picking-mode="Ignore">
+        <ui:VisualElement name="veilFill" class="m-veil-fill" picking-mode="Ignore" />
+      </ui:VisualElement>
+      <ui:Label name="veilTip" class="m-veil-tip" text="" />
+    </ui:VisualElement>
+  </ui:VisualElement>
+</ui:UXML>

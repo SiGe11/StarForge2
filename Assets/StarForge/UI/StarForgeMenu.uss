@@ -1,0 +1,767 @@
+/* StarForgeMenu.uss — the menus (MenuController). Laid out for the panel's 1920x1080
+   reference: the MacBook's panel comes out about 1820x1140, the Editor's Game view about
+   2120x980, so nothing here may need more than ~980 px of height. */
+
+.m-root {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-Regular.ttf");
+    color: #e6eef6;
+    font-size: 15px;
+}
+
+.m-fill { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.m-grow { flex-grow: 1; }
+.m-row { flex-direction: row; }
+
+.m-text { font-size: 15px; white-space: normal; color: #d7e2ec; }
+.m-text--muted { color: #8ea3b6; }
+.m-mono { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 13px; letter-spacing: 1px; }
+.m-mono--muted { color: #8ea3b6; }
+.m-kicker {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 12px;
+    letter-spacing: 4px;
+    color: #4fd1ff;
+}
+.m-kicker--center { -unity-text-align: middle-center; }
+
+/* ------------------------------------------------------------ backdrop */
+.m-backdrop { position: absolute; left: 0; top: 0; right: 0; bottom: 0; display: none; }
+.m-backdrop--visible { display: flex; }
+.m-shade-side { position: absolute; left: 0; top: 0; bottom: 0; width: 64%; }
+.m-shade-top { position: absolute; left: 0; right: 0; top: 0; height: 170px; }
+.m-shade-bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 260px; }
+.m-deep {
+    background-color: rgba(2, 6, 11, 0.62);
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 0.3s;
+}
+.m-deep--on { opacity: 1; }
+.m-dip {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    background-color: rgb(0, 0, 0);
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 0.55s;
+}
+.m-dip--on { opacity: 1; }
+
+/* ------------------------------------------------------------ pages */
+.m-page {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    display: none;
+    opacity: 0;
+    translate: 26px 0;
+    transition-property: opacity, translate;
+    transition-duration: 0.22s, 0.3s;
+    transition-timing-function: ease-out-cubic, ease-out-cubic;
+}
+.m-page--shown { display: flex; }
+.m-page--in { opacity: 1; translate: 0 0; }
+.m-page--sub { padding: 56px 96px 92px 96px; }
+.m-page--overlay { translate: 0 0; }
+.m-page--main { flex-direction: row; }
+
+.m-header { flex-shrink: 0; margin-bottom: 18px; }
+.m-crumb {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: #8ea3b6;
+}
+.m-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 44px;
+    letter-spacing: 10px;
+    color: #ffffff;
+    text-shadow: 0 0 14px rgba(79, 209, 255, 0.45);
+}
+.m-title--big { font-size: 64px; letter-spacing: 16px; margin-bottom: 4px; }
+
+.m-body { flex-grow: 1; flex-shrink: 1; min-height: 0; }
+.m-col-body { flex-direction: column; }
+
+.m-actions {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+    margin-top: 18px;
+}
+.m-actions--center { justify-content: center; }
+.m-actions--right { justify-content: flex-end; margin-top: 26px; }
+
+/* ------------------------------------------------------------ main */
+.m-main-col {
+    width: 720px;
+    padding: 84px 0 96px 96px;
+    flex-shrink: 0;
+}
+.m-brand { flex-direction: row; align-items: center; margin-bottom: 54px; }
+.m-emblem { width: 96px; height: 96px; margin-right: 22px; }
+.m-logo {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 60px;
+    letter-spacing: 14px;
+    color: #ffffff;
+    text-shadow: 0 0 24px rgba(79, 209, 255, 0.8);
+}
+.m-logo-sub {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 13px;
+    letter-spacing: 9px;
+    color: #4fd1ff;
+    margin-left: 4px;
+}
+.m-main-side {
+    flex-grow: 1;
+    align-items: flex-end;
+    padding: 64px 72px 96px 0;
+}
+.m-profile { align-items: flex-end; }
+.m-profile-record {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 22px;
+    letter-spacing: 3px;
+    color: #ffffff;
+    margin-top: 4px;
+}
+.m-profile-sub {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: #8ea3b6;
+    margin-top: 2px;
+}
+.m-side-card { width: 430px; margin: 12px 0 0 0; }
+
+/* ------------------------------------------------------------ nav lists */
+.m-nav { flex-shrink: 0; }
+.m-nav-item {
+    flex-direction: row;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-radius: 0;
+    margin: 0;
+    padding: 9px 18px 9px 0;
+    min-height: 56px;
+}
+.m-nav-item:hover { background-color: rgba(0, 0, 0, 0); }
+.m-nav-band { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; opacity: 0; transition-property: opacity; transition-duration: 0.15s; }
+.m-nav-bar { width: 3px; height: 36px; background-color: #4fd1ff; opacity: 0; margin-right: 16px; transition-property: opacity; transition-duration: 0.15s; }
+.m-nav-index {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 13px;
+    color: #5f7487;
+    width: 40px;
+    -unity-text-align: middle-left;
+}
+.m-nav-text { flex-grow: 1; }
+.m-nav-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 29px;
+    letter-spacing: 5px;
+    color: rgba(230, 238, 246, 0.70);
+    -unity-text-align: middle-left;
+    transition-property: color, translate;
+    transition-duration: 0.15s, 0.18s;
+}
+.m-nav-desc {
+    -unity-text-align: upper-left;
+    font-size: 14px;
+    color: #9fb4c6;
+    white-space: normal;
+    display: none;
+    margin-top: 2px;
+    translate: 8px 0;
+}
+.m-nav-item--focus .m-nav-band { opacity: 1; }
+.m-nav-item--focus .m-nav-bar { opacity: 1; }
+.m-nav-item--focus .m-nav-title { color: #ffffff; translate: 8px 0; }
+.m-nav-item--focus .m-nav-index { color: #4fd1ff; }
+.m-nav-item--focus .m-nav-desc { display: flex; }
+.m-nav-item--danger .m-nav-title { color: rgba(255, 140, 130, 0.75); }
+.m-nav-item--danger.m-nav-item--focus .m-nav-title { color: #ff8a80; }
+.m-nav--compact .m-nav-item { min-height: 46px; padding: 5px 18px 5px 0; }
+.m-nav--compact .m-nav-title { font-size: 23px; letter-spacing: 4px; }
+.m-nav--compact .m-nav-bar { height: 28px; }
+
+/* ------------------------------------------------------------ buttons and chips */
+.m-btn {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 16px;
+    letter-spacing: 3px;
+    color: #e6eef6;
+    background-color: rgba(255, 255, 255, 0.04);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.18);
+    border-radius: 0;
+    margin: 0 10px 0 0;
+    padding: 12px 34px;
+    transition-property: background-color, border-color, scale;
+    transition-duration: 0.12s;
+}
+.m-btn:hover, .m-btn.m-focus {
+    background-color: rgba(79, 209, 255, 0.14);
+    border-color: rgba(79, 209, 255, 0.85);
+    color: #ffffff;
+}
+.m-btn--primary {
+    background-color: rgba(79, 209, 255, 0.22);
+    border-color: #4fd1ff;
+    color: #ffffff;
+    font-size: 21px;
+    letter-spacing: 6px;
+    padding: 15px 64px;
+    margin-right: 0;
+}
+.m-btn--primary:hover, .m-btn--primary.m-focus {
+    background-color: rgba(79, 209, 255, 0.42);
+    scale: 1.03 1.03;
+}
+.m-btn--danger { background-color: rgba(255, 90, 79, 0.16); border-color: rgba(255, 90, 79, 0.8); margin-right: 0; }
+.m-btn--danger:hover, .m-btn--danger.m-focus { background-color: rgba(255, 90, 79, 0.36); border-color: #ff5a4f; }
+
+.m-chip {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: #4fd1ff;
+    background-color: rgba(79, 209, 255, 0.06);
+    border-width: 1px;
+    border-color: rgba(79, 209, 255, 0.40);
+    border-radius: 0;
+    margin: 0;
+    padding: 6px 12px;
+}
+.m-chip:hover, .m-chip.m-focus { background-color: rgba(79, 209, 255, 0.18); border-color: #4fd1ff; color: #ffffff; }
+
+/* ------------------------------------------------------------ cards */
+.m-card { padding: 20px 24px; margin: 0 12px 0 0; }
+.m-card--list { padding: 14px 10px 14px 14px; }
+.m-card-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: #4fd1ff;
+    margin-bottom: 12px;
+}
+.m-scroll { flex-grow: 1; }
+
+/* ------------------------------------------------------------ setting rows */
+.m-rows { flex-shrink: 0; }
+.m-setrow {
+    flex-direction: row;
+    align-items: center;
+    min-height: 54px;
+    padding: 0 14px 0 14px;
+    border-left-width: 3px;
+    border-color: rgba(0, 0, 0, 0);
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+.m-setrow.m-focus { border-left-color: #4fd1ff; background-color: rgba(79, 209, 255, 0.08); }
+.m-setrow-label {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 16px;
+    letter-spacing: 2px;
+    color: rgba(230, 238, 246, 0.8);
+    flex-grow: 1;
+}
+.m-setrow.m-focus .m-setrow-label { color: #ffffff; }
+.m-setrow-control { flex-direction: row; align-items: center; justify-content: flex-end; }
+.m-selector { flex-direction: row; align-items: center; }
+.m-arrow {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 22px;
+    color: rgba(79, 209, 255, 0.55);
+    padding: 0 12px;
+}
+.m-arrow:hover { color: #ffffff; }
+.m-setrow.m-focus .m-arrow { color: #4fd1ff; }
+.m-value-col { width: 260px; align-items: center; }
+.m-value {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 17px;
+    letter-spacing: 2px;
+    color: #ffffff;
+    -unity-text-align: middle-center;
+}
+.m-pips { flex-direction: row; justify-content: center; margin-top: 5px; }
+.m-pip { width: 16px; height: 3px; margin: 0 2px; background-color: rgba(255, 255, 255, 0.16); }
+.m-pip--on { background-color: #4fd1ff; }
+.m-slider { width: 290px; height: 14px; }
+.m-slider-value {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 14px;
+    width: 72px;
+    -unity-text-align: middle-right;
+    color: #ffffff;
+}
+.m-rowaction {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: #4fd1ff;
+}
+
+.m-desc-card { width: 470px; margin-right: 0; }
+.m-desc-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 22px;
+    letter-spacing: 3px;
+    color: #ffffff;
+    margin-bottom: 12px;
+    white-space: normal;
+}
+
+/* ------------------------------------------------------------ tabs */
+.m-tabs {
+    flex-direction: row;
+    align-items: flex-end;
+    flex-shrink: 0;
+    border-bottom-width: 1px;
+    border-color: rgba(79, 209, 255, 0.22);
+    margin-bottom: 16px;
+}
+.m-tab {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 15px;
+    letter-spacing: 3px;
+    color: #8ea3b6;
+    padding: 10px 26px;
+    border-bottom-width: 2px;
+    border-color: rgba(0, 0, 0, 0);
+}
+.m-tab:hover { color: #ffffff; }
+.m-tab--active { color: #ffffff; border-color: #4fd1ff; background-color: rgba(79, 209, 255, 0.08); }
+.m-tab-key { margin: 0 8px 8px 8px; }
+
+/* ------------------------------------------------------------ key caps and hints */
+.m-key {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 12px;
+    color: #ffffff;
+    padding: 2px 8px;
+    border-width: 1px;
+    border-bottom-width: 2px;
+    border-color: rgba(255, 255, 255, 0.38);
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.07);
+    margin-right: 6px;
+}
+.m-footer {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 46px;
+    flex-direction: row;
+    align-items: center;
+    padding: 0 48px;
+    border-top-width: 1px;
+    border-color: rgba(79, 209, 255, 0.12);
+    background-color: rgba(2, 6, 11, 0.6);
+    display: none;
+}
+.m-footer--visible { display: flex; }
+.m-hints { flex-direction: row; align-items: center; }
+.m-hint { flex-direction: row; align-items: center; margin-right: 26px; }
+.m-hint-label {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #8ea3b6;
+}
+.m-version {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #5f7487;
+}
+
+/* ------------------------------------------------------------ operation setup */
+.m-map-card { width: 520px; flex-shrink: 0; }
+.m-map {
+    width: 400px;
+    height: 400px;
+    flex-shrink: 0;
+    -unity-background-image-tint-color: rgb(205, 214, 222);
+    align-self: center;
+    -unity-background-scale-mode: scale-to-fit;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+.m-map-name {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 22px;
+    letter-spacing: 5px;
+    color: #ffffff;
+    margin-top: 14px;
+}
+.m-legend { flex-direction: row; align-items: center; margin-top: 10px; }
+.m-dot { width: 9px; height: 9px; border-radius: 5px; margin-right: 7px; }
+.m-dot--blue { background-color: #4fd1ff; }
+.m-dot--red { background-color: #ff5a4f; }
+.m-dot--ore { background-color: #c78cff; }
+.m-legend-text {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #8ea3b6;
+    margin-right: 22px;
+}
+.m-setup-col { flex-grow: 1; }
+.m-setup-col > .m-card { margin-right: 0; margin-bottom: 12px; }
+.m-opp-name {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 26px;
+    letter-spacing: 8px;
+    color: #ffb547;
+    margin-bottom: 6px;
+}
+.m-opp-bars { margin: 8px 0 8px 0; flex-shrink: 0; }
+.m-statrow { flex-direction: row; align-items: center; min-height: 26px; flex-shrink: 0; }
+.m-statrow-label {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: #8ea3b6;
+    width: 200px;
+}
+.m-statbar { flex-grow: 1; height: 6px; background-color: rgba(255, 255, 255, 0.08); flex-direction: row; }
+.m-statbar-fill { height: 100%; background-color: #4fd1ff; }
+.m-statbar-fill--amber { background-color: #ffb547; }
+.m-statrow-value {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 13px;
+    width: 96px;
+    -unity-text-align: middle-right;
+    color: #ffffff;
+}
+
+/* ------------------------------------------------------------ field manual */
+.m-unit-list-card { width: 400px; flex-shrink: 0; }
+.m-list-head {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: #4fd1ff;
+    margin: 14px 0 4px 12px;
+}
+.m-unit-item {
+    flex-direction: row;
+    align-items: center;
+    min-height: 42px;
+    padding: 0 10px;
+    border-left-width: 3px;
+    border-color: rgba(0, 0, 0, 0);
+}
+.m-unit-item.m-focus { border-left-color: #4fd1ff; background-color: rgba(79, 209, 255, 0.08); }
+.m-unit-item--selected { background-color: rgba(255, 181, 71, 0.10); border-left-color: #ffb547; }
+.m-unit-item-icon { width: 30px; height: 30px; margin-right: 12px; }
+.m-unit-item-name { font-size: 15px; color: rgba(230, 238, 246, 0.85); flex-grow: 1; }
+.m-unit-item.m-focus .m-unit-item-name { color: #ffffff; }
+.m-unit-item-cost { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; color: #8ea3b6; }
+.m-unit-detail { margin-right: 0; }
+.m-unit-head { align-items: center; margin-bottom: 14px; }
+.m-unit-icon { width: 120px; height: 120px; margin-right: 22px; background-color: rgba(79, 209, 255, 0.06); border-width: 1px; border-color: rgba(79, 209, 255, 0.25); }
+.m-unit-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 40px;
+    letter-spacing: 6px;
+    color: #ffffff;
+}
+.m-unit-blurb { margin-bottom: 14px; font-size: 16px; }
+.m-unit-stats { margin-bottom: 14px; }
+.m-tags { flex-direction: row; flex-wrap: wrap; }
+.m-tag {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #4fd1ff;
+    padding: 4px 10px;
+    border-width: 1px;
+    border-color: rgba(79, 209, 255, 0.4);
+    margin: 0 8px 8px 0;
+}
+.m-tag--warn { color: #ffb547; border-color: rgba(255, 181, 71, 0.5); }
+
+.m-prose-head {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 17px;
+    letter-spacing: 2px;
+    color: #ffb547;
+    margin: 18px 12px 0 12px;
+    white-space: normal;
+}
+.m-prose-text { font-size: 15px; white-space: normal; color: #d7e2ec; margin: 6px 24px 0 12px; }
+
+.m-keys-head {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: #4fd1ff;
+    margin: 16px 0 6px 12px;
+}
+.m-keyrow {
+    flex-direction: row;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border-bottom-width: 1px;
+    border-color: rgba(255, 255, 255, 0.05);
+}
+.m-keyrow-keys { flex-direction: row; align-items: center; width: 360px; flex-wrap: wrap; }
+.m-keyrow-text { font-size: 15px; color: #d7e2ec; flex-grow: 1; white-space: normal; }
+
+/* ------------------------------------------------------------ service record */
+.m-tiles { flex-direction: row; flex-shrink: 0; margin-bottom: 12px; }
+.m-tile { flex-grow: 1; flex-basis: 0; padding: 16px 20px; margin: 0 12px 0 0; min-height: 118px; }
+.m-tile--last { margin-right: 0; }
+.m-tile-row { flex-direction: row; align-items: center; }
+.m-tile-value {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 38px;
+    color: #ffffff;
+}
+.m-tile-label {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: #8ea3b6;
+    margin-bottom: 6px;
+}
+.m-tile-sub { font-size: 13px; color: #8ea3b6; }
+.m-ring { width: 84px; height: 84px; margin-right: 14px; }
+.m-record-card { width: 520px; flex-shrink: 0; }
+.m-recent-row {
+    flex-direction: row;
+    align-items: center;
+    min-height: 36px;
+    border-bottom-width: 1px;
+    border-color: rgba(255, 255, 255, 0.05);
+}
+.m-badge {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 12px;
+    letter-spacing: 2px;
+    width: 104px;
+    padding: 3px 0;
+    -unity-text-align: middle-center;
+    margin-right: 16px;
+    border-width: 1px;
+}
+.m-badge--win { color: #59e38c; border-color: rgba(89, 227, 140, 0.55); background-color: rgba(89, 227, 140, 0.08); }
+.m-badge--loss { color: #ff5a4f; border-color: rgba(255, 90, 79, 0.55); background-color: rgba(255, 90, 79, 0.08); }
+.m-badge--draw { color: #ffb547; border-color: rgba(255, 181, 71, 0.55); background-color: rgba(255, 181, 71, 0.08); }
+.m-recent-text { font-size: 15px; flex-grow: 1; }
+.m-recent-when { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; color: #8ea3b6; }
+
+/* ------------------------------------------------------------ credits */
+.m-credits-viewport { overflow: hidden; align-items: center; }
+.m-credits-roll { position: absolute; top: 0; width: 900px; align-items: center; }
+.m-credit-head {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 12px;
+    letter-spacing: 5px;
+    color: #4fd1ff;
+    margin-top: 38px;
+    margin-bottom: 8px;
+}
+.m-credit-name {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 26px;
+    letter-spacing: 3px;
+    color: #ffffff;
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+.m-credit-text { font-size: 15px; color: #a9bccc; -unity-text-align: middle-center; white-space: normal; margin-top: 2px; }
+
+/* ------------------------------------------------------------ pause */
+.m-dim { background-color: rgba(2, 6, 11, 0.42); }
+.m-pause-shade { position: absolute; left: 0; top: 0; bottom: 0; width: 62%; }
+.m-pause-col {
+    width: 600px;
+    padding: 90px 0 100px 96px;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.m-pause-col > .m-nav { margin-top: 30px; }
+.m-sitrep { position: absolute; right: 80px; top: 110px; width: 430px; margin-right: 0; }
+.m-sitrep-row { flex-direction: row; align-items: center; min-height: 30px; border-bottom-width: 1px; border-color: rgba(255, 255, 255, 0.05); }
+.m-sitrep-label { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; letter-spacing: 2px; color: #8ea3b6; flex-grow: 1; }
+.m-sitrep-value { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 15px; color: #ffffff; }
+
+/* ------------------------------------------------------------ after-action report */
+.m-debrief {
+    position: absolute;
+    left: 8%; right: 8%; top: 56px; bottom: 74px;
+    justify-content: center;
+}
+.m-debrief--hidden { display: none; }
+.m-end-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 92px;
+    letter-spacing: 26px;
+    -unity-text-align: middle-center;
+    color: #59e38c;
+    text-shadow: 0 0 26px rgba(89, 227, 140, 0.7);
+    scale: 1.18 1.18;
+    opacity: 0;
+    transition-property: scale, opacity;
+    transition-duration: 0.7s, 0.45s;
+    transition-timing-function: ease-out-cubic, ease-out-cubic;
+}
+.m-page--in .m-end-title { scale: 1 1; opacity: 1; }
+.m-end-title--defeat { color: #ff5a4f; text-shadow: 0 0 26px rgba(255, 90, 79, 0.7); }
+.m-end-title--draw { color: #ffb547; text-shadow: 0 0 26px rgba(255, 181, 71, 0.7); }
+.m-end-sub {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: #a9bccc;
+    -unity-text-align: middle-center;
+    margin-bottom: 22px;
+    white-space: normal;
+}
+.m-debrief-body { flex-shrink: 1; }
+#endDossierColumn { margin-right: 0; }
+.m-vs-head { flex-direction: row; margin-bottom: 6px; }
+.m-vs-side { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; letter-spacing: 3px; }
+.m-vs-side--you { color: #4fd1ff; }
+.m-vs-side--them { color: #ff5a4f; }
+.m-vsrow { flex-direction: row; align-items: center; min-height: 34px; }
+.m-vs-val { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 16px; width: 74px; color: #ffffff; }
+.m-vs-val--right { -unity-text-align: middle-right; }
+.m-vs-bar { flex-grow: 1; flex-basis: 0; height: 8px; background-color: rgba(255, 255, 255, 0.07); flex-direction: row; }
+.m-vs-bar--left { flex-direction: row-reverse; }
+.m-vs-fill { height: 100%; }
+.m-vs-fill--you { background-color: #4fd1ff; }
+.m-vs-fill--them { background-color: #ff5a4f; }
+.m-vs-label { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; letter-spacing: 2px; width: 220px; -unity-text-align: middle-center; color: #a9bccc; }
+.m-end-record { margin-top: 14px; }
+.m-show-report { position: absolute; bottom: 70px; left: 50%; translate: -50% 0; display: none; }
+.m-show-report--visible { display: flex; }
+
+/* ------------------------------------------------------------ dialog, splash, veil */
+.m-modal {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    background-color: rgba(0, 0, 0, 0.62);
+    align-items: center;
+    justify-content: center;
+    display: none;
+}
+.m-modal--visible { display: flex; }
+.m-modal-card { width: 580px; padding: 30px 34px; }
+.m-modal-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 26px;
+    letter-spacing: 6px;
+    color: #ffffff;
+    margin-bottom: 12px;
+}
+
+.m-splash {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    align-items: center;
+    justify-content: center;
+    display: none;
+    opacity: 1;
+    transition-property: opacity;
+    transition-duration: 0.5s;
+}
+.m-splash--visible { display: flex; }
+.m-splash--out { opacity: 0; }
+.m-splash-emblem { width: 150px; height: 150px; margin-bottom: 26px; }
+.m-splash-logo {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 108px;
+    letter-spacing: 34px;
+    color: #ffffff;
+    text-shadow: 0 0 32px rgba(79, 209, 255, 0.85);
+    margin-left: 34px;
+}
+.m-splash-sub {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 16px;
+    letter-spacing: 14px;
+    color: #4fd1ff;
+    margin-left: 14px;
+}
+.m-splash-prompt {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 15px;
+    letter-spacing: 7px;
+    color: #ffffff;
+    margin-top: 120px;
+    transition-property: opacity;
+    transition-duration: 0.6s;
+}
+
+.m-veil {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    background-color: rgb(2, 6, 11);
+    align-items: center;
+    justify-content: center;
+    display: none;
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 0.32s;
+}
+.m-veil--shown { display: flex; }
+.m-veil--in { opacity: 1; }
+.m-veil-emblem { width: 92px; height: 92px; margin-bottom: 26px; }
+.m-veil-title {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 30px;
+    letter-spacing: 14px;
+    color: #ffffff;
+    margin-left: 14px;
+}
+.m-veil-bar { width: 380px; height: 2px; background-color: rgba(79, 209, 255, 0.15); margin-top: 22px; flex-direction: row; }
+.m-veil-fill { height: 100%; background-color: #4fd1ff; width: 0; }
+.m-veil-tip { font-size: 15px; color: #a9bccc; margin-top: 22px; width: 640px; -unity-text-align: middle-center; white-space: normal; }
+
+/* ============================================================ illustrations
+   Art/keyart.jpg behind the splash and the veil; Art/opponent_*.jpg as the opponent's hologram
+   (made with Google Gemini for StarForge: THIRD-PARTY.md). MenuController drifts the key art's
+   scale and flickers the holograms' tint; MenuTrials.ImportArt set their import settings (.meta).
+   The holograms are wide (1.83:1): tiles crop them from the top, so the helmet stays in. */
+.m-art {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    background-image: url("project://database/Assets/StarForge/UI/Art/keyart.jpg");
+    -unity-background-scale-mode: scale-and-crop;
+}
+.m-portrait {
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position-x: center;
+    background-position-y: top;
+    background-color: #03070c;
+    border-width: 1px;
+    border-color: rgba(79, 209, 255, 0.22);
+    overflow: hidden;
+    justify-content: flex-end;
+}
+.m-portrait--0 { background-image: url("project://database/Assets/StarForge/UI/Art/opponent_recruit.jpg"); border-color: rgba(79, 209, 255, 0.4); }
+.m-portrait--1 { background-image: url("project://database/Assets/StarForge/UI/Art/opponent_veteran.jpg"); border-color: rgba(255, 181, 71, 0.4); }
+.m-portrait--2 { background-image: url("project://database/Assets/StarForge/UI/Art/opponent_commander.jpg"); border-color: rgba(255, 90, 79, 0.4); }
+.m-portrait-tag {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #d8e4ee;
+    margin: 0 0 8px 10px;
+}
+.m-tier--0 { color: #4fd1ff; }
+.m-tier--1 { color: #ffb547; }
+.m-tier--2 { color: #ff5a4f; }
+.m-opp-text { flex-grow: 1; flex-shrink: 1; min-width: 0; }
+.m-opp-portrait { width: 38%; flex-shrink: 0; margin-left: 20px; }
+.m-opp-roster { width: 380px; flex-shrink: 0; margin-right: 0; }
+.m-roster-tile { flex-grow: 1; flex-basis: 0; min-height: 90px; margin-bottom: 10px; }
+.m-end-opp { width: 340px; flex-shrink: 0; }
+#endOpponentColumn { margin-right: 0; }
+.m-end-portrait { height: 190px; flex-shrink: 0; margin-bottom: 12px; }
+.m-end-opp-name { font-size: 22px; letter-spacing: 6px; }
