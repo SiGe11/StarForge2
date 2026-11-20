@@ -87,6 +87,18 @@ MUSIC = {
     "Contemplation.mp3": ("contemplation-0", "Joth", "Contemplation"),
     "Insistent.ogg": ("insistent-background-loop", "yd", "Insistent: background loop"),
     "battleThemeA.mp3": ("battle-theme-a", "cynicmusic", "Battle Theme A"),
+    # More of each mood (2026-11-20): three calm, two tension, three combat.
+    "Peaceful%20Forest.wav": ("peaceful-forest", "Samza", "Peaceful Forest"),
+    "001_Synthwave_4k.mp3": ("calm-ambient-1-synthwave-4k", "cynicmusic", "Calm Ambient 1 (Synthwave 4k)"),
+    "Calm1%20-%20A%20Place%20I%20Call%20Home.ogg": ("jrpg-pack-4-calm", "Juhani Junkala (SubspaceAudio)",
+                                                    "JRPG Pack 4 Calm: A Place I Call Home"),
+    "Pressure.ogg": ("pressure", "yd", "Pressure"),
+    "Menace.ogg": ("menace", "yd", "Menace"),
+    "determined_pursuit_loop.wav": ("determined-pursuit-epic-orchestra-loop", "Emma_MA",
+                                    "Determined Pursuit (epic orchestra loop)"),
+    "Juhani%20Junkala%20-%20Epic%20Boss%20Battle%20%5BSeamlessly%20Looping%5D.wav": ("boss-battle-music",
+        "Juhani Junkala (SubspaceAudio)", "Boss Battle Music"),
+    "QaziJamJam.wav": ("qazijamjam-orchestral-battle-theme", "Emma_MA", "QaziJamJam (orchestral battle theme)"),
 }
 
 # Leaf atlases from ambientCG (CC0), which Tools/blender/make_leaf_cards.py cuts

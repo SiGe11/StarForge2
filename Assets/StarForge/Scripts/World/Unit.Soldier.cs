@@ -62,7 +62,7 @@ namespace StarForge.World
         const float FollowPoint = 0.8f, PointLead = 12f, CoverIsThere = 6f;
 
         /// <summary>He is busy with something that takes him out of the order for now.</summary>
-        bool SoldierBusy => mode != SoldierMode.Free || throwing != Thrown.None;
+        bool SoldierBusy => mode != SoldierMode.Free || throwing != Thrown.None || Fleeing;
 
         /// <summary>Fire near him. <paramref name="amount"/> at the line's closest pass.</summary>
         public void Suppress(float amount)

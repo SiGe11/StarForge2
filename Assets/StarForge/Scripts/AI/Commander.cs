@@ -498,6 +498,8 @@ namespace StarForge.AI
         {
             if (w == null || w.winner >= 0 || Suspended) return;
             Budget.Tick(dt);
+            for (int i = heardReports.Count - 1; i >= 0; i--)
+                if (w.time >= heardReports[i].at) { var r = heardReports[i].e; heardReports.RemoveAt(i); HearSquad(r); }
             Perception.Update(dt);
 
             thinkT -= dt;
@@ -1461,8 +1463,47 @@ namespace StarForge.AI
         {
             if (e.kind == GameEventKind.UnderAttack && e.team == team && e.unit != null && e.unit.def.harvester) lastWorkerHitAt = w.time;
             if (e.kind == GameEventKind.UnitReady && e.team == team && e.type >= 0 && e.type < UnitType.Count) Dbg.trained[(int)e.type]++;
+            if (e.kind == GameEventKind.SquadReport && e.team == team && w.Tactical && w.winner < 0 && !Suspended && heardReports.Count < 8)
+                heardReports.Add((e, w.time + reactionDelay));
             if (e.kind != GameEventKind.MechAdvice || e.team != team || w.winner >= 0) return;
             HearMech(e.advice, new Vector2(e.pos.x, e.pos.z));
+        }
+
+        /// <summary>A report from one of its squads (the new combat): "fall back" pulls the men still with it back
+        /// toward home, hurried (a plain Move bounds cover to cover and they were dying on the way); "we need air"
+        /// sends up to three of its armed aircraft that are not already fighting to attack-move there.</summary>
+        readonly List<(GameEvent e, float at)> heardReports = new List<(GameEvent e, float at)>(8);
+
+        void HearSquad(GameEvent e)
+        {
+            if (e.men == null || e.men.Length == 0) return;
+            Vector2 at = new Vector2(e.pos.x, e.pos.z);
+            if (e.index == (int)SquadReportKind.FallBack && !waveOn)
+            {
+                var men = new List<Unit>();
+                foreach (var u in e.men) if (Unit.Live(u) && u.team == team && !u.deserted) men.Add(u);
+                Vector2 home = Perception.Home;
+                // Defending its own base it stays: home defence's orders decide there, and a hurried move took them out of cover.
+                if ((at - home).magnitude < 55f) return;
+                if (men.Count == 0 || !Budget.Can(2) || !Pay(2, "HearSquad", 9101)) return;
+                Vector2 back = at + (home - at).normalized * Mathf.Min(35f, (home - at).magnitude);
+                w.CmdMove(men, w.NearestReachable(men[0], back), false, true);
+                w.SquadFallBacksHeard++;
+            }
+            else if (e.index == (int)SquadReportKind.NeedAir)
+            {
+                var air = new List<Unit>();
+                foreach (var u in w.units)
+                {
+                    if (air.Count >= 3) break;
+                    if (u == null || u.dying || u.team != team || !u.def.flying || !u.def.Armed || u.deserted || u.def.Autonomous || u.def.vsHeavy < 0.5f) continue;
+                    if (Unit.Live(u.target) && u.order == Order.Attack) continue;
+                    air.Add(u);
+                }
+                if (air.Count == 0 || !Budget.Can(2) || !Pay(2, "HearSquad", 9102)) return;
+                w.CmdMove(air, at, true);
+                w.SquadAirCallsHeard++;
+            }
         }
 
         /// <summary>A call from its Mech: from the comms event (a Commander on the player's

@@ -70,6 +70,7 @@ namespace StarForge.EditorTools
         public static string SquadsReport() => Report<TacticalSquadsTrial>();
 
         /// <summary>The next evaluation runs under the new combat (Commander not yet tuned to it: phase 8).</summary>
+        public static string EvalClassicNext() { StarForge.Game.AIEvalRunner.EvalClassic = true; return "the next evaluation runs under the old rules (once)"; }
         public static string EvalNewCombat() { StarForge.Game.AIEvalRunner.EvalTactical = true; return "the next evaluation runs under the new combat"; }
 
         /// <summary>Sent under fire to a place just behind a rock: the order ends there and he stays.
@@ -128,6 +129,9 @@ namespace StarForge.EditorTools
         /// <summary>The map the next Play draws: for runs that must compare. ClearSeed puts it back.</summary>
         public static string UseSeed1000() { StarForge.Game.MatchSettings.mapSeed = 1000; return "next Play on map 1000"; }
         public static string ClearSeed() { StarForge.Game.MatchSettings.mapSeed = 0; return "map seed free"; }
+        /// <summary>Every match begun from now until play stops (scene reloads included) is under the new combat:
+        /// for trials that start their own matches (RosterTrials.Duels, MechDuel) on the new combat's path.</summary>
+        public static string NewCombatOn() { TacticalRules.On = true; return "matches begun from now on are under the new combat, until play stops"; }
 
         /// <summary>How long steady fire takes to pin a man: one and then three rifles at a soldier holding
         /// in the open at 25 m. Target: about 5 s from three, and the brave later than the timid.</summary>
@@ -221,7 +225,7 @@ namespace StarForge.EditorTools
         {
             TacticalRules.On = true;
             yield return EnsureMatch();
-            TacticalRules.On = false;
+            TacticalRules.On = true;
             if (RulesOnly) TacticalRules.NoMistakes = true;
             if (Ready && !world.Tactical) { report = "this match began under the old rules: stop, play and call again at the menu"; world = null; }
         }
@@ -470,9 +474,9 @@ namespace StarForge.EditorTools
             var boot = StarForge.Game.GameBootstrap.Instance;
             world = GameWorld.Instance;
             map = MapInfo.Instance;
-            if (boot == null || world == null || world.running) { TacticalRules.On = false; report = "call this from a fresh Play at the menu"; yield break; }
+            if (boot == null || world == null || world.running) { TacticalRules.On = true; report = "call this from a fresh Play at the menu"; yield break; }
             boot.StartMatch();
-            TacticalRules.On = false;
+            TacticalRules.On = true;
             yield return new WaitForSecondsRealtime(1.5f);
             Time.timeScale = 8f;
             float hurt = 0f;

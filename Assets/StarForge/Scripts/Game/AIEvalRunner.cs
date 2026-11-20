@@ -47,7 +47,9 @@ namespace StarForge.Game
         /// players meet Recruit and Veteran, which no run had measured); put back when the run ends.</summary>
         public static AIDifficulty EvalDifficulty = AIDifficulty.Commander;
         /// <summary>The next run under the new combat, asked for each time (TacticalTrials.EvalNewCombat).</summary>
-        public static bool EvalTactical;
+        /// <summary>The evaluation runs under the new combat (the game's since phase 8); `EvalClassic` for an A/B.</summary>
+        public static bool EvalTactical = true;
+        public static bool EvalClassic;
         static int kind, game, gamesPerKind, onlyKind = -1, firstGame;
         static float maxSeconds;
         static KindStats[] stats;
@@ -120,7 +122,7 @@ namespace StarForge.Game
             MatchSettings.spectate = false;
             MatchSettings.aiMemory = false;          // every match starts from doctrine
             MatchSettings.difficulty = EvalDifficulty;
-            StarForge.Sim.TacticalRules.On = EvalTactical;
+            StarForge.Sim.TacticalRules.On = EvalTactical && !EvalClassic;
             MatchSettings.seed = 1000u + (uint)(game * 37);
             MatchSettings.fixedSeed = true;
             QualitySettings.vSyncCount = 0;
@@ -460,8 +462,9 @@ namespace StarForge.Game
         static void RestoreUserSettings()
         {
             EvalDifficulty = AIDifficulty.Commander;   // a run at another level is asked for each time
-            if (EvalTactical) StarForge.Sim.TacticalRules.On = false;
-            EvalTactical = false;
+            StarForge.Sim.TacticalRules.On = true;
+            EvalClassic = false;
+            EvalTactical = true;
             if (!userSaved) return;
             userSaved = false;
             MatchSettings.aiMemory = userMemory || !MatchSettings.debugAI;   // players cannot turn it off (a trial may have)

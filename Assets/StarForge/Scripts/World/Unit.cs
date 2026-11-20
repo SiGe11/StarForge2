@@ -271,7 +271,7 @@ namespace StarForge.World
         public void Tick(float dt)
         {
             damageFlash = Mathf.Max(0f, damageFlash - dt * 6.5f);
-            cooldown = Mathf.Max(0f, cooldown - dt);
+            cooldown = world.Tactical ? (cooldown > 0f ? Mathf.Max(-0.1f, cooldown - dt) : 0f) : Mathf.Max(0f, cooldown - dt);
             working = false;
 
             if (def.building)
@@ -290,8 +290,9 @@ namespace StarForge.World
             if (rank > 0 && world.time - lastDamagedT > 6f && hp < MaxHp)
                 hp = Mathf.Min(MaxHp, hp + 0.8f * rank * dt);
 
-            if (order == Order.Build) UpdateBuild(dt);
-            if (order == Order.Harvest || order == Order.Return) UpdateHarvest(dt);
+            bool fleeing = world.Tactical && def.harvester && WorkerFlees();
+            if (!fleeing && order == Order.Build) UpdateBuild(dt);
+            if (!fleeing && (order == Order.Harvest || order == Order.Return)) UpdateHarvest(dt);
             UpdateCombat(dt);
 
             // Close on the target for attack orders and for attack-move once a
@@ -361,7 +362,9 @@ namespace StarForge.World
         /// moment, then round for the next -- diving a little on the way in.</summary>
         void TickPlane(float dt)
         {
-            float speed = Speed, circle = PlaneCircle;
+            bool energy = world.Tactical;
+            if (energy && planeSpeed <= 0f) planeSpeed = TacticalRules.PlaneCruise;
+            float speed = energy ? planeSpeed : Speed, circle = PlaneCircle;
             bool attacking = Live(target) && !target.Untargetable && GameWorld.CanHit(this, target);
             // Idle or holding it stays over where it was put: runs only at what comes within its reach
             // of the circle (free, it followed a scout across the map, and circled wherever its last
@@ -384,6 +387,8 @@ namespace StarForge.World
                 else
                 {
                     steer = target.pos;
+                    // At an aircraft it chases from behind, aiming where it has just been (lag pursuit).
+                    if (energy && target.def.flying) { Vector3 tv = target.Velocity; steer = target.pos - new Vector2(tv.x, tv.z) * 0.5f; }
                     inbound = d < def.range * 2f;
                     // Over it, or gone past it: on out for a moment, then round for the next run.
                     if (d < 3f + target.def.radius || (d < def.range && Vector2.Dot(heading, to) < 0f)) runOut = RunOut;
@@ -406,13 +411,28 @@ namespace StarForge.World
             float m = world.MapSize, edge = 12f;
             if (pos.x < edge || pos.y < edge || pos.x > m - edge || pos.y > m - edge)
                 steer = Vector2.Lerp(steer, new Vector2(m, m) * 0.5f, 0.6f);
-            yaw = ApproachAngle(yaw, Mathf.Atan2(steer.x - pos.x, steer.y - pos.y), TurnRate * dt);
+            bool breaking = energy && PlaneBreaks(ref steer, heading);
+            float turnRate = energy ? TurnRate * Mathf.Clamp(13f / speed, 0.7f, 1.3f) : TurnRate;
+            float before = yaw;
+            yaw = ApproachAngle(yaw, Mathf.Atan2(steer.x - pos.x, steer.y - pos.y), turnRate * dt);
             heading = new Vector2(Mathf.Sin(yaw), Mathf.Cos(yaw));
+            if (energy)
+            {
+                // Energy: a hard turn bleeds speed, flying straight it comes back to cruise, a dive gives it.
+                float turning = Mathf.Abs(WrapAngle(yaw - before)) / Mathf.Max(1e-4f, turnRate * dt);
+                float want = inbound || breaking ? TacticalRules.PlaneDipLow : -2f;
+                float oldDip = dip;
+                dip = Mathf.MoveTowards(dip, want, dt * 1.5f);
+                float accel = turning > 0.6f ? -1.5f : (TacticalRules.PlaneCruise > planeSpeed ? 1f : -0.5f);
+                accel += (dip - oldDip) / Mathf.Max(1e-4f, dt) * 1.3f;
+                planeSpeed = Mathf.Clamp(planeSpeed + accel * dt, TacticalRules.PlaneMin, TacticalRules.PlaneMax);
+                speed = planeSpeed;
+            }
             flyVel = heading * speed + world.AirSeparation(this) * speed * 0.3f;
             Vector2 np = world.ClampToMap(pos + flyVel * dt);
             transform.position = world.Map.Ground(np);
             pos = np;
-            dip = Mathf.MoveTowards(dip, inbound ? Dive : 0f, dt * (inbound ? 1.2f : 0.8f));
+            if (!energy) dip = Mathf.MoveTowards(dip, inbound ? Dive : 0f, dt * (inbound ? 1.2f : 0.8f));
             bob += speed * dt * 1.2f;
             turretYaw = yaw;
             transform.rotation = Quaternion.Euler(0f, yaw * Mathf.Rad2Deg, 0f);
@@ -468,6 +488,7 @@ namespace StarForge.World
             if (speed > 0.25f)
             {
                 float want = Mathf.Atan2(v.x, v.z);
+                if (Reversing) want = WrapAngle(want + Mathf.PI);
                 // A soldier running for cover, or walking on with a Move, looks where he is going.
                 bool aiming = Live(target) && Dist(target) - target.def.radius <= def.range && !HasTurret && !rushing && !(order == Order.Move && Careful);
                 if (trackedMech)
@@ -522,6 +543,7 @@ namespace StarForge.World
             if (!def.Armed || !Complete) return;
             if (world.Tactical)
             {
+                if (def.organic && CreatureFlees()) return;
                 if (def.bodyRadius > 0f)
                 {
                     TickSoldier(dt);
@@ -531,6 +553,8 @@ namespace StarForge.World
                     if (hurry && order == Order.Move) { RunningShot(); return; }
                 }
                 ReviewTarget();
+                if (StarForge.Sim.TacticalRules.IsTank(Type)) TickTank(dt);
+                if (def.flying) TickAir(dt);
             }
             // Auto-acquire unless explicitly told to move without engaging.
             bool acquires = (order != Order.Move || Careful) && order != Order.Harvest && order != Order.Return && order != Order.Build;
@@ -591,7 +615,7 @@ namespace StarForge.World
                 return;
             }
             // A plane does not stop to shoot: it makes its runs (TickPlane).
-            if ((order == Order.Attack || order == Order.AttackMove) && !def.fixedWing) Halt();
+            if ((order == Order.Attack || order == Order.AttackMove) && !def.fixedWing && !Reversing) Halt();
         }
 
         /// <summary>Turn onto the target and fire when it bears: false if it is out of reach.</summary>
@@ -612,7 +636,7 @@ namespace StarForge.World
             {
                 float turn = Type == UnitType.Mauler || Type == UnitType.Lancer ? 2.6f : Type == UnitType.Aegis ? 4f : def.turnRate;
                 turretYaw = ApproachAngle(turretYaw, want, turn * dt);
-                if (Mathf.Abs(WrapAngle(want - turretYaw)) < 0.10f && cooldown <= 0f) Fire();
+                if (Mathf.Abs(WrapAngle(want - turretYaw)) < 0.10f && cooldown <= 0f && FriendsAllow()) Fire();
             }
             else if (def.fixedWing)
             {
@@ -767,8 +791,10 @@ namespace StarForge.World
 
         void Fire()
         {
+
+            if (world.Tactical && Live(target) && StarForge.Sim.TacticalRules.AntiArmour(def.weapon)) world.WarnArmour(this, target);
             // Pinned flat he gets off fewer rounds.
-            cooldown = def.cooldown * (mode == SoldierMode.Pinned ? 1.8f : 1f);
+            cooldown = (world.Tactical ? Mathf.Min(cooldown, 0f) : 0f) + def.cooldown * (mode == SoldierMode.Pinned ? 1.8f : 1f);
             world.Fire(this, target);
             if (world.Tactical)
             {

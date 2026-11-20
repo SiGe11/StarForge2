@@ -153,6 +153,10 @@ namespace StarForge.World
         /// <summary>Under the new rules its burst can catch its own side (a shell, a grenade), and a thrown
         /// thing that has come down, waiting on its fuse. Recycle clears them.</summary>
         public bool friendly, landed;
+        /// <summary>A direct round at a soldier that cover stops (decided when fired, new combat): it flies on and hurts no one.</summary>
+        public bool coverStopped;
+        /// <summary>A flat shell aimed at a soldier with cover between him and the muzzle: he takes the burst as from behind it.</summary>
+        public bool targetSheltered;
         public float landedAt;
     }
 
@@ -441,7 +445,7 @@ namespace StarForge.World
             }
             // Idle defenders retaliate against whatever just hit them.
             // (A soldier under the new rules answers for himself, and from where he has cover.)
-            if (u.order == Order.Idle && !u.def.building && u.def.Armed && !u.def.Autonomous && !u.deserted && !ownSide && !(Tactical && u.def.bodyRadius > 0f))
+            if (u.order == Order.Idle && !u.def.building && u.def.Armed && !u.def.Autonomous && !u.deserted && !ownSide && !(Tactical && (u.def.bodyRadius > 0f || u.def.harvester || StarForge.Sim.TacticalRules.IsTank(u.Type))))
             {
                 var t = NearestEnemy(u, u.def.sight);
                 // The nearest, not necessarily the shooter: its own pick, so it may give way.
@@ -1233,6 +1237,7 @@ namespace StarForge.World
             p.target = target;
             p.shooter = shooter;
             p.team = shooter.team;
+            p.friendly = Tactical && kind == 1 && shooter.Type == UnitType.Mauler;
             p.dmg = D.damage * (1f + 0.15f * shooter.rank) * WeaponMul(shooter);
             p.splash = D.splash;
             p.bonusVsWorkers = D.bonusVsWorkers;
@@ -1259,6 +1264,7 @@ namespace StarForge.World
                 float speed = kind == 3 ? 140f : (kind == 2 ? 90f : 115f);
                 p.vel = (aim - muzzle).normalized * speed;
             }
+            CoverStops(p, muzzle);
             projectiles.Add(p);
             Raise(new GameEvent { kind = GameEventKind.Fire, unit = shooter, type = D.type, team = shooter.team, pos = muzzle, dir = fwd, projectileKind = kind });
         }
@@ -1387,7 +1393,7 @@ namespace StarForge.World
 
                 p.pos = hitAt;
                 var c = new Vector2(hitAt.x, hitAt.z);
-                if (p.splash > 0f)
+                if (p.splash > 0f && !p.coverStopped)
                 {
                     for (int i = units.Count - 1; i >= 0; i--)
                     {
@@ -1395,13 +1401,16 @@ namespace StarForge.World
                         if (e == null || e.dying || e.team == 2) continue;
                         // A round fired at deserters catches them only while the punishment is on (a
                         // mortar bomb still in the air when it is called off does not).
-                        bool ownSide = e.team == p.team && p.friendly && !e.def.building;
+                        bool ownSide = e.team == p.team && p.friendly && !e.def.building && e != p.shooter && !(p.purge && e.deserted && Purging(p.team));
                         if (e.team == p.team && !ownSide && !(p.purge && e.deserted && Purging(p.team))) continue;
                         // A burst on the ground does not reach an aircraft overhead, nor flak a tank.
                         if (e.def.flying ? !p.hitsAir : !p.hitsGround) continue;
                         float d = (e.pos - c).magnitude;
                         if (d > p.splash + e.def.radius || e.Untargetable) continue;
                         float falloff = 1f - Saturate((d - e.def.radius) / p.splash) * 0.6f;
+                        // Under the new combat what stands between the burst and a man shelters him, as from a frag.
+                        if (Tactical && e.def.bodyRadius > 0f && Sight != null &&
+                            (!RoundGets(hitAt + Vector3.up * 0.3f, e.Ground + Vector3.up * (e.BodyHeight * 0.55f), p.target, e) || (e == p.target && p.targetSheltered))) falloff *= 0.12f;
                         if (ownSide) FriendHurt++;
                         // A friend's source is himself: the alarm and the kill count know a same-side hit by it.
                         Damage(e, p.dmg * falloff * p.ClassMul(e), c, ownSide ? e : p.shooter, true);
@@ -1434,7 +1443,7 @@ namespace StarForge.World
                     else Blast(hitAt, p.splash * 0.7f, p.splash * 0.55f, 0.35f, 0.3f);
                 }
                 // A Mech's round at a deserter still in the air when the punishment ends does nothing.
-                else if (targetOk && !(p.purge && !Purging(p.team)))
+                else if (targetOk && !p.coverStopped && !(p.purge && !Purging(p.team)))
                 {
                     float dmg = p.dmg * (t.def.harvester && !t.def.Heavy ? p.bonusVsWorkers : 1f) * p.ClassMul(t);
                     Damage(t, dmg, c, p.shooter);
@@ -1456,6 +1465,8 @@ namespace StarForge.World
             p.cosmetic = false;
             p.strikes = false;
             p.friendly = false;
+            p.coverStopped = false;
+            p.targetSheltered = false;
             p.landed = false;
             int last = projectiles.Count - 1;
             projectiles[index] = projectiles[last];

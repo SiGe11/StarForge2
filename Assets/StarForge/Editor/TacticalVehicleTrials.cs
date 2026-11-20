@@ -1,0 +1,413 @@
+// TacticalVehicleTrials.cs -- the checks for the new combat's tanks (phase 6): the mounted machine gun and the main
+// gun on separate targets, smoke popped against anti-tank fire and topped up at a depot, shells held off friends.
+// Called from a fresh Play at the menu, like TacticalTrials.
+using System.Collections;
+using System.Collections.Generic;
+using System.Text;
+using UnityEditor;
+using UnityEngine;
+using StarForge.Sim;
+using StarForge.World;
+
+namespace StarForge.EditorTools
+{
+    public static class TacticalVehicles
+    {
+        static string Stage<T>(string name) where T : BugTrial
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var old = Object.FindAnyObjectByType<T>();
+            if (old != null) Object.Destroy(old.gameObject);
+            new GameObject(name + "Trial").AddComponent<T>();
+            return $"staging; call {name}Report in about a minute";
+        }
+
+        static string Report<T>() where T : BugTrial
+        {
+            var r = Object.FindAnyObjectByType<T>();
+            return r == null ? "no trial running" : r.report;
+        }
+
+        /// <summary>A Mauler against four riflemen and a Lancer 18-24 m off, three fields, 15 s each. Target: 80%+ of
+        /// the machine gun's rounds at the men and 80%+ of the main gun's shells at the Lancer.</summary>
+        public static string Guns() => Stage<TankGunsTrial>("Guns");
+        public static string GunsReport() => Report<TankGunsTrial>();
+
+        /// <summary>A Mauler with two Rocketeers 26 m off, five fields: seconds from the first rocket to its smoke, charges
+        /// after; then beside a Workshop, its charges back. Target: smoke within 2 s 5 of 5, 2 charges then none, both back.</summary>
+        public static string Smoke() => Stage<TankSmokeTrial>("Smoke");
+        public static string SmokeReport() => Report<TankSmokeTrial>();
+
+        /// <summary>A Mauler on an enemy rifleman 20 m off with a friend 2 m from him, then the friend walked off. Target: no
+        /// shell and no friend hurt while he is by the man, shells once he is clear.</summary>
+        public static string Friends() => Stage<TankFriendsTrial>("Friends");
+        public static string FriendsReport() => Report<TankFriendsTrial>();
+
+        /// <summary>An idle Mauler, two Rocketeers sent at it from 45 m, 25 s, five fields, with its tactics and without
+        /// (`TacticalRules.NoTankTactics`). Target: it keeps out of their reach more of the time and takes fewer rockets,
+        /// 4 of 5 fields.</summary>
+        public static string Backoff() => Stage<TankBackoffTrial>("Backoff");
+        public static string BackoffReport() => Report<TankBackoffTrial>();
+
+        /// <summary>A Digger of ours at its work, an enemy rifleman put 12 m off, then taken away; and a Skitter at 25%
+        /// attacking a rifleman. Target: the Digger runs (8+ m off him) and is back at its work, its order kept, 5 of 5;
+        /// the Skitter breaks off (8+ m) and comes back.</summary>
+        public static string Instinct() => Stage<InstinctTrial>("Instinct");
+        /// <summary>A Lancer and a Skimmer firing at a rifleman ducked behind a low wall, and at the same man in front of
+        /// it (12 s each, up to four walls). Target: behind the wall a fifth of the hull lost in front, or less.</summary>
+        public static string CoverRounds() => Stage<CoverRoundsTrial>("CoverRounds");
+        public static string CoverRoundsReport() => Report<CoverRoundsTrial>();
+        public static string InstinctReport() => Report<InstinctTrial>();
+    }
+
+    public sealed class TankGunsTrial : TacticalTrial
+    {
+        protected override bool RulesOnly => true;
+        Unit tank;
+        int mgAtMen, mgOther, mainAtTank, mainOther;
+
+        void OnFire(GameEvent e)
+        {
+            if (e.kind != GameEventKind.Fire || e.unit != tank || tank == null) return;
+            if (e.projectileKind == GameWorld.ProjMG)
+            {
+                var t = tank.tankGunTarget;
+                if (t != null && t.def.bodyRadius > 0f) mgAtMen++; else mgOther++;
+            }
+            else
+            {
+                var t = tank.target;
+                if (t != null && t.Type == UnitType.Lancer) mainAtTank++; else mainOther++;
+            }
+        }
+
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            var sb = new StringBuilder();
+            HoldStatics();
+            ListenWhileHeld(OnFire);
+            var rng = new System.Random(606);
+            int fields = 0;
+            for (int f = 0; f < 3; f++)
+            {
+                if (!FindRange(rng, 30f, out var a, out var d)) continue;
+                fields++;
+                Vector2 side = new Vector2(-d.y, d.x);
+                tank = Put(UnitType.Mauler, 0, a);
+                tank.hp = 1e6f;
+                var men = new List<Unit>();
+                for (int i = 0; i < 4; i++) { var m = Soldier(1, a + d * 18f + side * ((i - 1.5f) * 2.5f)); men.Add(m); }
+                var lancer = Put(UnitType.Lancer, 1, a + d * 24f + side * 6f);
+                lancer.hp = 1e6f;
+                world.CmdHold(new List<Unit> { lancer });
+                int mg0 = mgAtMen + mgOther, main0 = mainAtTank + mainOther;
+                float t0 = world.time;
+                while (world.time - t0 < 15f) yield return null;
+                sb.AppendLine($"  field {f}: machine gun {mgAtMen + mgOther - mg0} rounds, main gun {mainAtTank + mainOther - main0} shells; men alive {men.FindAll(Unit.Live).Count} of 4");
+                ClearSpawned();
+                tank = null;
+                yield return null;
+            }
+            int mg = mgAtMen + mgOther, main = mainAtTank + mainOther;
+            report = $"{fields} fields: machine gun at men {Pct(mgAtMen, mg)} of {mg} rounds, main gun at the Lancer {Pct(mainAtTank, main)} of {main} shells (targets 80%+ each)\n" + sb;
+            ReleaseStatics();
+        }
+
+        static string Pct(int a, int b) => b > 0 ? $"{100f * a / b:0}%" : "-";
+    }
+
+    public sealed class TankSmokeTrial : TacticalTrial
+    {
+        protected override bool RulesOnly => true;
+        Unit tank;
+        float firstRocketAt = -1f;
+
+        void OnFire(GameEvent e)
+        {
+            if (e.kind == GameEventKind.Fire && e.unit != null && e.unit.team == 1 && e.unit.Type == UnitType.Rocketeer && firstRocketAt < 0f && world != null)
+                firstRocketAt = world.time;
+        }
+
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            var sb = new StringBuilder();
+            HoldStatics();
+            ListenWhileHeld(OnFire);
+            var rng = new System.Random(707);
+            int fields = 0, inTime = 0;
+            for (int f = 0; f < 5; f++)
+            {
+                if (!FindRange(rng, 30f, out var a, out var d)) continue;
+                fields++;
+                tank = Put(UnitType.Mauler, 0, a);
+                tank.hp = 1e6f;
+                world.CmdHold(new List<Unit> { tank });
+                for (int i = 0; i < 2; i++)
+                {
+                    var r = Put(UnitType.Rocketeer, 1, a + d * 26f + new Vector2(-d.y, d.x) * (i * 3f - 1.5f));
+                    r.hp = 1e6f;
+                    world.CmdAttack(new List<Unit> { r }, tank);
+                }
+                firstRocketAt = -1f;
+                int popped0 = world.TankSmokesPopped;
+                float t0 = world.time, smokeAt = -1f;
+                while (world.time - t0 < 20f)
+                {
+                    if (smokeAt < 0f && world.TankSmokesPopped > popped0) smokeAt = world.time;
+                    yield return null;
+                }
+                float lag = smokeAt >= 0f && firstRocketAt >= 0f ? smokeAt - firstRocketAt : -1f;
+                if (lag >= 0f && lag <= 2f) inTime++;
+                int left = tank.tankSmokes;
+                // Beside a Workshop of its own: its charges come back.
+                var shop = Put(UnitType.Workshop, 0, a - d * 12f);
+                float t1 = world.time;
+                while (world.time - t1 < 25f && tank.tankSmokes < TacticalRules.TankSmokes) yield return null;
+                sb.AppendLine($"  field {f}: first rocket at {(firstRocketAt >= 0f ? (firstRocketAt - t0).ToString("0.0") : "-")} s, smoke {(lag >= 0f ? lag.ToString("0.0") + " s after it" : "never")}, charges left {left}, popped {world.TankSmokesPopped - popped0}; by a Workshop back to {tank.tankSmokes} in {world.time - t1:0} s");
+                ClearSpawned();
+                tank = null;
+                yield return null;
+            }
+            report = $"{fields} fields: smoke within 2 s of the first rocket {inTime} of {fields} (target 5 of 5)\n" + sb;
+            ReleaseStatics();
+        }
+
+    }
+
+    public sealed class TankBackoffTrial : TacticalTrial
+    {
+        protected override bool RulesOnly => true;
+        int rocketHits;
+        Unit tank;
+
+        void OnFire(GameEvent e) { }
+
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            var sb = new StringBuilder();
+            HoldStatics();
+            int better = 0, fields = 0;
+            for (int f = 0; f < 5; f++)
+            {
+                var res = new float[2, 2];
+                bool ok = true;
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    var rng = new System.Random(900 + f);
+                    if (!FindRange(rng, 40f, out var a, out var d)) { ok = false; break; }
+                    TacticalRules.NoTankTactics = pass == 1;
+                    tank = Put(UnitType.Mauler, 0, a);
+                    float hp0 = tank.hp = 2000f;
+                    var men = new List<Unit>();
+                    for (int i = 0; i < 2; i++)
+                    {
+                        var r = Put(UnitType.Rocketeer, 1, a + d * 45f + new Vector2(-d.y, d.x) * (i * 4f - 2f));
+                        r.hp = 1e6f;
+                        men.Add(r);
+                    }
+                    world.CmdAttack(men, tank);
+                    float t0 = world.time, inside = 0f, samples = 0f;
+                    while (world.time - t0 < 25f && Unit.Live(tank))
+                    {
+                        float near = float.MaxValue;
+                        foreach (var m in men) near = Mathf.Min(near, (m.pos - tank.pos).magnitude);
+                        samples += 1f;
+                        if (near <= men[0].def.range) inside += 1f;
+                        yield return null;
+                    }
+                    res[pass, 0] = samples > 0f ? inside / samples : 1f;
+                    res[pass, 1] = hp0 - tank.hp;
+                    ClearSpawned();
+                    yield return null;
+                }
+                TacticalRules.NoTankTactics = false;
+                if (!ok) continue;
+                fields++;
+                if (res[0, 0] < res[1, 0] && res[0, 1] <= res[1, 1]) better++;
+                sb.AppendLine($"  field {f}: in their reach {res[0, 0]:P0} of the time with tactics, {res[1, 0]:P0} without; hull lost {res[0, 1]:0} against {res[1, 1]:0}");
+            }
+            TacticalRules.NoTankTactics = false;
+            report = $"{fields} fields: better with its tactics on {better} of {fields} (target 4 of 5); back-offs {world.TankBackOffs}\n" + sb;
+            ReleaseStatics();
+        }
+    }
+
+    public sealed class InstinctTrial : TacticalTrial
+    {
+        protected override bool RulesOnly => true;
+
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            var sb = new StringBuilder();
+            HoldStatics();
+            var rng = new System.Random(1111);
+            int ran = 0, back = 0, tried = 0;
+            foreach (var u in new List<Unit>(world.units))
+            {
+                if (tried >= 5) break;
+                if (u == null || u.dying || u.team != 0 || u.Type != UnitType.Worker || u.order != Order.Harvest) continue;
+                tried++;
+                Vector2 start = u.pos;
+                Vector2 dir = Random2(rng);
+                var foe = Soldier(1, u.pos + dir * 12f);
+                foe.noMind = true;
+                float t0 = world.time, far = 0f;
+                while (world.time - t0 < 5f) { far = Mathf.Max(far, (u.pos - foe.pos).magnitude); yield return null; }
+                Remove(foe);
+                float t1 = world.time, nearest = float.MaxValue;
+                while (world.time - t1 < 20f) { nearest = Mathf.Min(nearest, (u.pos - start).magnitude); yield return null; }
+                bool r = far >= 20f, b = nearest < 5f && (u.order == Order.Harvest || u.order == Order.Return);
+                if (r) ran++;
+                if (b) back++;
+                sb.AppendLine($"  Digger {tried}: {far:0.0} m from the rifleman at most (12 at first), back within {nearest:0.0} m of where it worked, order {u.order}");
+            }
+            // A creature at a quarter of its hull.
+            int broke = 0, returned = 0, fields = 0;
+            for (int f = 0; f < 3; f++)
+            {
+                if (!FindRange(rng, 30f, out var a, out var d)) continue;
+                fields++;
+                var man = Soldier(0, a);
+                man.noMind = true;
+                var sk = Put(UnitType.Skitter, 1, a + d * 10f);
+                sk.hp = sk.MaxHp * 0.25f;
+                world.CmdAttack(new List<Unit> { sk }, man);
+                float t0 = world.time, far = 0f, closeAgain = float.MaxValue;
+                while (world.time - t0 < 25f && Unit.Live(sk))
+                {
+                    man.cooldown = 99f;
+                    float dd = (sk.pos - man.pos).magnitude;
+                    far = Mathf.Max(far, dd);
+                    if (world.time - t0 > 7f) closeAgain = Mathf.Min(closeAgain, dd);
+                    yield return null;
+                }
+                if (far >= 18f) broke++;
+                if (closeAgain < 4f) returned++;
+                sb.AppendLine($"  Skitter {f}: {far:0.0} m off at most (10 at first), {(closeAgain < float.MaxValue ? closeAgain.ToString("0.0") : "-")} m at its nearest after 7 s");
+                ClearSpawned();
+                yield return null;
+            }
+            report = $"Diggers: ran {ran} of {tried}, back at work {back} of {tried} (target 5 of 5); creatures: broke off {broke} of {fields}, came back {returned} of {fields}; flights {world.WorkerFlights} workers, {world.CreatureFlights} creatures\n" + sb;
+            ReleaseStatics();
+        }
+
+        static Vector2 Random2(System.Random r)
+        {
+            float a = (float)r.NextDouble() * Mathf.PI * 2f;
+            return new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+        }
+    }
+
+    public sealed class CoverRoundsTrial : TacticalTrial
+    {
+        protected override bool RulesOnly => true;
+
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            var sb = new StringBuilder();
+            HoldStatics();
+            float behind = 0f, front = 0f;
+            int walls = 0;
+            foreach (var w in new List<CoverWall>(world.Walls))
+            {
+                if (walls >= 4) break;
+                if (w.smashed || w.height > MapGenerator.VaultHigh || (w.b - w.a).magnitude < 2.5f) continue;
+                Vector2 ab = w.b - w.a, n = new Vector2(-ab.y, ab.x).normalized;
+                float off = w.half + MapGenerator.WallPad + 0.08f;
+                Vector2 spot = w.Mid + n * off;
+                if (w.top - world.Sight.GroundAt(spot.x, spot.y) < MapGenerator.DuckedClear) continue;
+                Vector2 gunAt = w.Mid - n * (off + 15f);
+                if (!map.InBounds(gunAt, 4f)) continue;
+                walls++;
+                var lost = new float[2];
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    Vector2 at = pass == 0 ? spot : w.Mid - n * off;
+                    var man = Soldier(0, at);
+                    man.noMind = true;
+                    man.mode = SoldierMode.InCover; man.coverAt = at; man.leanSide = pass == 0 ? GameWorld.RiseOver : 0; man.posture = Posture.Crouch;
+                    float hp0 = man.hp;
+                    // Held where they stand (on an attack order they drove round the wall's end): the Lancer 15 m off, the Skimmer 10.
+                    var guns = new List<Unit> { Put(UnitType.Lancer, 1, gunAt), Put(UnitType.Skimmer, 1, w.Mid - n * (off + 10f) + new Vector2(-n.y, n.x) * 2f) };
+                    foreach (var g in guns) g.hp = 1e6f;
+                    world.CmdHold(guns);
+                    // A spotter of theirs beside him, holding his fire: their side knows where he is.
+                    var spot2 = Soldier(1, at + ab.normalized * 7f);
+                    spot2.noMind = true;
+                    float t0 = world.time;
+                    while (world.time - t0 < 12f) { man.cooldown = 99f; spot2.cooldown = 99f; yield return null; }
+                    lost[pass] = hp0 - man.hp;
+                    ClearSpawned();
+                    yield return null;
+                }
+                behind += lost[0];
+                front += lost[1];
+                sb.AppendLine($"  wall {walls}: lost behind it {lost[0]:0}, in front of it {lost[1]:0}");
+            }
+            report = $"{walls} walls: a Lancer and a Skimmer took {behind:0} hull off a man behind a wall against {front:0} in front (target a fifth or less); rounds stopped by cover {world.RoundsStoppedByCover}\n" + sb;
+            ReleaseStatics();
+        }
+    }
+
+    public sealed class TankFriendsTrial : TacticalTrial
+    {
+        protected override bool RulesOnly => true;
+        Unit tank;
+        int shells;
+
+        void OnFire(GameEvent e)
+        {
+            if (e.kind == GameEventKind.Fire && e.unit == tank && tank != null && e.projectileKind != GameWorld.ProjMG) shells++;
+        }
+
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            var sb = new StringBuilder();
+            HoldStatics();
+            ListenWhileHeld(OnFire);
+            var rng = new System.Random(808);
+            int fields = 0;
+            for (int f = 0; f < 3; f++)
+            {
+                if (!FindRange(rng, 30f, out var a, out var d)) continue;
+                fields++;
+                tank = Put(UnitType.Mauler, 0, a);
+                tank.hp = 1e6f;
+                var foe = Soldier(1, a + d * 20f);
+                foe.noMind = true;
+                var friend = Soldier(0, a + d * 20f + new Vector2(-d.y, d.x) * 2f);
+                friend.noMind = true;
+                friend.hp = 1e6f;
+                world.CmdAttack(new List<Unit> { tank }, foe);
+                int hurt0 = world.FriendHurt;
+                shells = 0;
+                float t0 = world.time;
+                while (world.time - t0 < 10f) yield return null;
+                int near = shells, hurtNear = world.FriendHurt - hurt0;
+                friend.agent.Warp(map.Ground(a + d * 20f + new Vector2(-d.y, d.x) * 14f));
+                shells = 0;
+                float t1 = world.time;
+                while (world.time - t1 < 10f && Unit.Live(foe)) yield return null;
+                sb.AppendLine($"  field {f}: friend 2 m from the man: {near} shells, {hurtNear} friends hurt; friend 14 m off: {shells} shells, the man {(Unit.Live(foe) ? "alive" : "dead")}");
+                ClearSpawned();
+                tank = null;
+                yield return null;
+            }
+            report = $"{fields} fields\n" + sb;
+            ReleaseStatics();
+        }
+
+    }
+}

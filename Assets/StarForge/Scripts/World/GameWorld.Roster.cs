@@ -260,8 +260,10 @@ namespace StarForge.World
             p.purge = false;
             p.flight = 0f;
             p.age = 0f;
+            if (Tactical && kind == 5 && t != null && t.def.flying) WarnAir(s, t);
             p.life = 2f;
             p.vel = (AimPoint(t) - muzzle).normalized * speed;
+            CoverStops(p, muzzle);
             projectiles.Add(p);
             return p;
         }
@@ -373,6 +375,7 @@ namespace StarForge.World
                     p.life = 1.2f;
                     if (!t.def.flying) p.splash = 0f;
                     p.hitsGround = !t.def.flying;
+                    CoverStops(p, m);
                     RaiseFire(s, m, (aim - m).normalized, 4);
                     break;
                 }
@@ -398,6 +401,7 @@ namespace StarForge.World
                     Vector3 m = Muzzle(s, -0.1f, 1.2f);
                     var p = Round(s, t, 4, m, 180f);
                     p.life = 1.0f;
+                    if (Tactical && t.def.flying) DecideCannon(s, t, p);
                     RaiseFire(s, m, (aim - m).normalized, 4);
                     break;
                 }

@@ -140,6 +140,14 @@ each one's loudness into `Audio/Music/music.json`. WAV sources are Vorbis-encode
 | [Contemplation](https://opengameart.org/content/contemplation-0) | Joth | `music_calm_2.mp3` |
 | [Insistent: background loop](https://opengameart.org/content/insistent-background-loop) | yd | `music_tension_0.ogg` |
 | [Battle Theme A](https://opengameart.org/content/battle-theme-a) | cynicmusic | `music_combat_0.mp3` |
+| [Peaceful Forest](https://opengameart.org/content/peaceful-forest) | Samza | `music_calm_3.ogg` (lifted x2.2 to the music level) |
+| [Calm Ambient 1 (Synthwave 4k)](https://opengameart.org/content/calm-ambient-1-synthwave-4k) | cynicmusic | `music_calm_4.mp3` |
+| [JRPG Pack 4 Calm: A Place I Call Home](https://opengameart.org/content/jrpg-pack-4-calm) | Juhani Junkala (SubspaceAudio) | `music_calm_5.ogg` |
+| [Pressure](https://opengameart.org/content/pressure) | yd | `music_tension_1.ogg` |
+| [Menace](https://opengameart.org/content/menace) | yd | `music_tension_2.ogg` |
+| [Determined Pursuit (epic orchestra loop)](https://opengameart.org/content/determined-pursuit-epic-orchestra-loop) | Emma_MA | `music_combat_1.ogg` |
+| [Boss Battle Music](https://opengameart.org/content/boss-battle-music) ("Epic Boss Battle") | Juhani Junkala (SubspaceAudio) | `music_combat_2.ogg` |
+| [QaziJamJam (orchestral battle theme)](https://opengameart.org/content/qazijamjam-orchestral-battle-theme) | Emma_MA | `music_combat_3.ogg` |
 
 ## OpenGameArt — CC0 1.0: recorded sound
 

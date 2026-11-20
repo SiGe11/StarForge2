@@ -751,7 +751,7 @@ namespace StarForge.EditorTools
             if (--holds > 0) return;
             Commander.Suspended = savedSuspended;
             Unit.StickyTargets = false;
-            TacticalRules.NoMistakes = false;
+            TacticalRules.NoMistakes = false; TacticalRules.NoTankTactics = false;
             // The speed the match's own state calls for, not the one saved at the hold: paused or
             // resumed while a trial ran, the saved one froze a running match (0) or ran a paused one.
             Time.timeScale = scaleOwned || GameBootstrap.Instance == null ? savedScale : StateScale();
@@ -784,8 +784,8 @@ namespace StarForge.EditorTools
         {
             holds = 0;
             Unit.StickyTargets = false;
-            TacticalRules.On = false;
-            TacticalRules.NoMistakes = false;
+            TacticalRules.On = true;
+            TacticalRules.NoMistakes = false; TacticalRules.NoTankTactics = false;
             UnitView.CutterSpin = UnitView.CutterSpinUsual;
             // MoraleTrials keeps a hold count of its own: overlapping one of its trials with
             // one of these, the later release could put back a Suspended the other had set,

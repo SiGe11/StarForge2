@@ -209,10 +209,12 @@ namespace StarForge.World
 
         /// <summary>Where a round goes: <paramref name="end"/> is where it stops, <paramref name="stopped"/>
         /// whether anything stopped it there, and what it returns is the enemy it struck, or null.</summary>
-        Unit DecideShot(Unit s, Unit t, out Vector3 muzzle, out Vector3 end, out bool stopped, float gun = 0f)
+        Unit DecideShot(Unit s, Unit t, out Vector3 muzzle, out Vector3 end, out bool stopped, float gun = 0f, float height = 0f)
         {
             lineWatch.Restart();
             muzzle = ShotMuzzle(s, t, s.target == t ? s.leanSide : 0);
+            // A gun on a hull (a tank's machine gun) fires from its own height.
+            if (height > 0f) muzzle.y = s.Ground.y + height;
             Vector3 to = ShotAim(s, t, muzzle, out _) - muzzle;
             float dist = to.magnitude;
             Vector3 dir = dist > 1e-3f ? to / dist : Vector3.forward;

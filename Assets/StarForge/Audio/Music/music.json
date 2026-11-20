@@ -23,5 +23,45 @@
     "rms": 0.2236,
     "seconds": 95.9,
     "source": "battleThemeA.mp3"
+  },
+  "music_calm_3": {
+    "rms": 0.0668,
+    "seconds": 63.1,
+    "source": "Peaceful Forest.wav"
+  },
+  "music_calm_4": {
+    "rms": 0.0902,
+    "seconds": 157.9,
+    "source": "001_Synthwave_4k.mp3"
+  },
+  "music_calm_5": {
+    "rms": 0.1229,
+    "seconds": 46.5,
+    "source": "Calm1 - A Place I Call Home.ogg"
+  },
+  "music_tension_1": {
+    "rms": 0.2028,
+    "seconds": 180.0,
+    "source": "Pressure.ogg"
+  },
+  "music_tension_2": {
+    "rms": 0.3754,
+    "seconds": 97.7,
+    "source": "Menace.ogg"
+  },
+  "music_combat_1": {
+    "rms": 0.1793,
+    "seconds": 108.0,
+    "source": "determined_pursuit_loop.wav"
+  },
+  "music_combat_2": {
+    "rms": 0.3735,
+    "seconds": 123.4,
+    "source": "Juhani Junkala - Epic Boss Battle [Seamlessly Looping].wav"
+  },
+  "music_combat_3": {
+    "rms": 0.1562,
+    "seconds": 233.4,
+    "source": "QaziJamJam.wav"
   }
 }

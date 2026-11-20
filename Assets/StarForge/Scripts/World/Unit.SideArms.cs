@@ -293,12 +293,15 @@ namespace StarForge.World
         /// <summary>A shell or rocket that could catch his own: he holds it until they are clear.</summary>
         bool FriendsAllow()
         {
-            if (!world.Tactical || def.bodyRadius <= 0f) return true;
-            if (def.weapon != WeaponKind.Mortar && def.weapon != WeaponKind.Bazooka) return true;
+            if (!world.Tactical) return true;
+            // A tank's shell (the Mauler's): its own men by the target hold it, as a mortar's do.
+            bool shell = Type == UnitType.Mauler;
+            if (def.bodyRadius <= 0f && !shell) return true;
+            if (!shell && def.weapon != WeaponKind.Mortar && def.weapon != WeaponKind.Bazooka) return true;
             if (world.time < friendsLookAt) return friendsClear;
             friendsLookAt = world.time + 0.5f;
             float reach = def.splash + 1.5f;
-            if (def.weapon == WeaponKind.Bazooka)
+            if (def.weapon == WeaponKind.Bazooka || shell)
             {
                 friendsClear = world.FriendsClear(this, target.pos, reach, 0.8f);
                 return friendsClear;

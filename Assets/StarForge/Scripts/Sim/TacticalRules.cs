@@ -14,7 +14,9 @@ namespace StarForge.Sim
     {
         /// <summary>Read when a match begins (GameWorld.BeginMatch). A static survives play sessions:
         /// whoever turns it on for a run turns it off after.</summary>
-        public static bool On;
+        /// <summary>The new combat is the game's (phase 8). False only for an A/B against the old rules: `-sfclassic`
+        /// on the player, `AIEvalRunner.EvalClassic`, the title screen's dev switch.</summary>
+        public static bool On = true;
         /// <summary>A trial's: nobody errs. Off at every play entry (BugTrial.ClearOnPlay).</summary>
         public static bool NoMistakes;
 
@@ -30,6 +32,26 @@ namespace StarForge.Sim
 
         // What a soldier carries besides his gun (Unit.SideArms, GameWorld.Grenades).
         public const float PistolRange = 15f, PistolSpread = 0.035f, PistolDamage = 9f, PistolCooldown = 0.55f;
+        /// <summary>Phase 6: a tank's mounted machine gun (a round decided when fired, from its roof) and its two
+        /// smoke launchers, popped as an anti-tank round comes at it and topped up by a depot or a Workshop.</summary>
+        public const float TankGunRange = 30f, TankGunSpread = 0.045f, TankGunDamage = 8f, TankGunCooldown = 0.2f, TankGunHeight = 1.9f;
+        public const int TankSmokes = 2;
+        /// <summary>A tank keeps this far beyond an anti-tank man's reach; a worker runs from an enemy this near; a
+        /// creature breaks off under this share of its hull. `NoTankTactics`: the trials' A/B (they clear it).</summary>
+        public const float TankBackMargin = 5f, WorkerFleeReach = 20f, CreatureBreakAt = 0.3f, WorkerStaysNear = 25f;
+        public static bool NoTankTactics;
+        /// <summary>Phase 7, the Swift's flight: speed between `PlaneMin` and `PlaneMax`, easing to `PlaneCruise`; a
+        /// hard turn bleeds speed, a dive gives it; height 6-14 m over the ground (dip -2..+1.6 under its 9 m, 7.4-11 m: the view holds it at 0.8 of its height or more). Missiles
+        /// (Swift x2) and flares (Swift and Kestrel x2), one of each back every 10 s within `AirRearmReach` of an Airfield.</summary>
+        public const float PlaneCruise = 13.5f, PlaneMin = 10f, PlaneMax = 17f, PlaneDipLow = 1.6f;
+        public const float MissileSpeed = 35f, MissileDamage = 30f, MissileLockMin = 15f, MissileLockMax = 45f, MissileCone = 0.52f, MissileLockTime = 1f;
+        public const float FlareDecoy = 0.6f, AirRearmReach = 25f, CannonHitBase = 0.35f, CannonVsAir = 0.7f;
+        public const int AirMissiles = 2, AirFlares = 2;
+        /// <summary>The tanks: the Workshop's armour with a main gun (not the Hauler's or the Prospector's hulls,
+        /// which IsTankLike counts as cover).</summary>
+        public static bool IsTank(UnitType t) => t == UnitType.Mauler || t == UnitType.Lancer || t == UnitType.Aegis || t == UnitType.Ironclad;
+        /// <summary>Guns a tank pops its smoke for.</summary>
+        public static bool AntiArmour(WeaponKind w) => w == WeaponKind.Bazooka || w == WeaponKind.Lance || w == WeaponKind.Cannon || w == WeaponKind.Battery;
         public const float KnifeReach = 1.7f, KnifeDamage = 45f, KnifeCooldown = 1f;
         public const float FragReach = 6f, FragDamage = 110f, FragFuse = 1f, FragMin = 9f, FragMax = 24f;
         public const float SmokeRadius = 6f, SmokeLasts = 20f;
@@ -134,6 +156,20 @@ namespace StarForge.Sim
             }
             // Everything that fights has the eyes the new ranges need (its own numbers come in their phases).
             if (d.Armed && !d.harvester && d.sight < 45f) d.sight = 45f;
+            // Phase 8: the creatures meet tanks' machine guns and break off when hurt, so they are hardier.
+            if (d.organic) d.hp *= CreatureHardier;
+            // Towers and tanks reach as far as the rifles they face (phase 8's range pass).
+            switch (d.type)
+            {
+                case UnitType.Sentinel: d.range = Mathf.Max(d.range, 34f); d.sight = Mathf.Max(d.sight, 45f); break;
+                case UnitType.Mauler: d.range = Mathf.Max(d.range, 32f); break;
+                case UnitType.Lancer: case UnitType.Aegis: case UnitType.Ironclad: d.range = Mathf.Max(d.range, 30f); break;
+            }
         }
+
+        /// <summary>Phase 8's balance: creatures' hull under the new combat; a tank's machine gun by type (the Aegis
+        /// and Ironclad won 12 of 16 duels with it at full weight).</summary>
+        public const float CreatureHardier = 1.3f;
+        public static float TankGunMul(UnitType t) => t == UnitType.Aegis || t == UnitType.Ironclad ? 0.6f : 1f;
     }
 }

@@ -51,6 +51,9 @@ namespace StarForge.EditorTools
         public static string DuelsChanged() { RosterDuels.Focus = new[] { UnitType.Swift, UnitType.Prospector }; return Start<RosterDuels>("duels"); }
         /// <summary>The Rocketeer against every fighting type, since its rocket went from 60 to 42 m/s.</summary>
         public static string DuelsRocketeer() { RosterDuels.Focus = new[] { UnitType.Rocketeer }; return Start<RosterDuels>("duels"); }
+        /// <summary>Tactical phase 6's baseline: the four tanks and the three ground creatures against every type
+        /// (call TacticalTrials.NewCombatOn first for the new combat's path).</summary>
+        public static string DuelsPhase6() { RosterDuels.Focus = new[] { UnitType.Mauler, UnitType.Lancer, UnitType.Aegis, UnitType.Ironclad, UnitType.Skitter, UnitType.Spitter, UnitType.Gorehorn }; return Start<RosterDuels>("duels"); }
         public static string DuelReport() => Report<RosterDuels>();
         /// <summary>Hits on an aircraft by speed: each anti-air gun on Hold, 12 m from a hovering Kestrel
         /// (its hull topped up every frame), 12 s at 1x and again at 8x: damage per shot, which must not

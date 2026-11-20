@@ -107,6 +107,7 @@ namespace StarForge.Game
                 else if (args[i] == "-sflogshaders") GraphicsSettings.logWhenShaderIsCompiled = true;
                 else if (args[i] == "-sfrigposes") rigProbePoses = true;
                 else if (args[i] == "-sftactical") StarForge.Sim.TacticalRules.On = true;
+                else if (args[i] == "-sfclassic") StarForge.Sim.TacticalRules.On = false;
                 else if (args[i] == "-sfcatchstall" && i + 1 < args.Length) StallCatcher.Start(args[i + 1]);
                 else if (args[i] == "-sfnoresident" && GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset noRd)
                     noRd.gpuResidentDrawerMode = GPUResidentDrawerMode.Disabled;

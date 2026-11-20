@@ -42,6 +42,7 @@ namespace StarForge.World
             SmokeClouds.Clear();
             System.Array.Clear(ThrownCount, 0, ThrownCount.Length);
             FragLandings = FragFriendAtLanding = FragFriendAtBurst = FriendHurt = Stunned = PistolShots = Stabs = Reloads = SquadBlunders = 0;
+            TankGunShots = TankGunHits = TankSmokesPopped = TankBackOffs = WorkerFlights = CreatureFlights = RoundsStoppedByCover = 0;
             System.Array.Clear(MistakeChances, 0, 4);
             System.Array.Clear(MistakesMade, 0, 4);
         }

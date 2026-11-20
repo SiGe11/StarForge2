@@ -316,8 +316,8 @@ namespace StarForge.World
                 }
                 case MechWeapon.Gatling:
                 {
-                    // Every round a hit on what it is aimed at; the tracers wander a little.
-                    Damage(target, dmg * mul, shooter.pos, shooter);
+                    // Every round a hit on what it is aimed at, unless cover stands between (the new combat).
+                    if (MechLineGets(muzzle, target, shooter)) Damage(target, dmg * mul, shooter.pos, shooter);
                     Vector3 end = aim + Random3(target.def.radius * 0.5f);
                     Raise(new GameEvent { kind = GameEventKind.Beam, unit = shooter, type = UnitType.Mech, team = shooter.team, pos = muzzle, end = end, projectileKind = (int)part.id, scale = 1f });
                     if (g.shots % 6 == 0) Raise(new GameEvent { kind = GameEventKind.Impact, team = shooter.team, pos = end, dir = (end - muzzle).normalized, scale = 0.3f, projectileKind = 0 });
@@ -325,7 +325,7 @@ namespace StarForge.World
                 }
                 case MechWeapon.Laser:
                 {
-                    Damage(target, dmg * mul, shooter.pos, shooter);
+                    if (MechLineGets(muzzle, target, shooter)) Damage(target, dmg * mul, shooter.pos, shooter);
                     Raise(new GameEvent { kind = GameEventKind.Beam, unit = shooter, type = UnitType.Mech, team = shooter.team, pos = muzzle, end = aim, projectileKind = (int)part.id, scale = 1f });
                     break;
                 }
@@ -426,8 +426,12 @@ namespace StarForge.World
             p.bounces = 0;
             // Fired at its own side's deserters (GameWorld.Morale): the burst may catch them.
             p.purge = target != null && target.deserted && target.team == shooter.team;
+            // The new combat: its shells can hurt friends as a Mauler's do (the purge's own rule wins).
+            p.friendly = Tactical && splash > 0f && !p.purge;
+            if (Tactical && kind == 5 && target != null && target.def.flying) WarnAir(shooter, target);
             p.age = 0f;
             p.flight = 0f;
+            CoverStops(p, muzzle);
             projectiles.Add(p);
             return p;
         }

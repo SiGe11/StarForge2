@@ -32,16 +32,21 @@
 
 3. Music, in Assets/StarForge/Audio/Music/: recorded CC0 tracks from
    OpenGameArt (fetched into Art/Source/music by fetch_assets.py), copied under
-   the mood they play in -- music_calm_* (At Home by wolfgang: warm orchestral;
+   the mood they play in -- music_calm_0-5 (At Home by wolfgang: warm orchestral;
    First Light Particles by yoiyami: piano over pads; Contemplation by Joth:
-   drifting ambience), music_tension_0 (Insistent by yd, a dark, quiet loop) and
-   music_combat_0 (Battle Theme A by cynicmusic, strings and horns). The calm
-   set is chosen to be major-key and consonant: the minor piano loops it used to
-   hold sounded unsettling under a quiet base. WAV sources are Vorbis-encoded
-   through Blender (Tools/blender/encode_audio.py) instead of being committed
-   raw. music.json records each file's loudness (RMS) so the game can play them
-   all at one level, well under the effects. (The music used to be synthesised
-   here; its sine plucks and tremolo beeped.)
+   drifting ambience; Peaceful Forest by Samza; Calm Ambient 1 by cynicmusic;
+   A Place I Call Home by Juhani Junkala), music_tension_0-2 (Insistent,
+   Pressure and Menace by yd, dark loops) and music_combat_0-3 (Battle Theme A
+   by cynicmusic, Determined Pursuit and QaziJamJam by Emma_MA, Epic Boss
+   Battle by Juhani Junkala: strings, horns, choir, drums). The calm set is
+   chosen to be major-key and consonant: the minor piano loops it used to hold
+   sounded unsettling under a quiet base. WAV sources are trimmed of edge
+   silence, lifted if quiet, and Vorbis-encoded through Blender
+   (Tools/blender/encode_audio.py) instead of being committed raw. music.json
+   records each file's loudness (RMS) so the game can play them all at one
+   level, well under the effects. The step is incremental (a track already in
+   place keeps its file and .meta); `--music [--out DIR]` runs only it. (The
+   music used to be synthesised here; its sine plucks and tremolo beeped.)
 
 Needs numpy, and macOS's afconvert to decode the recordings and measure the music. Ambience is written as
 16-bit PCM WAV (Unity compresses it to Vorbis on import).
@@ -838,7 +843,7 @@ def make_mech_audio():
 
 
 # ---------------------------------------------------------------- helpers
-def write_wav(path, data):
+def write_wav(path, data, rate=SR):
     """data: (n,) mono or (n, 2) stereo float in -1..1."""
     data = np.asarray(data, dtype=np.float64)
     if data.ndim == 1:
@@ -847,7 +852,7 @@ def write_wav(path, data):
     pcm = (np.clip(data, -1, 1) * 32767).astype("<i2").tobytes()
     with open(path, "wb") as f:
         f.write(b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVE")
-        f.write(b"fmt " + struct.pack("<IHHIIHH", 16, 1, ch, SR, SR * ch * 2, ch * 2, 16))
+        f.write(b"fmt " + struct.pack("<IHHIIHH", 16, 1, ch, rate, rate * ch * 2, ch * 2, 16))
         f.write(b"data" + struct.pack("<I", len(pcm)) + pcm)
 
 
@@ -988,7 +993,21 @@ MUSIC = {
     "music_calm_2.mp3": "Contemplation.mp3",
     "music_tension_0.ogg": "Insistent.ogg",
     "music_combat_0.mp3": "battleThemeA.mp3",
+    # 2026-11-20 round: chosen by Tools/measure_music.py (calm: major, minor
+    # share 0.15-0.40, dissonance 0.028-0.049, swell 1.6-2.8), tension and
+    # combat kept to the orchestral, looping kind.
+    "music_calm_3.ogg": "Peaceful Forest.wav",
+    "music_calm_4.mp3": "001_Synthwave_4k.mp3",
+    "music_calm_5.ogg": "Calm1 - A Place I Call Home.ogg",
+    "music_tension_1.ogg": "Pressure.ogg",
+    "music_tension_2.ogg": "Menace.ogg",
+    "music_combat_1.ogg": "determined_pursuit_loop.wav",
+    "music_combat_2.ogg": "Juhani Junkala - Epic Boss Battle [Seamlessly Looping].wav",
+    "music_combat_3.ogg": "QaziJamJam.wav",
 }
+# A WAV source quieter than this is lifted to it (peaks permitting) before encoding:
+# the game turns a track down to its music level but never up (gain capped at 1).
+MUSIC_FLOOR_RMS = 0.06
 BLENDER = "/Applications/Blender.app/Contents/MacOS/Blender"
 
 
@@ -1016,28 +1035,72 @@ def encode_ogg(src, dst, kbps=112):
                     "--", src, dst, str(kbps)], check=True, capture_output=True)
 
 
-def copy_music():
+def encode_music(src, dst, rate=44100):
+    """A WAV source to Ogg: silence trimmed off either end (a looping mood would
+    otherwise play the gap every time round; a seamless loop has none and is left
+    whole) and a quiet track lifted to MUSIC_FLOOR_RMS."""
+    import subprocess
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        pcm = os.path.join(d, "pcm.wav")
+        subprocess.run(["afconvert", "-f", "WAVE", "-d", f"LEI16@{rate}", "-c", "2", src, pcm],
+                       check=True, capture_output=True)
+        b = open(pcm, "rb").read()
+        i = b.find(b"data")
+        x = np.frombuffer(b[i + 8:], dtype="<i2").astype(np.float64).reshape(-1, 2) / 32768.0
+        level = np.abs(x).max(1)
+        loud = np.nonzero(level > level.max() * 10 ** (-50 / 20))[0]
+        margin, fade = int(0.05 * rate), int(0.02 * rate)
+        a, z = max(0, loud[0] - margin), min(len(x), loud[-1] + margin)
+        y = x[a:z].copy()
+        if a > 0:
+            y[:fade] *= np.linspace(0, 1, fade)[:, None]
+        if z < len(x):
+            y[-fade:] *= np.linspace(1, 0, fade)[:, None]
+        rms, peak = float(np.sqrt(np.mean(y * y))), float(np.abs(y).max())
+        gain = min(MUSIC_FLOOR_RMS / rms, 0.9 / peak) if rms < MUSIC_FLOOR_RMS else 1.0
+        y *= max(gain, 1.0)
+        trimmed = os.path.join(d, "trimmed.wav")
+        write_wav(trimmed, y, rate)
+        encode_ogg(trimmed, dst)
+        print(f"      {os.path.basename(dst)}: trimmed {a / rate:.2f} s + {(len(x) - z) / rate:.2f} s, "
+              f"gain x{max(gain, 1.0):.2f}")
+
+
+def copy_music(out=None):
+    """Copy (or encode) each track under its game name, and write music.json.
+
+    Incremental: a track already in Audio/Music keeps its file and .meta as they
+    are (a rebuilt file would come back with a new GUID), and only missing ones
+    are made, so delete a file to rebuild it; files of tracks no longer listed are
+    removed. `out` puts the new tracks and a music.json covering every track
+    somewhere else (e.g. Art/Source/staged/music while another session is in play
+    mode), to be copied into Audio/Music later."""
     import json
-    out = os.path.join(AUDIO, "Music")
+    music = os.path.join(AUDIO, "Music")
+    out = out or music
     os.makedirs(out, exist_ok=True)
-    for f in os.listdir(out):
-        if f.startswith("music_") and not f.endswith(".meta"):
-            os.remove(os.path.join(out, f))
-            if os.path.exists(os.path.join(out, f + ".meta")):
-                os.remove(os.path.join(out, f + ".meta"))
+    if os.path.abspath(out) == os.path.abspath(music):
+        for f in os.listdir(music):
+            stem = f[:-5] if f.endswith(".meta") else f
+            if stem.startswith("music_") and stem not in MUSIC:
+                os.remove(os.path.join(music, f))
     info = {}
     for name, src in MUSIC.items():
-        path = os.path.join(MUSIC_SRC, src)
-        if not os.path.exists(path):
-            sys.exit(f"missing {path} (run Tools/fetch_assets.py)")
-        dst = os.path.join(out, name)
-        if src.lower().endswith(".wav") and name.endswith(".ogg"):
-            encode_ogg(path, dst)
-        else:
-            shutil.copyfile(path, dst)
+        dst = os.path.join(music, name)
+        if not os.path.exists(dst):
+            path = os.path.join(MUSIC_SRC, src)
+            if not os.path.exists(path):
+                sys.exit(f"missing {path} (run Tools/fetch_assets.py)")
+            dst = os.path.join(out, name)
+            if src.lower().endswith(".wav") and name.endswith(".ogg"):
+                encode_music(path, dst)
+            else:
+                shutil.copyfile(path, dst)
         rms, seconds = loudness(dst)
+        # "rms" first: SceneAssembler reads it with a regex that expects that order.
         info[os.path.splitext(name)[0]] = {"rms": round(rms, 4), "seconds": round(seconds, 1), "source": src}
-        print(f"music {name:22s} {seconds:6.1f} s  rms {rms:.3f}")
+        print(f"music {name:22s} {seconds:6.1f} s  rms {rms:.3f}  {os.path.relpath(dst, ROOT)}")
     with open(os.path.join(out, "music.json"), "w") as f:
         json.dump(info, f, indent=2)
 
@@ -1048,6 +1111,9 @@ def main():
         return
     if "--sidearms" in sys.argv:
         make_side_arms()        # the same for a soldier's side arms
+        return
+    if "--music" in sys.argv:   # the music only: `--music [--out DIR]` adds missing tracks
+        copy_music(sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else None)
         return
     copy_sfx()
     make_weapons()
