@@ -199,7 +199,8 @@ Not third party, and not on the list above:
 - **Shaders, scripts, UI** — written for this project.
 - **Generated textures** — `armor.png`/`armor_n.png`, `flames.png`,
   `smoke_puffs.png`, `foliage_*.png`, the icons, the cloud cookie and the lens
-  dirt: made by the `Tools/make_*.py` generators.
+  dirt: made by the `Tools/make_*.py` generators (`armor.png`'s alpha channel
+  is the damage mask below).
 - **Images made with an image model** — `Art/Textures/turf_lush.jpg`,
   `turf_dry.jpg` and `ground_burnt.jpg` (the meadow turf's and the burnt
   ground's detail): three top-down ground pictures the author made with Google
@@ -210,6 +211,21 @@ Not third party, and not on the list above:
   say of content its services generate: "Google won't claim ownership over that
   content", and put no condition on publishing it; its generative-AI use policy
   only forbids passing such content off as made by a human.
+- **Battle marks, made with an image model** — `Art/Textures/scorch.jpg` (the
+  four marks an explosion leaves on the ground), the alpha channel of
+  `Art/Textures/armor.png` (where a struck hull shows its damage: scorches,
+  bullet strikes, gouges, cracks) and `Art/Textures/fog_unknown.png` (the survey
+  grid drawn over ground the player has never seen): six pictures the author
+  made with Google Gemini on 2026-11-20 from prompts written for these three
+  uses (four soot marks on white, a white-on-black damage mask, a grid with
+  contour lines), cut, inverted and packed by `Tools/pack_marks.py` (the
+  2048 px originals are kept outside the repository, so the packer cannot be
+  re-run from a clone). AI-generated, not photographs. Google's Terms of Service
+  (<https://policies.google.com/terms>, effective 30 July 2026, read 2026-11-20)
+  say of content its services generate: "Google won't claim ownership over that
+  content", and put no condition on publishing it; its generative-AI use policy
+  only forbids passing such content off as made by a human. `scorch.jpg`
+  replaces the sheet of that name carried over from the original StarForge.
 - **Menu illustrations, made with an image model** — `UI/Art/keyart.jpg` (the
   splash and loading-screen key art, 2752×1536) and `UI/Art/opponent_recruit.jpg`,
   `opponent_veteran.jpg` and `opponent_commander.jpg` (the opponent's three
@@ -225,7 +241,7 @@ Not third party, and not on the list above:
   and the Mech's comms chirp and flamer roar (`Audio/Sfx/mech_radio_*.wav`,
   `mech_flamer.wav`), written by `Tools/make_audio.py` out of filtered noise and tones.
 - **Textures carried over from the original StarForge** — `clouds.jpg`,
-  `crystal.jpg`, `explosion.jpg`, `particles.jpg`, `scorch.jpg`, `smoke.jpg`,
+  `crystal.jpg`, `explosion.jpg`, `particles.jpg`, `smoke.jpg`,
   `terrain-macro.jpg`, `water-height.jpg`, `water_n.jpg`, `trak.png`,
   `windows.png`, `ground*.png`, `cliff*.png`, `Assets/icon.png`,
   `Assets/cursor.png`. These come from the author's own C++ StarForge

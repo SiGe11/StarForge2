@@ -14,6 +14,13 @@ its own; recessed seams between plates, with a highlight on one lip; rivets in
 rows along the seams; a few hatches and vents; and wear -- grime gathered in the
 seams and faint streaks. The photograph it replaces came from the original and,
 at the scale the units use it, read as brickwork.
+
+armor.png's alpha channel is not made here: it is the damage mask
+Tools/pack_marks.py puts there (where a struck hull shows scorches, bullet
+strikes, gouges and cracks; SF_Unit reads it with the panels). This script
+writes no alpha, and a PNG without one imports as alpha 1, "struck everywhere":
+every hurt hull would char at once. **Run /usr/bin/python3 Tools/pack_marks.py
+after this script.**
 """
 import os
 import struct

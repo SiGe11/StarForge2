@@ -134,6 +134,13 @@ namespace StarForge.View
         int trackHead, trackCount;
         readonly Dictionary<int, Vector3> lastTrack = new Dictionary<int, Vector3>();
         readonly List<int> trackGone = new List<int>();
+        // TrackLaidAlready: the share of a mark's half-length that is not its faded end, and its
+        // scratch lists. TrackDeep: how many marks may be drawn over one pixel (TrackMaterial).
+        const float TrackSolid = 0.9f;
+        const int TrackDeep = 3;
+        readonly List<int> trackUnder = new List<int>();
+        readonly List<TrackMark> trackAgain = new List<TrackMark>();
+        Material trackMaterial;
         readonly List<Marker> markers = new List<Marker>();
         readonly List<Blast> blasts = new List<Blast>();
 
@@ -307,6 +314,7 @@ namespace StarForge.View
             if (player != null) player.OrderMarker -= OnMarker;
             UnhookMechs();
             ClearWeather();
+            if (trackMaterial != null) { Destroy(trackMaterial); trackMaterial = null; }
         }
 
         static Gradient Fade(float fadeIn, float holdUntil)
@@ -2334,6 +2342,82 @@ namespace StarForge.View
             return g.strength * fade;
         }
 
+        /// <summary>True when the stretch a new mark would cover is marked already: its middle and both
+        /// its ends lie inside marks of the same width on the same heading (either way along it), no
+        /// further to the side than half a tread. A lane the Diggers shuttle along is laid once, not
+        /// once a trip: laid every trip its marks lay thirty deep, their alpha added up to a flat band
+        /// of the decal's own unlit colour with the ground's texture gone from it, and every layer was
+        /// drawn over the last. The marks under such a stretch, once past a quarter of their life, are
+        /// laid again as they lie (at the ring's head, the old one retired): the same ground stays
+        /// covered and the ring stays in order of age. (Judged by the middle alone, a mark skipped
+        /// where it ran past a lane's end left 0.4 m of the groove bare, and an old mark retired under
+        /// a shorter new one did the same.) Marks on other headings are not its business: where
+        /// vehicles turn, at a Foundry's apron or on an ore field, no heading repeats, and how many
+        /// may lie over one pixel is counted when they are drawn (<see cref="TrackMaterial"/>).</summary>
+        bool TrackLaidAlready(Vector3 mid, float yaw, float width, float length, float now)
+        {
+            float r = yaw * Mathf.Deg2Rad, hx = Mathf.Sin(r), hz = Mathf.Cos(r);
+            float reach = length * 0.5f * TrackSolid;
+            bool atStart = false, atMid = false, atEnd = false;
+            trackUnder.Clear();
+            for (int k = 0; k < trackCount; k++)
+            {
+                int i = (trackHead - trackCount + k + MaxTracks) % MaxTracks;
+                ref var m = ref trackMarks[i];
+                float age = now - m.born;
+                if (age > TrackLife || m.width != width) continue;
+                float dx = m.pos.x - mid.x, dz = m.pos.z - mid.z;
+                float far = (length + m.length + m.width) * 0.5f;
+                if (dx * dx + dz * dz > far * far) continue;
+                float turn = Mathf.Abs(Mathf.DeltaAngle(m.yaw, yaw));
+                if (Mathf.Min(turn, 180f - turn) > 20f) continue;
+                float along = dx * hx + dz * hz, across = dx * hz - dz * hx;
+                if (Mathf.Abs(across) > m.halfBand * m.width * 0.5f) continue;
+                // A mark's ends fade into its neighbours': only its solid part counts as cover.
+                float solid = m.length * 0.5f * TrackSolid;
+                atStart |= Mathf.Abs(along + reach) <= solid;
+                atMid |= Mathf.Abs(along) <= solid;
+                atEnd |= Mathf.Abs(along - reach) <= solid;
+                if (age >= TrackLife * 0.25f && Mathf.Abs(along) <= (length + m.length) * 0.5f) trackUnder.Add(i);
+            }
+            if (!(atStart && atMid && atEnd)) return false;
+            // Copies first: with the ring full, laying one overwrites the oldest slot, which may be
+            // another of these.
+            trackAgain.Clear();
+            foreach (int i in trackUnder)
+            {
+                trackAgain.Add(trackMarks[i]);
+                trackMarks[i].born = now - TrackLife - 1f;
+            }
+            foreach (var old in trackAgain)
+            {
+                var again = old;
+                again.born = now;
+                trackMarks[trackHead] = again;
+                trackHead = (trackHead + 1) % MaxTracks;
+                trackCount = Mathf.Min(trackCount + 1, MaxTracks);
+            }
+            return true;
+        }
+
+        /// <summary>The scorch material with SF_GroundDecal's stencil counting: a pixel takes
+        /// <see cref="TrackDeep"/> tread marks and no more (a fragment passes while the count is under
+        /// it, and adds one). Marks only darken, so where vehicles turn and their marks cross at every
+        /// heading they multiplied the ground down to black, drawing every layer; the count bounds
+        /// both. A copy made at run time, so the scorch marks and the generated asset are as they
+        /// were; gone with the director (OnDisable).</summary>
+        Material TrackMaterial()
+        {
+            if (trackMaterial == null && scorchMaterial != null)
+            {
+                trackMaterial = new Material(scorchMaterial) { name = scorchMaterial.name + " (tracks)" };
+                trackMaterial.SetFloat("_StencilRef", TrackDeep);
+                trackMaterial.SetFloat("_StencilComp", (float)UnityEngine.Rendering.CompareFunction.Greater);
+                trackMaterial.SetFloat("_StencilPass", (float)UnityEngine.Rendering.StencilOp.IncrementSaturate);
+            }
+            return trackMaterial;
+        }
+
         /// <summary>Tracked vehicles leave tread marks: a segment each time one has
         /// moved about a metre, laid only while the player can see it and not in
         /// the water. Marks fade over TrackLife seconds.</summary>
@@ -2364,10 +2448,12 @@ namespace StarForge.View
                 float band = tracked ? 1.86f : mauler ? 1.30f : 0.60f, half = tracked ? 0.55f : mauler ? 0.33f : 0.17f;
                 // Pressed into the ground it crosses: the groove darkens toward that ground's
                 // own soil, a little warmed (FXDirector.Ground).
+                float yaw = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
+                if (TrackLaidAlready(mid, yaw, width, moved * 1.15f, now)) continue;
                 var gr = GroundAt(mid);
                 trackMarks[trackHead] = new TrackMark
                 {
-                    pos = mid, yaw = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, length = moved * 1.15f, width = width,
+                    pos = mid, yaw = yaw, length = moved * 1.15f, width = width,
                     born = now, band = band / (width * 0.5f), halfBand = half / (width * 0.5f),
                     pitch = tracked ? 2.4f : mauler ? 3.2f : 4.5f,
                     soil = Color.Lerp(new Color(0.11f, 0.085f, 0.06f), gr.clod * 0.22f, 0.75f)
@@ -2544,9 +2630,12 @@ namespace StarForge.View
             }
             scorches.Draw(cube, scorchMaterial);
 
+            // Newest first: the stencil lets TrackDeep marks through to a pixel, and those must be
+            // the freshest (oldest first, a turning place showed its three most faded marks and
+            // nothing a vehicle had just laid).
             for (int k = 0; k < trackCount; k++)
             {
-                ref var m = ref trackMarks[(trackHead - trackCount + k + MaxTracks) % MaxTracks];
+                ref var m = ref trackMarks[(trackHead - 1 - k + MaxTracks) % MaxTracks];
                 float age = now - m.born;
                 if (age > TrackLife) continue;
                 if (!Seen(m.pos) && !world.Explored(me, new Vector2(m.pos.x, m.pos.z))) continue;
@@ -2556,7 +2645,7 @@ namespace StarForge.View
                            new Color(m.soil.r, m.soil.g, m.soil.b, 0.55f * fade), new Vector4(6f, fade, m.band, m.halfBand),
                            new Vector4(m.pitch, 0f, 0f, 0f));
             }
-            tracks.Draw(cube, scorchMaterial);
+            tracks.Draw(cube, TrackMaterial());
 
             // Ore light pools on the ground round each seam the player knows about,
             // breathing slowly, and the glow a loaded Digger spills from its hopper.

@@ -213,9 +213,12 @@ Shader "StarForge/Unit"
                 }
 
                 // Triplanar panel detail in object space.
-                half3 detail = SAMPLE_TEXTURE2D(_DetailAlbedoMap, sampler_DetailAlbedoMap, tp.zy).rgb * w.x
-                             + SAMPLE_TEXTURE2D(_DetailAlbedoMap, sampler_DetailAlbedoMap, tp.xz).rgb * w.y
-                             + SAMPLE_TEXTURE2D(_DetailAlbedoMap, sampler_DetailAlbedoMap, tp.xy).rgb * w.z;
+                // Its alpha is where the plate is struck (scorches, bullet strikes, gouges,
+                // cracks: Tools/pack_marks.py), read with the panels at no read of its own.
+                half4 detail4 = SAMPLE_TEXTURE2D(_DetailAlbedoMap, sampler_DetailAlbedoMap, tp.zy) * w.x
+                              + SAMPLE_TEXTURE2D(_DetailAlbedoMap, sampler_DetailAlbedoMap, tp.xz) * w.y
+                              + SAMPLE_TEXTURE2D(_DetailAlbedoMap, sampler_DetailAlbedoMap, tp.xy) * w.z;
+                half3 detail = detail4.rgb;
                 half detailLum = lerp(0.5, dot(detail, half3(0.299, 0.587, 0.114)), detailWeight);
                 // Normalise the detail multiply by the photograph's own average (its
                 // smallest mip), so it adds grain and panelling around the calibrated
@@ -328,16 +331,33 @@ Shader "StarForge/Unit"
 
                 if (_Damage > 0.001 || _Burn > 0.001)
                 {
-                    half nse = SFNoise3(i.positionOS * 1.9) * 0.65 + detailLum * 0.35;
+                    // Damage shows first where the plate's mask says it was struck, and the
+                    // broad noise says how far over the hull it has got: by the noise alone
+                    // (with a third of the panels' grain) a hurt hull wore smooth black blobs
+                    // with a glowing line drawn round each. The mask is the plating texture's
+                    // alpha, so only what draws from the palette has one, on every slot of it
+                    // (a bullet strikes rubber and glass too, panels or none); rock, crystal
+                    // and ore glass carry other detail textures, whose alpha is a scan's
+                    // height or nothing, and keep the noise and their own grain as before.
+                    bool plated = _UsePalette > 0.5;
+                    half struck = plated ? detail4.a : detailLum;
+                    half grow = SFNoise3(i.positionOS * 1.9);
+                    half nse = plated ? grow * 0.55 + struck * 0.45 : grow * 0.65 + struck * 0.35;
                     half d = saturate(max(_Damage, _Burn));
                     half charred = smoothstep(1.0 - d, 1.0 - d + 0.12, nse);
                     albedo = lerp(albedo, half3(0.02, 0.018, 0.016), charred * 0.85);
                     smooth *= 1.0 - charred * 0.8;
                     metallic *= 1.0 - charred * 0.5;
-                    // Heavy damage opens glowing seams; burning units glow all over.
-                    half seam = saturate(1.0 - abs(nse - (1.0 - d * 0.8)) * 18.0) * smoothstep(0.45, 0.8, d);
-                    half flicker = 2.0 + sin(_Time.y * 7.0 + i.positionOS.x * 3.0);
-                    emission += half3(1.0, 0.35, 0.08) * (seam * flicker + charred * _Burn * _Burn * 2.5);
+                    // Under heavy damage something still smoulders inside a few of the worst
+                    // wounds: a dull, slow glow in the heart of a struck place where the damage
+                    // has got furthest, and burning units glow all over. (It was a bright line
+                    // along the charred patches' outline, pulsing: a rash of orange rings.)
+                    // Kept near bloom's threshold of 1 (with a fresh wreck's burn on top the red
+                    // reaches about 1.16): a wreck holds its damage at 0.9 and up to 36 of them
+                    // lie about, and a glow well over the threshold made each a yellow lump.
+                    half hot = charred * struck * smoothstep(0.62, 0.85, grow) * smoothstep(0.45, 0.8, d);
+                    half flicker = 0.75 + 0.25 * sin(_Time.y * 3.1 + i.positionOS.x * 3.0 + i.positionOS.z * 2.3);
+                    emission += half3(1.0, 0.30, 0.06) * (hot * flicker * 0.9 + charred * _Burn * _Burn * 2.5);
                 }
 
                 if (_BuildLevel < 9999.0)

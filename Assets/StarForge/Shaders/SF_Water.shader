@@ -89,6 +89,10 @@ Shader "StarForge/Water"
                 half _Smoothness;
             CBUFFER_END
             float _SF_Shower;   // how hard it is raining now, 0..1 (FXDirector.Weather)
+            // Offsets on the look below, zero in every run that does not pass -sftune
+            // (View/ShaderTune.cs): x ripple blur in mips, y how much of a ripple's tilt
+            // the reflection sees, z ripple size (a fraction more or less), w the glint.
+            float4 _SF_WaterTune;
 
             struct Attributes { float4 positionOS : POSITION; };
 
@@ -157,12 +161,17 @@ Shader "StarForge/Water"
                                      ValueNoise(wp.xz * 0.021 + float2(17.3, -t * 0.011))) - 0.5;
                 float2 base = wp.xz + warp * 9.0;
 
-                float2 uvA = Rotate(base, 0.0) * _RippleScale + float2(t * 0.021, t * 0.013);
-                float2 uvB = Rotate(base, 2.1) * _RippleScale * 1.71 + float2(-t * 0.017, t * 0.024);
-                float2 uvC = Rotate(base, 4.0) * _RippleScale * 0.43 + float2(t * 0.008, -t * 0.011);
-                half3 nA = UnpackNormal(SAMPLE_TEXTURE2D(_NormalTex, sampler_NormalTex, uvA));
-                half3 nB = UnpackNormal(SAMPLE_TEXTURE2D(_NormalTex, sampler_NormalTex, uvB));
-                half3 nC = UnpackNormal(SAMPLE_TEXTURE2D(_NormalTex, sampler_NormalTex, uvC));
+                // Read a mip and a half down: at the RTS camera a crest of the ripple
+                // texture is a pixel or two wide, and read sharp every crest was its own
+                // pale scribble, the lake a field of static (gallery 4_shore).
+                half blur = 1.5 + _SF_WaterTune.x;
+                float rs = _RippleScale * (1.0 + _SF_WaterTune.z);
+                float2 uvA = Rotate(base, 0.0) * rs + float2(t * 0.021, t * 0.013);
+                float2 uvB = Rotate(base, 2.1) * rs * 1.71 + float2(-t * 0.017, t * 0.024);
+                float2 uvC = Rotate(base, 4.0) * rs * 0.43 + float2(t * 0.008, -t * 0.011);
+                half3 nA = UnpackNormal(SAMPLE_TEXTURE2D_BIAS(_NormalTex, sampler_NormalTex, uvA, blur));
+                half3 nB = UnpackNormal(SAMPLE_TEXTURE2D_BIAS(_NormalTex, sampler_NormalTex, uvB, blur));
+                half3 nC = UnpackNormal(SAMPLE_TEXTURE2D_BIAS(_NormalTex, sampler_NormalTex, uvC, blur));
                 // Some patches of the lake are choppier than others, and they drift.
                 half chop = ValueNoise(wp.xz * 0.012 + float2(-t * 0.004, t * 0.003));
                 half2 ripple = nA.xy * lerp(0.55, 1.15, chop) + nB.xy * lerp(1.0, 0.45, chop) + nC.xy * 0.7;
@@ -186,7 +195,6 @@ Shader "StarForge/Water"
                 // Waves flatten out as they run up a shallow shore.
                 half2 slope = ripple * _NormalStrength * lerp(0.2, 1.0, nearFade * nearFade) * lerp(1.0, 0.5, shallow)
                             + swell * _SwellStrength * (1.0 - shallow * 0.6);
-                half3 n = normalize(half3(slope.x, 1.0, slope.y));
                 half3 v = GetWorldSpaceNormalizeViewDir(wp);
 
                 Light L = GetMainLight(TransformWorldToShadowCoord(wp), wp, half4(1, 1, 1, 1));
@@ -206,13 +214,19 @@ Shader "StarForge/Water"
 
                 // Caustics on the bed in the shallows, from two slow layers of the
                 // ripple texture crossing (bright where their slopes agree). Up close
-                // only: far away the pattern is finer than a pixel.
-                if (_CausticStrength > 0.001)
+                // only: far away the pattern is finer than a pixel. And only over a bed
+                // near enough the surface to show them: most of a lake is deeper, and the
+                // two reads are skipped there (their gradients are taken out here, since a
+                // read inside a branch has none of its own; doubled, as the mip up they
+                // were read at).
+                float2 bgx = ddx(bed.xz), bgy = ddy(bed.xz);
+                if (_CausticStrength > 0.001 && shallow * closeFade > 0.0)
                 {
                     float2 cuvA = bed.xz * 0.17 + float2(time * 0.021, time * 0.012);
                     float2 cuvB = Rotate(bed.xz, 1.3) * 0.21 - float2(time * 0.017, -time * 0.014);
-                    half cA = UnpackNormal(SAMPLE_TEXTURE2D_BIAS(_NormalTex, sampler_NormalTex, cuvA, 1.0)).x;
-                    half cB = UnpackNormal(SAMPLE_TEXTURE2D_BIAS(_NormalTex, sampler_NormalTex, cuvB, 1.0)).x;
+                    half cA = UnpackNormal(SAMPLE_TEXTURE2D_GRAD(_NormalTex, sampler_NormalTex, cuvA, bgx * 0.34, bgy * 0.34)).x;
+                    half cB = UnpackNormal(SAMPLE_TEXTURE2D_GRAD(_NormalTex, sampler_NormalTex, cuvB,
+                                                                 Rotate(bgx, 1.3) * 0.42, Rotate(bgy, 1.3) * 0.42)).x;
                     half caustic = saturate(1.0 - abs(cA - cB) * 2.0);
                     caustic *= caustic * caustic;
                     bedColor += caustic * _CausticStrength * 0.6 * L.color * shadow * shallow * closeFade;
@@ -224,11 +238,15 @@ Shader "StarForge/Water"
                 half3 scattered = _DeepColor.rgb * (L.color * lerp(0.35, 1.0, shadow) * saturate(L.direction.y) * 0.9 + ambient * 0.9);
                 half3 under = bedColor * transmit * _ShallowColor.rgb + scattered * (1.0 - transmit.g);
 
-                half fresnel = 0.02 + 0.98 * pow(1.0 - saturate(dot(n, v)), 5.0);
-                // The sky seen in the water, a little blurred so each ripple does not
-                // pick a different patch of cloud.
-                half3 refl = GlossyEnvironmentReflection(reflect(-v, normalize(lerp(n, half3(0, 1, 0), 0.4))),
-                                                         max(0.12, 1.0 - _Smoothness), 1.0);
+                // The reflection sees a calmer surface than the bed's refraction does. A
+                // ripple tilted from the eye reflects several times the sky a level one
+                // does (2% of it at this camera's angle, 10-30% off a steep crest), so off
+                // the full slope every crest drew as a pale streak; and the sky in it is a
+                // little blurred so each ripple does not pick a different patch of cloud.
+                half calm = saturate(0.4 + _SF_WaterTune.y);
+                half3 nR = normalize(half3(slope.x * calm, 1.0, slope.y * calm));
+                half fresnel = 0.02 + 0.98 * pow(1.0 - saturate(dot(nR, v)), 5.0);
+                half3 refl = GlossyEnvironmentReflection(reflect(-v, nR), max(0.12, 1.0 - _Smoothness), 1.0);
                 half3 h = normalize(L.direction + v);
                 // Broad and dim, off a calmer normal: a tight, bright glint on every
                 // ripple read as glitter strewn over the lake, and bloom turned each
@@ -238,7 +256,7 @@ Shader "StarForge/Water"
                 half spec = pow(saturate(dot(nGlint, h)), gloss) * 0.5 * shadow * lerp(0.05, 1.0, closeFade * closeFade);
                 // Rain roughens the lake: the glint breaks up and the surface goes duller
                 // and paler (rings are drawn only near the camera, FXDirector.Weather).
-                spec *= 1.0 - 0.75 * _SF_Shower;
+                spec *= (1.0 - 0.75 * _SF_Shower) * (1.0 + _SF_WaterTune.w);
                 half3 col = under * (1.0 - fresnel) + refl * fresnel + spec * L.color;
                 col = lerp(col, col * 0.88 + 0.035, 0.4 * _SF_Shower);
 

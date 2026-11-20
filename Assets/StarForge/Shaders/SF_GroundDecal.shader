@@ -14,6 +14,11 @@ Shader "StarForge/GroundDecal"
         _MainTex("Sheet (scorch)", 2D) = "white" {}
         [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend("Src Blend", Float) = 5
         [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend("Dst Blend", Float) = 1
+        // A material may count its marks per pixel (FXDirector.TrackMaterial: Greater, add one):
+        // off by default (Always, Keep), so every other decal draws as it did.
+        _StencilRef("Stencil reference", Float) = 0
+        [Enum(UnityEngine.Rendering.CompareFunction)] _StencilComp("Stencil test", Float) = 8
+        [Enum(UnityEngine.Rendering.StencilOp)] _StencilPass("Stencil pass", Float) = 0
     }
 
     SubShader
@@ -28,6 +33,12 @@ Shader "StarForge/GroundDecal"
             ZWrite Off
             ZTest Always
             Cull Front
+            Stencil
+            {
+                Ref [_StencilRef]
+                Comp [_StencilComp]
+                Pass [_StencilPass]
+            }
 
             HLSLPROGRAM
             #pragma target 3.5
@@ -46,6 +57,10 @@ Shader "StarForge/GroundDecal"
                 UNITY_DEFINE_INSTANCED_PROP(float4, _UVRect)   // sheet cell: xy offset, zw size
             UNITY_INSTANCING_BUFFER_END(Props)
             float _SF_Rain;   // how wet a shower has left the ground (FXDirector.Weather)
+            // Offsets on the track marks' look, zero in every run that does not pass -sftune
+            // (View/ShaderTune.cs): x how much of the groove's own colour is painted, y its depth,
+            // z how heavily a scorch mark's soot lies.
+            float4 _SF_DecalTune;
 
             // An integer hash of a cell's coordinates: no period over the map (a float hash
             // with two-decimal multipliers repeated every 50 and 100 cells).
@@ -132,7 +147,7 @@ Shader "StarForge/GroundDecal"
                     float2 ruv = float2(d.x * c - d.y * s, d.x * s + d.y * c) * 0.5 + 0.5;
                     float4 rect = UNITY_ACCESS_INSTANCED_PROP(Props, _UVRect);
                     half mask = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, rect.xy + saturate(ruv) * rect.zw).r;
-                    a = saturate((mask - 0.04) * 1.3) * (1.0 - smoothstep(0.85, 1.0, r));
+                    a = saturate((mask - 0.04) * (1.3 + _SF_DecalTune.z)) * (1.0 - smoothstep(0.85, 1.0, r));
                     return half4(color.rgb, a * color.a * upness * vfade);
                 }
                 else if (kind < 2.5)
@@ -166,10 +181,14 @@ Shader "StarForge/GroundDecal"
                     // Track segment, alpha-blended: two treads either side of the
                     // centre line (z band centre, w half-width, both as fractions of
                     // the half-width across), pressed into the ground: a compacted
-                    // groove (_Color, the ground's own soil darkened) with cleats across
-                    // it and a soft darker fringe where the edge pressed in. It only
-                    // darkens: a paler heaped-soil line each side read as lane markings
-                    // and glowed in shade (the decal is unlit). Edges and depth are
+                    // groove with cleats across it and a soft darker fringe where the
+                    // edge pressed in. It only darkens: a paler heaped-soil line each side
+                    // read as lane markings and glowed in shade (the decal is unlit), and
+                    // so did the groove laid at its own colour (_Color, the soil): where
+                    // marks lay over each other the ground's texture and the sun's light
+                    // went out of it and a worn lane was a flat grey band (gallery
+                    // 1_base_close). So it paints a fifth of that colour and for the
+                    // rest takes light from what it lies on. Edges and depth are
                     // broken up by world-space noise, so consecutive segments line up
                     // and no two look painted on; the ends are soft so overlapping
                     // segments blend. Cleats finer than a couple of pixels fade to
@@ -192,7 +211,12 @@ Shader "StarForge/GroundDecal"
                     // Faded inside the box's long sides too, so nothing that reaches them
                     // (a Mech pad's fringe did) ends in a straight edge.
                     a = aGroove * ends * (1.0 - smoothstep(0.86, 1.0, across));
-                    return half4(color.rgb, saturate(a * color.a) * upness * vfade);
+                    half mark = saturate(a * color.a * (1.0 + _SF_DecalTune.y)) * upness * vfade;
+                    // Where the mark lays next to nothing (between its two grooves, past its
+                    // fringe) the pixel is given up: drawn at no alpha it would still count
+                    // as one of the marks a pixel may take (FXDirector.TrackMaterial).
+                    clip(mark - 0.02);
+                    return half4(color.rgb * saturate(0.2 + _SF_DecalTune.x), mark);
                 }
                 else
                 {

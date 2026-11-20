@@ -240,6 +240,8 @@ OWN = [
     T + "*.png", T + "*.jpg",             # cape_fabric.png: made for this project by the author with an image model (2026-10-28);
                                           # turf_lush.jpg, turf_dry.jpg, ground_burnt.jpg: the same, Google Gemini, 2026-11-20
                                           # (Tools/blender/pack_turf.py; THIRD-PARTY.md, "Images made with an image model");
+                                          # scorch.jpg, armor.png's alpha, fog_unknown.png: the same, Google Gemini, 2026-11-20
+                                          # (Tools/pack_marks.py; THIRD-PARTY.md, "Battle marks, made with an image model")
     "Assets/StarForge/Map/*.png",
     "Assets/StarForge/Art/Icons/*.png",
     "Assets/StarForge/Art/AppIcon.png",

@@ -122,6 +122,30 @@ namespace StarForge.EditorTools
                 ti.alphaIsTransparency = true;
                 ti.maxTextureSize = 512;
             }
+            else if (file == "armor")
+            {
+                // Hull plating in RGB, where a struck plate shows its damage in alpha
+                // (Tools/pack_marks.py): data SF_Unit reads with the panels, never
+                // transparency (which would bleed the colour into the unstruck plate).
+                ti.alphaSource = TextureImporterAlphaSource.FromInput;
+                ti.alphaIsTransparency = false;
+            }
+            else if (file == "fog_unknown")
+            {
+                // The survey grid over ground never seen (SF_FogOfWar): one channel of
+                // lines two texels wide at 2048, so it keeps its size; trilinear, since
+                // from the overview a line is finer than a pixel.
+                ti.textureType = TextureImporterType.SingleChannel;
+                ti.sRGBTexture = false;
+                ti.maxTextureSize = 2048;
+                ti.filterMode = FilterMode.Trilinear;
+                // The channel to keep is only in the settings block (the importer's own
+                // default for this type is alpha, which a grey PNG does not have).
+                var one = new TextureImporterSettings();
+                ti.ReadTextureSettings(one);
+                one.singleChannelComponent = TextureImporterSingleChannelComponent.Red;
+                ti.SetTextureSettings(one);
+            }
             else if (file == "cape_fabric")
             {
                 // The capes' weave and embroidered band (InfantryCape): the band runs on along

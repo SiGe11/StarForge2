@@ -77,6 +77,9 @@ namespace StarForge.EditorTools
 
             var fowMat = SFEditorUtil.CreateOrLoadMaterial(SFMaterialLibrary.MaterialDir + "/SF_FogOfWar.mat",
                                                            Shader.Find("StarForge/FogOfWar"));
+            // The survey grid drawn over ground the player has never seen.
+            fowMat.SetTexture("_UnknownTex", AssetDatabase.LoadAssetAtPath<Texture2D>(SFAssetPostprocessor.TextureDir + "fog_unknown.png"));
+            EditorUtility.SetDirty(fowMat);
             var fow = EnsureFeature<FullScreenPassRendererFeature>(rd, "FogOfWar");
             fow.injectionPoint = FullScreenPassRendererFeature.InjectionPoint.BeforeRenderingPostProcessing;
             fow.fetchColorBuffer = true;

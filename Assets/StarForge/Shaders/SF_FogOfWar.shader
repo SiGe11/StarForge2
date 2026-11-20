@@ -10,10 +10,18 @@
 //  3. Fog of war: samples the player's visibility texture (r = currently seen,
 //     g = ever seen), which FogOfWarRenderer uploads from the same per-team grid
 //     the AI is fogged by. Explored-but-unwatched ground stays legible as a dim,
-//     cooled memory; ground never seen goes near-black. Applied after the
-//     atmosphere so unexplored ground stays dark instead of hazing to grey.
+//     cooled memory; ground never seen goes near-black under a faint survey
+//     grid with contour lines (_UnknownTex, one sheet over the map twice each
+//     way, Tools/pack_marks.py), so an unscouted map is a chart with nothing on
+//     it yet rather than a black screen. Applied after the atmosphere so
+//     unexplored ground stays dark instead of hazing to grey.
 Shader "StarForge/FogOfWar"
 {
+    Properties
+    {
+        _UnknownTex("Lines over ground never seen", 2D) = "black" {}
+    }
+
     SubShader
     {
         Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" }
@@ -32,7 +40,11 @@ Shader "StarForge/FogOfWar"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
             TEXTURE2D(_SF_FogTex); SAMPLER(sampler_SF_FogTex);
+            TEXTURE2D(_UnknownTex); SAMPLER(sampler_UnknownTex);
             float4 _SF_FogParams;    // x: 1 / map size, y: strength, z: time
+            // Offsets on the survey grid, zero in every run that does not pass -sftune
+            // (View/ShaderTune.cs): x its brightness (-1 takes it away), y its size.
+            float4 _SF_FogTune;
 
             float4 _SF_AtmoParams;   // x: density, y: height falloff, z: base height, w: enabled
             float4 _SF_AtmoHaze;     // x: start distance, y: density
@@ -118,6 +130,21 @@ Shader "StarForge/FogOfWar"
                 half lum = dot(c, half3(0.299, 0.587, 0.114));
                 half3 memory = lerp(c, lum.xxx * half3(0.80, 0.88, 1.06), 0.65) * 0.40;
                 half3 unknown = c * 0.05 + half3(0.004, 0.006, 0.012);
+                // The grid is cast straight down in the map's own coordinates (so it
+                // runs on past the rim) onto whatever the depth buffer holds: level ground
+                // takes it true, a crown takes it over its top, a cliff face draws it out
+                // into streaks, as a chart projected from above would. It is read only
+                // where something has never been seen: in a match under way that is the
+                // lesser part of the screen. Its gradients are taken out here, since a
+                // read inside a branch has none (and at a silhouette they are large, so
+                // the read falls to the texture's mean there: dim, not wrong).
+                float2 guv = m01 * (2.0 + _SF_FogTune.y);
+                float2 ggx = ddx(guv), ggy = ddy(guv);
+                if (fog.g < 0.995)
+                {
+                    half lines = SAMPLE_TEXTURE2D_GRAD(_UnknownTex, sampler_UnknownTex, guv, ggx, ggy).r;
+                    unknown += half3(0.014, 0.024, 0.040) * (lines * saturate(1.0 + _SF_FogTune.x));
+                }
                 half3 fogged = lerp(unknown, memory, fog.g);
                 half3 outc = lerp(fogged, c, fog.r);
                 outc += half3(0.05, 0.12, 0.2) * edge * shimmer * 0.35 * lum;
