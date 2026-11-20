@@ -127,6 +127,7 @@ namespace StarForge.View
                 adaptive.targetMs = targetMs;
                 adaptive.missHigh = missHigh;
                 adaptive.missLow = missLow;
+                adaptive.Reclamp();
             }
             // Grass is grown in GroundScatter.Start, after this component's Awake has set
             // the saved preset's density. A preset picked on the title screen comes later,

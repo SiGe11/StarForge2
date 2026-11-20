@@ -739,10 +739,14 @@ namespace StarForge.World
             {
                 var set = i < ownMats.Length ? ownMats[i] : null;
                 if (set == null) continue;
-                foreach (var m in set)
+                var shared = sharedMats[i];
+                for (int k = 0; k < set.Length; k++)
                 {
-                    // A slot left on its shared material is never written to.
-                    if (m == null || !m.name.EndsWith(OwnSuffix)) continue;
+                    var m = set[k];
+                    // A slot left on its shared material is never written to. Told by reference
+                    // (WearOwn keeps the shared one in such a slot), not by the " (unit)" name:
+                    // Material.name makes a new string each read, ~100 a frame in a fight.
+                    if (m == null || ReferenceEquals(m, shared[k])) continue;
                     if (setFlash) m.SetColor(FlashId, flashColor);
                     if (setDamage) m.SetFloat(DamageId, damage);
                     if (setBurn) m.SetFloat(BurnId, burn);

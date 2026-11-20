@@ -37,7 +37,15 @@ namespace StarForge.View
         void OnEnable()
         {
             urp = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-            if (urp != null) { originalScale = urp.renderScale; scale = urp.renderScale; }
+            if (urp != null)
+            {
+                originalScale = urp.renderScale;
+                // Inside the preset's bounds from the start: QualityController (order -60) set them
+                // in its Awake, before this, and the asset comes back at 1.0 after every scene load,
+                // so a saved Battery (max 0.85) ran at 1.0 under light load, never stepping down.
+                scale = Mathf.Clamp(urp.renderScale, minScale, maxScale);
+                urp.renderScale = scale;
+            }
         }
 
         void OnDisable()
@@ -134,6 +142,14 @@ namespace StarForge.View
                 }
                 else cleanTime = 0f;
             }
+        }
+
+        /// <summary>Brings the scale inside new bounds at once: a preset picked mid-match changes
+        /// them, and the scale was clamped only at its next step, which light load never takes
+        /// (Battery picked at scale 1.0 stayed over its 0.85 cap).</summary>
+        public void Reclamp()
+        {
+            if (isActiveAndEnabled && urp != null && (scale < minScale - 1e-4f || scale > maxScale + 1e-4f)) Set(scale);
         }
 
         void Set(float s)

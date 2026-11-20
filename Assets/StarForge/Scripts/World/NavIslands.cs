@@ -46,6 +46,18 @@ namespace StarForge.World
         readonly int[][] island = new int[2][];    // per mask and triangle; -1 where the mask leaves it out
         readonly float[][] area = new float[2][];  // per mask and island, m² on the ground plane
         readonly int[] main = new int[2];          // the largest island per mask
+
+        // Build's working collections, kept from one build to the next and cleared at its start:
+        // it runs every few seconds of a match, and made fresh they were most of the game's
+        // garbage (~17 KB a frame on average in an AI match). Nothing outside Build reads them.
+        readonly Dictionary<NavNode, int> bIndex = new Dictionary<NavNode, int>(4096);
+        readonly List<NavNode> bNodes = new List<NavNode>(4096);
+        readonly List<int> bPolyArea = new List<int>(4096), bVertStart = new List<int>(4096),
+                           bNbrStart = new List<int>(4096), bNbrs = new List<int>(16384);
+        readonly List<Vector3> bVerts = new List<Vector3>(16384);
+        readonly Stack<int> bStack = new Stack<int>();
+        int[] bTriPoly = new int[0], bLabel = new int[0], bFill = new int[0];
+        static int[] AtLeast(ref int[] a, int n) { if (a.Length < n) a = new int[n]; return a; }
         int[] cellStart, cellTris;
         Vector2 origin;
         int cols, rows;
@@ -210,13 +222,13 @@ namespace StarForge.World
             // order they are found and are taken off the queue in that same order.
             var nav = NavWorld.GetDefaultWorld();
             int rubble = NavMesh.GetAreaFromName("Rubble");
-            var index = new Dictionary<NavNode, int>(4096);
-            var nodes = new List<NavNode>(4096);
-            var polyArea = new List<int>(4096);
-            var vertStart = new List<int>(4096) { 0 };
-            var verts = new List<Vector3>(16384);
-            var nbrStart = new List<int>(4096) { 0 };
-            var nbrs = new List<int>(16384);
+            var index = bIndex; index.Clear();
+            var nodes = bNodes; nodes.Clear();
+            var polyArea = bPolyArea; polyArea.Clear();
+            var vertStart = bVertStart; vertStart.Clear(); vertStart.Add(0);
+            var verts = bVerts; verts.Clear();
+            var nbrStart = bNbrStart; nbrStart.Clear(); nbrStart.Add(0);
+            var nbrs = bNbrs; nbrs.Clear();
             var vbuf = new NativeArray<Vector3>(MaxVerts, Allocator.Temp);
             var nbuf = new NativeArray<NavNode>(MaxNeighbours, Allocator.Temp);
             var ebuf = new NativeArray<byte>(MaxNeighbours, Allocator.Temp);
@@ -274,7 +286,7 @@ namespace StarForge.World
             Triangles = nt;
             corner = new Vector2[nt * 3];
             height = new float[nt];
-            var triPoly = new int[nt];
+            var triPoly = AtLeast(ref bTriPoly, nt);
             for (int i = 0, t = 0; i < np; i++)
             {
                 int v0 = vertStart[i], n = vertStart[i + 1] - v0;
@@ -290,8 +302,8 @@ namespace StarForge.World
             }
 
             // Islands: polygons joined through the graph, over the areas each mask uses.
-            var label = new int[np];
-            var stack = new Stack<int>();
+            var label = AtLeast(ref bLabel, np);
+            var stack = bStack; stack.Clear();
             for (int m = 0; m < 2; m++)
             {
                 // The ground mask is GameWorld.GroundAreas: no Rubble, and no wall's band (Vault, Wall).
@@ -337,7 +349,8 @@ namespace StarForge.World
             cols = Mathf.Max(1, Mathf.CeilToInt((hi.x - lo.x) / Cell));
             rows = Mathf.Max(1, Mathf.CeilToInt((hi.y - lo.y) / Cell));
             cellStart = new int[cols * rows + 1];
-            var fill = new int[cols * rows];
+            var fill = AtLeast(ref bFill, cols * rows);
+            System.Array.Clear(fill, 0, cols * rows);
             for (int pass = 0; pass < 2; pass++)
             {
                 if (pass == 1)

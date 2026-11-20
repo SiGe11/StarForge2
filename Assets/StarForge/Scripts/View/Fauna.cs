@@ -66,6 +66,21 @@ namespace StarForge.View
         public AnimationClip fold, peck;
         [Tooltip("Perching flyers: the wingbeat's playback rate, and one hop's length (m).")]
         public float flapRate = 2.6f, hop = 0.35f;
+
+        // AnimationClip.name makes a new string each read, and every animal asks for one a few
+        // times a frame (IsPlaying/CrossFade go by name): read once a clip, kept with it.
+        [System.NonSerialized] AnimationClip moveSeen, idleSeen, foldSeen, peckSeen;
+        [System.NonSerialized] string moveName, idleName, foldName, peckName;
+        public string MoveName => NameOf(move, ref moveSeen, ref moveName);
+        public string IdleName => NameOf(idle, ref idleSeen, ref idleName);
+        public string FoldName => NameOf(fold, ref foldSeen, ref foldName);
+        public string PeckName => NameOf(peck, ref peckSeen, ref peckName);
+        static string NameOf(AnimationClip clip, ref AnimationClip seen, ref string name)
+        {
+            if (clip == null) return null;
+            if (!ReferenceEquals(clip, seen)) { seen = clip; name = clip.name; }
+            return name;
+        }
     }
 
     public sealed class Fauna : MonoBehaviour
@@ -76,6 +91,8 @@ namespace StarForge.View
         {
             public Transform t;
             public Animation anim;
+            /// <summary>The movement cycle's state, looked up once (the indexer makes a new wrapper each call).</summary>
+            public AnimationState moveState;
             public Renderer[] renderers;
             public bool shown;
             public int group;
@@ -625,9 +642,9 @@ namespace StarForge.View
         void Soar(Animal a, FaunaSpecies sp, bool working, float now)
         {
             if (a.anim == null || sp.move == null) return;
-            var st = a.anim[sp.move.name];
+            var st = a.moveState != null ? a.moveState : (a.moveState = a.anim[sp.MoveName]);
             if (st == null) return;
-            if (!a.anim.IsPlaying(sp.move.name)) a.anim.CrossFade(sp.move.name, 0.25f);
+            if (!a.anim.IsPlaying(sp.MoveName)) a.anim.CrossFade(sp.MoveName, 0.25f);
             if (working) { a.beatUntil = Mathf.Max(a.beatUntil, now + 0.6f); a.nextAct = Mathf.Max(a.nextAct, now + rng.Range(3f, 7f)); }
             else if (now >= a.nextAct)
             {
@@ -683,7 +700,7 @@ namespace StarForge.View
                     if (a.anim != null && g.sp.move != null)
                     {
                         a.anim.cullingType = AnimationCullingType.AlwaysAnimate;
-                        a.anim.CrossFade(g.sp.move.name, 0.1f);
+                        a.anim.CrossFade(g.sp.MoveName, 0.1f);
                     }
                 }
         }
@@ -725,9 +742,9 @@ namespace StarForge.View
                     if (a.anim != null && g.sp.move != null)
                     {
                         bool flap = h.flies || a.moveSpeed > 0.5f;
-                        if (flap && !a.anim.IsPlaying(g.sp.move.name)) a.anim.CrossFade(g.sp.move.name, 0.1f);
-                        else if (!flap && g.sp.idle != null && !a.anim.IsPlaying(g.sp.idle.name)) a.anim.CrossFade(g.sp.idle.name, 0.2f);
-                        var st = a.anim[g.sp.move.name];
+                        if (flap && !a.anim.IsPlaying(g.sp.MoveName)) a.anim.CrossFade(g.sp.MoveName, 0.1f);
+                        else if (!flap && g.sp.idle != null && !a.anim.IsPlaying(g.sp.IdleName)) a.anim.CrossFade(g.sp.IdleName, 0.2f);
+                        var st = a.moveState != null ? a.moveState : (a.moveState = a.anim[g.sp.MoveName]);
                         if (st != null) st.speed = g.sp.perches ? g.sp.flapRate * 1.2f : Mathf.Clamp(a.moveSpeed / Mathf.Max(0.1f, g.sp.moveClipSpeed), 0.3f, 3.2f);
                     }
                 }
@@ -826,7 +843,7 @@ namespace StarForge.View
                         a.beatUntil = now + rng.Range(0.8f, 1.2f);   // beating hard all the way up
                         a.foldUntil = 0f;
                         a.lift = 0f;
-                        if (a.anim != null && sp.move != null) a.anim.CrossFade(sp.move.name, 0.05f);
+                        if (a.anim != null && sp.move != null) a.anim.CrossFade(sp.MoveName, 0.05f);
                     }
                     else
                     {
@@ -855,19 +872,19 @@ namespace StarForge.View
                     if (!steady && rng.F01() < 0.75f)
                     {
                         a.foldUntil = now + rng.Range(0.18f, 0.34f);
-                        if (a.anim != null && sp.fold != null) a.anim.CrossFade(sp.fold.name, 0.06f);
+                        if (a.anim != null && sp.fold != null) a.anim.CrossFade(sp.FoldName, 0.06f);
                     }
                     else
                     {
                         a.beatUntil = now + rng.Range(0.35f, 0.7f);
-                        if (a.anim != null && sp.move != null) a.anim.CrossFade(sp.move.name, 0.06f);
+                        if (a.anim != null && sp.move != null) a.anim.CrossFade(sp.MoveName, 0.06f);
                     }
                 }
                 bool folded = now < a.foldUntil;
                 a.lift = Mathf.Clamp(a.lift + dt * (folded ? -1.6f : 0.9f), -0.9f, 0.9f);
                 if (a.anim != null && sp.move != null && !folded)
                 {
-                    var st = a.anim[sp.move.name];
+                    var st = a.moveState != null ? a.moveState : (a.moveState = a.anim[sp.MoveName]);
                     if (st != null) st.speed = sp.flapRate * (steady ? 1.15f : 1f);
                 }
                 var prev = a.at;
@@ -896,7 +913,7 @@ namespace StarForge.View
                     a.faceTo = a.yaw;       // pitch and bank ease out on its feet (Feed)
                     a.hopT = 1f;
                     a.nextAct = now + rng.Range(0.4f, 1.5f);
-                    if (a.anim != null && sp.idle != null) a.anim.CrossFade(sp.idle.name, 0.1f);
+                    if (a.anim != null && sp.idle != null) a.anim.CrossFade(sp.IdleName, 0.1f);
                 }
                 Place(a, a.at, Quaternion.Euler(a.pitch, a.yaw, -a.bank));
             }
@@ -912,7 +929,7 @@ namespace StarForge.View
                         a.pitch = a.bank = 0f;
                         a.faceTo = a.yaw;
                         a.hopT = 1f;
-                        if (a.anim != null && sp.idle != null) a.anim.CrossFade(sp.idle.name, 0.2f);
+                        if (a.anim != null && sp.idle != null) a.anim.CrossFade(sp.IdleName, 0.2f);
                         landed++;
                     }
             if (g.aloft && u >= 1f && landed == g.members.Count)
@@ -956,12 +973,12 @@ namespace StarForge.View
                 }
                 else if (r < 0.82f && sp.peck != null && a.anim != null)
                 {
-                    a.anim.CrossFade(sp.peck.name, 0.08f);
+                    a.anim.CrossFade(sp.PeckName, 0.08f);
                     a.nextAct = now + sp.peck.length * rng.Range(0.5f, 1f);
                 }
                 else
                 {
-                    if (a.anim != null && sp.idle != null) a.anim.CrossFade(sp.idle.name, 0.15f);
+                    if (a.anim != null && sp.idle != null) a.anim.CrossFade(sp.IdleName, 0.15f);
                     a.faceTo = a.yaw + rng.Range(-70f, 70f);
                     a.nextAct = now + rng.Range(0.8f, 2.5f);
                 }
@@ -969,8 +986,8 @@ namespace StarForge.View
             }
             else a.at = map.Ground(a.pos);
             // A peck plays once, then back to standing.
-            if (a.anim != null && sp.peck != null && sp.idle != null && now >= a.nextAct - 0.05f && a.anim.IsPlaying(sp.peck.name))
-                a.anim.CrossFade(sp.idle.name, 0.1f);
+            if (a.anim != null && sp.peck != null && sp.idle != null && now >= a.nextAct - 0.05f && a.anim.IsPlaying(sp.PeckName))
+                a.anim.CrossFade(sp.IdleName, 0.1f);
             // A quick turn, not a jump from one facing to the next (a tenth of a second for
             // a look round), and out of the landing's tilt over the first moment down.
             a.yaw = Mathf.MoveTowardsAngle(a.yaw, a.faceTo, dt * 900f);
@@ -996,12 +1013,12 @@ namespace StarForge.View
             bool still = speed < 0.15f;
             if (still && sp.idle != null)
             {
-                if (!a.anim.IsPlaying(sp.idle.name)) a.anim.CrossFade(sp.idle.name, 0.3f);
+                if (!a.anim.IsPlaying(sp.IdleName)) a.anim.CrossFade(sp.IdleName, 0.3f);
                 return;
             }
             if (sp.move == null) return;
-            if (!a.anim.IsPlaying(sp.move.name)) a.anim.CrossFade(sp.move.name, 0.25f);
-            var st = a.anim[sp.move.name];
+            if (!a.anim.IsPlaying(sp.MoveName)) a.anim.CrossFade(sp.MoveName, 0.25f);
+            var st = a.moveState != null ? a.moveState : (a.moveState = a.anim[sp.MoveName]);
             if (st != null) st.speed = still ? 0.15f : Mathf.Clamp(speed / Mathf.Max(0.1f, sp.moveClipSpeed), 0.3f, 3.2f);
         }
 

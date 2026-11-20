@@ -392,7 +392,17 @@ namespace StarForge.UI
             if (p.scroll != null && !ItemIn(p, p.scroll)) { p.scroll.scrollOffset += new Vector2(0f, dir * 90f); return; }
             if (p.items.Count == 0) return;
             int n = p.items.Count;
-            SetFocus(p, (p.focus + dir + n) % n, true);
+            // Skip a row the page hides (Surrender while observing): focused, Enter still ran it.
+            int to = p.focus;
+            for (int step = 0; step < n; step++)
+            {
+                to = (to + dir + n) % n;
+                var el = p.items[to].el;
+                // The inline style is the page's own hide (RefreshPause), there at once; the resolved one
+                // catches a class's, but only after the next style pass.
+                if (el == null || (el.style.display.value != DisplayStyle.None && el.resolvedStyle.display != DisplayStyle.None)) break;
+            }
+            SetFocus(p, to, true);
             Sound(AudioDirector.MenuCue.Hover);
         }
 
@@ -1147,7 +1157,9 @@ namespace StarForge.UI
                 var cat = UnitCatalog.Load();
                 var list = new List<UnitDef>();
                 if (cat != null && cat.defs != null)
-                    foreach (var d in cat.defs) if (d != null && !d.neutral) list.Add(d);
+                    // The numbers the game plays with: Defs hands out copies with TacticalRules.Apply's
+                    // ranges, damage, speeds and hulls; the assets keep the old ones on purpose.
+                    foreach (var d in cat.defs) if (d != null && !d.neutral) list.Add(Defs.Get(d.type) ?? d);
                 list.Sort((a, b) =>
                 {
                     int ca = Category(a), cb = Category(b);
@@ -1230,7 +1242,15 @@ namespace StarForge.UI
             if (d.requires != UnitType.None) Tag($"NEEDS {NameOf(d.requires)}", true);
         }
 
-        static float Dps(UnitDef d) => d.Armed && d.cooldown > 0f ? d.damage / d.cooldown : 0f;
+        /// <summary>Sustained damage a second: a magazine's rounds over their cooldowns and the reload
+        /// (Apply's numbers), not the burst rate between two rounds.</summary>
+        static float Dps(UnitDef d)
+        {
+            if (!d.Armed || d.cooldown <= 0f) return 0f;
+            if (d.magazine > 1) return d.damage * d.magazine / (d.magazine * d.cooldown + d.reloadTime);
+            if (d.magazine == 1) return d.damage / (d.cooldown + d.reloadTime);
+            return d.damage / d.cooldown;
+        }
 
         string NameOf(UnitType t)
         {
@@ -1447,7 +1467,7 @@ namespace StarForge.UI
             NavItem(pause, nav, "", "RESTART", null, () => Ask("RESTART", "Start the match again from the beginning, on a new battlefield? This one will not count.",
                 () => Rematch()), "restartButton");
             NavItem(pause, nav, "", "SURRENDER", null, () => Ask("SURRENDER", "Concede the match? It counts as a defeat.",
-                () => bootstrap.Surrender()), "surrenderButton", true);
+                () => { if (!MatchSettings.spectate) bootstrap.Surrender(); }), "surrenderButton", true);
             NavItem(pause, nav, "", "MAIN MENU", null, () => Ask("LEAVE THE MATCH", "Return to the main menu? The match will be abandoned and not recorded.",
                 () => Reload(() => bootstrap.ReturnToMenu(), "RETURNING TO COMMAND")), "menuReturnButton");
             NavItem(pause, nav, "", "QUIT TO DESKTOP", null, AskQuit, "quitButton2", true);

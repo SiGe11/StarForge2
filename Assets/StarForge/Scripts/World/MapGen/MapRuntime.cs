@@ -48,8 +48,10 @@ namespace StarForge.World
                 if (args[i] == "-sfseed" && i + 1 < args.Length && uint.TryParse(args[i + 1], out uint s) && s != 0) return s;
                 if (args[i] == "-sfbench" || args[i] == "-sfgallery") fixedMap = true;
             }
-            if (MatchSettings.mapSeed != 0) return MatchSettings.mapSeed;
+            // A benchmark, gallery or evaluation plays map 1000 whatever a trial left in mapSeed (a static
+            // that outlives play sessions: a stale UseSeed1000-style seed used to take the evaluation's first map).
             if (fixedMap || AIEvalRunner.Pending) return MapGenerator.DefaultSeed;
+            if (MatchSettings.mapSeed != 0) return MatchSettings.mapSeed;
             uint seed;
             do seed = (uint)UnityEngine.Random.Range(1, int.MaxValue) ^ (uint)DateTime.Now.Ticks; while (seed == 0);
             return seed;

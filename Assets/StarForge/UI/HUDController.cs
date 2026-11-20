@@ -272,12 +272,23 @@ namespace StarForge.UI
             float dt = Time.unscaledDeltaTime;
 
             var F = world.factions[player != null ? player.team : 0];
-            oreLabel.text = F.ore.ToString();
+            // Written only when they change: rebuilt every frame these strings were garbage each frame.
+            if (F.ore != shownOre) { shownOre = F.ore; oreLabel.text = F.ore.ToString(); }
             int cap = world.SupplyCap(player != null ? player.team : 0);
-            supplyLabel.text = $"{F.supplyUsed} / {cap}";
-            supplyLabel.EnableInClassList("resource-value--warn", F.supplyUsed >= cap);
+            if (F.supplyUsed != shownSupply || cap != shownCap)
+            {
+                shownSupply = F.supplyUsed; shownCap = cap;
+                supplyLabel.text = $"{F.supplyUsed} / {cap}";
+                supplyLabel.EnableInClassList("resource-value--warn", F.supplyUsed >= cap);
+            }
             int t = Mathf.FloorToInt(world.time);
-            clockLabel.text = $"{t / 60}:{t % 60:00}" + (Time.timeScale > 1.01f ? $"  x{Time.timeScale:0.#}" : "");
+            // Paused the time scale is 0: the clock keeps the speed the match resumes at.
+            float speed = Time.timeScale > 0f ? Time.timeScale : bootstrap.Speed;
+            if (t != shownClock || speed != shownSpeed)
+            {
+                shownClock = t; shownSpeed = speed;
+                clockLabel.text = $"{t / 60}:{t % 60:00}" + (speed > 1.01f ? $"  x{speed:0.#}" : "");
+            }
 
             fpsSmooth = Mathf.Lerp(fpsSmooth, 1f / Mathf.Max(1e-4f, dt), 0.05f);
             if ((perfT -= dt) <= 0f)
@@ -469,6 +480,9 @@ namespace StarForge.UI
             }
             if (u.def.neutral) return "";
             if (u.deserted) return u.fleeing ? "Deserting · running for the corner" : "Deserted · takes no orders";
+            // An enemy unit's order and load are the opponent's plan, not the player's to read
+            // (as for their buildings and Mech above), unless spectating.
+            if (player != null && u.team != player.team && !MatchSettings.spectate) return "";
             switch (u.order)
             {
                 case Order.Harvest: return u.working ? "Mining" : "Heading to ore";
@@ -830,6 +844,9 @@ namespace StarForge.UI
             return (p.z >= h ? "north" : "south") + "-" + (p.x >= h ? "east" : "west");
         }
 
+        int shownOre = int.MinValue, shownSupply = int.MinValue, shownCap = int.MinValue, shownClock = int.MinValue;
+        float shownSpeed = float.NaN;
+
         void Alert(string text, string cls, float seconds = 2.6f)
         {
             if (string.IsNullOrEmpty(text)) return;
@@ -840,8 +857,7 @@ namespace StarForge.UI
                 if (alerts[i] is Label existing && existing.text == text)
                 {
                     existing.RemoveFromClassList("alert--fading");
-                    existing.schedule.Execute(() => existing.AddToClassList("alert--fading")).StartingIn(hold);
-                    existing.schedule.Execute(() => existing.RemoveFromHierarchy()).StartingIn(hold + 500);
+                    ScheduleFade(existing, hold);
                     return;
                 }
             if (alerts.childCount >= 4) alerts.RemoveAt(0);
@@ -849,8 +865,18 @@ namespace StarForge.UI
             l.AddToClassList("alert");
             l.AddToClassList(cls);
             alerts.Add(l);
-            l.schedule.Execute(() => l.AddToClassList("alert--fading")).StartingIn(hold);
-            l.schedule.Execute(() => l.RemoveFromHierarchy()).StartingIn(hold + 500);
+            ScheduleFade(l, hold);
+        }
+
+        /// <summary>A line's fade and removal, keyed to its latest showing: a repeat restarts its time,
+        /// and the earlier showing's callbacks then do nothing (they used to take the refreshed line
+        /// down on the first showing's schedule).</summary>
+        static void ScheduleFade(Label l, long hold)
+        {
+            int token = (l.userData is int n ? n : 0) + 1;
+            l.userData = token;
+            l.schedule.Execute(() => { if (l.userData is int k && k == token) l.AddToClassList("alert--fading"); }).StartingIn(hold);
+            l.schedule.Execute(() => { if (l.userData is int k && k == token) l.RemoveFromHierarchy(); }).StartingIn(hold + 500);
         }
 
         // ------------------------------------------------------------ minimap

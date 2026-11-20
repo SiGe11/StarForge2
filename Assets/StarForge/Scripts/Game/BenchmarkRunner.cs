@@ -142,6 +142,9 @@ namespace StarForge.Game
                              System.Globalization.CultureInfo.InvariantCulture, out float bz)) burstZoom = bz;
             }
             if (!active) { enabled = false; return; }
+            // A test run measures High unless -sfquality says otherwise: a preset saved in Settings
+            // (Balanced, Battery) would otherwise carry into every later benchmark and gallery.
+            if (QualityController.Override == null) QualityController.Override = SFQuality.High;
             AI.Commander.Suspended = false;   // never a trial's leftover
             AI.Commander.MechGateInBase = false;
             World.MechCore.LegacyBalance = false;
@@ -702,7 +705,7 @@ namespace StarForge.Game
 
             var sb = new StringBuilder();
             sb.AppendLine($"StarForge benchmark — {SystemInfo.deviceModel}, {SystemInfo.processorType}, {SystemInfo.graphicsDeviceName} ({SystemInfo.graphicsDeviceType})");
-            sb.AppendLine($"resolution {Screen.width}x{Screen.height}, {frames.Count} frames over {seconds:0}s after {Warmup:0}s warm-up; " +
+            sb.AppendLine($"preset {QualityController.Current}, resolution {Screen.width}x{Screen.height}, {frames.Count} frames over {seconds:0}s after {Warmup:0}s warm-up; " +
                           $"vsync {QualitySettings.vSyncCount}, cap {(Application.targetFrameRate > 0 ? Application.targetFrameRate.ToString() : "none")}");
             sb.AppendLine($"avg {avg:0.00} ms ({1000f / Mathf.Max(0.01f, avg):0.0} fps) · p50 {P(0.5f):0.00} · p95 {P(0.95f):0.00} · p99 {P(0.99f):0.00} · worst {P(1f):0.00} ms");
             if (rigProbeOn != null) sb.AppendLine(rigProbeOn.Report());
