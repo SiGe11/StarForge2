@@ -868,12 +868,13 @@ To regenerate the models (Blender 5.x):
   --python Tools/blender/export_fbx.py -- Assets/StarForge/Art/Models Tools/blender/starforge_models.blend
 ```
 
-## Tactical combat (in development, off by default)
+## Tactical combat (the game's combat since phase 8)
 
 Combat is being rebuilt so that soldiers fight like soldiers: the player gives the same orders, and
-units decide how to carry them out. It sits behind one switch until it is finished (the "Combat" button
-on the title screen, not remembered between runs, or `-sftactical` on a benchmark or test run), and with
-the switch off the game plays as described in the rest of this file.
+units decide how to carry them out. It is what a match plays since phase 8; the old rules stay behind one
+switch for comparison until the new combat is signed off (the title screen's "Combat" button, not
+remembered between runs, or `-sfclassic` on a benchmark or test run), and with the switch off the game
+plays as described in the rest of this file.
 So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.md`):
 
 - **Shots can miss.** A round goes where it goes: an aim error, then the first thing on its line. A far
@@ -922,6 +923,28 @@ So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
   against eight coming over open ground (1 of 9 before the walls were raised): even with room for three
   behind each wall, the six spent only a quarter to two thirds of each fight in cover, and why is not yet
   traced. That is for the balancing at the end.
+- **Tanks fight like tanks.** The Mauler, Lancer, Aegis and Ironclad carry a roof machine gun of their own
+  that takes the infantry while the main gun turns on armour or a building, and two smoke launchers popped
+  the moment an anti-tank round is fired at them (refilled at a depot or a Workshop). A tank holds its
+  shell while its own men are by the target, since a shell can hurt friends now, and a wall or rock between
+  a burst and a soldier shelters him as it would from a grenade. Idle or badly hurt, a tank backs away from
+  rocket men out of their reach and reverses out of its own smoke, front and turret toward the threat.
+  Rounds fired straight at a soldier by a vehicle or the Mech are decided when fired, so cover stops them as
+  it stops a rifleman's: in a trial a man behind a wall lost nothing to a Lancer and a Skimmer that cost the
+  same man in front of it 1,307 hit points (on another map one wall let 793 through against 1,391; not yet
+  traced).
+- **Everything else has instincts.** Unarmed workers run from enemies they see within 20 m and go back to
+  work; creatures that are badly hurt break off and come back; the Mech's guns fire only at what its side
+  can see, its shells can hurt friends, and its hitscan guns stop at cover.
+- **Dogfights.** The Swift flies with speed and height as energy, chases from behind, is built to break hard
+  when an enemy plane is on its tail (not yet seen in a trial, nor its dive), fires a cannon whose hits depend on how well its nose is on the target,
+  carries two missiles and two flares, and rearms by its Airfield; the Kestrel stays a hovering gunship with
+  rockets, a machine gun and flares. Two Swifts duel for 40-50 s over eight to ten passes, the same at 1x
+  and 8x.
+- **The switch-over.** The new combat is now what a match plays; the old rules stay for comparison only (the
+  menu's rules switch and `-sfclassic`), and will be removed once the new combat is signed off. The AI
+  commander hears its squads' reports: a squad that must fall back is pulled back, and a squad held by
+  armour gets the aircraft that can help.
 
 `Editor/TacticalTrials.cs` holds the checks; `Assets/StarForge/Scripts/World/CLAUDE.md` the rules and
 their numbers.
