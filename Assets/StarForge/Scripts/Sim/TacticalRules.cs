@@ -150,11 +150,13 @@ namespace StarForge.Sim
             if (d.Armed && !d.harvester && d.sight < 45f) d.sight = 45f;
             // Phase 8: the creatures meet tanks' machine guns and break off when hurt, so they are hardier.
             if (d.organic) d.hp *= CreatureHardier;
-            // Towers and tanks reach as far as the rifles they face (phase 8's range pass).
+            // Phase 8's range pass: a tower out-reaches a rifleman at its edge (a Trooper's 35 m to its 1.7 m edge is
+            // 36.7 from its middle); the Mauler out-reaches towers and riflemen as artillery (38: a Trooper reaches its edge from 36.5 m); the other tanks
+            // (30) are still out-reached by rifles at their edge, and an idle one does not answer.
             switch (d.type)
             {
-                case UnitType.Sentinel: d.range = Mathf.Max(d.range, 34f); d.sight = Mathf.Max(d.sight, 45f); break;
-                case UnitType.Mauler: d.range = Mathf.Max(d.range, 32f); break;
+                case UnitType.Sentinel: d.range = Mathf.Max(d.range, 37f); d.sight = Mathf.Max(d.sight, 45f); break;
+                case UnitType.Mauler: d.range = Mathf.Max(d.range, 38f); break;
                 case UnitType.Lancer: case UnitType.Aegis: case UnitType.Ironclad: d.range = Mathf.Max(d.range, 30f); break;
             }
         }

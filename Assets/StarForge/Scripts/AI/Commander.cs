@@ -1478,7 +1478,7 @@ namespace StarForge.AI
         {
             if (e.men == null || e.men.Length == 0) return;
             Vector2 at = new Vector2(e.pos.x, e.pos.z);
-            if (e.index == (int)SquadReportKind.FallBack && !waveOn)
+            if (e.index == (int)SquadReportKind.FallBack && !waveOn && !committed)
             {
                 var men = new List<Unit>();
                 foreach (var u in e.men) if (Unit.Live(u) && u.team == team && !u.deserted) men.Add(u);
@@ -1691,6 +1691,7 @@ namespace StarForge.AI
             float threatHome = 0f, structThreat = 0f;
             Vector2 home = Perception.Home;
             Vector2 threatAt = home, structAt = home, siteAt = home;
+            UnitType structType = UnitType.None;
             bool site = false;
             homeFoes.Clear();
             foreach (var r in Perception.Enemies)
@@ -1717,7 +1718,7 @@ namespace StarForge.AI
                         continue;
                     }
                     structThreat += r.type == UnitType.MechBay ? 400f : 250f;
-                    if (d < (structAt - home).magnitude || structAt == home) structAt = r.pos;
+                    if (d < (structAt - home).magnitude || structAt == home) { structAt = r.pos; structType = r.type; }
                     continue;
                 }
                 float worth = Defs.IsWorkerType(r.type) && !Defs.Get(r.type).Armed ? 15f : r.type == UnitType.Worker ? 15f : Defs.ArmyValue(r.type);
@@ -1746,16 +1747,18 @@ namespace StarForge.AI
             // the army together (BayEdgeCases case 1 once MechParts.HullScale/GunScale took away the
             // Mech of its own that used to break the bay: its army 0-240 all match against 1,000-
             // 1,900, 46 units fed). It goes at all of it only with an army that can take all of it.
-            // Covered is within 32 m of a structure 40 m out or more (its gun's reach and its
-            // footprint) and more than 25 m from home: anything nearer is in the base and met at
+            // Covered is within its gun's reach and 3 m (`fortReach`, at least 32) of a structure 40 m out or
+            // more and more than 25 m from home: anything nearer is in the base and met at
             // once, as is a structure nearer than 40 m (case 8's bay lands 34 m out among the
             // buildings), and their Mech's worth is in the gate already when it stands guard.
+            // Its gun's reach (public data, like a range shown on its card) and 3 m: a Sentinel's is 37 since the range pass.
+            float fortReach = Mathf.Max(32f, (structType != UnitType.None && Defs.Get(structType) != null ? Defs.Get(structType).range : 29f) + 3f);
             bool fortressGo = false, holdOff = false;
             if (structThreat > 0f && (structAt - home).magnitude > 40f)
             {
                 float covered = 0f, coveredNeed = 0f;
                 foreach (var f in homeFoes)
-                    if ((f.pos - structAt).magnitude < 32f && (f.pos - home).magnitude > 25f)
+                    if ((f.pos - structAt).magnitude < fortReach && (f.pos - home).magnitude > 25f)
                     {
                         covered += f.value;
                         if (!(f.mech && mechByIt)) coveredNeed += f.value;
@@ -1768,7 +1771,7 @@ namespace StarForge.AI
                     threatHome -= covered;
                     threatAt = home;
                     foreach (var f in homeFoes)
-                        if (!((f.pos - structAt).magnitude < 32f && (f.pos - home).magnitude > 25f) &&
+                        if (!((f.pos - structAt).magnitude < fortReach && (f.pos - home).magnitude > 25f) &&
                             (threatAt == home || (f.pos - home).magnitude < (threatAt - home).magnitude))
                             threatAt = f.pos;
                 }
@@ -1783,7 +1786,7 @@ namespace StarForge.AI
             // A site going up beside the fortress, or the Mech's call to meet what is camped there,
             // does not send it under the gun either.
             if (site && !IgnoreSites && threatHome <= Mathf.Max(45f, s.armyValue * 0.14f) &&
-                !(holdOff && (siteAt - structAt).magnitude < 32f))
+                !(holdOff && (siteAt - structAt).magnitude < fortReach && (siteAt - home).magnitude > 25f))
             {
                 threatHome = Mathf.Max(45f, s.armyValue * 0.14f) + 1f;
                 threatAt = siteAt;
@@ -1796,7 +1799,7 @@ namespace StarForge.AI
 
             // The Mech saw them coming before we could: meet them where it says.
             if (w.time < adviceDefendUntil && main.Count > 0 && threatHome <= 0f &&
-                !(holdOff && (adviceDefendAt - structAt).magnitude < 32f))
+                !(holdOff && (adviceDefendAt - structAt).magnitude < fortReach && (adviceDefendAt - home).magnitude > 25f))
             {
                 threatHome = Mathf.Max(45f, s.armyValue * 0.14f) + 1f;
                 threatAt = w.NearestReachable(home, adviceDefendAt);

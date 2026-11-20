@@ -49,6 +49,12 @@ namespace StarForge.EditorTools
         public static string Backoff() => Stage<TankBackoffTrial>("Backoff");
         public static string BackoffReport() => Report<TankBackoffTrial>();
 
+        /// <summary>An idle Mauler, then a lone Sentinel, three riflemen sent at it from 40 m: does it answer them, and
+        /// how soon? Target: the first round or shell back within 10 s of the first rifle round, in every field (the
+        /// riflemen close in on their attack order, so this reads a tank's or tower's own reach, not an answer from
+        /// beyond it: an idle tank out-reached at its edge still does not answer, see the World notes).</summary>
+        public static string Outranged() => Stage<OutrangedTrial>("Outranged");
+        public static string OutrangedReport() => Report<OutrangedTrial>();
         /// <summary>A Digger of ours at its work, an enemy rifleman put 12 m off, then taken away; and a Skitter at 25%
         /// attacking a rifleman. Target: the Digger runs (8+ m off him) and is back at its work, its order kept, 5 of 5;
         /// the Skitter breaks off (8+ m) and comes back.</summary>
@@ -241,6 +247,58 @@ namespace StarForge.EditorTools
         }
     }
 
+    public sealed class OutrangedTrial : TacticalTrial
+    {
+        protected override bool RulesOnly => true;
+        Unit guarded;
+        float firstIn = -1f, firstBack = -1f, t0;
+        int back;
+
+        void OnFire(GameEvent e)
+        {
+            if (e.kind != GameEventKind.Fire || e.unit == null || guarded == null) return;
+            if (e.unit == guarded) { back++; if (firstBack < 0f) firstBack = world.time - t0; }
+            else if (e.unit.team == 1 && e.unit.target == guarded && firstIn < 0f) firstIn = world.time - t0;
+        }
+
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            var sb = new StringBuilder();
+            HoldStatics();
+            ListenWhileHeld(OnFire);
+            var rng = new System.Random(4040);
+            int fields = 0, answered = 0;
+            foreach (var type in new[] { UnitType.Mauler, UnitType.Mauler, UnitType.Mauler, UnitType.Sentinel, UnitType.Sentinel })
+            {
+                if (!FindRange(rng, 44f, out var a, out var d)) continue;
+                fields++;
+                Vector2 side = new Vector2(-d.y, d.x);
+                guarded = Put(type, 0, a);
+                float hp0 = guarded.hp = type == UnitType.Sentinel ? guarded.hp : 2000f;
+                var men = new List<Unit>();
+                for (int i = 0; i < 3; i++) { var m = Soldier(1, a + d * 40f + side * ((i - 1f) * 3f)); m.hp = 1e6f; men.Add(m); }
+                world.CmdAttack(men, guarded);
+                t0 = world.time; firstIn = firstBack = -1f; back = 0;
+                float nearest = float.MaxValue;
+                while (world.time - t0 < 30f && Unit.Live(guarded))
+                {
+                    foreach (var m in men) nearest = Mathf.Min(nearest, (m.pos - guarded.pos).magnitude);
+                    yield return null;
+                }
+                bool ok = firstIn >= 0f && firstBack >= 0f && firstBack - firstIn <= 10f;
+                if (ok) answered++;
+                sb.AppendLine($"  {type}: first rifle round at {(firstIn < 0f ? "never" : firstIn.ToString("0.0") + " s")}, first answer at {(firstBack < 0f ? "never" : firstBack.ToString("0.0") + " s")}, {back} rounds and shells back, riflemen nearest {nearest:0.0} m, hull lost {hp0 - (Unit.Live(guarded) ? guarded.hp : 0f):0}, order {(Unit.Live(guarded) ? guarded.order.ToString() : "down")}");
+                ClearSpawned();
+                guarded = null;
+                yield return null;
+            }
+            report = $"{fields} fields: answered within 10 s of the first rifle round in {answered} (target all)\n" + sb;
+            ReleaseStatics();
+        }
+    }
+
     public sealed class InstinctTrial : TacticalTrial
     {
         protected override bool RulesOnly => true;
@@ -253,6 +311,35 @@ namespace StarForge.EditorTools
             HoldStatics();
             var rng = new System.Random(1111);
             int ran = 0, back = 0, tried = 0, homeTried = 0;
+            // Away from home first (by its Foundry a Digger works on, phase 8): one put to ore 35 m+ from every
+            // Foundry of ours and 45 m+ from theirs, a rifleman of theirs 12 m off.
+            string remote = "no ore 35 m from our Foundries";
+            bool remoteRan = false, remoteBack = false;
+            foreach (var n in new List<Unit>(world.units))
+            {
+                if (n == null || n.dying || n.Type != UnitType.Ore) continue;
+                bool ok = true;
+                foreach (var f in world.units)
+                    if (f != null && !f.dying && f.Type == UnitType.Foundry && (f.pos - n.pos).magnitude < (f.team == 0 ? 35f : 45f)) { ok = false; break; }
+                if (!ok) continue;
+                var dig = Put(UnitType.Worker, 0, world.NearestWalkable(n.pos + new Vector2(3f, 0f), 6f));
+                world.CmdHarvest(new List<Unit> { dig }, n);
+                yield return Wait(4f);
+                Vector2 at0 = dig.pos;
+                var foe = Soldier(1, dig.pos + Random2(rng) * 12f);
+                foe.noMind = true;
+                int fl0 = world.WorkerFlights;
+                float tr = world.time, farR = 0f;
+                while (world.time - tr < 5f && Unit.Live(dig)) { farR = Mathf.Max(farR, (dig.pos - foe.pos).magnitude); yield return null; }
+                Remove(foe);
+                float tb = world.time, nearR = float.MaxValue;
+                while (world.time - tb < 20f && Unit.Live(dig)) { nearR = Mathf.Min(nearR, (dig.pos - at0).magnitude); yield return null; }
+                remoteRan = world.WorkerFlights > fl0;
+                remoteBack = Unit.Live(dig) && nearR < 5f && (dig.order == Order.Harvest || dig.order == Order.Return);
+                remote = $"flights {world.WorkerFlights - fl0}, {farR:0.0} m from the rifleman at most (12 at first), back within {nearR:0.0} m of where it worked, order {(Unit.Live(dig) ? dig.order.ToString() : "dead")}";
+                if (Unit.Live(dig)) Remove(dig);
+                break;
+            }
             foreach (var u in new List<Unit>(world.units))
             {
                 if (tried >= 5) break;
@@ -302,7 +389,7 @@ namespace StarForge.EditorTools
                 ClearSpawned();
                 yield return null;
             }
-            report = $"Diggers: ran {ran} of {tried - homeTried} away from their Foundry ({homeTried} within 25 m of it, which work on by rule), back at work {back} of {tried} (target all); creatures: broke off {broke} of {fields}, came back {returned} of {fields}; flights {world.WorkerFlights} workers, {world.CreatureFlights} creatures\n" + sb;
+            report = $"Away from home a Digger {(remoteRan ? "ran" : "did NOT run")} and {(remoteBack ? "went back to work" : "did NOT go back")} ({remote}); match Diggers: ran {ran} of {tried - homeTried} away from their Foundry ({homeTried} within 25 m of it, which work on by rule), back at work {back} of {tried} (target all); creatures: broke off {broke} of {fields}, came back {returned} of {fields}; flights {world.WorkerFlights} workers, {world.CreatureFlights} creatures\n" + sb;
             ReleaseStatics();
         }
 

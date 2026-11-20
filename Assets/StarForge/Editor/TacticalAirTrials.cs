@@ -33,6 +33,48 @@ namespace StarForge.EditorTools
         /// ground.</summary>
         public static string Dogfight() => Stage<DogfightTrial>("Dogfight");
         public static string DogfightReport() => Report<DogfightTrial>();
+        public static string TailChase() => Stage<TailChaseTrial>("TailChase");
+        public static string TailChaseReport() => Report<TailChaseTrial>();
+    }
+
+    /// <summary>A Swift flying straight on with an enemy Swift 15 m behind it, chasing: does it break (PlaneBreaks,
+    /// ChaserBehind)? Five runs at the trials' 3x (HoldStatics). Target: a break in every run, within 5 s. The count is the
+    /// world's (the hunter's breaks too); the first is the prey's by the staging.</summary>
+    public sealed class TailChaseTrial : TacticalTrial
+    {
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            var sb = new System.Text.StringBuilder();
+            HoldStatics();
+            var rng = new System.Random(5151);
+            int runs = 0, broke = 0;
+            for (int k = 0; k < 5; k++)
+            {
+                if (!FindRange(rng, 60f, out var a, out var d)) continue;
+                runs++;
+                var prey = Put(UnitType.Swift, 0, a);
+                var hunter = Put(UnitType.Swift, 1, a - d * 15f);
+                prey.yaw = hunter.yaw = Mathf.Atan2(d.x, d.y);
+                world.CmdMove(new List<Unit> { prey }, world.ClampToMap(a + d * 400f), false);
+                world.CmdAttack(new List<Unit> { hunter }, prey);
+                int b0 = world.PlaneBreaks;
+                float t0 = world.time, first = -1f;
+                while (world.time - t0 < 12f && Unit.Live(prey) && Unit.Live(hunter))
+                {
+                    if (first < 0f && world.PlaneBreaks > b0) first = world.time - t0;
+                    yield return null;
+                }
+                int n = world.PlaneBreaks - b0;
+                if (first >= 0f && first <= 5f) broke++;
+                sb.AppendLine($"  run {k}: breaks {n}, first after {(first < 0f ? "never" : first.ToString("0.0") + " s")}, the prey {(Unit.Live(prey) ? $"alive at {prey.hp:0}" : "down")}");
+                ClearSpawned();
+                yield return null;
+            }
+            report = $"{runs} tail chases: broke within 5 s in {broke} (target all)\n" + sb;
+            ReleaseStatics();
+        }
     }
 
     public sealed class DogfightTrial : TacticalTrial

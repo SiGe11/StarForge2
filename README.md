@@ -121,7 +121,7 @@ the deserters alone, and they do not stop until you have lost.
 |---|---|---|---|---|
 | Digger | 50 | 1 | 60 | Mines ore, constructs structures |
 | Trooper | 50 | 1 | 55 | Cheap ranged infantry |
-| Mauler | 150 | 3 | 180 | Tank; long-range splash artillery, outranges Sentinels; drives through boulders and trees, crushing them |
+| Mauler | 150 | 3 | 180 | Tank; long-range splash artillery (38 m), outranges Sentinels and riflemen; drives through boulders and trees, crushing them |
 | **Skimmer** *(new)* | 75 | 2 | 75 | Fast hover raider, wide sensors, double damage vs Diggers |
 | **Scorcher** | 75 | 1 | 95 | Flamethrower infantry: 6 m jet that burns every enemy on the ground in it; strong against infantry, Diggers and creatures, weak against armour; sets grass alight |
 | **Thumper** | 100 | 2 | 70 | Mortar infantry: lobs shells 26 m over cover with splash; cannot fire inside 7 m or at aircraft (needs an Armory) |
@@ -969,12 +969,12 @@ So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
   work, except within 25 m of their own Foundry, where they work on; creatures that are badly hurt break off and come back; the Mech's guns fire only at what its side
   can see, its shells can hurt friends, and its hitscan guns stop at cover.
 - **Dogfights.** The Swift flies with speed and height as energy, chases from behind, is built to break hard
-  when an enemy plane is on its tail (not yet seen in a trial, nor its dive), fires a cannon whose hits depend on how well its nose is on the target,
+  when an enemy plane is on its tail (seen in a staged tail chase: it breaks within about a second), fires a cannon whose hits depend on how well its nose is on the target,
   carries two missiles and two flares, and rearms by its Airfield; the Kestrel stays a hovering gunship with
   rockets, a machine gun and flares. Two Swifts duel for about 35-50 s over eight to ten passes, alike at 1x
   and 8x.
 - **The switch-over.** The new combat is what every match plays, and the old rules are gone. The AI
-  commander hears its squads' reports: a squad that must fall back is pulled back, and a squad held by
+  commander hears its squads' reports: a squad that must fall back, away from home and outside a wave or a feint, is pulled back (rare: once in 20 evaluation games), and a squad held by
   armour gets the idle aircraft that can help.
 
 `Editor/TacticalTrials.cs` holds the checks; `Assets/StarForge/Scripts/World/CLAUDE.md` the rules and
