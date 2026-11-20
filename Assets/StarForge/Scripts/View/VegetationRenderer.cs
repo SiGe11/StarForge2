@@ -81,8 +81,17 @@ namespace StarForge.View
         static readonly int CardNormalId = Shader.PropertyToID("_CardNormal");
         static readonly int CardTintId = Shader.PropertyToID("_CardTint");
         static readonly int BarkTexId = Shader.PropertyToID("_BarkTex");
+        static readonly int InnerShadeId = Shader.PropertyToID("_InnerShade");
 
         public int DrawnLastFrame { get; private set; }
+
+        /// <summary>How much of plant i's stem is drawn standing (1 whole; a burnt slender
+        /// tree less): where its fire is drawn has to stop where the stem does.</summary>
+        public float CutOf(int i) => seenCut != null && i >= 0 && i < seenCut.Length ? seenCut[i] : 1f;
+
+        /// <summary>A single thin stem under its crown (the kinds drawn burnt down).</summary>
+        public bool Slender(int i) =>
+            slender != null && vegetation != null && i >= 0 && i < vegetation.plants.Length && slender[vegetation.plants[i].kind];
 
         void Start()
         {
@@ -144,6 +153,9 @@ namespace StarForge.View
                     if (kind.cardTex != null) mpb.SetTexture(CardTexId, kind.cardTex);
                     if (kind.cardNormal != null) mpb.SetTexture(CardNormalId, kind.cardNormal);
                     mpb.SetColor(CardTintId, kind.cardTint);
+                    // Foliage that is not a card is the shaded inside of a crown of cards;
+                    // a kind with no cards at all (the reeds) stands in the open.
+                    mpb.SetFloat(InnerShadeId, kind.cardTex != null ? 0.62f : 1.05f);
                 }
             }
             for (int i = 0; i < n; i++) Remember(i);

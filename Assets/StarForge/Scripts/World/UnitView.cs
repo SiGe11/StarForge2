@@ -49,6 +49,9 @@ namespace StarForge.World
         Color ownFlash = new Color(-1f, 0f, 0f);
         float ownFlashAmount;
         float ownDamage = -1f, ownBurn = -1f, ownGlow = -1f, ownLevel = float.NaN;
+        // How deep a fire the player watched has charred this building: it stays
+        // scorched after the fire is out. View only; the Unit knows nothing of it.
+        float scorched;
         /// <summary>A/B: surface state through property blocks, as before (cleared at each play entry).</summary>
         public static bool LegacyBlocks;
         /// <summary>Renderers wearing a unit's own materials now, over all units (for checks).</summary>
@@ -679,6 +682,25 @@ namespace StarForge.World
             }
         }
 
+        /// <summary>What a wildfire does to a building's surface (GameWorld.StructureFires):
+        /// while it is alight (Unit.FireHeat) patches of it char and glow like embers,
+        /// and the char stays once the fire is out. Without it the flames stood on a
+        /// building that looked untouched, during and after.</summary>
+        void FireSurface(bool keep, ref float damage, ref float burn)
+        {
+            if (!unit.def.building || unit.dying) return;
+            // Only a fire the player can see: an enemy building remembered in the fog is
+            // drawn as it was, and must not start to glow because it is burning now.
+            bool seen = unit.team != 1 || unit.visibleToPlayer || StarForge.Game.MatchSettings.spectate;
+            float heat = seen ? unit.FireHeat : 0f;
+            if (heat > 0.01f)
+            {
+                if (keep) scorched = Mathf.Max(scorched, heat * 0.44f);
+                burn = heat * 0.3f;
+            }
+            damage = Mathf.Max(damage, scorched);
+        }
+
         void ApplySurface(float t)
         {
             float flash = unit.damageFlash;
@@ -686,8 +708,9 @@ namespace StarForge.World
             bool constructing = !unit.Complete && unit.def.building;
             float burn = unit.dying ? Mathf.Clamp01(unit.deathTimer / 0.8f) : 0f;
             if (rig != null) { rig.ApplySurface(flash, damage, burn); return; }
+            FireSurface(true, ref damage, ref burn);
 
-            bool showing = flash > 0.01f || damage > 0.01f || constructing || unit.dying || loadFill > 0.001f || OreGlow > 0.001f;
+            bool showing = flash > 0.01f || damage > 0.01f || burn > 0.001f || constructing || unit.dying || loadFill > 0.001f || OreGlow > 0.001f;
             if (LegacyBlocks)
             {
                 WearOwn(false);
@@ -773,7 +796,8 @@ namespace StarForge.World
             float damage = unit.Complete && !unit.def.neutral ? Mathf.Clamp01((1f - unit.hp / unit.MaxHp - 0.25f) / 0.75f) : 0f;
             bool constructing = !unit.Complete && unit.def.building;
             float burn = unit.dying ? Mathf.Clamp01(unit.deathTimer / 0.8f) : 0f;
-            bool showing = flash > 0.01f || damage > 0.01f || constructing || unit.dying || loadFill > 0.001f || OreGlow > 0.001f;
+            FireSurface(false, ref damage, ref burn);
+            bool showing = flash > 0.01f || damage > 0.01f || burn > 0.001f || constructing || unit.dying || loadFill > 0.001f || OreGlow > 0.001f;
             if (showing != ownActive) return $"{unit.Type}: showing {showing} but wearing own {ownActive}";
             if (!ownActive) return null;
             float level = constructing ? unit.buildProgress * (unit.def.visualHeight + 0.2f) : BuildOff;

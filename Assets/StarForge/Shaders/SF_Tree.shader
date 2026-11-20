@@ -48,6 +48,7 @@ Shader "StarForge/Tree"
         _CardTint("Card colour multiplier", Color) = (1, 1, 1, 1)
         _Cutoff("Card coverage cut-off", Range(0, 1)) = 0.45
         _CardGraze("Card seen edge-on: gone below x, whole above y (|normal . view|); y 0 = off", Vector) = (0.10, 0.34, 0, 0)
+        _InnerShade("Shade of foliage that is not a card (0.62 inside a crown of cards, ~1 for reeds)", Range(0, 1.5)) = 0.62
         [Enum(UnityEngine.Rendering.CullMode)] _Cull("Cull", Float) = 2
     }
 
@@ -75,6 +76,7 @@ Shader "StarForge/Tree"
             half4 _CardTint;
             half _Cutoff;
             half4 _CardGraze;
+            half _InnerShade;
         CBUFFER_END
 
         TEXTURE2D(_CardTex); SAMPLER(sampler_CardTex);
@@ -129,6 +131,8 @@ Shader "StarForge/Tree"
 
         // The match's wind and the live blast pressure fronts.
         #include "SF_Wind.hlsl"
+        // _SF_TuneB: a player run's offsets on the leaf lighting below (zero otherwise).
+        #include "SF_Meadow.hlsl"
 
         // Object-space position after foliage loss, and the world position after wind.
         float3 TreeVertex(TreeAttributes v, float4 prm, out float3 posOS, out float3 normalOS)
@@ -326,14 +330,21 @@ Shader "StarForge/Tree"
                     // Per card and per tree a little lighter or darker, warmer or cooler.
                     c *= lerp(0.82, 1.12, saturate(i.color.g * 0.7 + i.rnd * 0.3)) * lerp(0.9, 1.08, patch);
                     c = lerp(c * half3(0.85, 0.94, 1.05), c * half3(1.08, 1.04, 0.9), height);
+                    // And tree by tree a different green: some warmer and yellower, some
+                    // cooler and deeper, so a stand of one kind is not one colour.
+                    c *= lerp(half3(1.12, 1.03, 0.80), half3(0.90, 1.0, 1.08), frac(i.rnd * 7.31));
                     // Blossom: clusters of flowers a few centimetres across among the
                     // leaves, picked by a noise over the atlas (so the same spray always
                     // flowers in the same places), a share of the leaf area set by _Bloom.a.
                     // (It used to pick whole cards by their brightness; the scanned leaves
                     // are too dark to pass, and a whole pink card read as a pink board.)
-                    half bn = TreeNoise3(float3(i.uv * 64.0, i.color.g * 5.0));
-                    half bloom = smoothstep(1.0 - _Bloom.a * 0.85, 1.0 - _Bloom.a * 0.85 + 0.06, bn);
-                    albedo = lerp(c, _Bloom.rgb * (0.55 + 0.45 * saturate(tex.g * 3.0)), bloom * 0.9);
+                    albedo = c;
+                    if (_Bloom.a > 0.001)   // only the kinds that flower pay for the noise
+                    {
+                        half bn = TreeNoise3(float3(i.uv * 64.0, i.color.g * 5.0));
+                        half bloom = smoothstep(1.0 - _Bloom.a * 0.85, 1.0 - _Bloom.a * 0.85 + 0.06, bn);
+                        albedo = lerp(c, _Bloom.rgb * (0.55 + 0.45 * saturate(tex.g * 3.0)), bloom * 0.9);
+                    }
                     ao *= lerp(0.65, 1.0, height);
                     smooth = 0.25;
                     leafMask = 1;
@@ -351,7 +362,9 @@ Shader "StarForge/Tree"
                     half height = saturate((p.y - (_CanopyCenter.y - _CanopyRadii.y)) / max(2.0 * _CanopyRadii.y, 0.1));
                     c = lerp(c * half3(0.8, 0.92, 1.08), c * half3(1.15, 1.08, 0.8), height);
                     // The inner canopy behind the cards: in the crown's own shade.
-                    albedo = c * lerp(0.6, 1.3, pile.a) * 0.62;
+                    // (_InnerShade: reeds and other foliage with no cards over it stand in
+                    // the open, and at the crown's shade they were near black.)
+                    albedo = c * lerp(0.6, 1.3, pile.a) * _InnerShade;
                     // Blossom: a share of the leaves on top, picked by their own shade
                     // and patchy across the crown.
                     half bloom = step(1.0 - _Bloom.a, pile.a * 0.7 + patch * 0.3) * smoothstep(0.55, 0.8, pile.b);
@@ -390,15 +403,22 @@ Shader "StarForge/Tree"
 
                 // Charring creeps in in patches (foliage browns and blackens faster
                 // than bark); while it burns, embers glow in thin cracks of the char.
-                half cn = TreeNoise3(p * 2.7 + 3.1);
-                half charIn = saturate(charAmt * (leafMask > 0.5 ? 2.2 : 1.15));
-                half charred = smoothstep(1.0 - charIn, 1.0 - charIn + 0.2, cn * 0.6 + 0.4 * (1.0 - i.color.b));
-                charred = max(charred, charIn * charIn);
-                half3 scorched = leafMask > 0.5 ? half3(0.05, 0.035, 0.02) : half3(0.025, 0.022, 0.02);
-                albedo = lerp(albedo, scorched, charred * 0.92);
-                half crack = saturate(1.0 - abs(TreeNoise3(p * 5.3) - 0.5) * 16.0);
-                half flicker = 0.7 + 0.3 * sin(_Time.y * 9.0 + p.y * 3.0 + i.rnd * 20.0);
-                half3 emission = half3(1.0, 0.33, 0.07) * embers * flicker * crack * charred * 1.6;
+                // (Only a plant that has burnt or is burning: the two noises were paid by
+                // every pixel of every tree, and are nothing on an untouched one.)
+                half charred = 0;
+                half3 emission = 0;
+                if (charAmt > 0.001 || embers > 0.001)
+                {
+                    half cn = TreeNoise3(p * 2.7 + 3.1);
+                    half charIn = saturate(charAmt * (leafMask > 0.5 ? 2.2 : 1.15));
+                    charred = smoothstep(1.0 - charIn, 1.0 - charIn + 0.2, cn * 0.6 + 0.4 * (1.0 - i.color.b));
+                    charred = max(charred, charIn * charIn);
+                    half3 scorched = leafMask > 0.5 ? half3(0.05, 0.035, 0.02) : half3(0.025, 0.022, 0.02);
+                    albedo = lerp(albedo, scorched, charred * 0.92);
+                    half crack = saturate(1.0 - abs(TreeNoise3(p * 5.3) - 0.5) * 16.0);
+                    half flicker = 0.7 + 0.3 * sin(_Time.y * 9.0 + p.y * 3.0 + i.rnd * 20.0);
+                    emission = half3(1.0, 0.33, 0.07) * embers * flicker * crack * charred * 1.6;
+                }
 
                 InputData inputData = (InputData)0;
                 inputData.positionWS = i.positionWS;
@@ -411,23 +431,59 @@ Shader "StarForge/Tree"
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(i.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
-                SurfaceData s = (SurfaceData)0;
-                s.albedo = albedo;
-                s.smoothness = smooth;
-                s.occlusion = ao;
-                s.emission = emission;
-                s.normalTS = half3(0, 0, 1);
-                s.alpha = 1.0;
-
-                half4 col = UniversalFragmentPBR(inputData, s);
-
-                // Sunlight through the leaves, seen looking toward the sun.
+                half4 col = half4(0, 0, 0, 1);
                 if (leafMask > 0.5)
                 {
+                    // Leaves are lit as leaves, not as a hard surface. Through the PBR
+                    // path a card turned from the sun, or under another card's shadow,
+                    // had only the ground's dim bounce on it, and every crown was bright
+                    // on top and black underneath. A leaf lets light through and a crown
+                    // scatters it down inside itself, so:
+                    //  - the sun wraps round the normal instead of ending at the terminator;
+                    //  - a leaf in the crown's own shadow is dimmer, never black;
+                    //  - faces turned from the sun carry the light that comes through
+                    //    them, yellower, strongest looking toward the sun;
+                    //  - the sky lights the undersides too, not the ground alone.
+                    // It is also less work than the PBR path it replaces: no reflection
+                    // probe, no specular lobe, on the pixels the frame overdraws most.
                     Light L = GetMainLight(inputData.shadowCoord, i.positionWS, half4(1, 1, 1, 1));
-                    half back = pow(saturate(dot(-v, L.direction)), 3.0) * _Translucency;
-                    half wrap = saturate(dot(n, L.direction) * 0.5 + 0.5) * 0.08;
-                    col.rgb += albedo * L.color * L.shadowAttenuation * (back + wrap) * (1.0 - charred);
+                    half sun = L.shadowAttenuation;
+                    half ndl = dot(n, L.direction);
+                    half wrapK = saturate(0.45 + _SF_TuneB.x);
+                    half diff = saturate((ndl + wrapK) / (1.0 + wrapK));
+                    half shadow = lerp(saturate(0.30 + _SF_TuneB.y), 1.0, sun);
+                    half through = saturate(0.4 - ndl * 0.6);
+                    half toSun = pow(saturate(dot(-v, L.direction)), 3.0);
+                    half trans = through * (0.22 + 0.9 * toSun) * max(_Translucency + _SF_TuneB.z, 0.0)
+                               * lerp(0.45, 1.0, sun) * (1.0 - charred);
+                    half inCrown = lerp(0.72, 1.0, ao);   // the cards deep in the crown, a little less of everything
+                    half3 lit = L.color * (albedo * (diff * shadow) + albedo * half3(1.25, 1.12, 0.55) * trans) * inCrown;
+                    half3 sky = (SampleSH(n) * 0.55 + SampleSH(half3(0, 1, 0)) * 0.45) * (1.0 + _SF_TuneB.w);
+                    lit += albedo * sky * ao;
+                    // A faint sheen off the sunlit side.
+                    half3 hv = normalize(L.direction + v);
+                    lit += L.color * (shadow * saturate(ndl * 4.0) * pow(saturate(dot(n, hv)), 28.0) * 0.045 * (1.0 - charred));
+                #if defined(_ADDITIONAL_LIGHTS)
+                    // Firelight and muzzle flashes, wrapped the same way.
+                    uint lightCount = GetAdditionalLightsCount();
+                    LIGHT_LOOP_BEGIN(lightCount)
+                        Light al = GetAdditionalLight(lightIndex, inputData.positionWS, half4(1, 1, 1, 1));
+                        half adl = saturate((dot(n, al.direction) + 0.5) / 1.5);
+                        lit += albedo * al.color * (al.distanceAttenuation * al.shadowAttenuation * adl);
+                    LIGHT_LOOP_END
+                #endif
+                    col.rgb = lit + emission;
+                }
+                else
+                {
+                    SurfaceData s = (SurfaceData)0;
+                    s.albedo = albedo;
+                    s.smoothness = smooth;
+                    s.occlusion = ao;
+                    s.emission = emission;
+                    s.normalTS = half3(0, 0, 1);
+                    s.alpha = 1.0;
+                    col = UniversalFragmentPBR(inputData, s);
                 }
                 col.rgb = MixFog(col.rgb, i.fog);
                 return half4(col.rgb, 1.0);

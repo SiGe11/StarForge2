@@ -77,6 +77,7 @@ Shader "StarForge/Terrain"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "SF_Meadow.hlsl"
 
             TEXTURE2D(_Control);  SAMPLER(sampler_Control);
             TEXTURE2D(_Splat0);   SAMPLER(sampler_Splat0);
@@ -230,6 +231,31 @@ Shader "StarForge/Terrain"
                 half smooth = dot(b, _Smooth);
                 half surface = dot(b, half4(c0.a, c1.a, c2.a, c3.a));
 
+                // Turf under the grass (SF_Meadow.hlsl). Where tufts grow -- the rule
+                // GroundScatter places them by (MapGenerator.GrassChance: the meadow
+                // weight, no cliff, level, clear of the shore) -- the scan's sand takes
+                // the grass's own colour, keeping its light and dark, and its stones
+                // (the tops of the scanned height) still show through. Without it a
+                // meadow was spikes on bare brown ground, and from far off, where the
+                // tufts have sunk away, no meadow at all.
+                half lush = smoothstep(0.2, 0.65, w.r) * (1.0 - smoothstep(0.15, 0.30, w.b));
+                if (lush > on && _SF_TuneA.x > -0.9)   // -sftune _SF_TuneA=-1: no turf, to cost it
+                {
+                    half patch = SFMeadowPatch(variation);
+                    half detail = clamp(dot(c0.rgb, half3(0.2126, 0.7152, 0.0722)) * (1.0 / 0.06), 0.45, 1.7);
+                    half stones = smoothstep(0.55, 0.85, c0.a);
+                    half level = smoothstep(0.80, 0.90, n.y);
+                    half dryShore = smoothstep(_WaterLevel + 0.3, _WaterLevel + 0.9, wp.y);
+                    half turf = lush * b.r * level * dryShore * (1.0 - stones * 0.75)
+                              * saturate(lerp(0.50, 0.80, patch) + _SF_TuneA.x);
+                    // The terrain's own variation factor further down (0.86..1.12) follows
+                    // the same channel as the patch, so it is taken out of the turf here:
+                    // left in, a dry patch's pale turf was darkened under blades that
+                    // SFGrassPatchTint brightens, and the tufts stood out of it again.
+                    albedo = lerp(albedo, SFTurfColor(patch) * detail * rcp(lerp(0.86, 1.12, variation)), turf);
+                    smooth = lerp(smooth, 0.08, turf);
+                }
+
                 // Normals: planar layers through a world-aligned TBN, at the same
                 // scales as their colour, for the layers that won the height blend...
                 half3 T = normalize(cross(n, half3(0, 0, 1)));
@@ -294,7 +320,9 @@ Shader "StarForge/Terrain"
                         // gravel along a meadow's edge that never burned.
                         half gone = SAMPLE_TEXTURE2D(_SF_BurntGrass, sampler_SF_BurntGrass, wp.xz * _SF_BurntGrassParams.x).r;
                         half ash = smoothstep(0.3, 0.9, gone) * smoothstep(0.1, 0.4, w.r);
-                        albedo = lerp(albedo, albedo * half3(0.30, 0.28, 0.27), ash);
+                        // Grey ash, not a darker green: the turf under it burnt with the grass.
+                        half ashLum = dot(albedo, half3(0.2126, 0.7152, 0.0722));
+                        albedo = lerp(albedo, lerp(albedo, ashLum.xxx, 0.8) * half3(0.34, 0.31, 0.29), ash);
                         smooth *= 1.0 - ash * 0.45;
                     }
                     // Craters (A): a scorched, blasted centre inside a ring of lighter,

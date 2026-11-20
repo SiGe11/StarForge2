@@ -51,6 +51,9 @@ namespace StarForge.Game
         float burstZoom = -1f;
         bool burstBase;
         bool burstStarted, holdCamera;
+        // -sfvegprobe [zoom]: the camera held on the densest wood for the whole run (grass,
+        // trees and their shadows filling the view), for costing vegetation changes.
+        float vegProbe;
         int rigProbe = -1;
         bool rigProbeRigid, rigProbePoses, rigProbeFollow, rigProbeFreeze;
         SoldierRigProbe rigProbeOn;
@@ -100,6 +103,12 @@ namespace StarForge.Game
                 else if (args[i] == "-sfgallery" && i + 1 < args.Length) { galleryDir = args[i + 1]; active = true; }
                 else if (args[i] == "-sfgalleryquick") galleryQuick = true;
                 else if (args[i] == "-sfburstbase") burstBase = true;
+                else if (args[i] == "-sfvegprobe")
+                {
+                    vegProbe = 55f;
+                    if (i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float,
+                                                              System.Globalization.CultureInfo.InvariantCulture, out float vz) && vz > 5f) vegProbe = vz;
+                }
                 else if (args[i] == "-sfrigprobe" && i + 1 < args.Length && int.TryParse(args[i + 1], out int rp)) rigProbe = rp;
                 else if (args[i] == "-sfrigrigid") rigProbeRigid = true;
                 else if (args[i] == "-sfrigfollow") rigProbeFollow = true;
@@ -171,6 +180,11 @@ namespace StarForge.Game
                 holdCamera = !rigProbeFollow;
                 rigProbeOn = gameObject.AddComponent<SoldierRigProbe>();
                 rigProbeOn.Begin(MapInfo.Instance, rig, rigProbe, rigProbeRigid, rigProbePoses, rigProbeFollow, rigProbeFreeze);
+            }
+            if (active && vegProbe > 0f && galleryDir == null && rig != null && MapInfo.Instance != null)
+            {
+                holdCamera = true;
+                StartCoroutine(VegProbe());
             }
             if (active && galleryDir != null)
             {
@@ -308,6 +322,13 @@ namespace StarForge.Game
             return c[Mathf.Clamp(Mathf.RoundToInt(q * (c.Count - 1)), 0, c.Count - 1)];
         }
 
+        IEnumerator VegProbe()
+        {
+            yield return new WaitForSecondsRealtime(1f);
+            rig.JumpTo(Grove(MapInfo.Instance));
+            rig.ZoomTo(vegProbe);
+        }
+
         IEnumerator Burst()
         {
             holdCamera = true;
@@ -411,6 +432,28 @@ namespace StarForge.Game
                 Debug.Log("[Gallery] " + fauna.FlightReport());
             }
             yield return Shot("6_overview", centre, rig.maxDistance);
+            // The home base alight: every building of ours near the Foundry, photographed as
+            // it catches, at its height from close and from further off, and once it is out.
+            // Last of the early set: the fire costs every building 6-12% of its health and
+            // draws from the fire's stream, so nothing after it compares with older galleries.
+            {
+                var lit = new List<Unit>();
+                foreach (var u in world.units)
+                    if (u != null && !u.dying && u.team == 0 && u.def.building && u.Complete && (u.pos - home).sqrMagnitude < 34f * 34f) lit.Add(u);
+                if (lit.Count > 0)
+                {
+                    rig.JumpTo(home + new Vector2(4f, -4f));
+                    rig.ZoomTo(30f);
+                    yield return new WaitForSecondsRealtime(1.5f);
+                    foreach (var u in lit) world.Ignite(u);
+                    yield return Shot("5g_house_catching", home + new Vector2(4f, -4f), 30f, 1.6f);
+                    yield return new WaitForSecondsRealtime(4f);
+                    yield return Shot("5h_house_fire", home + new Vector2(4f, -4f), 30f, 0.8f);
+                    yield return Shot("5i_house_fire_mid", home, 62f, 1.2f);
+                    yield return new WaitForSecondsRealtime(12f);
+                    yield return Shot("5j_house_after", home + new Vector2(4f, -4f), 30f, 0.8f);
+                }
+            }
             holdCamera = false;
             if (galleryQuick) { Finish(); yield break; }
 
@@ -632,6 +675,14 @@ namespace StarForge.Game
                           $"vsync {QualitySettings.vSyncCount}, cap {(Application.targetFrameRate > 0 ? Application.targetFrameRate.ToString() : "none")}");
             sb.AppendLine($"avg {avg:0.00} ms ({1000f / Mathf.Max(0.01f, avg):0.0} fps) · p50 {P(0.5f):0.00} · p95 {P(0.95f):0.00} · p99 {P(0.99f):0.00} · worst {P(1f):0.00} ms");
             if (rigProbeOn != null) sb.AppendLine(rigProbeOn.Report());
+            {
+                var scatter = FindAnyObjectByType<GroundScatter>();
+                var plantsDrawn = FindAnyObjectByType<VegetationRenderer>();
+                if (scatter != null)
+                    sb.AppendLine($"vegetation: {scatter.InstanceCount} ground instances grown, {scatter.FlowerCount} flower clumps; last frame {scatter.DrawnLastFrame} grass and flower clumps drawn" +
+                                  $"{(scatter.legacyDraw ? " (old draw path)" : "")}, {(plantsDrawn != null ? plantsDrawn.DrawnLastFrame : 0)} plants" +
+                                  (vegProbe > 0f ? $"; camera held on the wood at zoom {vegProbe:0}" : ""));
+            }
             if (world != null && world.Tactical)
                 sb.AppendLine($"tactical: {world.ShotsFired} rounds, {world.ShotsHit} struck; sight rules {world.SightMs / Mathf.Max(1, frames.Count):0.000} ms a frame, shots' lines {world.LinesMs / Mathf.Max(1, frames.Count):0.000}");
             sb.AppendLine($"peak entities {maxEntities} · peak projectiles {maxProjectiles} · lowest render scale {minScale:0.00}, average {(scaleFrames > 0 ? scaleSum / scaleFrames : 1.0):0.00}" +

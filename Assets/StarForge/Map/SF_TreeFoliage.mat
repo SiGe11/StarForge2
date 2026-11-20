@@ -50,6 +50,7 @@ Material:
     - _Cull: 0
     - _Cutoff: 0.45
     - _Foliage: 1
+    - _InnerShade: 0.62
     - _LeafNormal: 0.9
     - _LeafStyle: 0
     - _LeafTiling: 0.9

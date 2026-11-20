@@ -170,6 +170,13 @@ namespace StarForge.View
 
         // Firelight: a few flickering lights on the burning trees nearest the camera.
         readonly Light[] fireLights = new Light[4];
+        // Burning buildings have two of their own: a wood on fire never takes them.
+        readonly Light[] houseLights = new Light[2];
+        readonly List<(Unit u, float heat)> houseFires = new List<(Unit, float)>(8);
+        // When each building was last seen burning (world time), for the smoulder after.
+        readonly Dictionary<int, float> houseBurnt = new Dictionary<int, float>();
+        VegetationRenderer plantView;
+        bool plantViewSought;
 
         // Where each shell in flight last dropped a puff of its smoke trail.
         readonly Dictionary<Projectile, (Vector3 last, float age)> trailState = new Dictionary<Projectile, (Vector3, float)>();
@@ -259,6 +266,18 @@ namespace StarForge.View
                 l.range = 12f;
                 l.enabled = false;
                 fireLights[i] = l;
+            }
+            for (int i = 0; i < houseLights.Length; i++)
+            {
+                var go = new GameObject("HouseFireLight" + i);
+                go.transform.SetParent(transform, false);
+                var l = go.AddComponent<Light>();
+                l.type = LightType.Point;
+                l.shadows = LightShadows.None;
+                l.color = new Color(1f, 0.5f, 0.2f);
+                l.range = 16f;
+                l.enabled = false;
+                houseLights[i] = l;
             }
 
             for (int i = 0; i < flashes.Length; i++)
@@ -688,15 +707,26 @@ namespace StarForge.View
                     break;
                 case GameEventKind.StructureIgnited:
                     if (e.unit == null || !(Seen(e.pos) || e.unit.everSeenByPlayer)) return;
-                    // It catches with a flare along the roof line.
-                    for (int i = 0; i < 8; i++)
+                    // It catches with a flare up the wall on the side the fire takes hold
+                    // (BuildingFire spreads round from the same bearing).
                     {
-                        float a = Random.Range(0f, Mathf.PI * 2f), r = e.unit.def.radius * Random.Range(0.05f, 0.35f);
-                        var p = e.pos + new Vector3(Mathf.Cos(a) * r, e.unit.def.visualHeight, Mathf.Sin(a) * r);
-                        float w = Random.Range(1.4f, 2.2f);
-                        EmitFlame(flames, p + Vector3.up * (w * 0.65f), Vector3.up * Random.Range(1.2f, 2.2f), w, w * 1.8f, Random.Range(0.5f, 0.8f), Color.white);
+                        var hu = e.unit;
+                        var roof = RoofOf(hu.Type);
+                        float from = HouseFireBearing(hu);
+                        Vector3 toCam = rig != null && rig.cam != null ? (rig.cam.transform.position - hu.Ground).normalized : Vector3.up;
+                        for (int i = 0; i < 9; i++)
+                        {
+                            float w = Random.Range(1.3f, 2.1f), h = w * Random.Range(1.6f, 2.1f);
+                            var foot = HouseFlameFoot(hu, roof, from + Random.Range(-0.5f, 0.5f), i >= 6, toCam);
+                            EmitFlame(flames, foot + Vector3.up * (h * 0.36f), Vector3.up * Random.Range(1.2f, 2.2f), w, h, Random.Range(0.5f, 0.8f), Color.white);
+                        }
+                        var side = hu.Ground + new Vector3(Mathf.Cos(from), 0f, Mathf.Sin(from)) * (hu.def.radius * 0.8f);
+                        for (int i = 0; i < 10; i++)
+                            Emit(sparks, side + Vector3.up * Random.Range(0.5f, hu.def.visualHeight * 0.6f),
+                                 new Vector3(Random.Range(-2f, 2f), Random.Range(3f, 7f), Random.Range(-2f, 2f)), 0.2f, Random.Range(0.4f, 0.8f),
+                                 new Color(1f, 0.7f, 0.3f));
+                        Emit(glow, side + Vector3.up * (hu.def.visualHeight * 0.5f + 0.6f), Vector3.up * 0.5f, 5f + hu.def.radius, 0.6f, new Color(0.95f, 0.45f, 0.14f));
                     }
-                    Emit(glow, e.pos + Vector3.up * (e.unit.def.visualHeight + 0.6f), Vector3.up * 0.5f, 5f + e.unit.def.radius, 0.6f, new Color(0.95f, 0.45f, 0.14f));
                     break;
             }
         }
@@ -711,14 +741,20 @@ namespace StarForge.View
             var k = veg.KindOf(i);
             var pose = veg.Pose(i);
             float lost = veg.live[i].foliageLost;
+            if (!plantViewSought) { plantView = FindAnyObjectByType<VegetationRenderer>(); plantViewSought = true; }
+            // A slender tree whose leaves have gone is a bare stem (VegetationRenderer draws
+            // it burnt down, too): its fire is on the stem that is left. With a fifth of the
+            // flames still at the crown's place it wore a ball of fire on a pole.
+            bool stem = plantView != null && plantView.Slender(i);
+            float cut = plantView != null ? plantView.CutOf(i) : 1f;
             Vector3 local;
-            if (k.HasCrown && Random.value > lost * 0.8f)
+            if (k.HasCrown && Random.value > lost * (stem ? 1f : 0.8f))
             {
                 Vector3 r = Random.insideUnitSphere;
                 float shrink = 1f - lost * 0.6f;
                 local = k.crownCenter + Vector3.Scale(r, k.crownRadii) * shrink * 0.85f;
             }
-            else local = new Vector3(Random.Range(-0.2f, 0.2f), Random.Range(0.3f, 0.85f) * k.height, Random.Range(-0.2f, 0.2f));
+            else local = new Vector3(Random.Range(-0.2f, 0.2f), Random.Range(stem ? 0.12f : 0.3f, 0.85f) * k.height * cut, Random.Range(-0.2f, 0.2f));
             return pose.MultiplyPoint3x4(local);
         }
 
@@ -918,7 +954,7 @@ namespace StarForge.View
                     }
                     // A rolling billow of flame now and then, at the height of the blaze
                     // (a tree's: on a bush it reads as a small explosion).
-                    if (!k.bush && s.fire > 0.6f && Random.value < dt * 0.5f)
+                    if (!k.bush && s.fire > 0.6f && s.foliageLost < 0.6f && Random.value < dt * 0.5f)
                         Emit(fire, CrownPoint(veg, i), Vector3.up * Random.Range(1.5f, 2.5f), Random.Range(1.3f, 2.0f) * size,
                              Random.Range(0.6f, 0.9f), new Color(1f, 0.8f, 0.6f), Random.Range(0f, 360f));
                     if (Random.value < dt * s.fire * 3f)
@@ -1027,41 +1063,201 @@ namespace StarForge.View
             float rad = u.def.radius, top = u.def.visualHeight;
             float size = Mathf.Clamp(rad / 2.5f, 0.8f, 1.5f) * Mathf.Lerp(0.55f, 1f, heat);
             var at = u.Ground;
-            // The flame's base is the bottom of its quad (make_flame_sheet leaves the
-            // top for the tongue to lift into), so each quad stands on the surface it
-            // burns; anywhere inside the footprint below the roof, the building itself
-            // hides it. The structures are stepped rounds -- a tall middle over a wider,
-            // lower ring -- so tongues go on the top of the middle and low on the outer
-            // walls: at full height out over the ring they hung in the air. (The meshes
-            // are not readable in the player, so the real roof cannot be sampled.)
-            float rate = heat * (12f + 4f * rad);
+            var roof = RoofOf(u.Type);
+            float crest = roof != null ? Mathf.Max(roof[1], 0.5f) : top;
+            houseFires.Add((u, heat));
+            houseBurnt[u.id] = world.time;
+            // It takes hold on one side and works round: the arc alight opens from a
+            // narrow front to the whole building over the first six seconds. (All of it
+            // alight at once from the first frame read as a switch thrown.)
+            float from = HouseFireBearing(u);
+            float arc = Mathf.Lerp(0.5f, Mathf.PI, Mathf.SmoothStep(0f, 1f, (world.time - u.burnStart) / 6f));
+            Vector3 toCam = rig != null && rig.cam != null ? (rig.cam.transform.position - at).normalized : Vector3.up;
+            // Tongues standing on the roof where the roof really is (RoofOf: each model's
+            // measured profile), their feet a little inside it so they come out of the
+            // building, and up the outer walls.
+            float rate = heat * (18f + 8f * rad);
             for (int n = Mathf.FloorToInt(rate * dt + Random.value); n > 0; n--)
             {
-                float a = Random.Range(0f, Mathf.PI * 2f);
-                var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                float w = Random.Range(1.3f, 2.2f) * size, h = w * Random.Range(1.6f, 2.2f);
-                Vector3 foot = Random.value < 0.45f
-                    ? at + dir * (Mathf.Sqrt(Random.value) * rad * 0.35f) + Vector3.up * (top * 0.97f)
-                    : at + dir * (rad * Random.Range(0.88f, 1.0f)) + Vector3.up * (top * Random.Range(0.2f, 0.55f));
+                bool wall = Random.value < 0.3f;
+                float w = Random.Range(1.7f, 2.9f) * size * (wall ? 0.85f : 1f), h = w * Random.Range(1.6f, 2.2f);
+                var foot = HouseFlameFoot(u, roof, from + Random.Range(-arc, arc), !wall, toCam);
                 EmitFlame(flames, foot + Vector3.up * (h * 0.36f),
                           Vector3.up * Random.Range(0.7f, 1.5f) + wind * 0.3f + Random.insideUnitSphere * 0.2f,
                           w, h, Random.Range(0.55f, 0.9f), Color.white);
             }
+            // At its height the roof throws up rolling billows of flame, and something
+            // inside gives way now and then in a burst of sparks.
+            if (heat > 0.6f && Random.value < dt * 1.0f)
+            {
+                float a = Random.Range(0f, Mathf.PI * 2f), r = Random.value * rad * 0.3f;
+                Emit(fire, at + new Vector3(Mathf.Cos(a) * r, crest * 0.9f, Mathf.Sin(a) * r), Vector3.up * Random.Range(1.5f, 2.5f) + wind * 0.4f,
+                     Random.Range(0.4f, 0.6f) * Mathf.Clamp(rad, 2f, 5f), Random.Range(0.7f, 1f), new Color(1f, 0.82f, 0.62f), Random.Range(0f, 360f));
+            }
+            if (Random.value < dt * heat * 1.3f)
+            {
+                var p = HouseFlameFoot(u, roof, from + Random.Range(-arc, arc), true, toCam) + Vector3.up * 0.3f;
+                for (int i = Random.Range(5, 10); i > 0; i--)
+                    Emit(sparks, p, new Vector3(Random.Range(-2.5f, 2.5f), Random.Range(3f, 7.5f), Random.Range(-2.5f, 2.5f)) + wind,
+                         Random.Range(0.16f, 0.24f), Random.Range(0.45f, 0.9f), new Color(1f, 0.72f, 0.32f));
+            }
             // A column of smoke leaning with the wind, grey (a near-black one reads as
-            // a hole in the scene), thick while it burns hard.
-            if (Random.value < dt * heat * 9f)
+            // a hole in the scene), thick while it burns hard; and under it a darker,
+            // heavier roll off the roof that the wind drags along before it lifts.
+            // (About 55 puffs alive a building at its height, of the 900 the smoke system
+            // shares with explosions: 50 before.)
+            if (Random.value < dt * heat * 8f)
             {
                 float shade = Random.Range(0.30f, 0.38f);
-                Emit(smoke, at + new Vector3(Random.Range(-rad, rad) * 0.5f, top + 1.0f, Random.Range(-rad, rad) * 0.5f),
+                Emit(smoke, at + new Vector3(Random.Range(-rad, rad) * 0.5f, crest + 1.0f, Random.Range(-rad, rad) * 0.5f),
                      Vector3.up * Random.Range(2.2f, 3.4f) + wind * Random.Range(0.8f, 1.4f) + Random.insideUnitSphere * 0.3f,
-                     Random.Range(3.6f, 5.4f) * size, Random.Range(4.5f, 6.5f), new Color(shade, shade * 0.97f, shade * 0.93f, 0.66f), Random.Range(0f, 360f));
+                     Random.Range(4.4f, 6.4f) * size, Random.Range(4.5f, 6.5f), new Color(shade, shade * 0.97f, shade * 0.93f, 0.66f), Random.Range(0f, 360f));
             }
-            if (Random.value < dt * heat * 4f)
-                Emit(embers, at + new Vector3(Random.Range(-rad, rad) * 0.6f, top + 0.3f, Random.Range(-rad, rad) * 0.6f),
-                     Random.insideUnitSphere * 1.0f + Vector3.up * Random.Range(1.8f, 3.6f) + wind * 0.8f,
-                     Random.Range(0.1f, 0.18f), Random.Range(1.2f, 2.2f), new Color(1f, 0.6f, 0.25f));
+            if (Random.value < dt * heat * heat * 3f)
+            {
+                float shade = Random.Range(0.24f, 0.30f);
+                Emit(smoke, at + new Vector3(Random.Range(-rad, rad) * 0.6f, crest + 0.7f, Random.Range(-rad, rad) * 0.6f),
+                     Vector3.up * Random.Range(1.0f, 1.8f) + wind * Random.Range(1.2f, 1.9f) + Random.insideUnitSphere * 0.3f,
+                     Random.Range(4.6f, 6.6f) * size, Random.Range(3.2f, 4.6f), new Color(shade, shade * 0.96f, shade * 0.92f, 0.72f), Random.Range(0f, 360f));
+            }
+            if (Random.value < dt * heat * 9f)
+                Emit(embers, at + new Vector3(Random.Range(-rad, rad) * 0.6f, crest * Random.Range(0.5f, 1f) + 0.3f, Random.Range(-rad, rad) * 0.6f),
+                     Random.insideUnitSphere * 1.0f + Vector3.up * Random.Range(1.8f, 3.8f) + wind * 0.8f,
+                     Random.Range(0.1f, 0.18f), Random.Range(1.2f, 2.4f), new Color(1f, 0.6f, 0.25f));
             if (Random.value < dt * heat * 3f)
-                Emit(glow, at + Vector3.up * (top + 0.6f), Vector3.up * 0.4f, Random.Range(5f, 7.5f) * size, Random.Range(0.4f, 0.7f), new Color(0.95f, 0.42f, 0.12f));
+                Emit(glow, at + Vector3.up * (crest + 0.6f), Vector3.up * 0.4f, Random.Range(5f, 7.5f) * size, Random.Range(0.4f, 0.7f), new Color(0.95f, 0.42f, 0.12f));
+        }
+
+        /// <summary>After its fire a building smoulders for a while: thin pale smoke off
+        /// the roof and the odd ember (as a burnt tree does). Asked for every building;
+        /// does nothing for one that has not burnt lately.</summary>
+        void BuildingSmoulder(Unit u, float dt)
+        {
+            if (houseBurnt.Count == 0 || !houseBurnt.TryGetValue(u.id, out float since)) return;
+            float age = world.time - since;
+            if (age > 25f || age < 0f) { houseBurnt.Remove(u.id); return; }
+            float strength = 1f - age / 25f;
+            var w2 = StarForge.World.Wind.At(world.time);
+            var wind = new Vector3(w2.x, 0f, w2.y);
+            float rad = u.def.radius;
+            var roof = RoofOf(u.Type);
+            float crest = roof != null ? Mathf.Max(roof[1], 0.5f) : u.def.visualHeight;
+            if (Random.value < dt * 2f * strength)
+            {
+                float shade = Random.Range(0.42f, 0.52f);
+                Emit(smoke, u.Ground + new Vector3(Random.Range(-rad, rad) * 0.5f, crest + 0.8f, Random.Range(-rad, rad) * 0.5f),
+                     Vector3.up * Random.Range(0.9f, 1.5f) + wind * 0.7f, Random.Range(1.8f, 3f), Random.Range(3.5f, 5f),
+                     new Color(shade, shade, shade * 0.98f, 0.4f * strength), Random.Range(0f, 360f));
+            }
+            if (Random.value < dt * 1.2f * strength)
+                Emit(embers, u.Ground + new Vector3(Random.Range(-rad, rad) * 0.5f, crest * Random.Range(0.4f, 1f), Random.Range(-rad, rad) * 0.5f),
+                     Vector3.up * 1.2f + wind * 0.5f, 0.09f, Random.Range(1f, 2f), new Color(1f, 0.45f, 0.15f));
+        }
+
+        /// <summary>The bearing a building's fire takes hold at, the same all through one
+        /// fire (from its id and when it caught), never from a random stream.</summary>
+        static float HouseFireBearing(Unit u) => Mathf.Repeat(u.id * 2.399963f + u.burnStart * 0.37f, Mathf.PI * 2f);
+
+        // The roof of each structure as its model has it: the model's radius, then the
+        // roof's height in metres at r/R = 0, 1/8 .. 1 (the 15th percentile round the
+        // circle, so a flame put there stands on or just inside the building wherever
+        // it is not round; Tools/blender/roof_profile.py measures them
+        // from the FBXs, whose meshes the player cannot read). A changed model wants
+        // its row measured again.
+        static readonly float[] RoofFoundry = { 4.54f, 4.94f, 4.94f, 4.63f, 3.22f, 3.16f, 3.16f, 1.14f, 0f, 0f };
+        static readonly float[] RoofGarrison = { 4.86f, 3.21f, 2.99f, 2.9f, 2.82f, 2.01f, 0.77f, 0f, 0f, 0f };
+        static readonly float[] RoofWorkshop = { 5.57f, 3.4f, 3.25f, 2.96f, 2.57f, 0.94f, 0.94f, 0f, 0f, 0f };
+        static readonly float[] RoofBunkhouse = { 2.59f, 1.75f, 1.64f, 1.51f, 1.36f, 1.36f, 0.33f, 0f, 0f, 0f };
+        static readonly float[] RoofArmory = { 4.58f, 2.97f, 2.87f, 2.72f, 2.57f, 0.3f, 0.3f, 0f, 0f, 0f };
+        static readonly float[] RoofAirfield = { 6.2f, 0.24f, 0.24f, 0.24f, 0.24f, 0.24f, 0.24f, 0f, 0f, 0f };
+        static readonly float[] RoofBiolab = { 4.08f, 3.68f, 3.22f, 3.04f, 2.83f, 2.46f, 1.8f, 0.3f, 0.3f, 0f };
+        static readonly float[] RoofSentinel = { 1.73f, 1.4f, 1.4f, 1.4f, 1.4f, 0.78f, 0.86f, 0.38f, 0.25f, 0f };
+        static readonly float[] RoofMechBay = { 4.49f, 0.66f, 0.66f, 0.66f, 0.48f, 0.48f, 0.48f, 0.48f, 0f, 0f };
+
+        static float[] RoofOf(UnitType t)
+        {
+            switch (t)
+            {
+                case UnitType.Foundry: return RoofFoundry;
+                case UnitType.Garrison: return RoofGarrison;
+                case UnitType.Workshop: return RoofWorkshop;
+                case UnitType.Bunkhouse: return RoofBunkhouse;
+                case UnitType.Armory: return RoofArmory;
+                case UnitType.Airfield: return RoofAirfield;
+                case UnitType.Biolab: return RoofBiolab;
+                case UnitType.Sentinel: return RoofSentinel;
+                case UnitType.MechBay: return RoofMechBay;
+                default: return null;
+            }
+        }
+
+        static float RoofHeight(float[] roof, float r)
+        {
+            float x = Mathf.Clamp01(r / roof[0]) * 8f;
+            int i = Mathf.Min((int)x, 7);
+            return Mathf.Lerp(roof[1 + i], roof[2 + i], x - i);
+        }
+
+        /// <summary>Where a tongue of flame stands on a building at bearing a: on its roof,
+        /// or part-way up its outer wall, brought 0.7 m toward the camera so the soft
+        /// fade against the wall behind does not thin it away (along the line of sight,
+        /// so it stays where it was on the screen).</summary>
+        Vector3 HouseFlameFoot(Unit u, float[] roof, float a, bool onRoof, Vector3 toCam)
+        {
+            var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+            var at = u.Ground;
+            float rad = u.def.radius, top = u.def.visualHeight;
+            if (roof == null)
+            {
+                // No measured roof: the top of the middle, or low on the outer wall.
+                return onRoof
+                    ? at + dir * (Mathf.Sqrt(Random.value) * rad * 0.35f) + Vector3.up * (top * 0.97f)
+                    : at + dir * (rad * Random.Range(0.88f, 1.0f)) + Vector3.up * (top * Random.Range(0.2f, 0.55f)) + toCam * 0.7f;
+            }
+            if (onRoof)
+            {
+                float r = Mathf.Sqrt(Random.value) * roof[0] * 0.95f;
+                float y = RoofHeight(roof, r);
+                if (y > 0.2f) return at + dir * r + Vector3.up * (y - 0.12f);
+            }
+            // The wall: the outermost ring the roof still stands over.
+            int edge = 0;
+            for (int i = 8; i >= 0; i--) if (roof[1 + i] > 0.2f) { edge = i; break; }
+            float wallR = roof[0] * Mathf.Min(1f, (edge + 0.5f) / 8f), wallTop = roof[1 + edge];
+            return at + dir * wallR + Vector3.up * (wallTop * Random.Range(0.1f, 0.75f)) + toCam * 0.7f;
+        }
+
+        /// <summary>The firelight of the burning buildings nearest the view: one flickering
+        /// point light over each of the two hottest, so the walls, the ground and whatever
+        /// stands by are lit by the fire. (Burning trees had lights; a burning base had none.)</summary>
+        void HouseLights()
+        {
+            Vector2 focus = rig != null ? rig.Focus : Vector2.zero;
+            for (int k = 0; k < houseLights.Length; k++)
+            {
+                int best = -1;
+                float bestScore = 0f;
+                for (int i = 0; i < houseFires.Count; i++)
+                {
+                    var (hu, heat) = houseFires[i];
+                    if (hu == null || heat <= 0f) continue;
+                    float score = heat / (1f + (hu.pos - focus).sqrMagnitude / 3600f);
+                    if (score > bestScore) { bestScore = score; best = i; }
+                }
+                var l = houseLights[k];
+                if (best < 0) { l.enabled = false; continue; }
+                var (u, h) = houseFires[best];
+                houseFires[best] = (u, -1f);
+                var roof = RoofOf(u.Type);
+                float crest = roof != null ? Mathf.Max(roof[1], 0.5f) : u.def.visualHeight;
+                l.transform.position = u.Ground + Vector3.up * (crest + 1.6f);
+                float flicker = 0.7f + 0.2f * Mathf.PerlinNoise(Time.time * 6f, u.id * 0.37f) + 0.1f * Mathf.PerlinNoise(Time.time * 17f, u.id * 1.3f);
+                l.intensity = 8f * h * flicker;
+                l.range = 10f + 2.5f * u.def.radius;
+                l.color = Color.Lerp(new Color(1f, 0.45f, 0.15f), new Color(1f, 0.62f, 0.3f), flicker - 0.6f);
+                l.enabled = true;
+            }
+            houseFires.Clear();
         }
 
         void BurningGrass(StarForge.World.Vegetation veg, float dt, Vector3 camFocus, Vector3 wind)
@@ -2281,7 +2477,11 @@ namespace StarForge.View
                         if (frac < 0.3f) Emit(fire, p, Vector3.up, u.def.radius * 0.8f, 0.7f, Color.white, Random.Range(0f, 360f));
                     }
                 }
-                if (u.def.building && u.OnFire) BuildingFire(u, dt);
+                if (u.def.building)
+                {
+                    if (u.OnFire) BuildingFire(u, dt);
+                    else BuildingSmoulder(u, dt);
+                }
                 if (u.Type == UnitType.Skimmer && u.agent != null && u.agent.enabled && u.agent.velocity.sqrMagnitude > 4f && Random.value < dt * 30f)
                 {
                     float yaw = u.yaw;
@@ -2293,6 +2493,7 @@ namespace StarForge.View
                     Emit(glow, basePos - side, -fwd * 2f, 0.45f, 0.22f, c);
                 }
             }
+            HouseLights();
 
             // Shells leave a smoke trail: a puff every TrailSpacing metres along the
             // path, so it reads as a continuous arc whatever the frame rate.
