@@ -256,6 +256,9 @@ namespace StarForge.AI
         public string reason = "";
         public string backend = "cpu";
         public float influenceMs;
+        /// <summary>Match seconds Think was told in all, and how often it ran (BugTrials.ThinkClock).</summary>
+        public float thinkSeconds;
+        public int thinks;
         public Vector2 scoutTarget;
         public bool enemyBaseKnown;
         public Vector2 enemyBase;

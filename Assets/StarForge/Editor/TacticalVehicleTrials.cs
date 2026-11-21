@@ -64,6 +64,211 @@ namespace StarForge.EditorTools
         public static string CoverRounds() => Stage<CoverRoundsTrial>("CoverRounds");
         public static string CoverRoundsReport() => Report<CoverRoundsTrial>();
         public static string InstinctReport() => Report<InstinctTrial>();
+        /// <summary>F7's probe: a Mauler on Hold, four riflemen ducked behind a low wall 22 m off (known through a spotter
+        /// of its side; no round's way to them) and three in the open 13-14 m off, placed so the four come first in the
+        /// spatial grid's order, and a rifleman of its side beside it; nobody fires. 20 looks over 10 s a field, up to
+        /// three walls: the tank's own machine-gun target and the rifleman's (kept while a round reaches him, as FireBlocked does) read. Target with the budget spent best first: no look
+        /// without a target while an open man is seen, and the pick an open man (the rifleman's the nearest). Before:
+        /// up to every look without one.</summary>
+        public static string LineBudget() { LineBudgetTrial.Mode = 0; return Stage<LineBudgetTrial>("LineBudget"); }
+        /// <summary>LineBudget with the four behind the wall lying flat, crowd-pushing off: no line reaches them, so the
+        /// bug hunt's silent machine gun is what it measures.</summary>
+        public static string LineBudgetFlat() { LineBudgetTrial.Mode = 1; return Stage<LineBudgetTrial>("LineBudget"); }
+        /// <summary>The mirror (the Fable review's case): the four lie flat behind the wall 11 m from the tank and the
+        /// three stand in the open 20 m out the far side, first in the grid's order. A budget spent nearest first and
+        /// stopping after four would find none; spent in grid order it finds them.</summary>
+        public static string LineBudgetNear() { LineBudgetTrial.Mode = 2; return Stage<LineBudgetTrial>("LineBudget"); }
+        /// <summary>The mirror's field with the rifleman hiding, his target the nearest open man, and an enemy Digger with
+        /// a line 8 m from him (the final Fable review's case): his target must not change while he hides (target 0
+        /// changes, 0 frames on the Digger).</summary>
+        public static string LineBudgetHide() { LineBudgetTrial.Mode = 3; return Stage<LineBudgetTrial>("LineBudget"); }
+        /// <summary>The map LineBudget's before and after runs use (53 low walls; map 1000 has no wall the staging fits).</summary>
+        public static string UseLineBudgetSeed() { StarForge.Game.MatchSettings.mapSeed = 3469857940u; return "next Play on map 3469857940 (and every Play after it: TacticalTrials.ClearSeed frees it)"; }
+        public static string LineBudgetReport() => Report<LineBudgetTrial>();
+    }
+
+    public sealed class LineBudgetTrial : TacticalTrial
+    {
+        protected override bool RulesOnly => true;
+        /// <summary>0 the four ducked, 1 lying flat, 2 lying flat and nearer than the open three.</summary>
+        public static int Mode;
+        static bool Flat => Mode >= 1;
+
+        // A point's place in the spatial grid's order (GameWorld: 32 cells a side, walked row by row).
+        int CellOrder(Vector2 p)
+        {
+            float c = world.MapSize / 32f;
+            return Mathf.Clamp((int)(p.y / c), 0, 31) * 32 + Mathf.Clamp((int)(p.x / c), 0, 31);
+        }
+
+        IEnumerator Start()
+        {
+            yield return TacticalMatch();
+            if (!Ready) { if (report == "staging") report = "no match running"; yield break; }
+            report = "running";
+            var sb = new StringBuilder();
+            HoldStatics();
+            int fields = 0, looks = 0, openSeenLooks = 0, gunNone = 0, gunWall = 0, gunOpen = 0;
+            int rifleNone = 0, rifleWall = 0, rifleOpen = 0, rifleNotNearest = 0;
+            int nShort = 0, nClear = 0, nRoom = 0, nOrder = 0, nWalls = 0;
+            foreach (var w in new List<CoverWall>(world.Walls))
+            {
+                if (fields >= 3) break;
+                if (w.smashed || w.height > MapGenerator.VaultHigh) continue;
+                nWalls++;
+                if ((w.b - w.a).magnitude < 2.2f) { nShort++; continue; }
+                Vector2 ab = (w.b - w.a).normalized;
+                float off = w.half + MapGenerator.WallPad + 0.08f;
+                foreach (float side in new[] { 1f, -1f })
+                {
+                    // n points from the wall to the men behind it; the tank stands 22 m out the other way, the men in
+                    // the open 13 m beyond it: nearer the tank, and later in the grid's order.
+                    Vector2 n = new Vector2(-ab.y, ab.x) * side;
+                    var behindAt = new List<Vector2>();
+                    foreach (float t in new[] { -0.9f, -0.3f, 0.3f, 0.9f }) behindAt.Add(w.Mid + n * off + ab * t);
+                    float toTank = Mode >= 2 ? 11f : 22f, beyond = Mode >= 2 ? 20f : 13f;
+                    Vector2 tankAt = w.Mid - n * (off + toTank), rifleAt = tankAt + ab * 3f, spotAt = w.Mid + n * off + ab * 7f;
+                    var openAt = new List<Vector2>();
+                    foreach (float t in new[] { -4f, 0f, 4f }) openAt.Add(tankAt - n * beyond + ab * t);
+                    bool clear = true, room = map.InBounds(tankAt, 6f) && world.Walkable(tankAt, 2f) && world.Walkable(rifleAt, 1f) &&
+                              map.InBounds(spotAt, 4f) && world.Walkable(spotAt, 1f);
+                    foreach (var p in behindAt) clear &= w.top - world.Sight.GroundAt(p.x, p.y) >= MapGenerator.DuckedClear;
+                    foreach (var p in openAt) room &= map.InBounds(p, 4f) && world.Walkable(p, 1f);
+                    Vector2 diggerAt = rifleAt + ab * 8f;
+                    if (Mode == 3) room &= map.InBounds(diggerAt, 4f) && world.Walkable(diggerAt, 1.5f);
+                    int lastBehind = 0, firstOpen = int.MaxValue, firstBehind = int.MaxValue, lastOpen = 0;
+                    foreach (var p in behindAt) { lastBehind = Mathf.Max(lastBehind, CellOrder(p)); firstBehind = Mathf.Min(firstBehind, CellOrder(p)); }
+                    foreach (var p in openAt) { firstOpen = Mathf.Min(firstOpen, CellOrder(p)); lastOpen = Mathf.Max(lastOpen, CellOrder(p)); }
+                    if (!clear) { nClear++; continue; }
+                    if (!room) { nRoom++; continue; }
+                    if (Mode >= 2 ? lastOpen >= firstBehind : firstOpen <= lastBehind) { nOrder++; continue; }
+
+                    // The open men, the tank, the rifleman and the spotter first, and a control: with nobody behind the
+                    // wall, both must take an open man (a field where the tank's roof or the rifle has no way to them
+                    // says nothing about the budget, and is dropped).
+                    var open = new List<Unit>();
+                    foreach (var p in openAt) { var m = Soldier(0, p); m.noMind = true; open.Add(m); }
+                    var tank = Put(UnitType.Mauler, 1, tankAt);
+                    tank.hp = 1e6f;
+                    world.CmdHold(new List<Unit> { tank });
+                    var rifle = Soldier(1, rifleAt);
+                    rifle.noMind = true;
+                    var spotter = Soldier(1, spotAt);
+                    spotter.noMind = true;
+                    var all = new List<Unit>(open);
+                    all.Add(rifle);
+                    all.Add(spotter);
+                    // Nobody fires (the tank's machine gun has its own reload and may: every man is at 1e6 hp).
+                    float t0 = world.time;
+                    while (world.time - t0 < 2f) { foreach (var m in all) m.cooldown = 99f; tank.cooldown = 99f; yield return null; }
+                    int controlGun = 0, controlRifle = 0;
+                    for (int k = 0; k < 3; k++)
+                    {
+                        float tc = world.time;
+                        while (world.time - tc < 0.5f) { foreach (var m in all) m.cooldown = 99f; tank.cooldown = 99f; yield return null; }
+                        if (open.Contains(world.TankGunTarget(tank))) controlGun++;
+                        if (open.Contains(world.NearestShootable(rifle, false))) controlRifle++;
+                    }
+                    if (controlGun == 0 || controlRifle == 0)
+                    {
+                        sb.AppendLine($"  a field dropped: with nobody behind the wall the gun took an open man {controlGun} of 3, the rifleman {controlRifle} of 3");
+                        ClearSpawned();
+                        yield return null;
+                        continue;
+                    }
+                    fields++;
+
+                    // Then the four behind the wall (other cells than the open men's, so the grid's order holds).
+                    var behind = new List<Unit>();
+                    foreach (var p in behindAt)
+                    {
+                        var m = Soldier(0, p);
+                        m.noMind = true;
+                        m.mode = SoldierMode.InCover; m.coverAt = p; m.leanSide = GameWorld.RiseOver; m.posture = Flat ? Posture.Prone : Posture.Crouch;
+                        if (Flat && m.agent != null) m.agent.obstacleAvoidanceType = UnityEngine.AI.ObstacleAvoidanceType.NoObstacleAvoidance;
+                        behind.Add(m);
+                    }
+                    all.AddRange(behind);
+                    t0 = world.time;
+                    while (world.time - t0 < 2f)
+                    {
+                        foreach (var m in all) m.cooldown = 99f;
+                        tank.cooldown = 99f;
+                        if (Flat) foreach (var m in behind) m.posture = Posture.Prone;
+                        yield return null;
+                    }
+
+                    int linesBehind = 0, linesOpen = 0, fGunNone = 0, fRifleNone = 0, fLooks = 0;
+                    float seenBehind = 0f;
+                    foreach (var m in behind) if (world.LineOfFire(rifle, m)) linesBehind++;
+                    foreach (var m in open) if (world.LineOfFire(rifle, m)) linesOpen++;
+                    Unit nearestOpen = null;
+                    float nd = float.MaxValue;
+                    foreach (var m in open) { float d = (m.pos - rifle.pos).magnitude; if (d < nd) { nd = d; nearestOpen = m; } }
+                    Unit rifleTarget = null, digger = null;
+                    if (Mode == 3)
+                    {
+                        digger = Put(UnitType.Worker, 0, diggerAt);
+                        digger.hp = 1e6f;
+                        world.CmdHold(new List<Unit> { digger });
+                        rifle.target = nearestOpen;
+                        rifle.targetOrdered = false;
+                    }
+                    int swaps = 0, onDigger = 0, hideFrames = 0;
+                    Unit lastTarget = rifle.target;
+                    for (int k = 0; k < 20; k++)
+                    {
+                        float tl = world.time;
+                        while (world.time - tl < 0.5f)
+                        {
+                            foreach (var m in all) m.cooldown = 99f;
+                            tank.cooldown = 99f;
+                            if (Flat) foreach (var m in behind) m.posture = Posture.Prone;
+                            if (Mode == 3)
+                            {
+                                rifle.hiding = true;
+                                hideFrames++;
+                                if (rifle.target != lastTarget) { swaps++; lastTarget = rifle.target; }
+                                if (rifle.target == digger) onDigger++;
+                            }
+                            yield return null;
+                        }
+                        bool openSeen = false;
+                        foreach (var m in open) openSeen |= world.Sees(1, m);
+                        foreach (var m in behind) if (world.Sees(1, m)) seenBehind++;
+                        looks++;
+                        fLooks++;
+                        if (openSeen) openSeenLooks++;
+                        var g = tank.tankGunTarget;   // its own look, as its machine gun uses it
+                        if (g == null) { if (openSeen) { gunNone++; fGunNone++; } }
+                        else if (behind.Contains(g)) gunWall++;
+                        else if (open.Contains(g)) gunOpen++;
+                        // Hiding, the rifleman's own looks are what is measured: no raw query to move his place in the list.
+                        if (Mode != 3 && (rifleTarget == null || rifleTarget.dying || !world.LineOfFire(rifle, rifleTarget))) rifleTarget = world.NearestShootable(rifle, false);
+                        var r = Mode == 3 ? rifle.target : rifleTarget;
+                        if (r == null) { if (openSeen) { rifleNone++; fRifleNone++; } }
+                        else if (behind.Contains(r)) rifleWall++;
+                        else if (open.Contains(r)) { rifleOpen++; if (r != nearestOpen) rifleNotNearest++; }
+                    }
+                    float drift = 0f;
+                    for (int i = 0; i < behind.Count; i++) drift = Mathf.Max(drift, (behind[i].pos - behindAt[i]).magnitude);
+                    if (Mode == 3) sb.AppendLine($"  field {fields}: hiding, his target changed {swaps} times in {hideFrames} frames, on the Digger {onDigger} frames (target 0 and 0)");
+                    sb.AppendLine($"  field {fields}: control (nobody behind) gun {controlGun} of 3, rifleman {controlRifle} of 3 on an open man; grid order behind {firstBehind}-{lastBehind}, open {firstOpen}-{lastOpen}; the rifleman's lines behind {linesBehind} of 4, open {linesOpen} of 3; " +
+                        $"behind seen {seenBehind / Mathf.Max(1, fLooks):0.0} of 4 a look, moved off their places up to {drift:0.0} m; no target while an open man was seen: gun {fGunNone}, rifleman {fRifleNone} of {fLooks}");
+                    ClearSpawned();
+                    yield return null;
+                    break;
+                }
+            }
+            string tried = $"low walls {nWalls}: under 2.2 m {nShort}; sides by side, a man's place without the wall's clear rise {nClear}, no room for the tank and the men {nRoom}, the grid's order the wrong way {nOrder}";
+            string how = Mode == 3 ? "the mirror with the rifleman hiding, a Digger 8 m from him" : Mode == 2 ? "the four lying flat behind the wall nearer than the open three" : Flat ? "the four behind lying flat" : "the four behind crouched (they get a line: they lean to look at the spotter)";
+            report = fields == 0 ? "LineBudget: no low wall on this map fits the staging (" + tried + ")\n" + sb :
+                $"LineBudget, {how} ({tried}), {fields} fields, {looks} looks (target with the budget spent best first: none without a target while an open man is seen, " +
+                $"the pick an open man; before, up to every look): an open man seen in {openSeenLooks}; the machine gun none {gunNone}, " +
+                $"a man behind the wall {gunWall}, an open man {gunOpen}; the rifleman none {rifleNone}, behind the wall {rifleWall}, an open man {rifleOpen} " +
+                $"({rifleNotNearest} not the nearest)\n" + sb;
+            ReleaseStatics();
+        }
     }
 
     public sealed class TankGunsTrial : TacticalTrial

@@ -1612,12 +1612,12 @@ namespace StarForge.EditorTools
         {
             Time.timeScale = 1f;
             yield return new WaitForSecondsRealtime(2f);
-            double s0 = world.SightMs, l0 = world.LinesMs;
+            double s0 = world.SightMs, l0 = world.LinesMs, p0 = world.PicksMs;
             int frames = 0;
             float t0 = Time.realtimeSinceStartup;
             while (Time.realtimeSinceStartup - t0 < seconds) { frames++; yield return null; }
             Time.timeScale = 3f;
-            sb.AppendLine($"  {what}: {world.units.Count} units, sight {(world.SightMs - s0) / frames:0.000} + lines {(world.LinesMs - l0) / frames:0.000} ms a frame over {frames} frames (target under 0.5 together); shots {world.ShotsFired}");
+            sb.AppendLine($"  {what}: {world.units.Count} units, sight {(world.SightMs - s0) / frames:0.000} + lines {(world.LinesMs - l0) / frames:0.000} ms a frame over {frames} frames (target under 0.5 together), the target pickers {(world.PicksMs - p0) / frames:0.000} (lines inside them included); shots {world.ShotsFired}");
         }
 
         IEnumerator Start()

@@ -29,8 +29,8 @@ namespace StarForge.EditorTools
         }
 
         /// <summary>Two Swifts sent at each other from 60 m, three duels at 1x and three at 8x (120 s cap each). Target
-        /// (phase 7): duels of 20-60 s over several passes, hits per shot the same at 1x and 8x, never below 4 m over the
-        /// ground.</summary>
+        /// (phase 7): duels of 20-60 s over several passes, hits per shot the same at 1x and 8x, never below 7.4 m over the
+        /// ground (its 9 m less the deepest dip).</summary>
         public static string Dogfight() => Stage<DogfightTrial>("Dogfight");
         public static string DogfightReport() => Report<DogfightTrial>();
         public static string TailChase() => Stage<TailChaseTrial>("TailChase");
@@ -140,7 +140,7 @@ namespace StarForge.EditorTools
                 int cs = world.CannonShotsAtAir - cs0, ch = world.CannonHitsAtAir - ch0;
                 sb.Insert(0, $"{scale:0}x: {duels} duels, {decided} decided, mean {durSum / Mathf.Max(1, duels):0} s, {passSum / Mathf.Max(1f, duels):0.0} passes, cannon hits per shot {(cs > 0 ? (float)ch / cs : 0f):0.00} ({ch} of {cs}), missiles {world.AirMissilesFired - mf0}, flares {world.FlaresPopped - fl0}, breaks {world.PlaneBreaks - br0}, lowest {minClear:0.0} m over the ground\n");
             }
-            report = "Dogfight (target: 20-60 s, several passes, hits per shot alike at 1x and 8x, never under 4 m)\n" + sb;
+            report = "Dogfight (target: 20-60 s, several passes, hits per shot alike at 1x and 8x, never under 7.4 m)\n" + sb;
             ReleaseStatics();
         }
     }

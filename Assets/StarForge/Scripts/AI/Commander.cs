@@ -154,7 +154,7 @@ namespace StarForge.AI
         Rng mixRng = new Rng(29);
         /// <summary>When an enemy last hit one of its workers (its own alert: what a player hears).</summary>
         float lastWorkerHitAt = -1e9f;
-        float thinkT, macroT, scoutT, tacticT, microT;
+        float thinkT, macroT, scoutT, tacticT, microT, thinkAcc;
         float thinkPeriod = 1f / 6f;
         float reactionDelay = 0.22f;
         Unit focusTarget;
@@ -254,7 +254,7 @@ namespace StarForge.AI
             lastFailedApproach = (Approach)(-1);
             mechRepulses = 0;
             scoutGuess = 0;
-            thinkT = macroT = scoutT = tacticT = microT = 0f;
+            thinkT = macroT = scoutT = tacticT = microT = thinkAcc = 0f;
             System.Array.Clear(styleAccum, 0, styleAccum.Length);
             Dbg.memoryGames = memory.games;
             w.Event += OnWorldEvent;
@@ -502,16 +502,22 @@ namespace StarForge.AI
                 if (w.time >= heardReports[i].at) { var r = heardReports[i].e; heardReports.RemoveAt(i); HearSquad(r); }
             Perception.Update(dt);
 
+            // Each timer keeps the overshoot of the step it ran out in (at most one run a step, never a burst to catch
+            // up), and Think is told the time that really passed since it last ran. Reset to the full period, at the
+            // evaluation's 0.1 s step the Commander thought at 83% of its rate, and its opponent model and plan bandit
+            // were told 83% of the time that passed (4-9% short at 60 fps): the evaluation measured a slower AI than
+            // the one played against.
+            thinkAcc += dt;
             thinkT -= dt;
-            if (thinkT <= 0f) { thinkT = thinkPeriod; Think(thinkPeriod); }
+            if (thinkT <= 0f) { thinkT = Mathf.Max(0f, thinkT + thinkPeriod); Think(thinkAcc); thinkAcc = 0f; }
             macroT -= dt;
-            if (macroT <= 0f) { macroT = 0.28f; RunMacro(); }
+            if (macroT <= 0f) { macroT = Mathf.Max(0f, macroT + 0.28f); RunMacro(); }
             scoutT -= dt;
-            if (scoutT <= 0f) { scoutT = 1.1f; RunScouts(); }
+            if (scoutT <= 0f) { scoutT = Mathf.Max(0f, scoutT + 1.1f); RunScouts(); }
             tacticT -= dt;
-            if (tacticT <= 0f) { tacticT = 0.42f; RunTactics(); }
+            if (tacticT <= 0f) { tacticT = Mathf.Max(0f, tacticT + 0.42f); RunTactics(); }
             microT -= dt;
-            if (microT <= 0f) { microT = Unit.Live(focusTarget) ? 0.16f : 0.34f; RunMicro(); }
+            if (microT <= 0f) { microT = Mathf.Max(0f, microT + (Unit.Live(focusTarget) ? 0.16f : 0.34f)); RunMicro(); }
 
             Dbg.apm = Budget.MeasuredAPM();
             Dbg.apmPeak = Budget.PeakAPM();
@@ -519,6 +525,8 @@ namespace StarForge.AI
 
         void Think(float dt)
         {
+            Dbg.thinkSeconds += dt;
+            Dbg.thinks++;
             Opponent.Update(Perception, dt, w.time);
             Influence.Build(Perception, w, team);
             Selector.Update(Perception.Snap, Opponent, w.time, dt);

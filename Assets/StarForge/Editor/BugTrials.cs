@@ -336,6 +336,25 @@ namespace StarForge.EditorTools
             return $"reimported {path}: mesh {(mesh != null ? mesh.name + (mesh.isReadable ? " readable" : " NOT readable") : "not found")}";
         }
 
+        /// <summary>F10's probe: on a match against the AI, the match seconds its Commander's Think is told per second
+        /// of match time, and how often it thinks: 30 s at 8x (the world's step clamps to 0.1 s, as in an evaluation),
+        /// then 15 s at 1x. Target with the timers carrying their overshoot: 1.00 at both. Before: 0.83 at a 0.1 s step
+        /// at every level, 0.91 (Commander) to 0.97 (Recruit) at 60 fps.</summary>
+        public static string ThinkClock()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var old = Object.FindAnyObjectByType<ThinkClockTrial>();
+            if (old != null) Object.Destroy(old.gameObject);
+            new GameObject("ThinkClockTrial").AddComponent<ThinkClockTrial>();
+            return "staging; call ThinkClockReport in about a minute";
+        }
+
+        public static string ThinkClockReport()
+        {
+            var t = Object.FindAnyObjectByType<ThinkClockTrial>();
+            return t == null ? "no trial running" : t.report;
+        }
+
         /// <summary>A long AI-vs-AI match (spectated: a Commander on each side) on the map of
         /// LongMatchMapSeed, played at 8x to a winner or LongMatchMinutes of game time, watched each game
         /// minute: per side structures, Diggers, army, ore and supply; ore left on the map; deaths;
@@ -708,6 +727,47 @@ namespace StarForge.EditorTools
         {
             var r = Object.FindAnyObjectByType<T>();
             return r == null ? "no trial running" : r.report;
+        }
+    }
+
+    /// <summary>F10's probe (BugTrials.ThinkClock).</summary>
+    public sealed class ThinkClockTrial : BugTrial
+    {
+        float restoreSpeed = -1f;
+
+        IEnumerator Start()
+        {
+            yield return EnsureMatch();
+            var boot = GameBootstrap.Instance;
+            if (!Ready || boot == null || boot.AI == null) { report = "no match against the AI running"; yield break; }
+            report = "running";
+            var ai = boot.AI;
+            restoreSpeed = boot.Speed;
+            var sb = new StringBuilder();
+            foreach (float speed in new[] { 8f, 1f })
+            {
+                // As the evaluation runner sets it: SetSpeed clamps to the player's 0.5-3x.
+                Time.timeScale = speed;
+                yield return null;
+                yield return null;
+                float t0 = world.time, s0 = ai.Dbg.thinkSeconds, span = speed > 1f ? 30f : 15f;
+                int n0 = ai.Dbg.thinks, frames = 0;
+                while (world.time - t0 < span && world.winner < 0) { frames++; yield return null; }
+                float el = world.time - t0;
+                if (el <= 0f) { sb.AppendLine($"  {speed:0}x: no match time passed"); continue; }
+                sb.AppendLine($"  {Time.timeScale:0}x: {el:0.0} s of match in {frames} frames (a step of {el / Mathf.Max(1, frames):0.000} s): " +
+                    $"Think told {(ai.Dbg.thinkSeconds - s0) / el:0.000} s a second, {(ai.Dbg.thinks - n0) / el:0.00} thinks a second");
+            }
+            boot.SetSpeed(restoreSpeed);
+            restoreSpeed = -1f;
+            report = $"ThinkClock, level {MatchSettings.difficulty}, Commander.Suspended {Commander.Suspended} (target with the timers' " +
+                "overshoot kept: Think told 1.00 s a second at both speeds; before 0.83 at a 0.1 s step)\n" + sb;
+        }
+
+        void OnDestroy()
+        {
+            var boot = GameBootstrap.Instance;
+            if (restoreSpeed > 0f && boot != null) boot.SetSpeed(restoreSpeed);
         }
     }
 

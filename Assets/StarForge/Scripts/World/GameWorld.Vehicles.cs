@@ -53,9 +53,15 @@ namespace StarForge.World
         /// <summary>The nearest enemy in a vehicle's reach, known to its side, a round from its gun would get to; not <paramref name="not"/>.</summary>
         Unit OpenTarget(Unit s, Unit not, Vector3 muzzle)
         {
-            Unit best = null;
-            float bestD = float.MaxValue;
-            int tried = 0;
+            pickWatch.Restart();
+            var r = PickOpen(s, not, muzzle);
+            PicksMs += pickWatch.Elapsed.TotalMilliseconds;
+            return r;
+        }
+
+        Unit PickOpen(Unit s, Unit not, Vector3 muzzle)
+        {
+            LineCandsClear();
             CellRange(s.pos, s.def.range + LargestRadius, out int x0, out int x1, out int z0, out int z1);
             for (int z = z0; z <= z1; z++)
                 for (int x = x0; x <= x1; x++)
@@ -65,12 +71,28 @@ namespace StarForge.World
                         if (o == null || o == not || o.dying || o.team == s.team || o.team == 2 || o.Untargetable) continue;
                         if (o.def.flying ? !s.def.hitsAir : !s.def.hitsGround) continue;
                         float d = (o.pos - s.pos).magnitude - o.def.radius;
-                        if (d > s.def.range || d >= bestD || !Sees(s.team, o)) continue;
-                        if (o.def.bodyRadius > 0f && (++tried > 4 || !BodyOpen(muzzle, o, s))) continue;
-                        best = o;
-                        bestD = d;
+                        if (d > s.def.range || !Sees(s.team, o)) continue;
+                        LineCandAdd(o, d);
                     }
-            return best;
+            // Nearest first; anything but a soldier needs no look. At most four soldiers' bodies looked at, from where
+            // the last such look left off.
+            int soldiers = 0;
+            for (int k = 0; k < lineCandN; k++) if (lineCandU[k].def.bodyRadius > 0f) soldiers++;
+            int from = time - s.lineAtOpen <= 1f && s.lineFromOpen < soldiers ? s.lineFromOpen : 0, seen = 0, tried = 0;
+            s.lineAtOpen = time;
+            bool more = false;
+            for (int k = 0; k < lineCandN; k++)
+            {
+                var o = lineCandU[k];
+                // Anything but a soldier needs no look, so past the four it still answers.
+                if (o.def.bodyRadius <= 0f) { s.lineFromOpen = more ? from + 4 : 0; return o; }
+                if (more || seen++ < from) continue;
+                if (tried == 4) { more = true; continue; }
+                tried++;
+                if (BodyOpen(muzzle, o, s)) { s.lineFromOpen = 0; return o; }
+            }
+            s.lineFromOpen = more ? from + 4 : 0;
+            return null;
         }
 
         /// <summary>A Mech's hitscan gun reaches a soldier only with nothing in the way (the new combat).</summary>
@@ -118,9 +140,16 @@ namespace StarForge.World
         /// round from its roof would get to; a soldier first, and not what the main gun is on while another will do.</summary>
         public Unit TankGunTarget(Unit u)
         {
-            Unit best = null;
-            int lines = 0;
-            float bestScore = float.MaxValue, reach = Mathf.Max(TacticalRules.TankGunRange, u.def.range);
+            pickWatch.Restart();
+            var r = PickGunTarget(u);
+            PicksMs += pickWatch.Elapsed.TotalMilliseconds;
+            return r;
+        }
+
+        Unit PickGunTarget(Unit u)
+        {
+            float reach = Mathf.Max(TacticalRules.TankGunRange, u.def.range);
+            LineCandsClear();
             CellRange(u.pos, reach + 2f, out int x0, out int x1, out int z0, out int z1);
             for (int z = z0; z <= z1; z++)
                 for (int x = x0; x <= x1; x++)
@@ -130,18 +159,35 @@ namespace StarForge.World
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.def.flying || o.def.building || o.def.Heavy) continue;
                         if (o.mech != null || o.Untargetable) continue;
                         float d = (o.pos - u.pos).magnitude;
-                        if (d - o.def.radius > reach) continue;
-                        float score = d + (o == u.target ? 12f : 0f) + (o.def.bodyRadius > 0f ? 0f : 8f);
-                        if (score >= bestScore || !Sees(u.team, o)) continue;
-                        // At most four tried a look (NearestShootable's limit).
-                        if (++lines > 4) return best;
-                        Vector3 m = TankGunMuzzle(u, o);
-                        if (!RoundGets(m, o.Ground + Vector3.up * (o.BodyHeight * 0.55f), u, o) &&
-                            !RoundGets(m, o.Ground + Vector3.up * (o.BodyHeight * 0.88f), u, o)) continue;
-                        best = o;
-                        bestScore = score;
+                        if (d - o.def.radius > reach || !Sees(u.team, o)) continue;
+                        LineCandAdd(o, d + (o == u.target ? 12f : 0f) + (o.def.bodyRadius > 0f ? 0f : 8f));
                     }
-            return best;
+            // At most four lines a look (NearestShootable's limit). The man it is on first: kept while a round still
+            // reaches him and no better one is found. Then best first, from where the last empty look left off.
+            Unit prev = u.tankGunTarget, found = null;
+            int prevAt = -1, tried = 0, foundAt = int.MaxValue;
+            if (prev != null)
+                for (int k = 0; k < lineCandN; k++)
+                    if (lineCandU[k] == prev) { prevAt = k; break; }
+            if (prevAt >= 0) { tried++; if (GunLine(u, prev)) { found = prev; foundAt = prevAt; } }
+            int from = u.lineFromGun < lineCandN ? u.lineFromGun : 0, at = from;
+            for (; at < lineCandN && at < foundAt && tried < 4; at++)
+            {
+                if (at == prevAt) continue;
+                tried++;
+                if (GunLine(u, lineCandU[at])) { found = lineCandU[at]; break; }
+            }
+            // Nothing: the next look goes on down the list. The man it had, kept: the next look goes on toward him
+            // (a better one may have come into the open). A better one: from the top.
+            u.lineFromGun = found == null ? (at >= lineCandN ? 0 : at) : (found == prev && at < foundAt ? at : 0);
+            return found;
+        }
+
+        bool GunLine(Unit u, Unit o)
+        {
+            Vector3 m = TankGunMuzzle(u, o);
+            return RoundGets(m, o.Ground + Vector3.up * (o.BodyHeight * 0.55f), u, o) ||
+                   RoundGets(m, o.Ground + Vector3.up * (o.BodyHeight * 0.88f), u, o);
         }
 
         /// <summary>Armour or a structure in a tank's main-gun reach, known to its side: what fights back first.</summary>

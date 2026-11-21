@@ -42,7 +42,7 @@ namespace StarForge.World
             Defs.Rebind();
             combatRng = new Rng(seed ^ 0xC0B47u);
             ShotsFired = ShotsHit = 0;
-            SightMs = LinesMs = 0;
+            SightMs = LinesMs = PicksMs = 0;
             spotNext = 0;
             sweepNext = 0;
             BeginSquads();
@@ -158,15 +158,56 @@ namespace StarForge.World
 
         public bool LineOfFire(Unit s, Unit t) => LineOfFire(s, t, out _);
 
+        // The few lines a look may walk are spent best first: what passes the cheap tests is gathered here with its
+        // score, kept in order as it comes (ties keep the grid's order), and the lines are walked down the list, four a
+        // look; a look that finds none leaves the next look of its kind to go on down the list (Unit.lineFrom*). In
+        // the grid's own order the four went to whichever cells came first, so men behind a wall could use them up
+        // while a nearer one stood in the open, look after look. Reused, so no garbage; nothing that walks a line
+        // gathers.
+        [System.NonSerialized] Unit[] lineCandU = new Unit[64];
+        [System.NonSerialized] float[] lineCandS = new float[64];
+        int lineCandN;
+
+        void LineCandsClear() => lineCandN = 0;
+
+        void LineCandAdd(Unit o, float score)
+        {
+            if (lineCandU == null || lineCandS == null || lineCandN >= lineCandU.Length)
+            {
+                int size = Mathf.Max(64, lineCandN * 2);
+                System.Array.Resize(ref lineCandU, size);
+                System.Array.Resize(ref lineCandS, size);
+            }
+            int i = lineCandN++;
+            while (i > 0 && lineCandS[i - 1] > score) { lineCandU[i] = lineCandU[i - 1]; lineCandS[i] = lineCandS[i - 1]; i--; }
+            lineCandU[i] = o;
+            lineCandS[i] = score;
+        }
+
         /// <summary>The nearest enemy it knows of in reach that a round would get to; null if none.
         /// With <paramref name="fightsBackOnly"/>, only what can hurt it (<see cref="FightsBack"/>). At
-        /// most a few lines are walked: this is for a target that has just been lost.</summary>
+        /// most four lines are walked, nearest first, from where its last look of this kind left off:
+        /// this is for a target that has just been lost.</summary>
         public Unit NearestShootable(Unit u, bool fightsBackOnly)
         {
-            Unit best = null;
-            float bestD = float.MaxValue;
-            int looked = 0;
+            pickWatch.Restart();
+            var r = PickShootable(u, fightsBackOnly);
+            PicksMs += pickWatch.Elapsed.TotalMilliseconds;
+            return r;
+        }
+
+        /// <summary>What the three pickers (NearestShootable, TankGunTarget, OpenTarget) cost in all, lines
+        /// included (TacticalTrials.CostMoving prints it a frame).</summary>
+        public double PicksMs;
+        /// <summary>The last NearestShootable walked its whole list and found nothing: only then may a caller fall
+        /// back to a wider list (FireBlocked, ShootableNow). Half-way down, the next look may still find one.</summary>
+        public bool LastLookWalkedAll;
+        readonly System.Diagnostics.Stopwatch pickWatch = new System.Diagnostics.Stopwatch();
+
+        Unit PickShootable(Unit u, bool fightsBackOnly)
+        {
             float reach = u.def.range;
+            LineCandsClear();
             CellRange(u.pos, reach + LargestRadius, out int x0, out int x1, out int z0, out int z1);
             for (int z = z0; z <= z1; z++)
                 for (int x = x0; x <= x1; x++)
@@ -176,11 +217,29 @@ namespace StarForge.World
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable || !CanHit(u, o)) continue;
                         if (fightsBackOnly && !FightsBack(o)) continue;
                         float d = (o.pos - u.pos).magnitude - o.def.radius;
-                        if (d > reach || d >= bestD || !Sees(u.team, o)) continue;
-                        if (looked++ >= 4) return best;
-                        if (o.def.flying || LineOfFire(u, o)) { best = o; bestD = d; }
+                        if (d > reach || !Sees(u.team, o)) continue;
+                        LineCandAdd(o, d);
                     }
-            return best;
+            // A look more than a second after the last of its kind starts from the top: the list is another by then.
+            float lastAt = fightsBackOnly ? u.lineAtFB : u.lineAtAll;
+            int from = time - lastAt <= 1f ? (fightsBackOnly ? u.lineFromFB : u.lineFromAll) : 0;
+            if (from >= lineCandN) from = 0;
+            int k = from;
+            Unit found = null;
+            for (; k < lineCandN && k < from + 4; k++)
+            {
+                var o = lineCandU[k];
+                if (o.def.flying || LineOfFire(u, o)) { found = o; break; }
+            }
+            bool walkedAll = found == null && k >= lineCandN;
+            int next = found != null || walkedAll ? 0 : k;
+            if (fightsBackOnly) { u.lineFromFB = next; u.lineAtFB = time; } else { u.lineFromAll = next; u.lineAtAll = time; }
+            // An aircraft needs no line: the list walked to its end, the nearest one still answers.
+            if (walkedAll)
+                for (int j = 0; j < lineCandN; j++)
+                    if (lineCandU[j].def.flying) { found = lineCandU[j]; break; }
+            LastLookWalkedAll = walkedAll && found == null;
+            return found;
         }
 
         /// <summary>A round's error: standing still, at a soldier standing still, RifleSpread. A shooter
