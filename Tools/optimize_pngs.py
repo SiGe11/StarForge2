@@ -55,7 +55,43 @@ def sha(b):
     return hashlib.sha256(b).hexdigest()
 
 
-def recompress(b):
+def read16(cs):
+    """16-bit RGB, non-interlaced PNG chunks -> (h, w, 3) uint16 (Pillow would drop the low byte)."""
+    w, h = struct.unpack(">II", cs[0][1][:8])
+    raw = zlib.decompress(b"".join(d for t, d in cs if t == b"IDAT")); bpp, stride = 6, w * 6
+    img = np.zeros((h, stride), np.uint8); prev = np.zeros(stride, np.int32)
+    for y in range(h):
+        f = raw[y * (stride + 1)]; line = np.frombuffer(raw, np.uint8, stride, y * (stride + 1) + 1).astype(np.int32)
+        if f == 0: cur = line.copy()
+        elif f == 2: cur = (line + prev) & 255
+        elif f == 1:
+            cur = line.copy()
+            for c in range(bpp): cur[c::bpp] = np.cumsum(line[c::bpp]) & 255
+        else:
+            cur = np.zeros(stride, np.int32)
+            for i in range(stride):
+                a = cur[i - bpp] if i >= bpp else 0; bb = prev[i]; c = prev[i - bpp] if i >= bpp else 0
+                if f == 3: pred = (a + bb) >> 1
+                else:
+                    pp = a + bb - c; pa, pb, pc = abs(pp - a), abs(pp - bb), abs(pp - c)
+                    pred = a if (pa <= pb and pa <= pc) else (bb if pb <= pc else c)
+                cur[i] = (line[i] + pred) & 255
+        img[y] = cur; prev = cur
+    a = img.reshape(h, w, 3, 2).astype(np.uint32)
+    return (a[..., 0] << 8 | a[..., 1]).astype(np.uint16)
+
+
+def to_8bit(b, cs):
+    """A 16-bit RGB PNG as 8-bit, rounded (v*255/65535), other chunks kept. LOSSY at the source (max error 0.5 of 255);
+    Unity imports 8 bits anyway. Only with --to-8bit: it is a decision, not a recompression."""
+    a8 = ((read16(cs).astype(np.uint32) * 255 + 32767) // 65535).astype(np.uint8)
+    buf = io.BytesIO(); Image.fromarray(a8).save(buf, "PNG", optimize=True, compress_level=9)
+    idat = [d for t, d in chunks(buf.getvalue()) if t == b"IDAT"]
+    out = SIG + b"".join(mk(t, d) if t != b"IHDR" else mk(b"IHDR", chunks(buf.getvalue())[0][1]) for t, d in cs if t not in (b"IDAT", b"IEND"))
+    return out + b"".join(mk(b"IDAT", d) for d in idat) + mk(b"IEND", b""), a8
+
+
+def recompress(b, convert16=False):
     """(new bytes, reason-or-None). new is None when the file must be left alone."""
     if b[:8] != SIG:
         return None, "not a PNG"
@@ -63,8 +99,11 @@ def recompress(b):
     _, _, bitdepth, _, _, _, interlace = struct.unpack(">IIBBBBB", cs[0][1][:13])
     if any(t == b"caBX" for t, _ in cs):
         return None, "C2PA manifest (caBX): re-encoding would break its signature"
+    if bitdepth == 16 and convert16 and cs[0][1][9] == 2 and not interlace:
+        out, _ = to_8bit(b, cs)
+        return out, None                       # no pixel proof possible across bit depths: --to-8bit is a lossy decision
     if bitdepth != 8:
-        return None, "%d-bit (Pillow would reduce it)" % bitdepth
+        return None, "%d-bit (Pillow would reduce it; --to-8bit converts a 16-bit RGB one)" % bitdepth
     if interlace:
         return None, "interlaced"
     im = Image.open(io.BytesIO(b))
@@ -100,6 +139,7 @@ def main():
     ap.add_argument("--stage", metavar="DIR")
     ap.add_argument("--in-place", action="store_true")
     ap.add_argument("--apply", metavar="DIR")
+    ap.add_argument("--to-8bit", action="store_true", help="also convert 16-bit RGB PNGs to 8-bit (lossy at the source, max error 0.5/255)")
     ap.add_argument("--min-gain", type=int, default=2048, help="skip a file that would save fewer bytes (default 2048)")
     ap.add_argument("--min-ratio", type=float, default=0.05, help="skip a file that would save less than this share of its size (default 0.05)")
     a = ap.parse_args()
@@ -131,7 +171,7 @@ def main():
         rel = os.path.relpath(f, ROOT)
         b = open(f, "rb").read()
         try:
-            new, why = recompress(b)
+            new, why = recompress(b, a.to_8bit)
         except Exception as e:  # a PNG Pillow cannot read stays as it is
             new, why = None, "error: %s" % e
         if new is not None and (len(b) - len(new) < a.min_gain or len(b) - len(new) < a.min_ratio * len(b)):
@@ -142,7 +182,7 @@ def main():
         tot_old += len(b)
         tot_new += len(new)
         print("  %-6s %-70s %8.2f -> %8.2f MB" % ("smaller", rel, len(b) / 1e6, len(new) / 1e6))
-        rows.append(dict(path=rel, old=len(b), new=len(new), old_sha256=sha(b), new_sha256=sha(new)))
+        rows.append(dict(path=rel, old=len(b), new=len(new), old_sha256=sha(b), new_sha256=sha(new), to8=b[24] == 16))
         if a.stage:
             dst = os.path.join(a.stage, rel)
             os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -151,8 +191,10 @@ def main():
             tmp = f + ".optmp"
             open(tmp, "wb").write(new)
             os.replace(tmp, f)
-    print("%d files shrink: %.2f -> %.2f MB (saves %.2f MB, pixels verified identical)" %
-          (len(rows), tot_old / 1e6, tot_new / 1e6, (tot_old - tot_new) / 1e6))
+    lossy = sum(1 for r in rows if r["to8"])
+    print("%d files shrink: %.2f -> %.2f MB (saves %.2f MB; %d verified pixel-identical%s)" %
+          (len(rows), tot_old / 1e6, tot_new / 1e6, (tot_old - tot_new) / 1e6, len(rows) - lossy,
+           ", %d converted 16 to 8 bit: LOSSY at the source" % lossy if lossy else ""))
     if a.stage:
         json.dump(dict(files=rows), open(os.path.join(a.stage, "manifest.json"), "w"), indent=1)
         print("staged under", a.stage, "-- `--apply` copies them in (a window: Unity reimports each once)")

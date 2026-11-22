@@ -88,17 +88,34 @@ KINDS = {
                  height=0.46, cards=14, trunk_tris=0),
 }
 
-TILE_MAX = 2048          # atlas side
+TILE_MAX = 1024          # atlas side: the game imports these sheets at 1024 (SFAssetPostprocessor cap), 2048 only doubled the LFS; UVs in scanned/<KIND>.json follow it, so bake a kind and commit its JSON with its sheet
 GROW = 0.7              # coverage a leaf's edge texel neighbours get (cut-off 0.45)
 SPHERE = 1.45            # a card shows the foliage this far round its cluster, relative to its spread
 AO_DISTANCE = 0.18       # metres in the scan's own size, before scaling
 
 
 # ---------------------------------------------------------------- small helpers
+def png_rows(img):
+    """PNG scanlines with a filter byte each, the filter chosen per row by the smallest sum of absolute residuals
+    (the same heuristic libpng uses). Unfiltered rows left these sheets 12-60% larger in LFS for the same pixels."""
+    a = img.astype(np.int16)
+    left = np.zeros_like(a); left[:, 1:] = a[:, :-1]
+    up = np.zeros_like(a); up[1:] = a[:-1]
+    ul = np.zeros_like(a); ul[1:, 1:] = a[:-1, :-1]
+    p = left + up - ul
+    pa, pb, pc = np.abs(p - left), np.abs(p - up), np.abs(p - ul)
+    paeth = np.where((pa <= pb) & (pa <= pc), left, np.where(pb <= pc, up, ul))
+    cand = [a, a - left, a - up, a - ((left + up) >> 1), a - paeth]
+    res = [(x & 255).astype(np.uint8) for x in cand]
+    cost = np.stack([np.abs(np.where(r > 127, r.astype(np.int16) - 256, r.astype(np.int16))).reshape(r.shape[0], -1).sum(axis=1) for r in res])
+    best = cost.argmin(axis=0)
+    return b"".join(bytes([int(best[y])]) + res[best[y]][y].tobytes() for y in range(img.shape[0]))
+
+
 def write_png(path, img):
     """img: (h, w, c) uint8, row 0 at the top."""
     h, w, c = img.shape
-    raw = b"".join(b"\0" + img[y].tobytes() for y in range(h))
+    raw = png_rows(img)
 
     def chunk(t, d):
         return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
@@ -106,7 +123,7 @@ def write_png(path, img):
     ct = {3: 2, 4: 6}[c]
     with open(path, "wb") as f:
         f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, ct, 0, 0, 0))
-                + chunk(b"IDAT", zlib.compress(raw, 7)) + chunk(b"IEND", b""))
+                + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
 
 
 def read_render(path):
