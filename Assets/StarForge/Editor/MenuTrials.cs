@@ -62,9 +62,22 @@ namespace StarForge.EditorTools
 
         public static string SaveRecord()
         {
+            if (!Application.isPlaying) return "not playing";
+            if (recordSaved) return "already saved (a run cut short keeps its first snapshot)";
             savedRecord = PlayerPrefs.HasKey("sf_service_record") ? PlayerPrefs.GetString("sf_service_record") : null;
             recordSaved = true;
             return $"saved ({(savedRecord == null ? "none" : savedRecord.Length + " chars")})";
+        }
+
+        /// <summary>The reload paths' saved record goes back when play stops if RestoreRecord never came:
+        /// a sequence cut short left its surrender and rematch in the Editor's real service record.</summary>
+        [UnityEditor.InitializeOnLoadMethod]
+        static void RestoreRecordOnStop()
+        {
+            UnityEditor.EditorApplication.playModeStateChanged += change =>
+            {
+                if (change == UnityEditor.PlayModeStateChange.EnteredEditMode && recordSaved) Debug.Log("[MenuTrials] record put back after a stop: " + RestoreRecord());
+            };
         }
 
         public static string RestoreRecord()
@@ -207,8 +220,14 @@ namespace StarForge.EditorTools
                     : "f:" + PlayerPrefs.GetFloat(k).ToString("R", System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        bool restored;
+
+        /// <summary>Once: at the walk's end, or from OnDestroy when play stops part-way (a second
+        /// time would put back the walk-start values over anything changed since).</summary>
         void RestorePrefs()
         {
+            if (restored) return;
+            restored = true;
             foreach (var kv in saved)
             {
                 if (kv.Value == null) { PlayerPrefs.DeleteKey(kv.Key); continue; }

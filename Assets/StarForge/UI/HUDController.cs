@@ -368,25 +368,31 @@ namespace StarForge.UI
             var s = sel[0];
             if (!Unit.Live(s)) return;
             var d = s.def;
-            string owner = (s.team == 1 ? "  · ENEMY" : "") + (s.deserted ? "  · DESERTER" : "");
-            string rank = s.rank > 0 ? "  " + new string('★', s.rank) : "";
-            unitName.text = d.displayName + rank + owner;
             float hpFrac = d.neutral ? 1f : s.hp / s.MaxHp;
             hpBar.Value = hpFrac;
             hpBar.FillColor = HealthColor(hpFrac);
-            if (d.type == UnitType.Ore) unitStats.text = $"{s.oreLeft} ore remaining";
-            else if (s.mech != null && s.mech.design != null)
+            // Text: the strings are built only when it is time (a handful a frame of garbage while anything stood selected).
+            if (s != textFor || Time.unscaledTime >= textAt)
             {
-                var core = s.mech;
-                string shieldText = core.HasShield ? $"  ·  SHIELD {Mathf.CeilToInt(core.shield)}" : "";
-                unitName.text = $"{core.design.callsign} · {core.design.className}" + owner;
-                unitStats.text = $"HULL {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}{shieldText}  ·  ARMOUR {core.Armour * 100f:0}%  ·  KILLS {s.kills}";
+                textFor = s;
+                textAt = Time.unscaledTime + 0.2f;
+                string owner = (s.team == 1 ? "  · ENEMY" : "") + (s.deserted ? "  · DESERTER" : "");
+                string rank = s.rank > 0 ? "  " + new string('★', s.rank) : "";
+                unitName.text = d.displayName + rank + owner;
+                if (d.type == UnitType.Ore) unitStats.text = $"{s.oreLeft} ore remaining";
+                else if (s.mech != null && s.mech.design != null)
+                {
+                    var core = s.mech;
+                    string shieldText = core.HasShield ? $"  ·  SHIELD {Mathf.CeilToInt(core.shield)}" : "";
+                    unitName.text = $"{core.design.callsign} · {core.design.className}" + owner;
+                    unitStats.text = $"HULL {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}{shieldText}  ·  ARMOUR {core.Armour * 100f:0}%  ·  KILLS {s.kills}";
+                }
+                else if (d.Armed)
+                    unitStats.text = $"HP {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}  ·  DMG {d.damage * (1f + 0.15f * s.rank):0}  ·  RANGE {d.range:0}  ·  KILLS {s.kills}" + ArmsText(s);
+                else
+                    unitStats.text = $"HP {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}" + (d.supplyGive > 0 ? $"  ·  +{d.supplyGive} supply" : "");
+                unitStatus.text = StatusText(s);
             }
-            else if (d.Armed)
-                unitStats.text = $"HP {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}  ·  DMG {d.damage * (1f + 0.15f * s.rank):0}  ·  RANGE {d.range:0}  ·  KILLS {s.kills}" + ArmsText(s);
-            else
-                unitStats.text = $"HP {Mathf.CeilToInt(s.hp)}/{Mathf.CeilToInt(s.MaxHp)}" + (d.supplyGive > 0 ? $"  ·  +{d.supplyGive} supply" : "");
-            unitStatus.text = StatusText(s);
 
             var F = s.team < 2 ? world.factions[s.team] : null;
             bool armory = s.Type == UnitType.Armory && s.researchLine >= 0 && s.team == player.team;
@@ -845,6 +851,9 @@ namespace StarForge.UI
         }
 
         int shownOre = int.MinValue, shownSupply = int.MinValue, shownCap = int.MinValue, shownClock = int.MinValue;
+        // The selected unit's text lines: rewritten for another unit at once, else five times a second.
+        Unit textFor;
+        float textAt;
         float shownSpeed = float.NaN;
 
         void Alert(string text, string cls, float seconds = 2.6f)

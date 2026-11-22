@@ -111,6 +111,14 @@ namespace StarForge.Game
         public void StartMatch()
         {
             if (State == MatchState.Playing) return;
+            // A second start (a trial restarting from Paused or Ended) must not stack a second tick handler or leave the
+            // first match's Commanders, Mech brains and GPU backend undisposed (a spectated match's proxy stayed too).
+            world.Ticked -= OnTick;
+            foreach (var b in MechBrains) b?.Dispose();
+            AI?.Dispose();
+            PlayerProxy?.Dispose();
+            PlayerProxy = null;
+            gpu?.Dispose();
             uint seed = MatchSettings.MatchSeed();
             world.BeginMatch(seed);
 

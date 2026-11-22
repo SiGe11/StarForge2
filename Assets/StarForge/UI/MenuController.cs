@@ -102,6 +102,21 @@ namespace StarForge.UI
         // ------------------------------------------------------------ setup
         void Awake()
         {
+            try { Build(); }
+            catch (Exception e)
+            {
+                // A layout that did not import (an XML comment with '--' in it did, twice) must not take the game with it:
+                // say what failed, once, and let the match start without the menus rather than leave a title nothing can leave
+                // (GameBootstrap.Start reads skipMenu after every Awake) or throw on every frame.
+                Debug.LogError($"[StarForge] The menu could not be built ({e.GetType().Name}: {e.Message}); the match starts without it. " +
+                               $"Check that StarForgeMenu.uxml and .uss imported cleanly (an XML comment may not contain '--').\n{e.StackTrace}");
+                MatchSettings.skipMenu = true;
+                enabled = false;
+            }
+        }
+
+        void Build()
+        {
             world = FindAnyObjectByType<GameWorld>();
             bootstrap = FindAnyObjectByType<GameBootstrap>();
             rig = FindAnyObjectByType<RTSCamera>();
@@ -182,6 +197,7 @@ namespace StarForge.UI
 
         void OnDisable()
         {
+            GameSettings.Flush();
             if (bootstrap != null)
             {
                 bootstrap.StateChanged -= OnStateChanged;
@@ -343,6 +359,7 @@ namespace StarForge.UI
 
         void HidePage(Page p)
         {
+            GameSettings.Flush();   // a page may have changed settings (they are saved when it closes, not on each step)
             p.visible = false;
             p.el.RemoveFromClassList("m-page--in");
             int token = ++p.hideToken;
@@ -825,7 +842,7 @@ namespace StarForge.UI
             SelectorRow(setup, rows, "GAME SPEED", null, GameSettings.SpeedNames,
                 () => GameSettings.StartSpeed, v => GameSettings.StartSpeed = v);
             ActionRow(setup, rows, "BATTLEFIELD", "NEW MAP  ›", null,
-                () => Reload(() => bootstrap.ReturnToMenu(), "SURVEYING A NEW SECTOR", "setup"));
+                () => { MatchSettings.mapSeed = 0; Reload(() => bootstrap.ReturnToMenu(), "SURVEYING A NEW SECTOR", "setup"); });
             if (MatchSettings.debugAI)
             {
                 SelectorRow(setup, rows, "AI MEMORY (DEBUG)", null, new[] { "OFF", "ON" },
@@ -1515,6 +1532,7 @@ namespace StarForge.UI
         void Rematch()
         {
             speedOnLoad = true;
+            MatchSettings.mapSeed = 0;   // "on a new battlefield": a seed a trial left pinned in the Editor would give the same map again
             Reload(() => bootstrap.Restart(), MatchSettings.spectate ? "OBSERVATION" : "REDEPLOYING");
         }
 

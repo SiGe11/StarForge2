@@ -53,6 +53,26 @@ namespace StarForge.EditorTools
         static int playFrame;
         static readonly List<string> compileErrors = new List<string>();
 
+        /// <summary>The A/B switches of the AI and the Mech: set for a run, one a stopped trial left on would play the user's next
+        /// match differently (the runners reset them for an evaluation or a benchmark, not for a plain Play).</summary>
+        static void ResetAiSwitches()
+        {
+            StarForge.AI.Commander.IgnoreSites = false;
+            StarForge.AI.Commander.MechGateInBase = false;
+            StarForge.AI.Commander.RepositionOff = false;
+            StarForge.AI.Commander.LegacyNoMaxOut = false;
+            StarForge.AI.Commander.LegacySweep = false;
+            StarForge.AI.Commander.LegacyDiggerSafety = false;
+            StarForge.AI.Commander.LegacyWayHome = false;
+            StarForge.AI.Perception.LegacyMechMemory = false;
+            StarForge.AI.MechBrain.LegacyHunt = false;
+            StarForge.AI.MechBrain.LegacyCommit = false;
+            StarForge.AI.OpponentModel.LegacyRead = false;
+            StarForge.World.MechCore.LegacyBalance = false;
+            GameWorld.LegacyBreakPick = false;
+            StarForge.View.MechView.LegacyTrackRide = false;
+        }
+
         static AgentInbox()
         {
             Directory.CreateDirectory(Dir);
@@ -62,7 +82,7 @@ namespace StarForge.EditorTools
             {
                 // GameWorld.ReachabilityOff is an A/B switch: set for a run, it must not carry into
                 // the next play session (statics survive them with domain reload off).
-                if (s == PlayModeStateChange.EnteredEditMode) GameWorld.ReachabilityOff = false;
+                if (s == PlayModeStateChange.EnteredEditMode) { GameWorld.ReachabilityOff = false; ResetAiSwitches(); }
                 if (s == PlayModeStateChange.EnteredPlayMode) playFrame = Time.frameCount;
             };
             CompilationPipeline.compilationStarted += _ => { compileErrors.Clear(); Stamp("compile.started", ""); };

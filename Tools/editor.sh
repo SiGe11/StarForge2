@@ -56,7 +56,7 @@ compile)
   for f in "$root"/Assets/**/*.cs(N.om[1]) "$root"/Assets/**/(N/om[1]); do
     m=$(mtime "$f"); (( m > newest )) && newest=$m
   done
-  refreshed=0; quiet=0
+  refreshed=0; quiet=0; idle=0
   while :; do
     started=$(mtime "$dir/compile.started"); done_=$(mtime "$dir/compile.done"); reloaded=$(mtime "$dir/reloaded")
     if (( started > newest && done_ >= started )); then
@@ -68,6 +68,17 @@ compile)
         if (( done_ < t0 )); then echo "up to date: the compile of $(date -r ${done_%.*} +%H:%M:%S) has every change, 0 errors"
         else echo "compiled: $(printf '%.1f' $(( done_ - started ))) s compile, domain reloaded; $(elapsed $t0) s in all"; fi
         exit 0
+      elif (( newest <= reloaded )); then
+        # A compile finished with no reload after it and no script newer than the last reload: it was not the
+        # Editor's own (a player build compiles the scripts for its target, writes compile.done and never reloads
+        # the domain; `compile` then waited out its whole limit for a reload that was not coming). Nothing is left
+        # to load once the Editor is idle: three quiet answers in a row, as the branch below asks for.
+        r=$(SF_EDITOR_TIMEOUT=$limit send state | sed -n 2p)
+        if [[ $r == *compiling=False* ]]; then
+          if (( ++idle >= 3 )); then
+            echo "up to date: the compile of $(date -r ${done_%.*} +%H:%M:%S) was no reload of this domain (a player build?) and no script is newer than the last reload ($(date -r ${reloaded%.*} +%H:%M:%S)); $(elapsed $t0) s"; exit 0
+          fi
+        else idle=0; fi
       fi
     elif (( ! refreshed )); then
       ans=$(SF_EDITOR_TIMEOUT=$limit send refresh) || { print -r -- "$ans"; exit 1; }

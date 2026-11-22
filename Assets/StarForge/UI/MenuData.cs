@@ -20,47 +20,47 @@ namespace StarForge.UI
         public static float MasterVolume
         {
             get => PlayerPrefs.GetFloat(AudioDirector.MasterKey, 0.7f);
-            set { PlayerPrefs.SetFloat(AudioDirector.MasterKey, Mathf.Clamp01(value)); PlayerPrefs.Save(); }
+            set { PlayerPrefs.SetFloat(AudioDirector.MasterKey, Mathf.Clamp01(value)); }
         }
         public static float MusicVolume
         {
             get => PlayerPrefs.GetFloat(AudioDirector.MusicKey, 1f);
-            set { PlayerPrefs.SetFloat(AudioDirector.MusicKey, Mathf.Clamp01(value)); PlayerPrefs.Save(); }
+            set { PlayerPrefs.SetFloat(AudioDirector.MusicKey, Mathf.Clamp01(value)); }
         }
         /// <summary>The menus' own clicks and hovers.</summary>
         public static float InterfaceVolume
         {
             get => PlayerPrefs.GetFloat(UiKey, 1f);
-            set { PlayerPrefs.SetFloat(UiKey, Mathf.Clamp01(value)); PlayerPrefs.Save(); }
+            set { PlayerPrefs.SetFloat(UiKey, Mathf.Clamp01(value)); }
         }
         public static bool EdgePan
         {
             get => PlayerPrefs.GetInt(EdgeKey, 1) != 0;
-            set { PlayerPrefs.SetInt(EdgeKey, value ? 1 : 0); PlayerPrefs.Save(); }
+            set { PlayerPrefs.SetInt(EdgeKey, value ? 1 : 0); }
         }
         /// <summary>Multiplies the camera's pan speed, 0.5-2.</summary>
         public static float PanSpeed
         {
             get => Mathf.Clamp(PlayerPrefs.GetFloat(PanKey, 1f), 0.5f, 2f);
-            set { PlayerPrefs.SetFloat(PanKey, Mathf.Clamp(value, 0.5f, 2f)); PlayerPrefs.Save(); }
+            set { PlayerPrefs.SetFloat(PanKey, Mathf.Clamp(value, 0.5f, 2f)); }
         }
         /// <summary>Multiplies the camera's Q/E turn speed, 0.5-2.</summary>
         public static float RotateSpeed
         {
             get => Mathf.Clamp(PlayerPrefs.GetFloat(RotateKey, 1f), 0.5f, 2f);
-            set { PlayerPrefs.SetFloat(RotateKey, Mathf.Clamp(value, 0.5f, 2f)); PlayerPrefs.Save(); }
+            set { PlayerPrefs.SetFloat(RotateKey, Mathf.Clamp(value, 0.5f, 2f)); }
         }
         /// <summary>The frame-rate readout in the top bar.</summary>
         public static bool ShowPerformance
         {
             get => PlayerPrefs.GetInt(PerfKey, 1) != 0;
-            set { PlayerPrefs.SetInt(PerfKey, value ? 1 : 0); PlayerPrefs.Save(); }
+            set { PlayerPrefs.SetInt(PerfKey, value ? 1 : 0); }
         }
         /// <summary>The speed a match starts at (Operation setup): index into <see cref="Speeds"/>.</summary>
         public static int StartSpeed
         {
             get => Mathf.Clamp(PlayerPrefs.GetInt(SpeedKey, 1), 0, Speeds.Length - 1);
-            set { PlayerPrefs.SetInt(SpeedKey, Mathf.Clamp(value, 0, Speeds.Length - 1)); PlayerPrefs.Save(); }
+            set { PlayerPrefs.SetInt(SpeedKey, Mathf.Clamp(value, 0, Speeds.Length - 1)); }
         }
         public static readonly float[] Speeds = { 0.75f, 1f, 1.5f, 2f };
         public static readonly string[] SpeedNames = { "SLOW", "NORMAL", "FAST", "FASTER" };
@@ -70,8 +70,12 @@ namespace StarForge.UI
         public static int SavedDifficulty
         {
             get => PlayerPrefs.GetInt(DiffKey, -1);
-            set { PlayerPrefs.SetInt(DiffKey, value); PlayerPrefs.Save(); }
+            set { PlayerPrefs.SetInt(DiffKey, value); }
         }
+
+        /// <summary>Writes the preferences. The setters above do not: a slider reports every step of a drag, and a write
+        /// to the preferences file for each was the cost (the menu flushes when a page closes and when it goes away).</summary>
+        public static void Flush() => PlayerPrefs.Save();
 
         /// <summary>Puts every key back to the scene's own value.</summary>
         public static void ResetAll()
@@ -157,7 +161,7 @@ namespace StarForge.UI
             recent.Insert(0, new Entry
             {
                 result = result, difficulty = d, seconds = matchSeconds, tactical = tactical,
-                when = DateTime.Now.ToString("yyyy-MM-dd HH:mm")
+                when = DateTime.Now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)
             });
             if (recent.Count > RecentKept) recent.RemoveRange(RecentKept, recent.Count - RecentKept);
         }
