@@ -416,15 +416,6 @@ namespace StarForge.EditorTools
                     needles = d.needles, bloom = d.bloom, birchBark = d.birchBark, leafTiling = d.leafTiling, burns = d.burns,
                     drawDistance = d.drawDistance, castShadows = d.castShadows, cardTint = d.cardTint,
                 };
-                // Leaf-spray cards (Tools/blender/make_leaf_cards.py): which spray each kind wears.
-                string spray = d.name switch
-                {
-                    "TREE_PINE" => "conifer", "FERN" => "conifer",
-                    "TREE_BROAD" => "oak",
-                    "TREE_BIRCH" => "birch", "BUSH_FLOWER" => "birch",
-                    "TREE_TALL" => "beech", "BUSH" => "beech",
-                    _ => null,
-                };
                 // A scanned tree (Tools/blender/bake_scanned_flora.py) brings its own
                 // atlas of baked leaf clusters and its own bark.
                 string scan = $"{SFAssetPostprocessor.TextureDir}Leaves/scan_{d.name}";
@@ -437,12 +428,8 @@ namespace StarForge.EditorTools
                                    ?? AssetDatabase.LoadAssetAtPath<Texture2D>(scan + "_bark.png");
                     kind.cardTint = Color.white;
                 }
-                else if (spray != null)
-                {
-                    kind.cardTex = AssetDatabase.LoadAssetAtPath<Texture2D>($"{SFAssetPostprocessor.TextureDir}Leaves/{spray}_col.png");
-                    kind.cardNormal = AssetDatabase.LoadAssetAtPath<Texture2D>($"{SFAssetPostprocessor.TextureDir}Leaves/{spray}_nrm.png");
-                    if (kind.cardTex == null) Debug.LogWarning($"[StarForge] leaf cards {spray} missing: run Tools/blender/make_leaf_cards.py");
-                }
+                else if (d.name != "TREE_DEAD")
+                    Debug.LogWarning($"[StarForge] {d.name} has no scanned leaf cards ({scan}_col.png): run Tools/blender/bake_scanned_flora.py");
                 string path = $"{SFAssetPostprocessor.ModelDir}SF_{d.name}.fbx";
                 foreach (var a in AssetDatabase.LoadAllAssetsAtPath(path))
                     if (a is Mesh m) { kind.mesh = m; break; }

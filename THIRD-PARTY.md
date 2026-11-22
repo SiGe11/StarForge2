@@ -61,19 +61,6 @@ models. The procedural plants in `build_flora.py` remain as the fallback.
 | [Searsia Lucida](https://polyhaven.com/a/searsia_lucida) | James Ray Cock, Jenelle van Heerden | `BUSH_FLOWER` (shrub "b"): `SF_BUSH_FLOWER*.fbx`, `scan_BUSH_FLOWER_*` |
 | [Fern 02](https://polyhaven.com/a/fern_02) | Rob Tuytel, Rico Cilliers | `FERN` (fern "b"): `SF_FERN*.fbx`, `scan_FERN_*` |
 
-## ambientCG — CC0 1.0 (<https://ambientcg.com/license>)
-
-Leaf atlases, cut into the crowns' leaf sprays by `Tools/blender/make_leaf_cards.py`.
-Since the scanned plants above replaced the procedural crowns, these sprays only
-dress the procedural fallback (`build_flora.py`, used when a kind has no bake).
-
-| Asset | Becomes |
-|---|---|
-| [Leaf Set 016](https://ambientcg.com/view?id=LeafSet016) | `Art/Textures/Leaves/oak_col.png`, `oak_nrm.png` |
-| [Leaf Set 014](https://ambientcg.com/view?id=LeafSet014) | `Art/Textures/Leaves/birch_col.png`, `birch_nrm.png` |
-| [Leaf Set 024](https://ambientcg.com/view?id=LeafSet024) | `Art/Textures/Leaves/beech_col.png`, `beech_nrm.png` |
-| [Leaf Set 019](https://ambientcg.com/view?id=LeafSet019) | `Art/Textures/Leaves/conifer_col.png`, `conifer_nrm.png` |
-
 ## Kenney — CC0 1.0 (<https://kenney.nl>)
 
 Sound packs; `Tools/make_audio.py` copies the effects it uses under game names

@@ -96,16 +96,6 @@ SOURCES = [
     S("Fern 02", "Rob Tuytel, Rico Cilliers", CC0, "https://polyhaven.com/a/fern_02",
       ("polyhaven", "fern_02"),
       [T + "Leaves/scan_FERN_*", M + "SF_FERN.fbx", M + "SF_FERN_LOD1.fbx"], ["fern_02"]),
-    # ambientCG -- leaf atlases (CC0, https://ambientcg.com/license)
-    S("Leaf Set 016", "ambientCG", CC0, "https://ambientcg.com/view?id=LeafSet016",
-      ("ambientcg", "LeafSet016"), [T + "Leaves/oak_*"], ["LeafSet016"]),
-    S("Leaf Set 014", "ambientCG", CC0, "https://ambientcg.com/view?id=LeafSet014",
-      ("ambientcg", "LeafSet014"), [T + "Leaves/birch_*"], ["LeafSet014"]),
-    S("Leaf Set 024", "ambientCG", CC0, "https://ambientcg.com/view?id=LeafSet024",
-      ("ambientcg", "LeafSet024"), [T + "Leaves/beech_*"], ["LeafSet024"]),
-    S("Leaf Set 019", "ambientCG", CC0, "https://ambientcg.com/view?id=LeafSet019",
-      ("ambientcg", "LeafSet019"), [T + "Leaves/conifer_*"], ["LeafSet019"]),
-
     # Kenney -- sound packs (CC0)
     S("Sci-Fi Sounds", "Kenney", CC0, "https://kenney.nl/assets/sci-fi-sounds", ("kenney", None),
       [A + "Sfx/boom_*.ogg", A + "Sfx/engine_hover.ogg", A + "Sfx/mine_*.ogg", A + "Sfx/shield_0.ogg",
@@ -300,10 +290,6 @@ def verify(src):
         fetch(f"https://api.polyhaven.com/info/{key}")           # the asset is still there
         page = fetch("https://polyhaven.com/license")
         return ("CC0" in page, "polyhaven.com/license: CC0")
-    if kind == "ambientcg":
-        found = json.loads(fetch(f"https://ambientcg.com/api/v2/full_json?id={key}"))["foundAssets"]
-        page = fetch("https://ambientcg.com/license")
-        return (bool(found) and "CC0" in page, "ambientcg.com/license: CC0 1.0 Universal")
     if kind == "kenney":
         page = fetch(src["url"])
         return ("Creative Commons CC0" in page, "the asset page states Creative Commons CC0")
@@ -356,7 +342,7 @@ def fetched_ids():
 
     ids = block("TEXTURES", r'"([a-z0-9_]+)":') | block("MODELS", r'"([a-z0-9_]+)":')
     ids |= block("FLORA", r'"([a-z0-9_]+)":')
-    ids |= block("AMBIENTCG", r'"(LeafSet\d+)"') | block("KENNEY", r'"([a-z\-]+)":')
+    ids |= block("KENNEY", r'"([a-z\-]+)":')
     ids |= block("QUATERNIUS", r'"([A-Za-z0-9_\.]+)":') | block("SFX", r':\s*"([^"]+)"')
     ids |= block("JANGAFX", r'"([A-Za-z0-9_]+)":') | block("ITCH_PACKS", r'"([A-Za-z0-9_]+)":')
     ids |= {t for _, _, t in re.findall(r'\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)',
@@ -419,7 +405,7 @@ def main():
             print(f"  FAIL THIRD-PARTY.md does not mention {s['name']}")
             bad += 1
     readme = open(os.path.join(ROOT, "README.md")).read()
-    for who in ("Poly Haven", "ambientCG", "Kenney", "Quaternius", "KayKit", "JangaFX", "OpenGameArt", "Inter", "Roboto Mono"):
+    for who in ("Poly Haven", "Kenney", "Quaternius", "KayKit", "JangaFX", "OpenGameArt", "Inter", "Roboto Mono"):
         if who not in readme:
             print(f"  FAIL the README credits no {who}")
             bad += 1

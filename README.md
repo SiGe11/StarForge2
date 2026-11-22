@@ -799,8 +799,7 @@ Tools/             fetch_assets.py (downloads the CC0 sources into Art/Source/, 
                    committed), make_audio.py, make_leaf_textures.py,
                    make_flame_sheet.py, make_smoke_puffs.py, make_panel_texture.py,
                    pack_fauna.py
-Tools/blender/     model authoring + FBX export, pack_textures.py, build_rocks.py,
-                   make_leaf_cards.py
+Tools/blender/     model authoring + FBX export, pack_textures.py, build_rocks.py
 ```
 
 ### Third-party assets
@@ -823,9 +822,6 @@ out of it.
   *Searsia Lucida* by James Ray Cock and Jenelle van Heerden.
   `Tools/fetch_assets.py` records each one's authors and real-world size in
   `Art/Source/polyhaven/manifest.json`.
-- **ambientCG** (ambientcg.com): the leaf atlases *Leaf Set 014*, *016*, *019* and
-  *024*, which dress the procedural plants kept as the fallback for a kind with no
-  scan baked.
 - **Kenney** (kenney.nl): *Sci-Fi Sounds*, *Impact Sounds* and *Interface Sounds* (the
   Mech's footfalls, hydraulics, launches, lasers and drop are built from the first two).
 - **Quaternius** (via opengameart.org): *Animals Pack* and *Animal Pack Vol. 2* (wolf,
@@ -880,7 +876,6 @@ needed after changing a tool):
 python3 Tools/fetch_assets.py
 /Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python Tools/blender/pack_textures.py
 /Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python Tools/blender/build_rocks.py
-/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python Tools/blender/make_leaf_cards.py
 python3 Tools/pack_fauna.py
 python3 Tools/make_leaf_textures.py && python3 Tools/make_flame_sheet.py
 python3 Tools/make_panel_texture.py

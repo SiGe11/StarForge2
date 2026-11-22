@@ -6,8 +6,7 @@
     python3 Tools/fetch_assets.py island_tree_01 ...   # just these Poly Haven assets
     python3 Tools/fetch_assets.py --jangafx [name ...] # just the EmberGen simulations
 
-Textures, rock scans and scanned trees come from Poly Haven (https://polyhaven.com), leaf
-atlases from ambientCG (https://ambientcg.com), sound effects from Kenney
+Textures, rock scans and scanned trees come from Poly Haven (https://polyhaven.com), sound effects from Kenney
 (https://kenney.nl), and from OpenGameArt (https://opengameart.org) the music,
 the animated animals (by Quaternius) and the recorded gunshots, tree falls and
 wood breaks the weapons and felled trees are built from; all CC0: free to use, modify and
@@ -101,9 +100,6 @@ MUSIC = {
     "QaziJamJam.wav": ("qazijamjam-orchestral-battle-theme", "Emma_MA", "QaziJamJam (orchestral battle theme)"),
 }
 
-# Leaf atlases from ambientCG (CC0), which Tools/blender/make_leaf_cards.py cuts
-# the crowns' leaf sprays out of: oak, birch, beech and spruce sprigs.
-AMBIENTCG = ["LeafSet016", "LeafSet014", "LeafSet024", "LeafSet019"]
 
 
 # Recorded sound from OpenGameArt, all CC0: the Free Firearm Sound Library (Ben
@@ -169,25 +165,6 @@ def fetch_jangafx(only=None):
         subprocess.run(["tar", "-xf", archive, "-C", folder + ".part"], check=True)
         os.replace(folder + ".part", folder)
         os.remove(archive)
-
-
-def fetch_ambientcg():
-    import zipfile
-    out = os.path.join(ROOT, "Art", "Source", "ambientcg")
-    os.makedirs(out, exist_ok=True)
-    for name in AMBIENTCG:
-        folder = os.path.join(out, name)
-        if os.path.isdir(folder):
-            continue
-        zpath = folder + "_1K-JPG.zip"
-        req = urllib.request.Request(f"https://ambientcg.com/get?file={name}_1K-JPG.zip",
-                                     headers={"User-Agent": "StarForge-fetch/1.0"})
-        with urllib.request.urlopen(req, timeout=600) as r, open(zpath, "wb") as f:
-            f.write(r.read())
-        os.makedirs(folder, exist_ok=True)
-        with zipfile.ZipFile(zpath) as z:
-            z.extractall(folder)
-        print(f"  ambientcg {name}  {os.path.getsize(zpath) / 1e6:.1f} MB")
 
 
 def fetch_sfx():
@@ -392,7 +369,6 @@ def main():
     if only:
         return
     fetch_kenney()
-    fetch_ambientcg()
     fetch_sfx()
     fetch_plain()
     fetch_itch()

@@ -10,6 +10,7 @@ namespace StarForge.EditorTools
     {
         public const string TextureDir = "Assets/StarForge/Art/Textures/";
         public const string ModelDir = "Assets/StarForge/Art/Models/";
+        public const string UiArtDir = "Assets/StarForge/UI/Art/";
 
         void OnPreprocessTexture()
         {
@@ -24,6 +25,17 @@ namespace StarForge.EditorTools
                 pi.wrapMode = TextureWrapMode.Clamp;
                 pi.textureCompression = TextureImporterCompression.Uncompressed;
                 pi.npotScale = TextureImporterNPOTScale.None;
+                return;
+            }
+            if (assetPath.StartsWith(UiArtDir))
+            {
+                // The menu's illustrations are not powers of two (npotScale None keeps their aspect for UI Toolkit),
+                // and an NPOT texture with a mip chain stays RGBA32 (keyart 21.5 MiB, each portrait 5.5 MiB in the player).
+                // Without mips they take BC7 at their own size (keyart 4 MiB, mean error 0.6/255; SizeTrials.UiArtFormats).
+                // Only keyart (a full-window backdrop, shown near its size) passes the minification check at 1, 1/2 and 1/3
+                // (SizeTrials.UiCompare): the portraits are drawn at about a third of their size, where 7-9% of their texels
+                // came out more than 8 levels off without mips (limit 4%), so they keep theirs.
+                ((TextureImporter)assetImporter).mipmapEnabled = !assetPath.EndsWith("/keyart.jpg");
                 return;
             }
             if (!assetPath.StartsWith(TextureDir)) return;
