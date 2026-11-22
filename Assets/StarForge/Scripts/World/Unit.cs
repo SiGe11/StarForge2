@@ -251,6 +251,7 @@ namespace StarForge.World
             deathTimer = 0f;
             order = Order.Idle;
             target = null;
+            lineMem = null; gunMem = null;   // a dead shooter's memories held the dead it had found blocked
             if (agent != null) agent.enabled = false;
             if (obstacle != null) obstacle.enabled = false;
             if (view != null) view.OnDeath();

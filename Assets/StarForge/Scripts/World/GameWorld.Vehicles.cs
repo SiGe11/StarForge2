@@ -74,25 +74,34 @@ namespace StarForge.World
                         if (d > s.def.range || !Sees(s.team, o)) continue;
                         LineCandAdd(o, d);
                     }
-            // Nearest first; anything but a soldier needs no look. At most four soldiers' bodies looked at, from where
-            // the last such look left off.
-            int soldiers = 0;
-            for (int k = 0; k < lineCandN; k++) if (lineCandU[k].def.bodyRadius > 0f) soldiers++;
-            int from = time - s.lineAtOpen <= 1f && s.lineFromOpen < soldiers ? s.lineFromOpen : 0, seen = 0, tried = 0;
-            s.lineAtOpen = time;
-            bool more = false;
+            // Nearest first; anything but a soldier needs no look, and answers past the four. At most four soldiers'
+            // bodies looked at: the fresh first (one of the four kept for the oldest due man), then the due, oldest first.
+            var mem = s.lineMem ??= new LineMemory(true);
+            FillCandAt(mem);
+            float since = time;
+            int freeAt = lineCandN;
+            for (int k = 0; k < lineCandN; k++) if (lineCandU[k].def.bodyRadius <= 0f) { freeAt = k; break; }
+            int cap = OldestDue(freeAt, since) >= 0 ? 3 : 4, tried = 0, below = lineCandN;
+            Unit free = null;
             for (int k = 0; k < lineCandN; k++)
             {
                 var o = lineCandU[k];
-                // Anything but a soldier needs no look, so past the four it still answers.
-                if (o.def.bodyRadius <= 0f) { s.lineFromOpen = more ? from + 4 : 0; return o; }
-                if (more || seen++ < from) continue;
-                if (tried == 4) { more = true; continue; }
+                // Anything but a soldier needs no look: it answers at its rank, once the due men nearer are tried.
+                if (o.def.bodyRadius <= 0f) { free = o; below = k; break; }
+                if (tried >= cap || lineCandAt[k] >= 0f) continue;
                 tried++;
-                if (BodyOpen(muzzle, o, s)) { s.lineFromOpen = 0; return o; }
+                if (BodyOpen(muzzle, o, s)) { mem.Forget(o); return o; }
+                NoteCand(mem, k);
             }
-            s.lineFromOpen = more ? from + 4 : 0;
-            return null;
+            while (tried < 4)
+            {
+                int k = OldestDue(below, since);
+                if (k < 0) break;
+                tried++;
+                if (BodyOpen(muzzle, lineCandU[k], s)) { mem.Forget(lineCandU[k]); return lineCandU[k]; }
+                NoteCand(mem, k);
+            }
+            return free;
         }
 
         /// <summary>A Mech's hitscan gun reaches a soldier only with nothing in the way (the new combat).</summary>
@@ -163,23 +172,41 @@ namespace StarForge.World
                         LineCandAdd(o, d + (o == u.target ? 12f : 0f) + (o.def.bodyRadius > 0f ? 0f : 8f));
                     }
             // At most four lines a look (NearestShootable's limit). The man it is on first: kept while a round still
-            // reaches him and no better one is found. Then best first, from where the last empty look left off.
+            // reaches him and no better one is found. Then, of those ranked better, the fresh first (one of the four kept
+            // for the oldest due man), then the due, oldest first. The roof's memory ignores leaning (its line does).
+            var mem = u.gunMem ??= new LineMemory(false);
+            FillCandAt(mem);
+            float since = time;
             Unit prev = u.tankGunTarget, found = null;
             int prevAt = -1, tried = 0, foundAt = int.MaxValue;
             if (prev != null)
                 for (int k = 0; k < lineCandN; k++)
                     if (lineCandU[k] == prev) { prevAt = k; break; }
-            if (prevAt >= 0) { tried++; if (GunLine(u, prev)) { found = prev; foundAt = prevAt; } }
-            int from = u.lineFromGun < lineCandN ? u.lineFromGun : 0, at = from;
-            for (; at < lineCandN && at < foundAt && tried < 4; at++)
+            if (prevAt >= 0)
             {
-                if (at == prevAt) continue;
                 tried++;
-                if (GunLine(u, lineCandU[at])) { found = lineCandU[at]; break; }
+                if (GunLine(u, prev)) { found = prev; foundAt = prevAt; } else NoteCand(mem, prevAt);
             }
-            // Nothing: the next look goes on down the list. The man it had, kept: the next look goes on toward him
-            // (a better one may have come into the open). A better one: from the top.
-            u.lineFromGun = found == null ? (at >= lineCandN ? 0 : at) : (found == prev && at < foundAt ? at : 0);
+            int below = found == null ? lineCandN : foundAt;
+            int cap = OldestDue(below, since) >= 0 ? 3 : 4;
+            Unit better = null;
+            for (int k = 0; k < lineCandN && k < below && tried < cap; k++)
+            {
+                if (k == prevAt || lineCandAt[k] >= 0f) continue;
+                tried++;
+                if (GunLine(u, lineCandU[k])) { better = lineCandU[k]; break; }
+                NoteCand(mem, k);
+            }
+            while (better == null && tried < 4)
+            {
+                int k = OldestDue(below, since);
+                if (k < 0) break;
+                tried++;
+                if (GunLine(u, lineCandU[k])) { better = lineCandU[k]; break; }
+                NoteCand(mem, k);
+            }
+            if (better != null) found = better;
+            if (found != null) mem.Forget(found);
             return found;
         }
 

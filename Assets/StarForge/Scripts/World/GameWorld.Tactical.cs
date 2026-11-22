@@ -159,16 +159,117 @@ namespace StarForge.World
         public bool LineOfFire(Unit s, Unit t) => LineOfFire(s, t, out _);
 
         // The few lines a look may walk are spent best first: what passes the cheap tests is gathered here with its
-        // score, kept in order as it comes (ties keep the grid's order), and the lines are walked down the list, four a
-        // look; a look that finds none leaves the next look of its kind to go on down the list (Unit.lineFrom*). In
-        // the grid's own order the four went to whichever cells came first, so men behind a wall could use them up
-        // while a nearer one stood in the open, look after look. Reused, so no garbage; nothing that walks a line
-        // gathers.
+        // score, kept in order as it comes (ties keep the grid's order), and four lines a look are walked: first the fresh
+        // (never found blocked, or showing more since), best first, one of the four kept for the oldest due man, then the
+        // due, oldest first (LineMemory). In the grid's own order the four went to whichever
+        // cells came first, so men behind a wall could use them up while a nearer one stood in the open, look after
+        // look. Reused, so no garbage; nothing that walks a line gathers.
         [System.NonSerialized] Unit[] lineCandU = new Unit[64];
         [System.NonSerialized] float[] lineCandS = new float[64];
         int lineCandN;
 
         void LineCandsClear() => lineCandN = 0;
+
+        /// <summary>A man found blocked is due again from the next look (0: only those tried this look wait).</summary>
+        public const float LineRetestAfter = 0f;
+
+        /// <summary>Whom one shooter found no line to, when, and how much of him showed (his height, and for a rifle
+        /// whether he leaned out for his round). He is fresh again only when he shows more (rises, leans out), not when
+        /// he ducks; nothing is forgotten by the clock, so every man found blocked is tried again in turn. It grows to
+        /// the list it is asked about (512 at most; a dying man's place is taken first), then lets the oldest go.</summary>
+        public sealed class LineMemory
+        {
+            const int MaxSize = 512;
+            Unit[] who = new Unit[32];
+            float[] at = new float[32], height = new float[32];
+            bool[] shown = new bool[32];
+            readonly bool byLean;
+
+            /// <param name="byLean">A rifle's memory (a man leaning out shows more); a roof gun's ignores the lean.</param>
+            public LineMemory(bool byLean)
+            {
+                this.byLean = byLean;
+                for (int i = 0; i < at.Length; i++) at[i] = -1e9f;
+            }
+
+            static bool Shows(Unit o) => o.mode == SoldierMode.InCover && (o.leanSide == 1 || o.leanSide == -1) && o.ShowsForShot;
+
+            /// <summary>When he was found blocked, or -1 if he is fresh (never found blocked, or showing more since).</summary>
+            public float BlockedAt(Unit o)
+            {
+                for (int i = 0; i < who.Length; i++)
+                    if ((object)who[i] == (object)o)
+                        return o.BodyHeight > height[i] + 0.05f || (byLean && !shown[i] && Shows(o)) ? -1f : at[i];
+                return -1f;
+            }
+
+            public void Note(Unit o, float now)
+            {
+                int slot = -1;
+                for (int i = 0; i < who.Length; i++)
+                    if ((object)who[i] == (object)o) { slot = i; break; }
+                if (slot < 0)
+                    for (int i = 0; i < who.Length; i++)
+                        if ((object)who[i] == null || who[i].dying) { slot = i; break; }
+                if (slot < 0 && who.Length < MaxSize)
+                {
+                    int n = who.Length;
+                    System.Array.Resize(ref who, n * 2);
+                    System.Array.Resize(ref at, n * 2);
+                    System.Array.Resize(ref height, n * 2);
+                    System.Array.Resize(ref shown, n * 2);
+                    for (int i = n; i < at.Length; i++) at[i] = -1e9f;
+                    slot = n;
+                }
+                if (slot < 0)
+                {
+                    slot = 0;
+                    for (int i = 1; i < at.Length; i++) if (at[i] < at[slot]) slot = i;
+                }
+                who[slot] = o;
+                at[slot] = now;
+                height[slot] = o.BodyHeight;
+                shown[slot] = Shows(o);
+            }
+
+            public void Forget(Unit o)
+            {
+                for (int i = 0; i < who.Length; i++)
+                    if ((object)who[i] == (object)o) { who[i] = null; at[i] = -1e9f; return; }
+            }
+        }
+
+        // Each candidate's BlockedAt, read once a look beside the sorted list (-1 fresh); set to the look's time when
+        // it is tried and found blocked, so the look does not try it again.
+        [System.NonSerialized] float[] lineCandAt = new float[64];
+
+        void FillCandAt(LineMemory mem)
+        {
+            if (lineCandAt == null || lineCandAt.Length < lineCandN) System.Array.Resize(ref lineCandAt, Mathf.Max(64, lineCandN));
+            for (int k = 0; k < lineCandN; k++) lineCandAt[k] = mem.BlockedAt(lineCandU[k]);
+        }
+
+        void NoteCand(LineMemory mem, int k)
+        {
+            mem.Note(lineCandU[k], time);
+            lineCandAt[k] = time;
+        }
+
+        /// <summary>Of the candidates below <paramref name="below"/>, the one found blocked longest ago and not tried
+        /// this look (found blocked before <paramref name="since"/>); -1 if none.</summary>
+        int OldestDue(int below, float since)
+        {
+            int best = -1;
+            float bestAt = float.MaxValue;
+            for (int k = 0; k < lineCandN && k < below; k++)
+            {
+                float a = lineCandAt[k];
+                if (a < 0f || a > time - LineRetestAfter || a >= since || a >= bestAt) continue;
+                best = k;
+                bestAt = a;
+            }
+            return best;
+        }
 
         void LineCandAdd(Unit o, float score)
         {
@@ -186,8 +287,8 @@ namespace StarForge.World
 
         /// <summary>The nearest enemy it knows of in reach that a round would get to; null if none.
         /// With <paramref name="fightsBackOnly"/>, only what can hurt it (<see cref="FightsBack"/>). At
-        /// most four lines are walked, nearest first, from where its last look of this kind left off:
-        /// this is for a target that has just been lost.</summary>
+        /// most four lines are walked: those it has not found blocked first, nearest first, then those
+        /// it found blocked longest ago: this is for a target that has just been lost.</summary>
         public Unit NearestShootable(Unit u, bool fightsBackOnly)
         {
             pickWatch.Restart();
@@ -199,8 +300,9 @@ namespace StarForge.World
         /// <summary>What the three pickers (NearestShootable, TankGunTarget, OpenTarget) cost in all, lines
         /// included (TacticalTrials.CostMoving prints it a frame).</summary>
         public double PicksMs;
-        /// <summary>The last NearestShootable walked its whole list and found nothing: only then may a caller fall
-        /// back to a wider list (FireBlocked, ShootableNow). Half-way down, the next look may still find one.</summary>
+        /// <summary>The last NearestShootable found nothing and left no fresh candidate untried (each was tried this
+        /// look, or found blocked in the stance he is in): only then may a caller fall back to a wider list
+        /// (FireBlocked, ShootableNow). With a fresh one left, the next look may still find him.</summary>
         public bool LastLookWalkedAll;
         readonly System.Diagnostics.Stopwatch pickWatch = new System.Diagnostics.Stopwatch();
 
@@ -220,25 +322,41 @@ namespace StarForge.World
                         if (d > reach || !Sees(u.team, o)) continue;
                         LineCandAdd(o, d);
                     }
-            // A look more than a second after the last of its kind starts from the top: the list is another by then.
-            float lastAt = fightsBackOnly ? u.lineAtFB : u.lineAtAll;
-            int from = time - lastAt <= 1f ? (fightsBackOnly ? u.lineFromFB : u.lineFromAll) : 0;
-            if (from >= lineCandN) from = 0;
-            int k = from;
-            Unit found = null;
-            for (; k < lineCandN && k < from + 4; k++)
+            // The fresh first, nearest first (an aircraft needs no line: it answers when reached, never past fresh men
+            // still untried), one of the four kept for the oldest due man if there is one; then the due, oldest first.
+            var mem = u.lineMem ??= new LineMemory(true);
+            FillCandAt(mem);
+            float since = time;
+            // The reserve is kept only for a due man nearer than the first fresh aircraft (the due pass stops there
+            // when it is reached); with none due before it, all four lines go to the fresh.
+            int freeAt = lineCandN;
+            for (int k = 0; k < lineCandN; k++) if (lineCandU[k].def.flying && lineCandAt[k] < 0f) { freeAt = k; break; }
+            int cap = OldestDue(freeAt, since) >= 0 ? 3 : 4;
+            Unit found = null, free = null;
+            int tried = 0, below = lineCandN;
+            bool untried = false;
+            for (int k = 0; k < lineCandN; k++)
             {
+                if (lineCandAt[k] >= 0f) continue;
                 var o = lineCandU[k];
-                if (o.def.flying || LineOfFire(u, o)) { found = o; break; }
+                // An aircraft needs no line: it answers at its rank, once the due men nearer than it are tried.
+                if (o.def.flying) { free = o; below = k; break; }
+                if (tried == cap) { untried = true; break; }
+                tried++;
+                if (LineOfFire(u, o)) { found = o; break; }
+                NoteCand(mem, k);
             }
-            bool walkedAll = found == null && k >= lineCandN;
-            int next = found != null || walkedAll ? 0 : k;
-            if (fightsBackOnly) { u.lineFromFB = next; u.lineAtFB = time; } else { u.lineFromAll = next; u.lineAtAll = time; }
-            // An aircraft needs no line: the list walked to its end, the nearest one still answers.
-            if (walkedAll)
-                for (int j = 0; j < lineCandN; j++)
-                    if (lineCandU[j].def.flying) { found = lineCandU[j]; break; }
-            LastLookWalkedAll = walkedAll && found == null;
+            while (found == null && tried < 4)
+            {
+                int k = OldestDue(below, since);
+                if (k < 0) break;
+                tried++;
+                if (LineOfFire(u, lineCandU[k])) { found = lineCandU[k]; break; }
+                NoteCand(mem, k);
+            }
+            if (found == null) found = free;
+            if (found != null) mem.Forget(found);
+            LastLookWalkedAll = found == null && !untried;
             return found;
         }
 

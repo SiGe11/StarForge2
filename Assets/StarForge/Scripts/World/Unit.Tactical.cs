@@ -20,14 +20,10 @@ namespace StarForge.World
         [System.NonSerialized] public ushort[] viewCells;
         [System.NonSerialized] public int viewCount = -1;
         [System.NonSerialized] public Vector2 viewFrom;
-        /// <summary>Where its next look for a target a round would reach starts in the sorted list of candidates
-        /// (GameWorld.NearestShootable for what fights back and for anything, TankGunTarget, OpenTarget): past the
-        /// four the last look of that kind tried in vain, so men behind cover nearer than the rest cannot use up every
-        /// look; back to the top once one is found, the list is used up, or (but the machine gun's) a second has
-        /// passed since the last look of that kind (`lineAt*`). The machine gun, keeping the man it is on, goes on
-        /// down toward him.</summary>
-        [System.NonSerialized] public int lineFromFB, lineFromAll, lineFromGun, lineFromOpen;
-        [System.NonSerialized] public float lineAtFB = -99f, lineAtAll = -99f, lineAtOpen = -99f;
+        /// <summary>Whom it found no line to, when and in what stance (GameWorld.NearestShootable and OpenTarget; and
+        /// from its roof, TankGunTarget): a look tries those last, oldest first, so men behind cover nearer than the
+        /// rest cannot use up every look. Made on first use.</summary>
+        [System.NonSerialized] public GameWorld.LineMemory lineMem, gunMem;
         [System.NonSerialized] public float viewAt;
         /// <summary>Whether a round would reach its target from here, looked at a few times a second.</summary>
         [System.NonSerialized] public bool fireBlocked;
@@ -155,7 +151,7 @@ namespace StarForge.World
             {
                 shootableLookAt = world.time + 0.5f;
                 var open = world.NearestShootable(this, true);
-                // Anything else only once that list was walked to its end: half-way down it the next look may find one.
+                // Anything else only once no fresh man was left untried: with one left, the next look may find him.
                 if (open == null && world.LastLookWalkedAll && !(closing && GameWorld.FightsBack(target))) open = world.NearestShootable(this, false);
                 if (open != null && open != target) { target = open; targetOrdered = false; fireLookAt = -99f; blockedFor = 0f; return; }
             }
