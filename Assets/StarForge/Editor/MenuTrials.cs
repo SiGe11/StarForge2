@@ -429,6 +429,8 @@ namespace StarForge.EditorTools
                 if (InScroll(e)) return;
                 if (r.xMin < panel.xMin - 1f || r.yMin < panel.yMin - 1f || r.xMax > panel.xMax + 1f || r.yMax > panel.yMax + 1f)
                 {
+                    // Full-bleed art drifts past the panel on purpose (MenuController.Drift scales it about its centre).
+                    if (e.name == "splashArt" || e.name == "veilArt") return;
                     if (e.name == "creditsRoll" || e.ClassListContains("m-credit-head") || e.ClassListContains("m-credit-name") || e.ClassListContains("m-credit-text")) return;
                     outside++;
                     if (notes.Count < 6) notes.Add($"outside {Describe(e)} {r}");
