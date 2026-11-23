@@ -7,7 +7,8 @@ CLAUDE.md                          always loaded (every session and subagent): c
 Assets/StarForge/**/CLAUDE.md,     area notes: rules + measured targets per area, injected the first
 Tools/**/CLAUDE.md                   time a tool call touches the area (hooks/area_notes.py)
 .claude/
-  settings.json                    hooks, read-denies, git deny/ask rules, Bash output cap
+  settings.json                    hooks, read-denies, git deny/ask rules, Bash output cap,
+                                     claudeMdExcludes (native area-note loading off: the hook is the one loader)
   hooks/area_notes.py              area-note injector, state per session *and* per subagent
   agents/scout.md                  read-only investigator (Sonnet)
   agents/reviewer.md               read-only adversarial reviewer (Opus)

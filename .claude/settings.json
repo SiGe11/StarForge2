@@ -34,6 +34,11 @@
     ]
   },
   "bashOutputMaxChars": 40000,
+  "claudeMdExcludes": [
+    "**/Assets/StarForge/**/CLAUDE.md",
+    "**/Tools/CLAUDE.md",
+    "**/Tools/blender/CLAUDE.md"
+  ],
   "env": {
     "CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT": "300000"
   },

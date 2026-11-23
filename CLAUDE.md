@@ -4,7 +4,7 @@ Unity **6000.6.9f1** (URP 17.6) rebuild of the C++/Metal StarForge RTS (`~/repos
 
 ## Where things live (area notes load on demand)
 
-This file holds only cross-cutting rules. **Lessons for an area are in that folder's `CLAUDE.md`: read it before changing the area.** A project hook (`.claude/hooks/area_notes.py`) adds them to the context the first time a Read/Edit/Write/Grep/Bash/Unity-MCP call touches the area, headed `[StarForge area notes: ...]`; Claude Code's own on-demand loading did not reach desktop sessions. **If no such block has appeared in this conversation by your first edit (or first trial run) in an area, Read that area file yourself first**; the hook needs the project's hooks approved once.
+This file holds only cross-cutting rules. **Lessons for an area are in that folder's `CLAUDE.md`: read it before changing the area.** A project hook (`.claude/hooks/area_notes.py`) adds them to the context the first time a Read/Edit/Write/Grep/Bash/Unity-MCP call touches the area, headed `[StarForge area notes: ...]`. Claude Code's own on-demand loading of these files is off (`claudeMdExcludes` in `.claude/settings.json`): since it began reaching desktop sessions, each area file came in twice, once from each loader. The hook stays because it also fires on Grep, Bash and MCP calls. **If no such block has appeared in this conversation by your first edit (or first trial run) in an area, Read that area file yourself first**; the hook needs the project's hooks approved once.
 
 | Area | File |
 |---|---|
@@ -72,6 +72,7 @@ Testing cheat: `Ctrl`/`Cmd`+`Shift`+`M` (+5000 ore, +100 supply, toggles 5x trai
 - **Grep first, then read a range.** Files of 1k+ lines: `AgentInbox.cs`, `FXDirector.cs`, `Commander.cs`, `MapGenerator.cs`, `MechTrials.cs`, `GameWorld.cs`, `MechSpeech.cs` (mostly line data), `Vegetation.cs`, `HUDController.cs`. Find the symbol with Grep (`--include=*.cs`, `.meta` files add noise), then Read with `offset`/`limit`. Never read a whole one to find one method.
 - **Logs:** `tail`/`grep` `Logs/Editor.log`, never read it whole. Long bench/eval/trial output goes to a file; read the summary lines. Bash output beyond 40k chars is saved to a file by setting; read that file in slices.
 - `.blend`/`.blend1`, `__pycache__` and the old build folders are read-denied (binary noise; use Blender headless or the `mcp__Blender__*` tools). Generated assets (`Map/*.asset`, `Scenes/*.unity`, 0.8-2.9 MB of YAML) stay readable for verification: Grep them or read a range, never the whole file; change the generator, never the output.
+- **Code comments: English, terse** (written for agents; English is the cheapest language for Claude's tokenizer: German ~1.7-1.8x, Chinese at best par, researched 2026-11-22). State the why or the trap, not what the code says; drop filler. Existing comments stay as they are (a mass rewrite churns the shared tree for little).
 - Give each change a verification target before editing (a named trial, the burst numbers, `MapChecks.Report`, an evaluation line) and run it; do not report "should work". Levels, the check for each area and the Editor-slot protocol: the `verify-change` skill.
 
 ## Agents, skills and git
