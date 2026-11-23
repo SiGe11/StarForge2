@@ -289,6 +289,23 @@ namespace StarForge.EditorTools
                         sb.AppendLine($"  steep {sdeg:0} deg down and up ({(shi - slo).magnitude:0} m): {p.Line()}");
                     }
                     else sb.AppendLine("  no steep slope found");
+                    // Steeper: the next 28-40 degree field on the same stream (appended last, so every
+                    // field above is the one earlier rounds walked; on map 1000 the first steep is 25).
+                    if (FindSlope(rng, out var vlo, out var vhi, out float vdeg, 28f, 40f, 6f))
+                    {
+                        Remove(u);
+                        yield return Wait(1.5f);
+                        u = Put(UnitType.Ironclad, 0, vhi);
+                        sel = new List<Unit> { u };
+                        yield return Wait(1f);
+                        p = new Probe(u);
+                        world.CmdMove(sel, vlo, false);
+                        yield return Watch(p, u, 20f);
+                        world.CmdMove(sel, vhi, false);
+                        yield return Watch(p, u, 20f);
+                        sb.AppendLine($"  steeper {vdeg:0} deg down and up ({(vhi - vlo).magnitude:0} m): {p.Line()}");
+                    }
+                    else sb.AppendLine("  no steeper slope found");
                     Remove(u);
                     yield return Wait(2f);
                 }
