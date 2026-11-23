@@ -745,6 +745,24 @@ minute and a half, each unit once, and a steady stream reads as a rush. A full r
 code without it), the harasser 71% (71%), the turtle 84% (85%), the macro player 11% (13%: once its second Foundry is seen it reads as
 "expanding", which the AI answers the same way).
 
+An audit of the AI (2026-11-22) found that since the combat rewrite its waves were almost never booked as beaten: in 48 logged
+evaluation matches 141 waves ended in 3 retreats and 91 call-offs, so the pause to regroup and the massing against a Mech that keeps
+winning never came on. A wave now pulls out as beaten when it is down to under half of the most it was worth with the enemy still on
+the field, or ends under its plan's threshold having lost three tenths of that; its retreat is run, not bounded from cover to cover.
+The AI also remembers for a few seconds a soldier who has gone to ground in plain view (seeing the ground is no longer seeing the
+man), waits out its reaction time before turning its fire or a raid on what it has just seen, and reads you at the same pace on every
+difficulty. Its Mech weighs its own side's guns against what actually stands there (a Mech-Hunter beside it had counted as five tanks
+against riflemen), and counts a gun's fire by its magazine and reload (a Rocketeer had counted as nineteen tanks against a Mech). A
+full run on these rules, but for one later one-line fix (Commander, 900 s cap, the same five seeds): **19 of 20 won, none lost**, no
+exception (rusher 5, macro 5, turtle 4, harasser 5 of 5), 14 of 79 waves booked as beaten where there had been none; a call home or a
+change of plan still ends most waves (46), and the massing never began. With every fix in, on Unity 6000.6.10f1, a second full run
+won 16 of 20, none lost, four ending at the time cap. One thing tried was left off: holding reinforcements back to send them as
+groups. A full run with it on gave 16 of 20, none lost; on the turtle's five seeds the like-for-like pair won 4 of 5 either way, at
+766 s on average with it and 675 s without, which five matches cannot tell apart, so the old way stays. So did the old plan
+doctrine: a reworked one that gives every plan its turn cut Timing Push from 49% of the AI's time to 29% and brought the unused plans
+in, but against the turtle it spent 84% of the late game feinting and won 1 of 5 where the old one won 2. It stays an option for
+testing, off.
+
 Runs vary: the same twenty seeds gave 13, 15, 12, 15 and 11 wins in the round that added
 the Mechs, 15, 10 and 12 in the round that added the loadouts picked at the drop, the
 Flame Tower and the anti-Mech tactics below, and 14 once its enemy memory
@@ -1457,6 +1475,36 @@ Full gate on the final code (2026-10-27, Commander, 900 s, Editor unthrottled in
 *From the AI notes (Their Mech's last sighting stays a danger for 30 s (MechLingers: within its 40 m reach of…):*
 
 (Full 15/20, 0 lost, on the units refactor's assembly)
+
+### AI: Audit round
+
+*From the AI notes (A wave that loses is beaten, not called off (bit 2): spent -- under SpentShare 0.45 of the…):*
+
+Before: 141 waves in 48 logged games, 3 retreats, 91 called off, none beaten, massing in none.
+
+*From the AI notes (A wave that loses is beaten, not called off (bit 2): spent -- under SpentShare 0.45 of the…):*
+
+**Full on the defaults 2026-11-23: 14 of 79 beaten (5 spent), 7 retreats, 46 called off, massing in none**; the five Turtle seeds: 7 of 16 beaten (2 spent), 4 called off, massing began in 1 game.
+
+*From the AI notes (Reinforcing groups are OFF (Commander.ReserveGroups, bit 1 turns them on: units trained du…):*
+
+The like-for-like pair on the Full's five Turtle seeds: 4 of 5 won either way, 766 s on average with them and 675 s without, per seed -381 to +430 s (five games cannot tell them apart); a Full with them 16/20, without 19/20, 0 lost in both. Pooled over runs that also differ in other switches: 14 of 20 at 806 s with, 8 of 10 at 666 s without.
+
+*From the AI notes (An idle straggler re-orders the wave every IdleReorder 2 s, not every pass (bit 4). It did…):*
+
+With the reserve on the Turtle runs read 14, 114 and 210; the Full on the defaults 20 a game against 42 in the 48 games before the round.
+
+*From the AI notes (The opponent model weighs evidence by the second (bit 128, EvidenceEvery 0.5 s, Recruit's…):*
+
+Read correctly in the Full: Rusher 60%, Harasser 34%, Macro 12%, Turtle 88% (the 63 / 71 / 11 / 84 above were the old combat's; `FlowLow`/`FlowHigh` are untuned for the new one).
+
+*From the AI notes (Gates on this round (Commander, 900 s, 6000.6.9f1, AC, Editor behind the user's work): Ful…):*
+
+- Gates on this round (Commander, 900 s, 6000.6.9f1, AC, Editor behind the user's work): **Full on the defaults 2026-11-23: 19/20 won, 0 lost, 0 exceptions** (Rusher 5, Macro 5, Turtle 4, Harasser 5; desertion in 3 of 20; read correctly 55 / 12 / 87 / 38%), run before the last one-line fix (a scout taken from a prong leaves it under `!LegacyWaveEnd`); the Full with the reserve on 16/20, 0 lost, 0 exceptions (Rusher 5, Macro 3, Turtle 3, Harasser 5); Quick on the defaults 2/4, 0 lost, 0 exceptions (Macro and Turtle capped at 720 s, as the Quick before the round). **Not run:** `AIReview.RaidTrial`, Recruit and Veteran. On 6000.6.10f1 (2026-11-23): `BugTrials.BrokeStallTower` 6 waves and 6 retreats in 481 s (one about every 80 s: the 25 s regroup holds, no start/stop loop); `AIReview.StallTrial` ran but its staging never reached the stall case (the AI already held 2,540 against a massed target of 858), so the stall rule itself is unexercised; two traced Fulls (README › AI: Audit round). `BugTrials.ProngHome` 4 of 4; `AIReview.MassTrial` two massed waves, one called off after 15 s, no start/stop loop.
+
+*From the AI notes (The plan doctrine is the legacy one by default; a varied one is opt-in):*
+
+Traced Fulls on 6000.6.10f1 (Commander, 900 s, the same five seeds, Editor muted, AC charged), 2026-11-23. Legacy doctrine (13:06): **16/20 won, 0 lost, 4 caps** (Rusher 5, Macro 4, Turtle 2, Harasser 5 of 5), desertion in 2 of 20; plan time Timing Push 48.7%, Turtle/Tech 24.6%, Expand 14.1%, Feint 5.7%, Economy 4.8%, Harass 1.6%, Counter-Attack 0.6%, Trooper Rush 0; after 480 s against the turtle Feint 26%, Timing Push 21%; massing began in 1 game. Varied doctrine (17:58): **16/20 won, 0 lost, 4 caps** (Rusher 5, Macro 5, Turtle 1, Harasser 5), 0 exception lines, desertion in 4 of 20; Timing Push 28.5%, Turtle/Tech 25.1%, Feint 23.0%, Expand 12.3%, Economy 3.7%, Trooper Rush 3.0%, Counter-Attack 2.5%, Harass 1.8% (no plan at 0%); after 480 s against the turtle Feint 84%, Timing Push 2% (against the macro player 38% / 38%); massing in no game; Turtle games 889 s on average against 737 s; Diggers at 180 s against the harasser 13.8 against 16.0 (Trooper Rush holds them at 12), ore mined higher against three of the four opponents (the rusher's level). Replay of the varied doctrine over the legacy trace had predicted Timing Push 34.6%, Feint 10.9% (24% against the turtle). Quick on the varied doctrine 2/4, 0 lost (Macro and Turtle capped at 720 s, as the legacy Quicks). Since 18:30 the same day the legacy doctrine is the default again and the varied one is mask bit 1024 (`AuditTrials.EvalFullVariedDoctrine`).
 
 ### AI: Mech AI
 

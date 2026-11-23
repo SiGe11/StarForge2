@@ -37,6 +37,18 @@ namespace StarForge.AI
         public readonly float[] timeIn = new float[S];
         Strategy cur = Strategy.Eco, pending = Strategy.Eco;
         float commitT, conf, lastAdv, evalT;
+        bool haveAdv;
+        /// <summary>A/B: the plan's reward as before -- every ore in the bank counted, the first window
+        /// rewarded against nothing, a window credited whole to the plan that ended it (the evaluation
+        /// runner resets it).</summary>
+        public static bool LegacyLearning;
+        /// <summary>Ore in hand counts toward a plan's reward up to this: a working float. Past it,
+        /// 1,000 ore unspent paid a plan like a 400 lead in army.</summary>
+        const float OreCounted = 400f;
+
+        float Advantage(Snapshot s) =>
+            0.0020f * (s.armyValue - s.eArmyValue) + 0.030f * s.workers + 0.0008f * (LegacyLearning ? s.ore : Mathf.Min(s.ore, OreCounted));
+
         readonly float[] bias = new float[S];        // taste + novelty, fixed for the match
         readonly float[] runPayoff = new float[S];   // reward summed over the current run of a plan
         readonly float[] runTime = new float[S];
@@ -47,6 +59,8 @@ namespace StarForge.AI
 
         public Strategy Current => cur;
         public float ScoreOf(Strategy s) => score[(int)s];
+        /// <summary>This match's offset for a plan (taste and recent matches): AuditTrials' plan trace.</summary>
+        public float BiasOf(Strategy s) => bias[(int)s];
         public float Confidence => conf;
         public string Reason => reason;
         public int Switches => switches;
@@ -73,7 +87,50 @@ namespace StarForge.AI
             rng = new Rng(seed);
             System.Array.Clear(doctrine, 0, doctrine.Length);
 
-            void W(Strategy s, F f, float v) => doctrine[(int)s, (int)f] = v;
+            if (VariedDoctrine) DoctrineVaried(); else DoctrineLegacy();
+
+            // Blend in what previous matches against this player taught us. The
+            // doctrine stays as a regulariser so a few odd games cannot wreck it.
+            bool haveMemory = rememberedWeights != null && rememberedWeights.Length == S * NFEAT;
+            float k = haveMemory ? Saturate(trust) : 0f;
+            for (int s = 0; s < S; s++)
+                for (int f = 0; f < NFEAT; f++)
+                    w[s, f] = Lerp(doctrine[s, f], haveMemory ? rememberedWeights[s * NFEAT + f] : 0f, k);
+
+            cur = pending = Strategy.Eco;
+            conf = commitT = lastAdv = evalT = 0f;
+            haveAdv = false;
+            switches = 0;
+            System.Array.Clear(lastFeat, 0, NFEAT);
+            System.Array.Clear(timeIn, 0, S);
+            System.Array.Clear(bias, 0, S);
+            System.Array.Clear(runPayoff, 0, S);
+            System.Array.Clear(runTime, 0, S);
+            System.Array.Clear(fatigue, 0, S);
+            reason = haveMemory && k > 0f ? "opening (remembers you)" : "opening";
+        }
+
+        void W(Strategy s, F f, float v) => doctrine[(int)s, (int)f] = v;
+
+        /// <summary>The varied doctrine, OFF by default (opt-in: AIEvalRunner.SetAuditSwitches bit 1024 turns it on; the
+        /// runner, the benchmark and AgentInbox's play stop clear it). Its gate (2026-11-23, 6000.6.10f1): 16/20 won,
+        /// 0 lost, every plan used, Timing Push 49% -> 29% -- but against the turtle Feint took 84% of the time after
+        /// 480 s (26% before), and the Feint path starts no wave (no massing, Mech-away or beaten bookkeeping):
+        /// Turtle 1/5 won against 2/5, massing in no game. Left off until Feint no longer owns the late game.</summary>
+        public static bool VariedDoctrine;
+        /// <summary>The doctrine the memory file's learned weights belong to: bumped by hand whenever the DEFAULT
+        /// doctrine's numbers change, and AIMemory drops saved weights of another version once. 0: the legacy doctrine
+        /// (still the default); bump to 2 when <see cref="VariedDoctrine"/> becomes the default (1 was used 13:58-18:30 on
+        /// 2026-11-23 for an earlier varied matrix, so a stale file stamped 1 must not match). Not tied to the switch:
+        /// that A/B is for evaluations, which run with memory off.</summary>
+        public const int DoctrineVersion = 0;
+
+        /// <summary>The doctrine before the retune (2026-11-23): against the scripted players Timing Push and
+        /// Turtle/Tech took most of the time, Trooper Rush none and Counter-Attack 0.5%.</summary>
+        void DoctrineLegacy()
+        {
+            // The default doctrine: change any number here and bump DoctrineVersion, or saved weights learned on the
+            // old numbers stay blended in.
 
             // Economy: good early, good when they are not threatening us.
             W(Strategy.Eco, F.Bias, 0.35f); W(Strategy.Eco, F.Time, -0.9f);
@@ -115,25 +172,66 @@ namespace StarForge.AI
             W(Strategy.Feint, F.Bias, -0.75f); W(Strategy.Feint, F.Defensive, 1.4f);
             W(Strategy.Feint, F.Army, 0.8f); W(Strategy.Feint, F.ArmyRatio, 0.6f);
             W(Strategy.Feint, F.Time, 0.5f);
+        }
 
-            // Blend in what previous matches against this player taught us. The
-            // doctrine stays as a regulariser so a few odd games cannot wreck it.
-            bool haveMemory = rememberedWeights != null && rememberedWeights.Length == S * NFEAT;
-            float k = haveMemory ? Saturate(trust) : 0f;
-            for (int s = 0; s < S; s++)
-                for (int f = 0; f < NFEAT; f++)
-                    w[s, f] = Lerp(doctrine[s, f], haveMemory ? rememberedWeights[s * NFEAT + f] : 0f, k);
+        /// <summary>The varied doctrine (the plan retune, 2026-11-23; the user's target: every plan used, Timing
+        /// Push's share down, no quota per plan). Eco and Turtle/Tech as before.</summary>
+        void DoctrineVaried()
+        {
+            // The legacy doctrine with Timing Push's "we are ahead" bonus shared out (against the scripted
+            // players the AI is nearly always ahead, and ArmyRatio 2.2 / Army 0.9 / SupplyFill 0.7 made Timing
+            // Push the plan half the time, Trooper Rush never and Counter-Attack 0.5%): Trooper Rush, Harass and
+            // Counter-Attack now take a lead in army too, and their own situation decides among them --
+            // Trooper Rush an early window (its bias falls to nothing by 300 s), Harass less put off by a
+            // defensive player, Counter-Attack less held back (but not while a rush is read). Expand's ore term
+            // 1.6 -> 1.4 (at 1.6 it took most of the time Timing Push gave up against the turtle).
+            // Designed against a plan trace (AuditTrials.EvalTracedFull, replayed offline): every plan used.
+            // Opt-in (VariedDoctrine): changing a number here needs no DoctrineVersion bump while it is not the default.
 
-            cur = pending = Strategy.Eco;
-            conf = commitT = lastAdv = evalT = 0f;
-            switches = 0;
-            System.Array.Clear(lastFeat, 0, NFEAT);
-            System.Array.Clear(timeIn, 0, S);
-            System.Array.Clear(bias, 0, S);
-            System.Array.Clear(runPayoff, 0, S);
-            System.Array.Clear(runTime, 0, S);
-            System.Array.Clear(fatigue, 0, S);
-            reason = haveMemory && k > 0f ? "opening (remembers you)" : "opening";
+            // Economy: good early, good when they are not threatening us.
+            W(Strategy.Eco, F.Bias, 0.35f); W(Strategy.Eco, F.Time, -0.9f);
+            W(Strategy.Eco, F.PRush, -1.4f); W(Strategy.Eco, F.PTurtle, 0.5f);
+            W(Strategy.Eco, F.Workers, -0.8f); W(Strategy.Eco, F.EArmy, -0.6f);
+
+            // Trooper rush: only early, best against a greedy or teching opponent.
+            W(Strategy.TrooperRush, F.Bias, 1.2f); W(Strategy.TrooperRush, F.Time, -2.4f);
+            W(Strategy.TrooperRush, F.PMacro, 1.1f); W(Strategy.TrooperRush, F.PExpand, 1.3f);
+            W(Strategy.TrooperRush, F.PTech, 0.9f); W(Strategy.TrooperRush, F.PTurtle, -0.5f);
+            W(Strategy.TrooperRush, F.Army, 0.7f); W(Strategy.TrooperRush, F.PRush, -0.6f); W(Strategy.TrooperRush, F.ArmyRatio, 1.0f);
+
+            // Harass: punish economic play; pointless against someone sitting on units.
+            W(Strategy.Harass, F.Bias, 0.15f); W(Strategy.Harass, F.PMacro, 1.2f);
+            W(Strategy.Harass, F.PExpand, 1.1f); W(Strategy.Harass, F.Defensive, -0.6f);
+            W(Strategy.Harass, F.Army, 0.5f); W(Strategy.Harass, F.PRush, -0.7f);
+            W(Strategy.Harass, F.ArmyAway, 0.6f); W(Strategy.Harass, F.ArmyRatio, 0.9f);
+
+            // Timing push: commit when we are actually ahead in army.
+            W(Strategy.TimingPush, F.Bias, -0.15f); W(Strategy.TimingPush, F.ArmyRatio, 1.6f);
+            W(Strategy.TimingPush, F.Army, 0.6f); W(Strategy.TimingPush, F.SupplyFill, 0.5f);
+            W(Strategy.TimingPush, F.Time, 0.4f); W(Strategy.TimingPush, F.ScoutConf, 0.5f);
+
+            // Turtle/tech: the answer to aggression, and to being behind.
+            W(Strategy.TurtleTech, F.Bias, -0.05f); W(Strategy.TurtleTech, F.PRush, 2.0f);
+            W(Strategy.TurtleTech, F.PHarass, 1.0f); W(Strategy.TurtleTech, F.ArmyRatio, -1.5f);
+            W(Strategy.TurtleTech, F.Aggression, 1.2f);
+
+            // Expand: only when safe and rich.
+            W(Strategy.Expand, F.Bias, -0.35f); W(Strategy.Expand, F.Ore, 1.4f);
+            W(Strategy.Expand, F.PRush, -1.8f); W(Strategy.Expand, F.Aggression, -1.3f);
+            W(Strategy.Expand, F.ArmyRatio, 0.8f); W(Strategy.Expand, F.PTurtle, 0.7f);
+
+            // Counter-attack: their army is out of position.
+            W(Strategy.CounterAttack, F.Bias, -0.1f); W(Strategy.CounterAttack, F.ArmyAway, 2.6f);
+            W(Strategy.CounterAttack, F.Army, 0.6f); W(Strategy.CounterAttack, F.ScoutConf, 0.8f); W(Strategy.CounterAttack, F.ArmyRatio, 0.8f);
+            // ...not while it reads a rush coming: a rusher's army out is coming at us (Turtle/Tech's case).
+            W(Strategy.CounterAttack, F.PRush, -1.0f);
+
+            // Feint: worth it against a player who reacts hard to what they see.
+            // (As before: raised, Feint took the late game from Timing Push against a defensive player, and its
+            // path starts no wave -- no staging, no Mech-away or hurt-Mech waves, no beaten or massed count.)
+            W(Strategy.Feint, F.Bias, -0.75f); W(Strategy.Feint, F.Defensive, 1.4f);
+            W(Strategy.Feint, F.Army, 0.8f); W(Strategy.Feint, F.ArmyRatio, 0.6f);
+            W(Strategy.Feint, F.Time, 0.5f);
         }
 
         public float[] ExportWeights()
@@ -144,7 +242,8 @@ namespace StarForge.AI
             return o;
         }
 
-        void Features(Snapshot s, OpponentModel om, float t, float[] f)
+        /// <summary>The features a plan is scored by (public for AuditTrials' plan trace; reads nothing of the selector).</summary>
+        public static void Features(Snapshot s, OpponentModel om, float t, float[] f)
         {
             System.Array.Clear(f, 0, NFEAT);
             f[(int)F.Time] = Saturate(t / 600f);
@@ -169,7 +268,7 @@ namespace StarForge.AI
             f[(int)F.Bias] = 1f;
         }
 
-        static bool Legal(Strategy st, Snapshot s)
+        public static bool Legal(Strategy st, Snapshot s)
         {
             switch (st)
             {
@@ -210,9 +309,12 @@ namespace StarForge.AI
             evalT += dt;
             if (evalT >= 18f)
             {
-                float adv = 0.0020f * (s.armyValue - s.eArmyValue) + 0.030f * s.workers + 0.0008f * s.ore;
-                Reward(adv - lastAdv);
+                float adv = Advantage(s);
+                // The first window only sets the mark: measured against 0, the opening plan was paid
+                // for the Diggers and ore every side starts with.
+                if (haveAdv || LegacyLearning) Reward(adv - lastAdv);
                 lastAdv = adv;
+                haveAdv = true;
                 evalT = 0f;
             }
             System.Array.Copy(feat, lastFeat, NFEAT);
@@ -250,6 +352,10 @@ namespace StarForge.AI
                 {
                     if (commitT <= 0f)
                     {
+                        // The plan being dropped is paid for its own part of the window first, and the
+                        // window starts again with the next: the one that took over a second before the
+                        // 18 s were up was credited with all of them.
+                        if (!LegacyLearning && haveAdv) Reward(Advantage(s) - lastAdv);
                         // The plan being dropped keeps a little fatigue if it went stale.
                         int was = (int)cur;
                         if (runTime[was] > 120f && runPayoff[was] <= 0.05f) fatigue[was] = Mathf.Min(0.25f, fatigue[was] + 0.12f);
@@ -258,6 +364,7 @@ namespace StarForge.AI
                         cur = bestS;
                         switches++;
                         commitT = 14f;
+                        if (!LegacyLearning) { evalT = 0f; lastAdv = Advantage(s); haveAdv = true; }
                         reason = $"{AINames.Of(cur)} — they look {AINames.Of(om.MostLikely())}";
                     }
                 }

@@ -561,10 +561,50 @@ namespace StarForge.AI
             // nothing at all from a gun that only reaches aircraft.
             if (!e.def.hitsGround) return 0f;
             // A plane fires only on its passes, about a quarter of the time.
-            return e.def.damage * e.def.vsHeavy * e.def.vsMech * (1f + 0.15f * e.rank) / Mathf.Max(0.1f, e.def.cooldown) * (e.def.fixedWing ? 0.25f : 1f);
+            return e.def.damage * e.def.vsHeavy * e.def.vsMech * (1f + 0.15f * e.rank) * Rate(e.def) * (e.def.fixedWing ? 0.25f : 1f);
         }
 
+        /// <summary>Shots a second: by its cooldown, or -- a gun fed from a magazine (the combat rules'
+        /// infantry) -- by the magazine and its reload, which starts after the last round's own wait. A
+        /// Rocketeer's cooldown is a fraction of a second and its one-round reload the real wait: by the
+        /// cooldown alone it counted 272 damage a second against a Mech, nineteen Maulers, on either side
+        /// of the odds (AuditTrials.HunterOdds). Under `LegacyRatio` by the cooldown, as before.</summary>
+        public static float Rate(UnitDef D) =>
+            !LegacyRatio && D.magazine > 0 && D.reloadTime > 0f
+                ? D.magazine / (D.magazine * Mathf.Max(0.01f, D.cooldown) + D.reloadTime)
+                : 1f / Mathf.Max(0.1f, D.cooldown);
+
         static float Toughness(Unit e) => e.mech != null ? e.mech.EffectiveHp : Mathf.Max(1f, e.hp);
+
+        /// <summary>Editor A/B only: its side's guns weighed by what they do to a Mech, whatever the enemy
+        /// there is, as before. The evaluation runner resets it.</summary>
+        public static bool LegacyRatio;
+        readonly List<Unit> friendsBuf = new List<Unit>(64);
+
+        /// <summary>Damage a second one of its side's guns does to the enemy standing there, by what that
+        /// enemy is (shares of its toughness; the class multipliers as GameWorld.HitMul applies them,
+        /// `vsMech` only against a Mech or an Ironclad). Weighed by <see cref="EnemyDps"/> -- damage to a
+        /// Mech -- a friendly Mech-Hunter (vsMech 7) counted 78.8 a second against riflemen it does 6.6
+        /// to, as much as five Maulers, and the Mech judged every fight near it about twice too well.</summary>
+        static float FriendDps(Unit e, float structure, float air, float mechLike, float heavy, float light, float men) =>
+            e.Type == UnitType.Worker ? 0f : FriendDps(e.def, e.rank, structure, air, mechLike, heavy, light, men);
+
+        /// <summary>About half a rifle's rounds strike a man at fighting range (TacticalTrials.Hits: 44-68%
+        /// standing at 20-30 m, fewer crouched, prone or in cover).</summary>
+        const float SoldierHit = 0.5f;
+
+        /// <summary>The same from a definition (AuditTrials.HunterOdds reads it). Soldiers apart from other
+        /// light things: a round decided when fired does `vsSoldier` more to a man (GameWorld.ShotDamage;
+        /// 0 on a definition the combat rules do not set, so only where it is) and about half of them strike.</summary>
+        public static float FriendDps(UnitDef D, float rank, float structure, float air, float mechLike, float heavy, float light, float men)
+        {
+            if (!D.Armed) return 0f;
+            float atMen = D.vsLight * (D.shotSpread > 0f && D.vsSoldier > 0f ? D.vsSoldier * SoldierHit : 1f);
+            float ground = D.hitsGround ? structure * D.vsStructure + mechLike * D.vsHeavy * D.vsMech + heavy * D.vsHeavy + light * D.vsLight + men * atMen : 0f;
+            float up = D.hitsAir ? air * D.vsAir : 0f;
+            // A plane fires only on its passes, about a quarter of the time (as EnemyDps).
+            return D.damage * (ground + up) * (1f + 0.15f * rank) * Rate(D) * (D.fixedWing ? 0.25f : 1f);
+        }
 
         /// <summary>Its side's power against the enemy's round <paramref name="at"/>
         /// (Lanchester: summed hit points times summed damage a second, each side),
@@ -573,6 +613,10 @@ namespace StarForge.AI
         {
             float eh = 0f, ed = 0f, fh = 0f, fd = 0f;
             int eHeavy = 0, eAll = 0;
+            // The enemy there by what a gun does to it: its toughness in towers, aircraft, a Mech or
+            // Ironclad, other armour and light things (FriendDps).
+            float tStruct = 0f, tAir = 0f, tMech = 0f, tHeavy = 0f, tLight = 0f, tMen = 0f;
+            friendsBuf.Clear();
             foreach (var e in w.UnitsNear(at, radius))
             {
                 if (e.team > 1 || e.dying || e.Untargetable) continue;
@@ -582,18 +626,29 @@ namespace StarForge.AI
                     if (dps <= 0f && !(e.def.building)) continue;
                     // Towers hurt, but a structure without guns is only a target.
                     if (e.def.building && !e.def.Armed) continue;
-                    eh += Toughness(e);
+                    float tough = Toughness(e);
+                    eh += tough;
                     ed += dps;
                     eAll++;
                     if (e.def.Heavy) eHeavy++;
+                    if (e.def.building) tStruct += tough;
+                    else if (e.def.flying) tAir += tough;
+                    else if (e.def.MechLike) tMech += tough;
+                    else if (e.def.Heavy) tHeavy += tough;
+                    else if (e.def.bodyRadius > 0f) tMen += tough;
+                    else tLight += tough;
                 }
                 else if (e != m && (e.def.Armed || e.def.building) && !e.deserted)   // deserters will not help
                 {
                     if (e.def.building && !e.def.Armed) continue;
                     fh += Toughness(e) * (e.def.building ? 0.6f : 1f);
-                    fd += EnemyDps(e) * (home && e.def.building ? 1.2f : 1f);
+                    if (LegacyRatio) fd += EnemyDps(e) * (home && e.def.building ? 1.2f : 1f);
+                    else friendsBuf.Add(e);
                 }
             }
+            if (eh > 0f)
+                foreach (var e in friendsBuf)
+                    fd += FriendDps(e, tStruct / eh, tAir / eh, tMech / eh, tHeavy / eh, tLight / eh, tMen / eh) * (home && e.def.building ? 1.2f : 1f);
             // The Mech itself: its guns against the enemy's mix, its hull and shield.
             float heavyShare = eAll > 0 ? eHeavy / (float)eAll : 0.5f;
             var core = m.mech;

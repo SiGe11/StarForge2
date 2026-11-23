@@ -246,7 +246,7 @@ namespace StarForge.AI
             Influence.SetBackend(gpu);
             ConfigureDifficulty(difficulty);
 
-            main.Clear(); harass.Clear(); scouts.Clear(); prong.Clear();
+            main.Clear(); harass.Clear(); scouts.Clear(); prong.Clear(); reserve.Clear(); trooperRoll.Clear(); waveHigh = 0f; reissueWave = false; idleOrderAt = -1e9f; fallingBack = false; massedWave = false;
             barredSites.Clear(); fieldsTried.Clear(); explorer = null; missSince = -1f; clearedAt.Clear(); stuckUntil.Clear(); movedForMech.Clear(); mechGunAt = -1e9f; minedOut = false; minedOutCheckAt = 0f;
             rally = Perception.Home;
             committed = false;
@@ -393,6 +393,7 @@ namespace StarForge.AI
                 case 2: w.CmdAttack(sel, target); break;
                 case 3: w.CmdStop(sel); break;
                 case 4: w.CmdHarvest(sel, target); break;
+                case 5: w.CmdMove(sel, pos, false, true); break;   // hurried: a retreat (soldiers run, no bounding)
             }
             return true;
         }
@@ -475,7 +476,109 @@ namespace StarForge.AI
             return $"refused {Top(refusedBy)}; spent {Top(spentBy)}";
         }
 
-        bool Reserved(Unit u) => scouts.Contains(u) || harass.Contains(u) || main.Contains(u) || prong.Contains(u);
+        bool Reserved(Unit u) => scouts.Contains(u) || harass.Contains(u) || main.Contains(u) || prong.Contains(u) || reserve.Contains(u);
+
+        // ------------------------------------------------------------ waves: reserve, spent, re-orders
+        // Editor A/B only, one a change, all as before when set; the evaluation runner resets them
+        // (AIEvalRunner.SetAuditSwitches) and can hold any of them on for a run.
+        /// <summary>OFF by default, tried and measured (2026-11-23): what is trained during a wave is
+        /// held at home and goes forward as a group (the reserve, Reinforce) instead of one by one. On
+        /// the Full's five Turtle seeds the four runs with it won 14 of 20 at 806 s on average (840,
+        /// 819, 800, 766), the two without it 8 of 10 at 666 s (657, 675): against a side that sits in
+        /// its base a steady trickle keeps the siege fed and groups arrive late. Not judged against a
+        /// player who kills singles on the road; the evaluation runner can hold it on (mask bit 1).</summary>
+        public static bool ReserveGroups;
+        /// <summary>A wave bled under the plan's threshold is called off, never beaten (no spent rule),
+        /// and a retreat is a plain Move for the main squad alone, the guard post's order straight after.</summary>
+        public static bool LegacyWaveEnd;
+        /// <summary>An idle straggler re-orders the wave every pass.</summary>
+        public static bool LegacyReorder;
+        /// <summary>Focus fire and the raid turn on a target the pass it is seen (no reaction time).</summary>
+        public static bool LegacyReflex;
+        /// <summary>The trooper share rolled every pass.</summary>
+        public static bool LegacyTrooperShare;
+        /// <summary>The builder picked at random.</summary>
+        public static bool LegacyBuilder;
+
+        /// <summary>With `ReserveGroups` (off by default): trained while a wave is out and under way,
+        /// held at home until they are a group worth sending (Reinforce). Without it they join the wave
+        /// as they are trained, as before, and walking up they pull the army's middle -- where the
+        /// retreat and spent rules read the field -- back onto the road (3 retreats in 141 waves over 48
+        /// evaluation games): those two rules seldom fire then, and a losing wave is mostly booked by
+        /// the `bled` rule, which reads no field.</summary>
+        readonly List<Unit> reserve = new List<Unit>();
+        readonly List<Unit> armyBuf = new List<Unit>();
+        /// <summary>The most the wave out has been worth (main and prong), and a group that has just
+        /// joined it (order the wave again).</summary>
+        float waveHigh;
+        bool reissueWave;
+        /// <summary>When a squad was last re-ordered only because one of it stood idle.</summary>
+        float idleOrderAt = -1e9f;
+        /// <summary>The army is running home from a beaten wave: the guard post's order waits until most
+        /// of it is there, or this time (given the next pass, 0.4 s on, an attack-move ended the run and
+        /// the men turned to fight where they stood).</summary>
+        bool fallingBack;
+        float fallBackUntil;
+        /// <summary>A wave under this share of the most it was worth, the enemy still on the field, is
+        /// spent: it pulls out as beaten. One that ends under the plan's threshold having lost this much
+        /// of its peak (`BledShare`) is booked as beaten too, not as called off.</summary>
+        const float SpentShare = 0.45f, BledShare = 0.7f;
+        /// <summary>The wave out is the massed one (MaxingOut): it goes all in, the spent rule is not asked.</summary>
+        bool massedWave;
+        /// <summary>Since when the reserve has had someone in it, and how long a group too small to
+        /// send waits before it goes anyway (at the supply cap nothing more is coming).</summary>
+        float reserveSince;
+        const float ReinforceWait = 45f;
+        /// <summary>A reinforcing group goes at a third of what the wave still has, within these.</summary>
+        const float ReinforceMin = 150f, ReinforceMax = 400f;
+        /// <summary>Seconds between re-orders of a squad for an idle straggler (2,008 actions refused at the
+        /// wave's re-order in those 48 games, the top refused step in 24: every pass, 0.42 s).</summary>
+        const float IdleReorder = 2f;
+
+        float WaveForce()
+        {
+            float v = 0f;
+            foreach (var h in main) v += Defs.ArmyValue(h.Type);
+            foreach (var h in prong) v += Defs.ArmyValue(h.Type);
+            return v;
+        }
+
+        /// <summary>The reserve joins the wave once it is a group: a third of what the wave still has,
+        /// 150 at least and 400 at most. Until then it stands where it was trained (idle units answer
+        /// what comes in reach).</summary>
+        void Reinforce()
+        {
+            if (reserve.Count == 0) return;
+            float value = 0f;
+            foreach (var h in reserve) value += Defs.ArmyValue(h.Type);
+            if (value < Mathf.Clamp(WaveForce() / 3f, ReinforceMin, ReinforceMax) && w.time - reserveSince < ReinforceWait) return;
+            main.AddRange(reserve);
+            reserve.Clear();
+            reissueWave = true;
+            Dbg.reinforcements++;
+            Dbg.reinforcedValue += value;
+        }
+
+        /// <summary>Riflemen from this Garrison now, or wait for the ore a tank takes? Asked once and
+        /// kept <see cref="TrooperRollFor"/> seconds. Rolled every pass (0.28 s), a share of 0.35 still
+        /// trained within a second 79% of the time: the plans' and personalities' shares did next to nothing.</summary>
+        readonly Dictionary<Unit, (float until, bool troopers)> trooperRoll = new Dictionary<Unit, (float until, bool troopers)>();
+        const float TrooperRollFor = 4f;
+
+        bool TroopersNow(Unit garrison, float share)
+        {
+            if (LegacyTrooperShare) return rng.F01() < share;
+            if (trooperRoll.TryGetValue(garrison, out var r) && w.time < r.until) return r.troopers;
+            if (trooperRoll.Count > 24)
+            {
+                pruneBuf.Clear();
+                foreach (var kv in trooperRoll) if (!Unit.Live(kv.Key)) pruneBuf.Add(kv.Key);
+                foreach (var u in pruneBuf) trooperRoll.Remove(u);
+            }
+            bool yes = rng.F01() < share;
+            trooperRoll[garrison] = (w.time + TrooperRollFor, yes);
+            return yes;
+        }
 
         bool PlaceNear(UnitType what, Vector2 around, float rmin, float rmax, out Vector2 spot)
         {
@@ -601,7 +704,28 @@ namespace StarForge.AI
                 for (int i = freeWorkers.Count - 1; i >= 0; i--)
                     if (UnderMech(freeWorkers[i].pos) || (clearedAt.TryGetValue(freeWorkers[i], out float clearedT) && w.time - clearedT < 8f))
                         freeWorkers.RemoveAt(i);
-            Unit Builder() => freeWorkers.Count == 0 ? null : freeWorkers[rng.IRange(0, freeWorkers.Count)];
+            Unit Builder() => freeWorkers.Count == 0 ? null : LegacyBuilder ? freeWorkers[rng.IRange(0, freeWorkers.Count)] : freeWorkers[0];
+            // The free Digger nearest the place builds it (picked at random, one walked in from an
+            // outlying line past whatever stood on the way), and is not asked again this pass (a
+            // second site handed to the same one left the first untended).
+            Unit Nearest(Unit b, Vector2 spot)
+            {
+                if (LegacyBuilder) return b;
+                float bestD = float.MaxValue;
+                foreach (var h in freeWorkers)
+                {
+                    float d = (h.pos - spot).sqrMagnitude;
+                    if (d < bestD) { bestD = d; b = h; }
+                }
+                return b;
+            }
+            bool Raise(Unit b, UnitType what, Vector2 spot)
+            {
+                b = Nearest(b, spot);
+                if (b == null || !Build(b, what, spot)) return false;
+                if (!LegacyBuilder) freeWorkers.Remove(b);
+                return true;
+            }
 
             // A human macros in bursts and is limited by hands, not by a one-action-
             // per-tick rule. The budget is the real constraint, so this is a
@@ -616,7 +740,7 @@ namespace StarForge.AI
             {
                 var b = Builder();
                 if (b != null && (PlaceNear(UnitType.Foundry, home, 0f, 14f, out var spot) || PlaceNear(UnitType.Foundry, home, 14f, 32f, out spot)) &&
-                    Build(b, UnitType.Foundry, spot)) issued++;
+                    Raise(b, UnitType.Foundry, spot)) issued++;
             }
 
             // Its next ore line, decided before anything is spent (step 3 raises it): when the plan
@@ -647,7 +771,7 @@ namespace StarForge.AI
                 F.ore >= Need(UnitType.Bunkhouse) && s.pendingType[(int)UnitType.Bunkhouse] < 2)
             {
                 var b = Builder();
-                if (b != null && PlaceNear(UnitType.Bunkhouse, home, 10f, 26f, out var spot) && Build(b, UnitType.Bunkhouse, spot)) issued++;
+                if (b != null && PlaceNear(UnitType.Bunkhouse, home, 10f, 26f, out var spot) && Raise(b, UnitType.Bunkhouse, spot)) issued++;
             }
 
             // 1a. A structure left half-built -- its Digger killed, a raider got it -- gets
@@ -690,7 +814,7 @@ namespace StarForge.AI
                 Vector2 around = home - Norm(face - home) * 12f;
                 var b = Builder();
                 if (b != null && (PlaceNear(UnitType.MechBay, around, 0f, 12f, out var spot) || PlaceNear(UnitType.MechBay, home, 12f, 26f, out spot)) &&
-                    Build(b, UnitType.MechBay, spot)) issued++;
+                    Raise(b, UnitType.MechBay, spot)) issued++;
             }
 
             // 1c. Upgrades for the Mech, from ore it can spare.
@@ -706,13 +830,13 @@ namespace StarForge.AI
                 F.ore >= Need(UnitType.Garrison) && s.pending < 2)
             {
                 var b = Builder();
-                if (b != null && PlaceNear(UnitType.Garrison, home, 12f, 28f, out var spot) && Build(b, UnitType.Garrison, spot)) issued++;
+                if (b != null && PlaceNear(UnitType.Garrison, home, 12f, 28f, out var spot) && Raise(b, UnitType.Garrison, spot)) issued++;
             }
             if (issued < MaxPerPass && !saving && s.garrisons >= 1 && s.workshops + s.pendingType[(int)UnitType.Workshop] < wantFac &&
                 F.ore >= Need(UnitType.Workshop) && s.pending < 2)
             {
                 var b = Builder();
-                if (b != null && PlaceNear(UnitType.Workshop, home, 13f, 29f, out var spot) && Build(b, UnitType.Workshop, spot)) issued++;
+                if (b != null && PlaceNear(UnitType.Workshop, home, 13f, 29f, out var spot) && Raise(b, UnitType.Workshop, spot)) issued++;
             }
 
             // 2b. Sentinels on the approach: the turtle's answer, and insurance
@@ -724,7 +848,7 @@ namespace StarForge.AI
                 Vector2 face = s.enemyBaseKnown ? s.enemyBase : Perception.BaseGuesses[0];
                 Vector2 around = home + Norm(face - home) * 17f;
                 var b = Builder();
-                if (b != null && PlaceNear(UnitType.Sentinel, around, 0f, 10f, out var spot) && Build(b, UnitType.Sentinel, spot)) issued++;
+                if (b != null && PlaceNear(UnitType.Sentinel, around, 0f, 10f, out var spot) && Raise(b, UnitType.Sentinel, spot)) issued++;
             }
 
             // 2c. The wider roster's buildings: an Armory once established (its upgrades, and the
@@ -741,8 +865,8 @@ namespace StarForge.AI
                     // grown base often has no room for it (an air-path AI never raised one), so further out.
                     // ...and only where its builder can walk (the outer ring can be a plateau top or a
                     // clearing no ground unit reaches: a site there stood pending and blocked the rest).
-                    if (b != null && ((PlaceNear(want, home, 12f, 30f, out var spot) && w.Reaches(b, spot)) ||
-                                      (PlaceNear(want, home, 30f, 46f, out spot) && w.Reaches(b, spot))) && Build(b, want, spot)) issued++;
+                    if (b != null && ((PlaceNear(want, home, 12f, 30f, out var spot) && w.Reaches(Nearest(b, spot), spot)) ||
+                                      (PlaceNear(want, home, 30f, 46f, out spot) && w.Reaches(Nearest(b, spot), spot))) && Raise(b, want, spot)) issued++;
                 }
             }
 
@@ -752,7 +876,7 @@ namespace StarForge.AI
                 if (PlaceNear(UnitType.Foundry, site, 8f, 16f, out var spot))
                 {
                     var b = Builder();
-                    if (b != null && Build(b, UnitType.Foundry, spot)) issued++;
+                    if (b != null && Raise(b, UnitType.Foundry, spot)) issued++;
                     missSince = -1f;
                 }
                 else
@@ -833,7 +957,7 @@ namespace StarForge.AI
                         if (Train(e, UnitType.Skimmer)) { issued++; s.queuedType[(int)UnitType.Skimmer]++; }
                     }
                     else if (F.ore >= Need(UnitType.Trooper) &&
-                             (rich || s.workshops == 0 || rng.F01() < plan.trooperBias))
+                             (rich || s.workshops == 0 || TroopersNow(e, plan.trooperBias)))
                     {
                         var pick = PickInfantry(s);
                         if (F.ore < Need(pick)) pick = UnitType.Trooper;
@@ -1598,6 +1722,10 @@ namespace StarForge.AI
                 {
                     main.Remove(pick);
                     harass.Remove(pick);
+                    // One squad a unit: left in the prong too, the scout's Moves and the prong's
+                    // re-orders took turns with it (as before the audit under `LegacyWaveEnd`).
+                    if (!LegacyWaveEnd) prong.Remove(pick);
+                    reserve.Remove(pick);
                     scouts.Add(pick);
                 }
             }
@@ -1662,6 +1790,7 @@ namespace StarForge.AI
             harass.RemoveAll(u => !Unit.Live(u) || u.deserted);
             scouts.RemoveAll(u => !Unit.Live(u) || u.deserted);
             prong.RemoveAll(u => !Unit.Live(u) || u.deserted);
+            reserve.RemoveAll(u => !Unit.Live(u) || u.deserted);
 
             // Assign fresh army units to a squad. Skimmers are the natural raiders. A personality
             // with a taste for raids (about half of them) keeps a pair of Skimmers at their Diggers
@@ -1674,6 +1803,12 @@ namespace StarForge.AI
                 {
                     if (Reserved(h)) continue;
                     if (Raider(t) && harass.Count < harassWant && (!sideRaid || t == UnitType.Skimmer)) harass.Add(h);
+                    // A wave out and under way: what is trained meanwhile goes forward as a group (Reinforce).
+                    else if (waveOn && !staging && ReserveGroups)
+                    {
+                        if (reserve.Count == 0) reserveSince = w.time;
+                        reserve.Add(h);
+                    }
                     else main.Add(h);
                 }
             if (sideRaid)
@@ -1815,14 +1950,16 @@ namespace StarForge.AI
 
             // Divert only if the raid matters relative to what we field.
             float divertAt = Mathf.Max(45f, s.armyValue * 0.14f);
-            if (threatHome > divertAt && main.Count > 0)
+            if (threatHome > divertAt && main.Count + reserve.Count > 0)
             {
                 // Called home, not beaten back: booked as a repulse, it marked the way in as
                 // failed and (their Mech about) raised the next push's threshold by a fifth.
                 // Ended first, so the prong it folds back into the army is called home with it
-                // (ordered before, the prong walked on to its own point).
-                bool prongBack = prong.Count > 0;
-                EndWave(true);
+                // (ordered before, the prong walked on to its own point); the reserve likewise.
+                bool prongBack = prong.Count > 0 || reserve.Count > 0;
+                fallingBack = false;
+                // (Its army gone and only the reserve left: beaten, as the empty-army branch below books it.)
+                EndWave(!(main.Count == 0 && waveOn && w.time - waveStart > 8f));
                 if ((prongBack || WorthReissuing(threatAt, rally, 12f)) && Issue(main, 1, threatAt, null)) rally = threatAt;
                 committed = false;
                 return;
@@ -1830,16 +1967,36 @@ namespace StarForge.AI
 
             // Retreat when the local balance is bad -- or when its Mech, which sees what
             // it cannot, says the attack is walking into too much.
+            // -- or when the wave is spent: under `SpentShare` of the most it was worth. Until then
+            // a wave fought on down to the plan's threshold (a sixth of a 3,000 army) and was then
+            // "called off": no regroup, no failed approach, no repulse counted against their Mech, so
+            // the massing rule never came on (0 of 48 evaluation games). Not a mop-up, and not a side
+            // that cannot grow again (nothing to regroup for).
+            float force = waveOn ? WaveForce() : 0f;
+            if (force > waveHigh) waveHigh = force;
+            // (The mop-up's own test, as below: the pass a wave takes their last Foundry it is one.)
+            bool mopUpNow = !LegacySweep && sawFoundry && s.eFoundries == 0 && !s.eMech && TheirStrength(s) <= s.armyValue;
+            bool spent = !LegacyWaveEnd && waveOn && !staging && !mopUpWave && !mopUpNow && !massedWave && w.time - waveStart > 8f &&
+                         force < SpentShare * waveHigh && !EconomyDead(s);
             if (n > 0 && committed)
             {
                 float mine = Influence.Sample(0, mainCentre);
                 float theirs = Influence.Sample(1, mainCentre);
                 bool told = w.time < adviceRegroupUntil;
-                if ((theirs > mine * 1.5f + 0.5f || told) && w.time > retreatUntil)
+                // ...with the enemy still there: a wave that has won its fight goes on, however dear it was.
+                spent &= theirs > mine * 0.5f;
+                if ((theirs > mine * 1.5f + 0.5f || told || spent) && w.time > retreatUntil)
                 {
                     var safe = w.NearestReachable(home, Influence.SafestNear(home, 30f));
-                    if (Issue(main, 0, safe, null))
+                    // The prong goes back with the army (ordered alone, the army left it walking on to
+                    // its own point), and they run: a plain Move bounds from cover to cover under fire.
+                    armyBuf.Clear();
+                    armyBuf.AddRange(main);
+                    if (!LegacyWaveEnd) armyBuf.AddRange(prong);
+                    if (Issue(armyBuf, LegacyWaveEnd ? 0 : 5, safe, null))
                     {
+                        if (spent && !told && !(theirs > mine * 1.5f + 0.5f)) Dbg.spentRetreats++;
+                        if (!LegacyWaveEnd) { fallingBack = true; fallBackUntil = w.time + 40f; }
                         rally = safe;
                         committed = false;
                         retreatUntil = w.time + 8f;   // don't oscillate
@@ -1867,10 +2024,14 @@ namespace StarForge.AI
                 Vector2 target = s.enemyBase;
                 Unit victim = null;
                 float bestD = 1e30f;
+                bool victimPending = false;
                 foreach (var e in w.units)
                 {
                     if (e == null || e.dying || e.team == team || e.team == 2 || !e.def.harvester || e.def.Heavy) continue;
                     if (!w.Sees(team, e)) continue;           // must actually see it
+                    // ...and for its reaction time: until then it is neither taken nor read as "none in
+                    // sight" (the raid was sent on to their base's middle for a pass or two, and back).
+                    if (!LegacyReflex && !Perception.Reactable(e, reactionDelay)) { victimPending = true; continue; }
                     float d = (e.pos - hc).magnitude + 25f * Influence.Sample(1, e.pos);
                     if (d < bestD) { bestD = d; victim = e; target = e.pos; }
                 }
@@ -1897,7 +2058,7 @@ namespace StarForge.AI
                     {
                         if (WorthReissuing(target, harassTarget, 9f) && Issue(harass, 2, target, victim)) { harassTarget = target; sent = true; }
                     }
-                    else if (WorthReissuing(target, harassTarget, 14f) && Issue(harass, 1, target, null)) { harassTarget = target; sent = true; }
+                    else if (!victimPending && WorthReissuing(target, harassTarget, 14f) && Issue(harass, 1, target, null)) { harassTarget = target; sent = true; }
                     if (sent && !raiding)
                     {
                         raiding = true;
@@ -1911,7 +2072,13 @@ namespace StarForge.AI
             if (main.Count == 0)
             {
                 // A wave that did not come back was beaten, whatever is built next.
-                if (waveOn && w.time - waveStart > 8f) { committed = false; EndWave(false); }
+                if (waveOn && w.time - waveStart > 8f)
+                {
+                    committed = false;
+                    // What was held back is the army now: it gathers before it goes (as after a retreat).
+                    if (!LegacyWaveEnd && reserve.Count > 0) { regroupUntil = w.time + 25f; regroupArmy = s.armyValue * 1.3f; }
+                    EndWave(false);
+                }
                 return;
             }
 
@@ -2024,6 +2191,7 @@ namespace StarForge.AI
 
             if (wantAttack)
             {
+                fallingBack = false;
                 if (!committed) { committed = true; commitT = w.time; }
                 // (Not a mop-up: there is nothing to feint at, and it would stand at an empty base.)
                 if (st == Strategy.Feint && !mopUp && !mopUpWave)
@@ -2046,6 +2214,7 @@ namespace StarForge.AI
                     if (byPlan && MaxingOut(s) && !hurtWave && !mechAwayWave)
                     {
                         Dbg.massedWaves++;
+                        massedWave = true;
                         if (stalled && s.armyValue < Dbg.massedArmy) Dbg.stalledWaves++;
                         if (Dbg.firstMassedAt < 0f) Dbg.firstMassedAt = w.time;
                     }
@@ -2065,7 +2234,19 @@ namespace StarForge.AI
             else
             {
                 committed = false;
-                EndWave(true);
+                // Ended under the plan's threshold with three tenths of its peak gone: beaten, not called
+                // off -- it gathers before it goes again, by another way (a change of plan or of threshold
+                // with the wave whole is still a call-off).
+                bool bled = !LegacyWaveEnd && waveOn && !staging && w.time - waveStart > 8f && force < BledShare * waveHigh;
+                if (bled) { regroupUntil = w.time + 25f; regroupArmy = s.armyValue * 1.3f; }
+                EndWave(!bled);
+                if (fallingBack)
+                {
+                    int there = 0;
+                    foreach (var h in main) if (h.order != Order.Move || h.Dist(rally) < 22f) there++;
+                    if (w.time > fallBackUntil || there >= main.Count * 0.7f) fallingBack = false;
+                    else return;
+                }
                 // Hold a defensible spot between home and the likely approach.
                 Vector2 face = s.enemyBaseKnown ? s.enemyBase : Perception.BaseGuesses[0];
                 Vector2 guard = home + Norm(face - home) * 16f;
@@ -2083,6 +2264,8 @@ namespace StarForge.AI
         {
             waveOn = true;
             waveStart = w.time;
+            waveHigh = WaveForce();
+            reissueWave = false;
             Dbg.waves++;
             // What to go for. Every choice is something the AI has actually seen.
             float rBase = 1f, rProd = 0.7f, rExp = 0.6f, rWork = 0.5f;
@@ -2183,10 +2366,16 @@ namespace StarForge.AI
                 {
                     bool idle = false;
                     foreach (var h in main) if (h.order == Order.Idle && h.Dist(stagePoint) > (h.def.fixedWing ? 30f : 13f)) { idle = true; break; }
-                    if ((idle || WorthReissuing(stagePoint, rally, 10f)) && Issue(main, 1, stagePoint, null)) rally = stagePoint;
+                    bool due = idle && (LegacyReorder || w.time - idleOrderAt >= IdleReorder);
+                    if ((due || WorthReissuing(stagePoint, rally, 10f)) && Issue(main, 1, stagePoint, null))
+                    {
+                        rally = stagePoint;
+                        if (idle) idleOrderAt = w.time;
+                    }
                     return;
                 }
             }
+            Reinforce();
             // Once the target is gone, go on to the nearest structure it remembers -- or, none
             // left, to Diggers it saw lately (a side stands while it has either).
             if (!StillStanding(waveAt))
@@ -2212,7 +2401,15 @@ namespace StarForge.AI
             }
             bool anyIdle = false;
             foreach (var h in main) if (h.order == Order.Idle) { anyIdle = true; break; }
-            if ((anyIdle || WorthReissuing(waveAt, rally, 12f)) && Issue(main, 1, waveAt, null)) rally = waveAt;
+            // For an idle straggler alone the army is ordered again every `IdleReorder` seconds, not
+            // every pass; a new target, or a group that has just joined, at once.
+            bool idleDue = anyIdle && (LegacyReorder || w.time - idleOrderAt >= IdleReorder);
+            if ((idleDue || reissueWave || WorthReissuing(waveAt, rally, 12f)) && Issue(main, 1, waveAt, null))
+            {
+                rally = waveAt;
+                reissueWave = false;
+                if (anyIdle) idleOrderAt = w.time;
+            }
 
             if (prongOn && prong.Count > 0)
             {
@@ -2232,6 +2429,11 @@ namespace StarForge.AI
         {
             if ((mechAwayWave || hurtWave) && waveOn) windowNotBefore = w.time + 20f;
             mechAwayWave = hurtWave = false;
+            if (reserve.Count > 0) { main.AddRange(reserve); reserve.Clear(); }
+            waveHigh = 0f;
+            reissueWave = false;
+            bool massed = massedWave;
+            massedWave = false;
             if (!waveOn) return;
             if (calledOff) Dbg.wavesCalledOff++;
             // A wave beaten back (not merely called off by a change of plan) marks
@@ -2240,6 +2442,8 @@ namespace StarForge.AI
             // at a time: 22 waves in a match, and a Mech on 156 kills still standing.
             if (!calledOff && w.time - waveStart > 8f)
             {
+                Dbg.wavesBeaten++;
+                if (massed) Dbg.massedBeaten++;
                 lastFailedApproach = approach;
                 // ...a wave their Mech beat, that is: seen in the last half minute (believed about all
                 // match now, it would count waves the towers beat with the Mech far off).
@@ -2416,6 +2620,7 @@ namespace StarForge.AI
             {
                 if (e == null || e.dying || e.mech == null || e.team == team || e.Untargetable) continue;
                 if (!w.Sees(team, e) || (e.pos - c).magnitude > 30f || (e == letGo && w.time < letGoUntil)) continue;
+                if (!LegacyReflex && !Perception.Reactable(e, reactionDelay)) continue;   // no instant reactions (as home defence)
                 if (Perception.Snap.armyValue < 500f && !Perception.Snap.mechAlive) continue;
                 best = e;
                 bestScore = -1e30f;
@@ -2426,7 +2631,7 @@ namespace StarForge.AI
                 if (e == null || e.dying || e.team == team || e.team == 2 || e.def.building) continue;
                 if (!w.Sees(team, e) || (e == letGo && w.time < letGoUntil)) continue;
                 float d = (e.pos - c).magnitude;
-                if (d > 28f) continue;
+                if (d > 28f || (!LegacyReflex && !Perception.Reactable(e, reactionDelay))) continue;
                 // Prefer the weakest, nearest thing that can shoot back.
                 float score = e.hp + d * 2.5f - (e.def.range > 0f ? 45f : 0f);
                 if (score < bestScore) { bestScore = score; best = e; }

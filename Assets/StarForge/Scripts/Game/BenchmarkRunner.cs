@@ -164,6 +164,16 @@ namespace StarForge.Game
             World.GameWorld.LegacyBreakPick = false;   // the morale trials' A/B switch
             AI.Commander.IgnoreSites = false;
             AI.Commander.RepositionOff = false;   // the blocked-shot trial's A/B switch
+            // ...and every other A/B switch of the AI's, as the evaluation runner clears them.
+            AI.Perception.LegacyMechMemory = false;
+            AI.OpponentModel.LegacyRead = false;
+            AI.MechBrain.LegacyHunt = false;
+            AI.MechBrain.LegacyCommit = false;
+            AI.Commander.LegacyNoMaxOut = false;
+            AI.Commander.LegacySweep = false;
+            AI.Commander.LegacyDiggerSafety = false;
+            AI.Commander.LegacyWayHome = false;
+            AIEvalRunner.SetAuditSwitches(0);
             MatchSettings.skipMenu = true;
             MatchSettings.spectate = true;
             MatchSettings.fixedSeed = true;

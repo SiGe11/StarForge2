@@ -42,6 +42,27 @@ namespace StarForge.AI
         /// <summary>The AI may not react to something it only just laid eyes on.</summary>
         public bool Reactable(Remembered r, float reactionDelay) => w.time - r.firstSeen >= reactionDelay;
 
+        /// <summary>The same for a unit in sight (focus fire, a raid's victim: they pick from what is seen,
+        /// not from memory): seen without a break for its reaction time. Before, only home defence and the
+        /// guns over its ore waited; its micro turned on a target the pass it appeared, at every level.</summary>
+        public bool Reactable(Unit e, float reactionDelay) =>
+            inSight.TryGetValue(e.id, out var v) && v.last >= w.time - SightGap && w.time - v.since >= reactionDelay;
+
+        // Since when each enemy unit has been in sight without a break longer than SightGap, and when last.
+        readonly Dictionary<int, (float since, float last)> inSight = new Dictionary<int, (float since, float last)>();
+        readonly List<int> inSightGone = new List<int>();
+        const float SightGap = 1.5f;
+        /// <summary>Enemy units seen dying (their ids, each once) and where: their memory entries go with
+        /// them (ForgetFallen).</summary>
+        readonly HashSet<int> fallen = new HashSet<int>();
+        readonly List<(UnitType type, Vector2 pos)> fellNow = new List<(UnitType type, Vector2 pos)>();
+        /// <summary>Editor A/B only: an entry goes the moment its ground is seen without it, as before
+        /// the sight rules gave units concealment. The evaluation runner resets it.</summary>
+        public static bool LegacyForget;
+        /// <summary>How long a mobile unit not seen where it was, on ground in view, is still believed
+        /// there: a soldier (who lies down, stands still, sits in a wood) and anything else.</summary>
+        const float GraceSoldier = 8f, GraceOther = 4f;
+
         public void Init(GameWorld world, int t)
         {
             w = world;
@@ -51,6 +72,9 @@ namespace StarForge.AI
             aggrT = -1e9f;
             aggrScore = armyEst = commitPeak = commitFlow = 0f;
             cameAtUs.Clear();
+            inSight.Clear();
+            fallen.Clear();
+            fellNow.Clear();
 
             // Reading a symmetric map is something a human does before scouting
             // too -- but a guess is all it is. Nothing counts as known until a unit
@@ -114,6 +138,10 @@ namespace StarForge.AI
                 {
                     // Their Mech going down in sight: now it is gone (Forget lets go of it).
                     if (e.team == 1 - team && e.Type == UnitType.Mech && w.Sees(team, e)) mechSeenFalling = true;
+                    // Anything of theirs seen to fall is gone from memory too (once: it lies dying a while).
+                    // Its entry would otherwise outlive it by the grace Forget gives a unit out of sight.
+                    // (Not a deserter: they have no entry, and the nearest loyal man's would go instead.)
+                    else if (e.team == 1 - team && !e.deserted && !LegacyForget && w.Sees(team, e) && fallen.Add(e.id)) fellNow.Add((e.Type, e.pos));
                     continue;
                 }
                 if (e.team == team)
@@ -147,6 +175,8 @@ namespace StarForge.AI
                 // Their deserters are out of the war, as ours are (the player sees their bars in the
                 // deserter colour too): remembered, a camp 40-68 m out read as their army away from home.
                 if (e.deserted) continue;
+                // In sight since when (Reactable): a break of over SightGap starts it again.
+                inSight[e.id] = inSight.TryGetValue(e.id, out var seenRec) && now - seenRec.last <= SightGap ? (seenRec.since, now) : (now, now);
                 // A fighting unit of theirs seen on our half for the first time: into the flow.
                 if (!e.def.building && !e.def.harvester && e.Type != UnitType.Mech &&
                     (e.pos - Home).sqrMagnitude < (e.pos - theirs).sqrMagnitude && cameAtUs.Add(e.id))
@@ -199,6 +229,14 @@ namespace StarForge.AI
                 hit.stillVisible = true;
                 hit.unfinished = e.def.building && !e.Complete;
                 claimed.Add(hit);
+            }
+
+            ForgetFallen();
+            if (inSight.Count > 384)
+            {
+                inSightGone.Clear();
+                foreach (var kv in inSight) if (now - kv.Value.last > SightGap) inSightGone.Add(kv.Key);
+                foreach (int id in inSightGone) inSight.Remove(id);
             }
 
             Vector2 believedBase = guesses.Count > 0 ? guesses[0] : Home;
@@ -276,6 +314,25 @@ namespace StarForge.AI
             s.scoutConfidence = s.enemyBaseKnown ? Mathf.Exp(-stale / 40f) : 0f;
         }
 
+        /// <summary>What was seen to fall this pass takes its memory entry with it: the nearest one of
+        /// its type within reach that no sighting claimed.</summary>
+        void ForgetFallen()
+        {
+            foreach (var f in fellNow)
+            {
+                Remembered hit = null;
+                float best = Tol(f.type) + 1f;
+                foreach (var r in mem)
+                {
+                    if (r.type != f.type || claimed.Contains(r)) continue;
+                    float d = (r.pos - f.pos).magnitude;
+                    if (d < best) { best = d; hit = r; }
+                }
+                if (hit != null) mem.Remove(hit);
+            }
+            fellNow.Clear();
+        }
+
         void Forget()
         {
             float now = w.time;
@@ -295,8 +352,16 @@ namespace StarForge.AI
                 // the next wave walked into a base the Mech still held (14-24 waves a match into a
                 // Mech on 101-159 kills, in each match against the Macro player that ran to the cap).
                 if (r.type == UnitType.Mech && !LegacyMechMemory) return mechSeenFalling || now - r.lastSeen > 300f;
-                if (w.Visible(team, r.pos)) return true;
-                if (Defs.Get(r.type).building) return false;  // buildings do not move
+                // Seeing the ground is not seeing the man since units have concealment (a soldier lying
+                // down or standing still, a wood, the outer part of a spotter's sight): gone only once
+                // it has not shown there for a while. Dropped at once, a squad that went to ground in
+                // view was out of the influence field and of home defence the same pass, and came back
+                // as new sightings with their reaction time to wait again. (A structure is spotted from
+                // its ground every pass, so its ground seen empty is still the end of it.)
+                var RD = Defs.Get(r.type);
+                if (w.Visible(team, r.pos))
+                    return LegacyForget || RD.building || now - r.lastSeen > (RD.bodyRadius > 0f ? GraceSoldier : GraceOther);
+                if (RD.building) return false;  // buildings do not move
                 return now - r.lastSeen > 50f;
             });
             mechSeenFalling = false;

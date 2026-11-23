@@ -28,6 +28,10 @@ namespace StarForge.AI
         public int[] recentOpenings = new int[0];
         public int[] recentPlans = new int[0];
         public int[] recentWins = new int[0];
+        /// <summary>The plan doctrine the weights were learned under (StrategySelector.DoctrineVersion; 0 in files
+        /// from before it was kept). Learned under another doctrine they are dropped at load: blended in at up to
+        /// 0.7 a match they would have hidden a changed doctrine for several matches.</summary>
+        public int doctrine;
     }
 
     public static class AIMemory
@@ -38,14 +42,17 @@ namespace StarForge.AI
         {
             try
             {
-                if (File.Exists(FilePath))
-                {
-                    var d = JsonUtility.FromJson<AIMemoryData>(File.ReadAllText(FilePath));
-                    if (d != null && d.version == 1) return Sanitize(d);
-                }
+                if (File.Exists(FilePath)) return FromJson(File.ReadAllText(FilePath));
             }
             catch (Exception e) { Debug.LogWarning("[StarForge] AI memory unreadable, starting fresh: " + e.Message); }
-            return new AIMemoryData();
+            return new AIMemoryData { doctrine = StrategySelector.DoctrineVersion };
+        }
+
+        /// <summary>The file's text read as memory (Load; AuditTrials.MemoryDoctrine reads strings, never the file).</summary>
+        public static AIMemoryData FromJson(string json)
+        {
+            var d = JsonUtility.FromJson<AIMemoryData>(json);
+            return d != null && d.version == 1 ? Sanitize(d) : new AIMemoryData { doctrine = StrategySelector.DoctrineVersion };
         }
 
         public static void Save(AIMemoryData d)
@@ -91,6 +98,9 @@ namespace StarForge.AI
                 d.strategySeconds = new float[(int)Strategy.Count];
             if (d.weights == null || d.weights.Length != (int)Strategy.Count * StrategySelector.NFEAT)
                 d.weights = new float[0];
+            // Plan weights learned under another doctrine: dropped, once (the profile, the read of the player
+            // and the match history stay); the next save is stamped with the doctrine in force.
+            if (d.doctrine != StrategySelector.DoctrineVersion) { d.weights = new float[0]; d.doctrine = StrategySelector.DoctrineVersion; }
             d.recentOpenings ??= new int[0];
             d.recentPlans ??= new int[0];
             d.recentWins ??= new int[0];

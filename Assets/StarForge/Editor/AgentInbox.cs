@@ -75,6 +75,7 @@ namespace StarForge.EditorTools
             StarForge.World.MechCore.LegacyBalance = false;
             GameWorld.LegacyBreakPick = false;
             StarForge.View.MechView.LegacyTrackRide = false;
+            StarForge.Game.AIEvalRunner.SetAuditSwitches(0);   // the AI audit's switches (2026-11-22/23)
         }
 
         /// <summary>A map held for every later Play on purpose (TacticalTrials.UseSeed1000, TacticalVehicles.UseLineBudgetSeed;

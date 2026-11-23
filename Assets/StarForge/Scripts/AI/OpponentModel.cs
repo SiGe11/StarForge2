@@ -26,6 +26,13 @@ namespace StarForge.AI
         /// <summary>A/B: read the player without the flow of force at us (the evaluation
         /// runner resets it).</summary>
         public static bool LegacyRead;
+        /// <summary>A/B: the evidence counted once a think, as before (the evaluation runner resets it).</summary>
+        public static bool LegacyEvidence;
+        /// <summary>The evidence is weighed by the second, not by the think: one think's worth every
+        /// this many seconds. Counted once a think, the same picture moved the belief three times as
+        /// fast at Commander (6 thinks a second) as at Recruit (2), and at any level a clear lead ran
+        /// to the 0.02 floor in one to three seconds, stale picture or fresh. 0.5 s is Recruit's rate.</summary>
+        public const float EvidenceEvery = 0.5f;
         public readonly PlayerProfile Profile = new PlayerProfile();
         float earlyAggr, lastArmy, lastSwitchT;
         int question;
@@ -109,6 +116,7 @@ namespace StarForge.AI
             // Down-weight evidence when our picture of them is stale: a fractional
             // power flattens the likelihood toward "uninformative".
             float conf = Clamp(0.25f + 0.75f * s.scoutConfidence, 0.05f, 1f);
+            if (!LegacyEvidence) conf *= Mathf.Min(2f, dt / EvidenceEvery);
             float sum = 0f;
             for (int i = 0; i < K; i++)
             {

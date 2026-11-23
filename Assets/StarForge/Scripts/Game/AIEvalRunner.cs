@@ -42,7 +42,7 @@ namespace StarForge.Game
         /// <summary>Every key a run is asked for with.</summary>
         public static void ClearRequest()
         {
-            foreach (var k in new[] { PrefGames, PrefGamesAt, PrefOnly, PrefFirst })
+            foreach (var k in new[] { PrefGames, PrefGamesAt, PrefOnly, PrefFirst, PrefLegacy, PrefLegacyAt })
                 PlayerPrefs.DeleteKey(k);
             PlayerPrefs.Save();
         }
@@ -95,6 +95,41 @@ namespace StarForge.Game
         bool finished;
         string lastIntentText, lastWhy = "";
 
+        /// <summary>The AI audit's A/B switches (2026-11-22) a run holds on: a bit mask asked for through
+        /// this pref (AuditTrials.EvalTurtle*), read when the run starts, applied at each game's start
+        /// after the resets, and cleared with the run. 1 reserve groups (on: the others put the old rule back), 2 wave end, 4 re-orders, 8 reflex,
+        /// 16 trooper share, 32 builder, 64 forget, 128 evidence, 256 learning, 512 Mech odds, 1024 the varied plan doctrine ON.</summary>
+        public const string PrefLegacy = "sf_eval_legacy";
+        /// <summary>When the mask was asked for (UTC ticks, a string): honoured only by a run that starts
+        /// within three minutes of it, so one whose run never started cannot ride into a later Quick or Full.</summary>
+        public const string PrefLegacyAt = "sf_eval_legacy_at";
+        static int auditMask, reportMask;
+
+        public static void SetAuditSwitches(int mask)
+        {
+            Commander.ReserveGroups = (mask & 1) != 0;   // the one tried rule left off: this bit turns it ON
+            Commander.LegacyWaveEnd = (mask & 2) != 0;
+            Commander.LegacyReorder = (mask & 4) != 0;
+            Commander.LegacyReflex = (mask & 8) != 0;
+            Commander.LegacyTrooperShare = (mask & 16) != 0;
+            Commander.LegacyBuilder = (mask & 32) != 0;
+            Perception.LegacyForget = (mask & 64) != 0;
+            OpponentModel.LegacyEvidence = (mask & 128) != 0;
+            StrategySelector.LegacyLearning = (mask & 256) != 0;
+            MechBrain.LegacyRatio = (mask & 512) != 0;
+            StrategySelector.VariedDoctrine = (mask & 1024) != 0;   // ON with the bit (left off after its gate, 2026-11-23)
+        }
+
+        public static string AuditSwitchNames(int mask)
+        {
+            if (mask == 0) return "none";
+            string[] names = { "reserve groups ON", "wave end", "re-orders", "reflex", "trooper share", "builder", "forget", "evidence", "learning", "Mech odds", "varied doctrine ON" };
+            var sb = new StringBuilder();
+            for (int i = 0; i < names.Length; i++)
+                if ((mask & (1 << i)) != 0) sb.Append(sb.Length > 0 ? ", " : "").Append(names[i]);
+            return sb.ToString();
+        }
+
         void Awake()
         {
             if (!active && Requested())
@@ -112,6 +147,11 @@ namespace StarForge.Game
                 maxSeconds = PlayerPrefs.GetFloat(PrefSeconds, 600f);
                 onlyKind = PlayerPrefs.GetInt(PrefOnly, -1);
                 firstGame = Mathf.Max(0, PlayerPrefs.GetInt(PrefFirst, 0));
+                auditMask = PlayerPrefs.GetInt(PrefLegacy, 0);
+                if (!long.TryParse(PlayerPrefs.GetString(PrefLegacyAt, ""), out long askedAt) ||
+                    System.Math.Abs((System.DateTime.UtcNow - new System.DateTime(askedAt, System.DateTimeKind.Utc)).TotalSeconds) > 180.0) auditMask = 0;
+                PlayerPrefs.DeleteKey(PrefLegacy);
+                PlayerPrefs.DeleteKey(PrefLegacyAt);
                 PlayerPrefs.DeleteKey(PrefGames);
                 PlayerPrefs.DeleteKey(PrefGamesAt);
                 PlayerPrefs.DeleteKey(PrefOnly);
@@ -123,7 +163,7 @@ namespace StarForge.Game
                 for (int i = 0; i < stats.Length; i++) stats[i] = new KindStats();
                 wallStart = Time.realtimeSinceStartup;
                 moraleGames = desertedAI = desertedOpp = crisesAI = crisesOpp = executed = 0;
-                Debug.Log($"[AIEval] {gamesPerKind} games per opponent, {maxSeconds:0}s cap");
+                Debug.Log($"[AIEval] {gamesPerKind} games per opponent, {maxSeconds:0}s cap{(auditMask != 0 ? $", audit switches held on: {AuditSwitchNames(auditMask)}" : "")}");
             }
             if (!active) { enabled = false; return; }
 
@@ -143,6 +183,7 @@ namespace StarForge.Game
             Commander.LegacySweep = false;
             Commander.LegacyDiggerSafety = false;
             Commander.LegacyWayHome = false;
+            SetAuditSwitches(auditMask);   // the audit's switches: off, or held on for this run's A/B
             World.GameWorld.LegacyBreakPick = false;   // the morale trials' A/B switch
             MatchSettings.skipMenu = true;
             MatchSettings.spectate = false;
@@ -371,7 +412,7 @@ namespace StarForge.Game
                       $"waves at a Mech it knew of: threshold {ai.Dbg.mechWavesBy[0]}, its Mech's call {ai.Dbg.mechWavesBy[1]}, theirs away {ai.Dbg.mechWavesBy[2]}, theirs hurt {ai.Dbg.mechWavesBy[3]}, broke {ai.Dbg.mechWavesBy[4]}; " +
                       $"their Mech alive {mechAliveT:0}s, believed gone {(mechAliveT > 0f ? 100f * mechForgottenT / mechAliveT : 0f):0}% of it, waves started meanwhile {wavesAtMech} ({wavesForgotten} believing it gone); " +
                       $"AI army peak {peakArmy:0} (supply up to {peakSupply}), at waves started while it knew of their Mech {(mechWavesKnown > 0 ? armyAtMechWaves / mechWavesKnown : 0f):0} on average, at the end {ArmyValue(1):0} against their {ArmyValue(0):0}; " +
-                      $"{(massingFrom >= 0f ? $"massing from {massingFrom:0}s (last needed {massedNeed:0}), massed waves {ai.Dbg.massedWaves} ({ai.Dbg.stalledWaves} on a stalled army){(ai.Dbg.firstMassedAt >= 0f ? $" (first at {ai.Dbg.firstMassedAt:0}s)" : "")}" : "never massing")}, waves called off {ai.Dbg.wavesCalledOff}, sweeps {ai.Dbg.sweeps} (longest {ai.Dbg.sweepMsMax:0.0} ms); " +
+                      $"{(massingFrom >= 0f ? $"massing from {massingFrom:0}s (last needed {massedNeed:0}), massed waves {ai.Dbg.massedWaves} ({ai.Dbg.stalledWaves} on a stalled army){(ai.Dbg.firstMassedAt >= 0f ? $" (first at {ai.Dbg.firstMassedAt:0}s)" : "")}" : "never massing")}, waves called off {ai.Dbg.wavesCalledOff}, beaten {ai.Dbg.wavesBeaten} ({ai.Dbg.spentRetreats} spent, {ai.Dbg.massedBeaten} massed), reinforced by {ai.Dbg.reinforcements} groups ({(ai.Dbg.reinforcements > 0 ? ai.Dbg.reinforcedValue / ai.Dbg.reinforcements : 0f):0} each), sweeps {ai.Dbg.sweeps} (longest {ai.Dbg.sweepMsMax:0.0} ms); " +
                       $"AI Diggers lost {diggersLost} ({diggersToMech} by their Mech: {toMechSeen} with it seen in the last 4 s, from {(diggersToMech > 0 ? toMechRange / diggersToMech : 0f):0} m on average, {toMechAtHome} within 40 m of its start, {toMechNearThem} within 60 m of theirs, {toMechByFoundry} within 25 m of a Foundry of its own; their Mech {ModeShares(toMechMode)}; mining {toMechDoing[0]}, carrying {toMechDoing[1]}, walking {toMechDoing[2]}, building {toMechDoing[3]}{BuiltShares()}, other {toMechDoing[4]}){(noDiggersAt >= 0f ? $", none left from {noDiggersAt:0}s" : "")}, moved off guns {ai.Dbg.diggersMoved}, cleared {ai.Dbg.diggersCleared}; " +
                       $"APM {ai.BudgetBySite()}; " +
                       $"morale: {MoraleLine()}");
@@ -495,6 +536,7 @@ namespace StarForge.Game
         static void RestoreUserSettings()
         {
             EvalDifficulty = AIDifficulty.Commander;   // a run at another level is asked for each time
+            if (auditMask != 0) { auditMask = 0; SetAuditSwitches(0); }   // a held A/B ends with its run
             if (!userSaved) return;
             userSaved = false;
             MatchSettings.aiMemory = userMemory || !MatchSettings.debugAI;   // players cannot turn it off (a trial may have)
@@ -521,10 +563,11 @@ namespace StarForge.Game
         static void Report()
         {
             active = false;
+            reportMask = auditMask;
             RestoreUserSettings();
             Time.timeScale = 1f;
             var sb = new StringBuilder();
-            sb.AppendLine($"Adaptive AI evaluation — {gamesPerKind} games per opponent, {maxSeconds:0}s cap");
+            sb.AppendLine($"Adaptive AI evaluation — {gamesPerKind} games per opponent, {maxSeconds:0}s cap{(reportMask != 0 ? $", audit switches held on: {AuditSwitchNames(reportMask)}" : "")}");
             sb.AppendLine("opponent    wins   avg len  belief acc  1st ident  APM avg/peak  switches  top plans / read as");
             int totalWins = 0, totalGames = 0;
             for (int k = 0; k < stats.Length; k++)

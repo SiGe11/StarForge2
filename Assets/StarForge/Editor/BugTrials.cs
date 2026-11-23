@@ -498,7 +498,7 @@ namespace StarForge.EditorTools
             var cases = new (string name, string json)[]
             {
                 ("NaN weight, NaN histogram, NaN and huge profile, wins over games",
-                 "{\"version\":1,\"games\":5,\"aiWins\":9,\"weights\":" + weights + ",\"styleHistogram\":[NaN,0,0,0,0,0],\"aggression\":NaN,\"expansion\":1e39,\"defensive\":-3}"),
+                 "{\"version\":1,\"doctrine\":" + StarForge.AI.StrategySelector.DoctrineVersion + ",\"games\":5,\"aiWins\":9,\"weights\":" + weights + ",\"styleHistogram\":[NaN,0,0,0,0,0],\"aggression\":NaN,\"expansion\":1e39,\"defensive\":-3}"),
                 ("Infinity in the plan times", "{\"version\":1,\"games\":2,\"strategySeconds\":[Infinity,0,0,0,0,0,0,0]}"),
                 ("bad history indices", "{\"version\":1,\"games\":3,\"recentPlans\":[99,-3],\"recentOpenings\":[42],\"recentWins\":[7]}"),
                 ("truncated", "{\"version\":1,\"games\":"),

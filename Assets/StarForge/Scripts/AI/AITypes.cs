@@ -298,5 +298,12 @@ namespace StarForge.AI
         /// <summary>Readings with their Mech by a structure within 25 m of home and an army past
         /// the plain gate but short of MechNeed: where the in-base rule and the gate differ.</summary>
         public int inBaseMechSplit;
+        /// <summary>Groups that joined a wave from the reserve and what they were worth in all, and
+        /// retreats called because the wave was spent (not by the field or its Mech's word).</summary>
+        public int reinforcements, spentRetreats;
+        /// <summary>Waves booked as beaten (a retreat, a wave bled under its threshold, an army that did
+        /// not come back), and how many of them were massed waves.</summary>
+        public int wavesBeaten, massedBeaten;
+        public float reinforcedValue;
     }
 }
