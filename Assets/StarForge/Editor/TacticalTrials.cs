@@ -118,8 +118,8 @@ namespace StarForge.EditorTools
             return s;
         }
         /// <summary>The map the next Play draws: for runs that must compare. ClearSeed puts it back.</summary>
-        public static string UseSeed1000() { StarForge.Game.MatchSettings.mapSeed = 1000; return "next Play on map 1000"; }
-        public static string ClearSeed() { StarForge.Game.MatchSettings.mapSeed = 0; return "map seed free"; }
+        public static string UseSeed1000() { AgentInbox.SetHeldMapSeed(1000); return "next Play on map 1000"; }
+        public static string ClearSeed() { AgentInbox.SetHeldMapSeed(0); return "map seed free"; }
 
         /// <summary>How long steady fire takes to pin a man: one and then three rifles at a soldier holding
         /// in the open at 25 m. Target: about 5 s from three, and the brave later than the timid.</summary>

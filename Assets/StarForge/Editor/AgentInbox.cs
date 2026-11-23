@@ -48,7 +48,11 @@ namespace StarForge.EditorTools
     public static class AgentInbox
     {
         static readonly string Dir = Path.GetFullPath("Temp/AgentInbox");
-        static double nextPoll, nextScan;
+        static double nextPoll, nextScan, nextBeat;
+        // Auto-refresh waits until nothing under Assets/ has changed for this long: refreshing on the
+        // first file of a multi-file edit compiled each half-done step (errors, a domain reload per
+        // file, under peers) and imported a packer's or Blender's output half-written.
+        const double QuietSeconds = 4.0;
         static DateTime lastChange;
         static int playFrame;
         static readonly List<string> compileErrors = new List<string>();
@@ -73,16 +77,61 @@ namespace StarForge.EditorTools
             StarForge.View.MechView.LegacyTrackRide = false;
         }
 
+        /// <summary>A map held for every later Play on purpose (TacticalTrials.UseSeed1000, TacticalVehicles.UseLineBudgetSeed;
+        /// ClearSeed frees it with 0): set through here, so the play-exit restore keeps what was chosen, in play or not.</summary>
+        public static void SetHeldMapSeed(uint seed)
+        {
+            MatchSettings.mapSeed = seed;
+            if (settingsSaved) sMapSeed = seed;
+        }
+
+        static bool settingsSaved, sSpectate, sFixedSeed, sMemory, sSkipMenu;
+        static uint sSeed, sMapSeed;
+        static StarForge.AI.AIDifficulty sDifficulty;
+
+        /// <summary>MatchSettings as play mode was entered, put back when an agent's play session ends: trials set
+        /// seed, map, spectate, memory and difficulty for their runs, and the statics outlived play (BayEdgeCases
+        /// left seed 1000 fixed and spectate on for the user's next matches). A play the user started is left alone.</summary>
+        static void SaveSettings()
+        {
+            settingsSaved = true;
+            sSpectate = MatchSettings.spectate; sFixedSeed = MatchSettings.fixedSeed; sMemory = MatchSettings.aiMemory;
+            sSkipMenu = MatchSettings.skipMenu; sSeed = MatchSettings.seed; sMapSeed = MatchSettings.mapSeed;
+            sDifficulty = MatchSettings.difficulty;
+        }
+
+        static void RestoreSettings()
+        {
+            if (!settingsSaved) return;
+            settingsSaved = false;
+            MatchSettings.spectate = sSpectate; MatchSettings.fixedSeed = sFixedSeed; MatchSettings.aiMemory = sMemory;
+            MatchSettings.skipMenu = sSkipMenu; MatchSettings.seed = sSeed; MatchSettings.difficulty = sDifficulty;
+            MatchSettings.mapSeed = sMapSeed;
+        }
+
+        /// <summary>For checks: what an agent's play session will be put back to.</summary>
+        public static string HeldSettings() => settingsSaved
+            ? $"saved: spectate {sSpectate}, fixedSeed {sFixedSeed}, seed {sSeed}, mapSeed {sMapSeed}, memory {sMemory}, difficulty {sDifficulty}; now: spectate {MatchSettings.spectate}, fixedSeed {MatchSettings.fixedSeed}, seed {MatchSettings.seed}, mapSeed {MatchSettings.mapSeed}"
+            : $"nothing saved; now: spectate {MatchSettings.spectate}, fixedSeed {MatchSettings.fixedSeed}, seed {MatchSettings.seed}, mapSeed {MatchSettings.mapSeed}, memory {MatchSettings.aiMemory}, difficulty {MatchSettings.difficulty}";
+
         static AgentInbox()
         {
             Directory.CreateDirectory(Dir);
+            try { File.Delete(Path.Combine(Dir, "busy")); } catch (IOException) { }   // a command cut off by a reload
             lastChange = LatestWrite();
             EditorApplication.update += Poll;
             EditorApplication.playModeStateChanged += s =>
             {
                 // GameWorld.ReachabilityOff is an A/B switch: set for a run, it must not carry into
                 // the next play session (statics survive them with domain reload off).
-                if (s == PlayModeStateChange.EnteredEditMode) { GameWorld.ReachabilityOff = false; ResetAiSwitches(); }
+                if (s == PlayModeStateChange.ExitingEditMode) SaveSettings();
+                if (s == PlayModeStateChange.EnteredEditMode)
+                {
+                    GameWorld.ReachabilityOff = false;
+                    ResetAiSwitches();
+                    if (AgentAudio.LastPlayWasAgent) RestoreSettings();
+                    else settingsSaved = false;
+                }
                 if (s == PlayModeStateChange.EnteredPlayMode) playFrame = Time.frameCount;
             };
             CompilationPipeline.compilationStarted += _ => { compileErrors.Clear(); Stamp("compile.started", ""); };
@@ -94,9 +143,19 @@ namespace StarForge.EditorTools
             Stamp("reloaded", "");
         }
 
+        /// <summary>Write-then-rename: editor.sh reads an answer or a stamp the moment it exists, and a
+        /// half-written one read as an empty answer (a wait that returned "done", a compile with no count).</summary>
+        static void WriteAtomic(string path, string text)
+        {
+            string tmp = path + ".tmp";
+            File.WriteAllText(tmp, text);
+            if (File.Exists(path)) File.Replace(tmp, path, null);   // a rename over it
+            else File.Move(tmp, path);
+        }
+
         static void Stamp(string name, string text)
         {
-            try { File.WriteAllText(Path.Combine(Dir, name), text); }
+            try { WriteAtomic(Path.Combine(Dir, name), text); }
             catch (IOException) { }
         }
 
@@ -105,15 +164,21 @@ namespace StarForge.EditorTools
             double now = EditorApplication.timeSinceStartup;
             if (now < nextPoll) return;
             nextPoll = now + 0.3;
+            // Heartbeat: editor.sh fails fast when it goes stale with no command running (no Editor,
+            // a modal dialog), instead of waiting out its whole timeout.
+            if (now > nextBeat) { nextBeat = now + 2.0; Stamp("alive", ""); }
 
             if (!EditorApplication.isPlayingOrWillChangePlaymode && !EditorApplication.isCompiling && now > nextScan)
             {
                 nextScan = now + 2.0;
                 var latest = LatestWrite();
-                if (latest > lastChange)
+                if (latest > lastChange && (DateTime.UtcNow - latest).TotalSeconds >= QuietSeconds)
                 {
                     lastChange = latest;
-                    AssetDatabase.Refresh();
+                    // An import can hold the main thread for minutes: busy, so editor.sh does not read it as a stall.
+                    Stamp("busy", "auto-refresh");
+                    try { AssetDatabase.Refresh(); }
+                    finally { Stamp("alive", ""); try { File.Delete(Path.Combine(Dir, "busy")); } catch (IOException) { } }
                 }
             }
 
@@ -132,6 +197,7 @@ namespace StarForge.EditorTools
             Application.logMessageReceived += Capture;
             string status = "ok", result = "";
             bool wasPlaying = EditorApplication.isPlayingOrWillChangePlaymode;
+            Stamp("busy", command);   // a long command (Build All) is no hang: editor.sh keeps waiting
             AgentAudio.BeginCommand();
             try { result = Run(command) ?? ""; }
             catch (Exception e)
@@ -139,8 +205,15 @@ namespace StarForge.EditorTools
                 status = "error";
                 result = (e is TargetInvocationException t && t.InnerException != null ? t.InnerException : e).ToString();
             }
-            finally { AgentAudio.EndCommand(wasPlaying); Application.logMessageReceived -= Capture; }
-            File.WriteAllText(Path.ChangeExtension(next, ".out"), $"{status}\n{result}\n{log}");
+            finally
+            {
+                AgentAudio.EndCommand(wasPlaying);
+                Application.logMessageReceived -= Capture;
+                Stamp("alive", "");   // before busy goes: a long command must not leave a stale heartbeat behind it
+                try { File.Delete(Path.Combine(Dir, "busy")); } catch (IOException) { }
+            }
+            // "--- console" divides the result from what was logged, so `wait`'s regex reads the result only.
+            WriteAtomic(Path.ChangeExtension(next, ".out"), $"{status}\n{result}\n" + (log.Length > 0 ? "--- console\n" + log : ""));
         }
 
         static string Run(string command)

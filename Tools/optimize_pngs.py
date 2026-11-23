@@ -81,13 +81,27 @@ def read16(cs):
     return (a[..., 0] << 8 | a[..., 1]).astype(np.uint16)
 
 
+def to8(v):
+    return (v * 255 + 32767) // 65535
+
+
+def chunk_to_8bit(t, d):
+    """Chunks whose values follow the bit depth: tRNS/bKGD hold 16-bit samples (rounded as the pixels
+    are), sBIT counts significant bits (at most 8 now)."""
+    if t in (b"tRNS", b"bKGD") and len(d) % 2 == 0:
+        return b"".join(struct.pack(">H", to8(v)) for v in struct.unpack(">%dH" % (len(d) // 2), d))
+    if t == b"sBIT":
+        return bytes(min(v, 8) for v in d)
+    return d
+
+
 def to_8bit(b, cs):
     """A 16-bit RGB PNG as 8-bit, rounded (v*255/65535), other chunks kept. LOSSY at the source (max error 0.5 of 255);
     Unity imports 8 bits anyway. Only with --to-8bit: it is a decision, not a recompression."""
-    a8 = ((read16(cs).astype(np.uint32) * 255 + 32767) // 65535).astype(np.uint8)
+    a8 = to8(read16(cs).astype(np.uint32)).astype(np.uint8)
     buf = io.BytesIO(); Image.fromarray(a8).save(buf, "PNG", optimize=True, compress_level=9)
     idat = [d for t, d in chunks(buf.getvalue()) if t == b"IDAT"]
-    out = SIG + b"".join(mk(t, d) if t != b"IHDR" else mk(b"IHDR", chunks(buf.getvalue())[0][1]) for t, d in cs if t not in (b"IDAT", b"IEND"))
+    out = SIG + b"".join(mk(t, chunk_to_8bit(t, d)) if t != b"IHDR" else mk(b"IHDR", chunks(buf.getvalue())[0][1]) for t, d in cs if t not in (b"IDAT", b"IEND"))
     return out + b"".join(mk(b"IDAT", d) for d in idat) + mk(b"IEND", b""), a8
 
 
@@ -96,9 +110,13 @@ def recompress(b, convert16=False):
     if b[:8] != SIG:
         return None, "not a PNG"
     cs = chunks(b)
+    if not cs or cs[0][0] != b"IHDR":
+        return None, "error: no IHDR chunk first (not a valid PNG)"
     _, _, bitdepth, _, _, _, interlace = struct.unpack(">IIBBBBB", cs[0][1][:13])
     if any(t == b"caBX" for t, _ in cs):
         return None, "C2PA manifest (caBX): re-encoding would break its signature"
+    if any(t == b"acTL" for t, _ in cs):
+        return None, "animated (APNG): its frame chunks must stay in order and the proof reads frame 0 only"
     if bitdepth == 16 and convert16 and cs[0][1][9] == 2 and not interlace:
         out, _ = to_8bit(b, cs)
         return out, None                       # no pixel proof possible across bit depths: --to-8bit is a lossy decision
@@ -109,12 +127,13 @@ def recompress(b, convert16=False):
     im = Image.open(io.BytesIO(b))
     im.load()
     buf = io.BytesIO()
-    im.save(buf, "PNG", optimize=True, compress_level=9)
+    # bits=8 for a palette image: Pillow packs <=16 colours into 1-4 bits, which the kept IHDR would not describe.
+    im.save(buf, "PNG", optimize=True, compress_level=9, **({"bits": 8} if im.mode == "P" else {}))
     idat = [d for t, d in chunks(buf.getvalue()) if t == b"IDAT"]
     out = SIG + b"".join(mk(t, d) for t, d in cs if t not in (b"IDAT", b"IEND"))
     out += b"".join(mk(b"IDAT", d) for d in idat) + mk(b"IEND", b"")
     # The proof: both decode (Pillow checks every chunk's CRC) to the same shape, type and values.
-    a = np.asarray(Image.open(io.BytesIO(b)))
+    a = np.asarray(im)
     c = np.asarray(Image.open(io.BytesIO(out)))
     if not (a.shape == c.shape and a.dtype == c.dtype and np.array_equal(a, c)):
         return None, "PIXELS DIFFER: left alone"
@@ -151,12 +170,16 @@ def main():
                or sha(open(os.path.join(ROOT, m["path"]), "rb").read()) != m["old_sha256"]]
         if bad:
             sys.exit("refusing: changed (or missing) since they were measured, restage first:\n  " + "\n  ".join(bad))
+        # Every staged file is checked before the first write: one corrupt file must not leave a partial apply.
+        corrupt = [m["path"] for m in man["files"]
+                   if not os.path.exists(os.path.join(a.apply, m["path"]))
+                   or sha(open(os.path.join(a.apply, m["path"]), "rb").read()) != m["new_sha256"]]
+        if corrupt:
+            sys.exit("refusing: staged files missing or corrupt, nothing written:\n  " + "\n  ".join(corrupt))
         saved = 0
         for m in man["files"]:
             dst = os.path.join(ROOT, m["path"])
             new = open(os.path.join(a.apply, m["path"]), "rb").read()
-            if sha(new) != m["new_sha256"]:
-                sys.exit("staged file corrupt: " + m["path"])
             tmp = dst + ".optmp"
             open(tmp, "wb").write(new)
             os.replace(tmp, dst)
@@ -166,8 +189,16 @@ def main():
 
     if not a.paths:
         ap.error("give PATH... (or --apply DIR)")
-    rows, tot_old, tot_new = [], 0, 0
-    for f in find(a.paths):
+    missing = [p for p in a.paths if not os.path.exists(p)]
+    if missing:
+        sys.exit("no such path: " + ", ".join(missing))
+    files = list(find(a.paths))
+    outside = [f for f in files if os.path.relpath(f, ROOT).startswith("..")]
+    if a.stage and outside:
+        # staged by repo-relative path: one outside the repo would land outside DIR
+        sys.exit("--stage takes files inside the repo only: " + ", ".join(outside[:5]))
+    rows, tot_old, tot_new, failed = [], 0, 0, []
+    for f in files:
         rel = os.path.relpath(f, ROOT)
         b = open(f, "rb").read()
         try:
@@ -178,6 +209,8 @@ def main():
             new, why = None, "gain too small (%.1f%%)" % (100.0 * (len(b) - len(new)) / len(b))
         if new is None:
             print("  keep   %-70s %s" % (rel, why))
+            if why.startswith(("error", "PIXELS DIFFER")):
+                failed.append(rel)
             continue
         tot_old += len(b)
         tot_new += len(new)
@@ -195,12 +228,15 @@ def main():
     print("%d files shrink: %.2f -> %.2f MB (saves %.2f MB; %d verified pixel-identical%s)" %
           (len(rows), tot_old / 1e6, tot_new / 1e6, (tot_old - tot_new) / 1e6, len(rows) - lossy,
            ", %d converted 16 to 8 bit: LOSSY at the source" % lossy if lossy else ""))
+    if failed:
+        print("%d files could not be read or failed the pixel proof (left alone): %s" % (len(failed), ", ".join(failed[:5])))
     if a.stage:
         json.dump(dict(files=rows), open(os.path.join(a.stage, "manifest.json"), "w"), indent=1)
         print("staged under", a.stage, "-- `--apply` copies them in (a window: Unity reimports each once)")
     elif not a.in_place:
         print("dry run: nothing written")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

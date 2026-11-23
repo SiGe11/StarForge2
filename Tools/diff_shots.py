@@ -8,8 +8,10 @@ channel (so a pixel-level shimmer or a shifted edge averages out, and a surface 
 does not), and the worst 8x8 block. Run it on two runs of the same build first: that is the noise
 the comparison has to be read against.
 
---group sums a model sheet (Editor/ModelSheet.cs) by model, team and state. Pictures of different
-sizes are refused. Only numpy is needed: the PNG reader is here.
+--group sums a model sheet (Editor/ModelSheet.cs) by model, team and state (names that are not
+<model>_<team>_<state> go under "other"). Shots in one folder only, or of different sizes, are
+counted in the last line and make the exit status 1. Needs numpy; uses Pillow when it is there
+(/usr/bin/python3 has both: much faster, and it reads palette and grey PNGs), else the reader here.
 """
 import argparse
 import os
@@ -19,8 +21,21 @@ import zlib
 
 import numpy as np
 
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
 
 def read_png(path):
+    if Image is not None:
+        with open(path, 'rb') as fh:
+            head = fh.read(29)
+        # Pillow would quietly take 8 of a 16-bit channel's bits: refused, as the reader below does.
+        if head[:8] == b'\x89PNG\r\n\x1a\n' and head[12:16] == b'IHDR' and head[24] != 8 and head[25] != 3:
+            sys.exit('%s: %d bits a channel' % (path, head[24]))
+        with Image.open(path) as im:
+            return np.asarray(im.convert('RGB'), dtype=np.float32)
     with open(path, 'rb') as fh:
         raw = fh.read()
     if raw[:8] != b'\x89PNG\r\n\x1a\n':
@@ -39,6 +54,8 @@ def read_png(path):
         elif tag == b'IEND':
             break
         at += 12 + n
+    if kind == 3:
+        sys.exit('%s: palette PNG; run with /usr/bin/python3 (Pillow) to read it' % path)
     channels = {0: 1, 2: 3, 4: 2, 6: 4}[kind]
     if depth != 8:
         sys.exit('%s: %d bits a channel' % (path, depth))
@@ -74,7 +91,9 @@ def read_png(path):
             row = np.array(line, dtype=np.int32)
         out[y] = row
         prev = row
-    return out.reshape(h, w, channels)[..., :3].astype(np.float32)
+    img = out.reshape(h, w, channels)
+    img = np.repeat(img[..., :1], 3, axis=2) if channels < 3 else img[..., :3]   # grey: as RGB
+    return img.astype(np.float32)
 
 
 def box8(img):
@@ -102,23 +121,30 @@ def main():
 
     shots = lambda folder: set(f for f in os.listdir(folder) if f.endswith('.png') and args.match in f)
     in_a, in_b = shots(args.dir_a), shots(args.dir_b)
-    for name in sorted(in_a ^ in_b):
+    only = sorted(in_a ^ in_b)
+    for name in only:
         print('%-40s only in %s' % (name, args.dir_a if name in in_a else args.dir_b))
-    rows = []
+    rows, sizes = [], []
     for name in sorted(in_a & in_b):
         r = compare(read_png(os.path.join(args.dir_a, name)), read_png(os.path.join(args.dir_b, name)))
         if r is None:
             print('%-40s sizes differ' % name)
+            sizes.append(name)
             continue
         rows.append((name[:-4],) + r)
     if not rows:
-        sys.exit('nothing to compare')
+        sys.exit('nothing to compare (%d only in one folder, %d size mismatches)' % (len(only), len(sizes)))
 
     if args.group:
         by = {}
         for name, mean, worst, far, share in rows:
-            model, team, state = name.rsplit('_', 2)
-            for key in ('team ' + team, 'state ' + state, 'all'):
+            parts = name.rsplit('_', 2)
+            if len(parts) == 3:
+                model, team, state = parts
+                keys = ('model ' + model, 'team ' + team, 'state ' + state, 'all')
+            else:
+                keys = ('other', 'all')
+            for key in keys:
                 by.setdefault(key, []).append((mean, worst, far, share))
         for key in sorted(by):
             v = np.array(by[key])
@@ -127,8 +153,10 @@ def main():
     show = sorted(rows, key=lambda r: -r[1])[:args.top] if args.top else rows
     for name, mean, worst, far, share in show:
         print('%-40s mean %6.3f  worst block %6.1f  worst pixel %4.0f  over 16: %.2f%%' % (name, mean, worst, far, share))
-    print('%d shots: mean of means %.3f, largest mean %.3f' % (len(rows), np.mean([r[1] for r in rows]), max(r[1] for r in rows)))
+    print('%d shots: mean of means %.3f, largest mean %.3f; %d only in one folder, %d size mismatches' % (
+        len(rows), np.mean([r[1] for r in rows]), max(r[1] for r in rows), len(only), len(sizes)))
+    return 1 if only or sizes else 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

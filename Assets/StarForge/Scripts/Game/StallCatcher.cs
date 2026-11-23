@@ -13,6 +13,8 @@ namespace StarForge.Game
         const int MostSamples = 3;
 
         static long lastBeat;
+        static int stalls, written, failed;
+        static string lastError;
         static string basePath;
         static Thread watcher;
         static volatile bool stopped;
@@ -32,6 +34,10 @@ namespace StarForge.Game
         /// <summary>The run is over: quitting does not count either.</summary>
         public static void Stop() => stopped = true;
 
+        /// <summary>For the report: "no stall" and "never sampled" must not read the same.</summary>
+        public static string Summary() =>
+            $"{stalls} stall(s) over {StallMs} ms, {written} sample(s) written ({basePath}.N.txt){(failed > 0 ? $", {failed} failed: {lastError}" : "")}";
+
         static void Watch()
         {
             int pid = Process.GetCurrentProcess().Id;
@@ -47,13 +53,22 @@ namespace StarForge.Game
                 if (inStall) continue;
                 inStall = true;
                 taken++;
+                Interlocked.Increment(ref stalls);
                 string file = $"{basePath}.{taken}.txt";
                 try
                 {
                     using (var p = Process.Start(new ProcessStartInfo("/usr/bin/sample", $"{pid} 2 -file \"{file}\"") { UseShellExecute = false, CreateNoWindow = true }))
-                        p.WaitForExit(15000);
+                    {
+                        if (!p.WaitForExit(15000))
+                        {
+                            try { p.Kill(); } catch (Exception) { }   // disposed is not killed: it outlived the run
+                            failed++; lastError = "sample ran past 15 s";
+                        }
+                        else if (System.IO.File.Exists(file)) written++;
+                        else { failed++; lastError = $"sample exited {p.ExitCode} with no file"; }
+                    }
                 }
-                catch (Exception) { return; }
+                catch (Exception e) { failed++; lastError = e.Message; return; }
             }
         }
     }

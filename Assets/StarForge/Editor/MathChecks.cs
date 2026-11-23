@@ -26,7 +26,8 @@ namespace StarForge.EditorTools
         {
             if (!EditorApplication.isPlaying) return "not playing";
             var old = UnityEngine.Object.FindAnyObjectByType<MathCheckRunner>();
-            if (old != null) UnityEngine.Object.Destroy(old.gameObject);
+            // A restage hands the hold on: put back mid-match, spectate flipped under the running match and the fog was never checked.
+            if (old != null) { MathCheckRunner.handOver = true; UnityEngine.Object.Destroy(old.gameObject); }
             MathCheckRunner.last = null;
             new GameObject("MathChecks").AddComponent<MathCheckRunner>();
             return "staging; call MathChecks.Report in about a minute";
@@ -57,7 +58,23 @@ namespace StarForge.EditorTools
         VegetationRenderer vr;
         FieldInfo fSeenT, fKnownT, fVersion, fSeenPose;
         float t0;
-        bool oldSpectate, oldMemory;
+        static bool held, oldSpectate, oldMemory;
+        internal static bool handOver;
+
+        static void PutBack()
+        {
+            if (!held) return;
+            held = false;
+            MatchSettings.spectate = oldSpectate;
+            MatchSettings.aiMemory = oldMemory;
+            Time.timeScale = 1f;
+        }
+
+        void OnDestroy()
+        {
+            if (handOver) { handOver = false; return; }
+            PutBack();
+        }
         readonly HashSet<int> done = new HashSet<int>();
 
         // Results.
@@ -93,8 +110,7 @@ namespace StarForge.EditorTools
         void Start()
         {
             t0 = Time.unscaledTime;
-            oldSpectate = MatchSettings.spectate;
-            oldMemory = MatchSettings.aiMemory;
+            if (!held) { held = true; oldSpectate = MatchSettings.spectate; oldMemory = MatchSettings.aiMemory; }
             MatchSettings.spectate = false;     // the fog runs only for a side
             MatchSettings.aiMemory = false;
             var boot = GameBootstrap.Instance;
@@ -335,9 +351,7 @@ namespace StarForge.EditorTools
             report = sb.ToString();
             last = report;
             Debug.Log("[MathChecks]\n" + report);
-            MatchSettings.spectate = oldSpectate;
-            MatchSettings.aiMemory = oldMemory;
-            Time.timeScale = 1f;
+            PutBack();
             if (problem == null)
                 UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
         }

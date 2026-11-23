@@ -69,7 +69,7 @@ and its intro clip are in [docs/lore/prompts.md](docs/lore/prompts.md).
 
 ## Quick start
 
-1. Open this folder with Unity **6000.6.9f1**.
+1. Open this folder with Unity **6000.6.10f1**.
 2. Open `Assets/StarForge/Scenes/Battlefield.unity` and press Play.
 3. Press any key at the title, choose **Skirmish**, pick an opponent in *Operation setup* and **Deploy**.
 

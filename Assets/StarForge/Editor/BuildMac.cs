@@ -99,12 +99,27 @@ namespace StarForge.EditorTools
             }
         }
 
+        /// <summary>xcode-select points into an Xcode app (the Command Line Tools alone cannot build IL2CPP), or one is in /Applications.</summary>
+        static bool FullXcode()
+        {
+            try
+            {
+                var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("/usr/bin/xcode-select", "-p")
+                    { RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true });
+                string dir = p.StandardOutput.ReadToEnd().Trim();
+                p.WaitForExit(5000);
+                if (dir.Contains(".app/Contents/Developer")) return true;
+            }
+            catch (Exception) { }
+            return Directory.Exists("/Applications") && Directory.GetDirectories("/Applications", "Xcode*.app").Length > 0;
+        }
+
         static bool Il2CppAvailable()
         {
             string engines = Path.Combine(EditorApplication.applicationContentsPath, "PlaybackEngines", "MacStandaloneSupport", "Variations");
             bool variation = Directory.Exists(engines) &&
                              Directory.GetDirectories(engines, "*il2cpp*").Length > 0;
-            bool toolchain = File.Exists("/usr/bin/clang") || Directory.Exists("/Library/Developer/CommandLineTools");
+            bool toolchain = FullXcode();
             return variation && toolchain;
         }
     }

@@ -27,6 +27,8 @@ The area notes name each check and its target; take the target from there, never
 | Mech rules, parts, balance, tracks | `MechDuel.Run*Fresh*`, `MechDesigns.ArmourySurvey`, `MechTrackRide.Run` | `Scripts/World/Mech/CLAUDE.md` |
 | Unit rules, targeting, harvest, commands, HUD cards | `BugTrials.*` (or a new `BugTrial`), `BugTrials.Cards`/`Quality` | `Scripts/World/CLAUDE.md` |
 | Navigation, pathing, blocking | `AgentPlay.OrderTrial`/`StallTrial`, `MapChecks.Report` (edit mode too) | `Scripts/World/CLAUDE.md` |
+| Kept state told of changes (fog version, dropoffs, plant poses, regenerated plants) | `MathChecks.Run`/`Report` (~50 s, 0 mismatches) | `Scripts/World/CLAUDE.md` |
+| Statics a trial may leave (Suspended, time scale, match settings) | `BugTrials.Statics` before and after, with the trial stopped mid-run | `Editor/CLAUDE.md` |
 | Fire, felling, wind, craters | `AgentPlay.FireTrial`/`FellTrial`/`BuildingFireTrial`/`PushLook`/`GrassFuelCheck` | `Scripts/World/CLAUDE.md` |
 | Morale, desertion | `MoraleTrials.CampSeeds`/`Desert`/`Punish`; Full eval `morale:` line | `Scripts/World/CLAUDE.md` |
 | Map generation | `MapChecks.Report`, `AgentPlay.GroveBatch`/`IslandBatch` | `Scripts/World/MapGen/CLAUDE.md` |
@@ -38,16 +40,16 @@ No check covers it? Write one (see [new-trial.md](new-trial.md)) rather than rep
 
 ## 3. Take the Editor slot
 The Editor is one shared resource for every session: a `.cs` write recompiles under anyone's play mode and wrecks their trial.
-1. `pgrep -f "Unity.app/Contents/MacOS/Unity"`: no Editor means no play-mode check (`editor.sh` would wait 900 s). Start it only if the user or task needs it: `open -na /Applications/Unity/Hub/Editor/6000.6.9f1/Unity.app --args -projectPath /Users/sige/starforge` (minutes to import).
+1. `pgrep -f "Unity.app/Contents/MacOS/Unity"`: no Editor means no play-mode check (`editor.sh` says "no Editor running" and exits 1). Start it only if the user or task needs it: `open -na /Applications/Unity/Hub/Editor/6000.6.10f1/Unity.app --args -projectPath /Users/sige/starforge` (minutes to import).
 2. `ListAgents`: a busy peer that announced an Editor window or trial has it; message it and wait, do not stop its play mode. Subagents cannot do this step: the main session takes the slot.
-3. `SF_EDITOR_TIMEOUT=30 Tools/editor.sh state` → want `playing=False compiling=False`. Behind other apps it keeps ~7.6x only at Interaction Mode No Throttling (`editor.sh call StarForge.EditorTools.EditorThrottle.State`; `.NoThrottling` sets it). If it still crawls, bring it frontmost: `open -a /Applications/Unity/Hub/Editor/6000.6.9f1/Unity.app`.
+3. `SF_EDITOR_TIMEOUT=30 Tools/editor.sh state` → want `playing=False compiling=False`. Behind other apps it keeps ~7.6x only at Interaction Mode No Throttling (`editor.sh call StarForge.EditorTools.EditorThrottle.State`; `.NoThrottling` sets it). If it still crawls, bring it frontmost: `open -a /Applications/Unity/Hub/Editor/6000.6.10f1/Unity.app`.
 4. Busy peers: one `SendMessage` each — what you run, for how long, "no .cs writes until I say".
 
 ## 4. Compile, play, run
 **Never write a sleep/poll loop for the Editor**: the commands below block until their thing is done and return at once when it is (hand-written loops waited out 3-5 min timeouts on ~10 s compiles and played empty scenes for minutes).
 1. All `.cs` edits first, in one batch, then `Tools/editor.sh compile`: refreshes, waits out the compile and the domain reload, prints `compiled` (~10-15 s after a write; 0.5 s when nothing changed) or `COMPILE ERRORS` with each CS error (exit 1). A failure in a file you did not touch is a peer's: tell them, do not fix it.
 2. `Tools/editor.sh play`: opens the Battlefield if another scene is open, enters play, returns `ready: match Menu` once the scene is up (~3 s). MCP `Unity_ManageEditor` Action=Play also works, muted only after `editor.sh call StarForge.EditorTools.AgentAudio.Mute`. Play `editor.sh` starts is muted until it stops (`AgentAudio`; `call StarForge.EditorTools.AgentAudio.Hear` first only when the user is meant to listen).
-3. `call` the check. Staged trials: `Tools/editor.sh wait StarForge.EditorTools.<Type>.<Name>Report` returns the report the moment it stops reading `staging`/`running`/`looking`/`starting`/`shooting`/`watching`; a report that prints progress lines first needs its done-pattern, e.g. `wait StarForge.EditorTools.AgentPlay.FireTrialReport "fires. Plants"`. It gives up after 540 s (third argument: seconds); longer trials and evaluations (`Tools/editor.sh eval quick|full`) run in the background, and nothing is written under `Assets/` until they end.
+3. `call` the check. Staged trials: `Tools/editor.sh wait StarForge.EditorTools.<Type>.<Name>Report` returns the report the moment it stops reading `staging`/`running`/`looking`/`starting`/`shooting`/`watching`/`waiting` (and the trials' other progress texts: `fight N:`, `N chars so far`, `map N`), and exits 1 on `no trial running`, `none` or `no ... running`; a report that prints progress lines first needs its done-pattern, e.g. `wait StarForge.EditorTools.AgentPlay.FireTrialReport "fires. Plants"`. It gives up after 540 s (third argument: seconds); longer trials and evaluations (`Tools/editor.sh eval quick|full`) run in the background, and nothing is written under `Assets/` until they end.
 4. Exceptions during the run (`eval` counts them for you): `grep -nE "^([A-Za-z.+]*Exception|Unhandled Exception)(:| )" Logs/Editor.log | grep -v SuperProxy | tail -20` (only lines after your play started count; `SuperProxyClient` lines are the AI Assistant package's own network errors; a bare `grep Exception` also counts `System.Exception&` in the stack traces of ordinary Editor UI log lines).
 
 ## 5. Clean up and release

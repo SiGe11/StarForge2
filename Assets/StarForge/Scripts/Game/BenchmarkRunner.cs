@@ -50,7 +50,10 @@ namespace StarForge.Game
         int burstFrames = 60;
         float burstZoom = -1f;
         bool burstBase;
-        bool burstStarted, holdCamera;
+        bool burstStarted, burstRunning, holdCamera;
+        string catchStallPath;
+        bool warmed;
+        double sight0, lines0;   // the tactical costs at the warm-up's end: they are summed from the match's start
         // -sfvegprobe [zoom]: the camera held on the densest wood for the whole run (grass,
         // trees and their shadows filling the view), for costing vegetation changes.
         float vegProbe;
@@ -134,14 +137,24 @@ namespace StarForge.Game
                 else if (args[i] == "-sfrigfreeze") rigProbeFreeze = true;
                 else if (args[i] == "-sflogshaders") GraphicsSettings.logWhenShaderIsCompiled = true;
                 else if (args[i] == "-sfrigposes") rigProbePoses = true;
-                else if (args[i] == "-sfcatchstall" && i + 1 < args.Length) StallCatcher.Start(args[i + 1]);
+                else if (args[i] == "-sfcatchstall" && i + 1 < args.Length) catchStallPath = args[i + 1];
                 else if (args[i] == "-sfnoresident" && GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset noRd)
                     noRd.gpuResidentDrawerMode = GPUResidentDrawerMode.Disabled;
                 else if (args[i] == "-sfburstzoom" && i + 1 < args.Length &&
                          float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float,
                              System.Globalization.CultureInfo.InvariantCulture, out float bz)) burstZoom = bz;
             }
-            if (!active) { enabled = false; return; }
+            if (!active)
+            {
+                if (catchStallPath != null) Debug.LogWarning("[Benchmark] -sfcatchstall needs -sfbench (or -sfgallery): nothing will be sampled");
+                enabled = false;
+                return;
+            }
+            if (catchStallPath != null) StallCatcher.Start(catchStallPath);
+            // Room for every frame of the run up front: eight lists that all regrew on one frame (~333 s)
+            // copied ~1.3 MB and could add a GC and a long frame to the measurement itself.
+            int cap = Mathf.Clamp((int)(seconds * 125f), 1024, 200000);
+            foreach (var l in new[] { frames, simFrames, tickFrames, brainFrames, cpuMain, cpuRender, gpu, presentWait }) l.Capacity = cap;
             // A test run measures High unless -sfquality says otherwise: a preset saved in Settings
             // (Balanced, Battery) would otherwise carry into every later benchmark and gallery.
             if (QualityController.Override == null) QualityController.Override = SFQuality.High;
@@ -158,7 +171,9 @@ namespace StarForge.Game
             MatchSettings.difficulty = AI.AIDifficulty.Commander;
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = -1;
-            outPath ??= Path.Combine(Application.persistentDataPath, "starforge_bench.txt");
+            // A gallery's report goes beside its shots: on the default path it overwrote the last benchmark's.
+            outPath ??= galleryDir != null ? Path.Combine(galleryDir, "starforge_bench.txt")
+                                           : Path.Combine(Application.persistentDataPath, "starforge_bench.txt");
         }
 
         void Start()
@@ -225,6 +240,11 @@ namespace StarForge.Game
             float elapsed = Time.realtimeSinceStartup - start;
             if (!holdCamera) TrackAction();
             if (elapsed < Warmup) return;
+            if (!warmed)
+            {
+                warmed = true;
+                if (world != null) { sight0 = world.SightMs; lines0 = world.LinesMs; }
+            }
 
             frames.Add(Time.unscaledDeltaTime * 1000f);
             int second = (int)(elapsed - Warmup);
@@ -304,7 +324,8 @@ namespace StarForge.Game
                 burstStarted = true;
                 StartCoroutine(Burst());
             }
-            if (elapsed >= Warmup + seconds) Finish();
+            // A burst in progress finishes its frames first (at most 30 s more: one that failed before its try left the flag on).
+            if (elapsed >= Warmup + seconds && (!burstRunning || elapsed >= Warmup + seconds + 30f)) Finish();
         }
 
         readonly List<float> simFrames = new List<float>(20000), tickFrames = new List<float>(20000), brainFrames = new List<float>(20000);
@@ -366,6 +387,7 @@ namespace StarForge.Game
         IEnumerator Burst()
         {
             holdCamera = true;
+            burstRunning = true;
             if (burstBase && rig != null && MapInfo.Instance != null)
             {
                 Vector2 home = MapInfo.Instance.StartPos(0);
@@ -411,6 +433,7 @@ namespace StarForge.Game
             {
                 file?.Dispose();
                 holdCamera = false;
+                burstRunning = false;
             }
         }
 
@@ -694,6 +717,20 @@ namespace StarForge.Game
 
         readonly System.Collections.Generic.List<float> mechFrames = new System.Collections.Generic.List<float>(4096);
 
+        /// <summary>The -sf flags of the run with their values: a report from an A/B flag run must not read as a plain one.</summary>
+        static string RunFlags()
+        {
+            var args = Environment.GetCommandLineArgs();
+            var sb = new StringBuilder();
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (!args[i].StartsWith("-sf", StringComparison.Ordinal)) continue;
+                sb.Append(sb.Length > 0 ? " " : "").Append(args[i]);
+                if (i + 1 < args.Length && !args[i + 1].StartsWith("-", StringComparison.Ordinal)) sb.Append(' ').Append(args[++i]);
+            }
+            return sb.Length > 0 ? sb.ToString() : "(no -sf flags)";
+        }
+
         void Finish()
         {
             enabled = false;
@@ -707,7 +744,13 @@ namespace StarForge.Game
             sb.AppendLine($"StarForge benchmark — {SystemInfo.deviceModel}, {SystemInfo.processorType}, {SystemInfo.graphicsDeviceName} ({SystemInfo.graphicsDeviceType})");
             sb.AppendLine($"preset {QualityController.Current}, resolution {Screen.width}x{Screen.height}, {frames.Count} frames over {seconds:0}s after {Warmup:0}s warm-up; " +
                           $"vsync {QualitySettings.vSyncCount}, cap {(Application.targetFrameRate > 0 ? Application.targetFrameRate.ToString() : "none")}");
+            sb.AppendLine($"run: {RunFlags()} · match seed {MatchSettings.seed}, map {MapRuntime.LastSeed} · build {(string.IsNullOrEmpty(Application.buildGUID) ? "editor" : Application.buildGUID)}");
             sb.AppendLine($"avg {avg:0.00} ms ({1000f / Mathf.Max(0.01f, avg):0.0} fps) · p50 {P(0.5f):0.00} · p95 {P(0.95f):0.00} · p99 {P(0.99f):0.00} · worst {P(1f):0.00} ms");
+            // Screenshots and burst readbacks are timed with the frames: such a run's fps is not a benchmark's.
+            if (shotTaken || burstStarted || galleryDir != null)
+                sb.AppendLine($"NOT COMPARABLE: the frames include {(galleryDir != null ? "the gallery's shots" : burstStarted ? "the burst's readbacks" : "the -sfshot capture")}; take fps from a run without them");
+            if (burstPath != null && !burstStarted)
+                sb.AppendLine($"burst: never started (asked for {(burstAt >= 0f ? burstAt : seconds * 0.5f):0} s after the warm-up, the run ended first)");
             if (rigProbeOn != null) sb.AppendLine(rigProbeOn.Report());
             {
                 var scatter = FindAnyObjectByType<GroundScatter>();
@@ -718,7 +761,7 @@ namespace StarForge.Game
                                   (vegProbe > 0f ? $"; camera held on the wood at zoom {vegProbe:0}" : ""));
             }
             if (world != null)
-                sb.AppendLine($"tactical: {world.ShotsFired} rounds, {world.ShotsHit} struck; sight rules {world.SightMs / Mathf.Max(1, frames.Count):0.000} ms a frame, shots' lines {world.LinesMs / Mathf.Max(1, frames.Count):0.000}");
+                sb.AppendLine($"tactical: {world.ShotsFired} rounds, {world.ShotsHit} struck; sight rules {(world.SightMs - sight0) / Mathf.Max(1, frames.Count):0.000} ms a frame, shots' lines {(world.LinesMs - lines0) / Mathf.Max(1, frames.Count):0.000}");
             sb.AppendLine($"peak entities {maxEntities} · peak projectiles {maxProjectiles} · lowest render scale {minScale:0.00}, average {(scaleFrames > 0 ? scaleSum / scaleFrames : 1.0):0.00}" +
                           (mechFrames.Count > 0 ? $" ({mechScaleSum / mechFrames.Count:0.00} with a Mech in view)" : "") +
                           $" · shadows {(GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset ua ? ua.shadowDistance : 0f):0} m");
@@ -730,20 +773,22 @@ namespace StarForge.Game
                           $"{gcTotal} GCs, {islandTotal} NavMesh island builds" +
                           (world != null && world.Islands != null ? $" (last {world.Islands.TriangulateMs + world.Islands.WalkMs + world.Islands.LabelMs:0} ms)" : ""));
             sb.AppendLine($"frames over 40 ms: {longFrames}; with the simulation over 12 ms {longSim} (AIs {longTicked}), with a GC {longGc}, with an island build {longIsland}");
-            if (gpu.Count > 0)
+            if (timed > 0)
             {
                 // The game's own cost, apart from waiting on the display: the frame rate it could
                 // hold is set by the slower of the main thread (less its wait), the render thread
-                // and the GPU.
-                float Avg(List<float> v) { double a = 0; foreach (var x in v) a += x; return (float)(a / v.Count); }
+                // and the GPU. The CPU split stands even when Metal timed no GPU frame.
+                float Avg(List<float> v) { if (v.Count == 0) return 0f; double a = 0; foreach (var x in v) a += x; return (float)(a / v.Count); }
                 float mainWork = Avg(cpuMain) - Avg(presentWait);
                 float bound = Mathf.Max(mainWork, Mathf.Max(Avg(cpuRender), Avg(gpu)));
+                string gpuPart = gpu.Count > 0 ? $"GPU {Avg(gpu):0.0} (p50 {Pct(gpu, 0.5f):0.0}, p95 {Pct(gpu, 0.95f):0.0})" : "GPU not timed";
                 sb.AppendLine($"frame timing ({timed} frames, GPU timed on {gpu.Count}): main thread {Avg(cpuMain):0.0} ms (p50 {Pct(cpuMain, 0.5f):0.0}) of which waiting to present {Avg(presentWait):0.0} (p95 {Pct(presentWait, 0.95f):0.0}), " +
-                              $"render thread {Avg(cpuRender):0.0} (p95 {Pct(cpuRender, 0.95f):0.0}), GPU {Avg(gpu):0.0} (p50 {Pct(gpu, 0.5f):0.0}, p95 {Pct(gpu, 0.95f):0.0}) ms -> the game's own cost allows ~{1000f / Mathf.Max(0.1f, bound):0} fps");
+                              $"render thread {Avg(cpuRender):0.0} (p95 {Pct(cpuRender, 0.95f):0.0}), {gpuPart} ms -> the game's own cost allows ~{1000f / Mathf.Max(0.1f, bound):0} fps");
                 if (longTimed > 0)
                     sb.AppendLine($"frames over 40 ms averaged {longWait / longTimed:0.0} ms waiting to present and {longGpu / longTimed:0.0} ms of GPU");
             }
-            else sb.AppendLine("frame timing: not available (build without enableFrameTimingStats)");
+            else sb.AppendLine("frame timing: no frame timed (a build without enableFrameTimingStats, or the Editor)");
+            if (catchStallPath != null) sb.AppendLine("stall catcher: " + StallCatcher.Summary());
             if (mechFrames.Count > 0)
             {
                 mechFrames.Sort();

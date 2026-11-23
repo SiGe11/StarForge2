@@ -100,7 +100,7 @@ namespace StarForge.EditorTools
         /// <summary>The Full evaluation's five Turtle games alone, 900 s cap (the ninth review's check of the queue against
         /// the rotation: alternate the code between runs). Call out of play mode.</summary>
         public static string EvalTurtle() { int was = AIReview.EvalKind; AIReview.EvalKind = 2; string r = AIReview.EvalOne(); AIReview.EvalKind = was; return r; }
-        public static string UseLineBudgetSeed() { StarForge.Game.MatchSettings.mapSeed = 3469857940u; return "next Play on map 3469857940 (and every Play after it: TacticalTrials.ClearSeed frees it)"; }
+        public static string UseLineBudgetSeed() { AgentInbox.SetHeldMapSeed(3469857940u); return "next Play on map 3469857940 (and every Play after it: TacticalTrials.ClearSeed frees it)"; }
         public static string LineBudgetReport() => Report<LineBudgetTrial>();
     }
 

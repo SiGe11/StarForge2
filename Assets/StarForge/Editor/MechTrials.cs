@@ -881,6 +881,9 @@ namespace StarForge.EditorTools
             return s == null ? "none" : s.report;
         }
 
+        // Cut off before its end (play stopped, restaged, an exception): the opponent AI must not stay silenced.
+        void OnDestroy() { if (!report.StartsWith("done") && !BugTrial.Holding) StarForge.AI.Commander.Suspended = false; }
+
         System.Collections.IEnumerator Start()
         {
             var boot = StarForge.Game.GameBootstrap.Instance;
@@ -1077,6 +1080,9 @@ namespace StarForge.EditorTools
             return s == null ? "none" : s.report;
         }
 
+        // Cut off before its end (play stopped, restaged, an exception): the opponent AI must not stay silenced.
+        void OnDestroy() { if (!report.StartsWith("done") && !BugTrial.Holding) StarForge.AI.Commander.Suspended = false; }
+
         System.Collections.IEnumerator Start()
         {
             var boot = StarForge.Game.GameBootstrap.Instance;
@@ -1231,6 +1237,9 @@ namespace StarForge.EditorTools
             var s = UnityEngine.Object.FindAnyObjectByType<FlameTowerLook>();
             return s == null ? "none" : s.report;
         }
+
+        // Cut off before its end (play stopped, restaged, an exception): the opponent AI must not stay silenced.
+        void OnDestroy() { if (!report.StartsWith("done") && !BugTrial.Holding) StarForge.AI.Commander.Suspended = false; }
 
         System.Collections.IEnumerator Start()
         {

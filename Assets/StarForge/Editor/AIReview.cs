@@ -173,7 +173,8 @@ namespace StarForge.EditorTools
             if (EditorApplication.isPlaying) return "playing: stop first";
             PlayerPrefs.SetInt(AIEvalRunner.PrefOnly, EvalKind);
             PlayerPrefs.SetInt(AIEvalRunner.PrefFirst, 0);
-            AIEvalMenu.Run(5, 900f);
+            string refused = AIEvalMenu.Run(5, 900f);
+            if (refused != null) return refused;
             return $"evaluating 5 games against {(ScriptedOpponent.Kind)EvalKind}, 900 s cap";
         }
 
@@ -186,14 +187,45 @@ namespace StarForge.EditorTools
             if (EditorApplication.isPlaying) return "playing: stop first";
             PlayerPrefs.DeleteKey(AIEvalRunner.PrefOnly);
             PlayerPrefs.SetInt(AIEvalRunner.PrefFirst, 5);
-            AIEvalMenu.Run(3, 900f);
+            string refused = AIEvalMenu.Run(3, 900f);
+            if (refused != null) return refused;
             return "evaluating games 5-7 (printed 6-8: Standard, Standard, EarlyGarrison) against every opponent, 900 s cap";
+        }
+    }
+
+    /// <summary>What the probes switch off to run fast, and back.</summary>
+    static class ProbeView
+    {
+        static readonly Dictionary<Camera, int> masks = new Dictionary<Camera, int>();
+        static int blinders;   // probes blind now: the view comes back with the last of them
+
+        public static void Blind()
+        {
+            blinders++;
+            foreach (var cam in Object.FindObjectsByType<Camera>())
+            {
+                if (!masks.ContainsKey(cam)) masks[cam] = cam.cullingMask;
+                cam.cullingMask = 0;
+            }
+            Application.targetFrameRate = -1;
+            Time.timeScale = 8f;
+        }
+
+        public static void Restore()
+        {
+            if (blinders == 0 || --blinders > 0) return;
+            foreach (var kv in masks) if (kv.Key != null) kv.Key.cullingMask = kv.Value;
+            masks.Clear();
+            Application.targetFrameRate = 60;   // GameBootstrap's play cap
+            Time.timeScale = 1f;
         }
     }
 
     public sealed class HiddenDiggerProbe : MonoBehaviour
     {
         public string report = "staging";
+        bool blinded;
+        void OnDestroy() { if (blinded) ProbeView.Restore(); }
         /// <summary>Hide the Digger here instead of the furthest spot (null: furthest).</summary>
         public static Vector2? HideAt;
         /// <summary>What is hidden; riflemen given to the AI; Starve: the AI's army replaced by those
@@ -221,9 +253,8 @@ namespace StarForge.EditorTools
             var world = GameWorld.Instance;
             var map = world.Map;
             var ai = boot.AI;
-            foreach (var cam in FindObjectsByType<Camera>()) cam.cullingMask = 0;
-            Application.targetFrameRate = -1;
-            Time.timeScale = 8f;
+            blinded = true;
+            ProbeView.Blind();
             // Until the AI has seen their Foundry (its scout), at most 400 s.
             while (ai.Perception.Snap.eFoundries == 0 && world.time < 400f) { report = $"waiting for the AI to see their Foundry ({world.time:0}s)"; yield return null; }
             if (ai.Perception.Snap.eFoundries == 0) { report = "the AI never saw their Foundry"; Time.timeScale = 1f; yield break; }
@@ -331,7 +362,8 @@ namespace StarForge.EditorTools
     {
         public string report = "staging";
         // Spectating is the trial's, not the next match's.
-        void OnDestroy() => MatchSettings.spectate = false;
+        bool blinded;
+        void OnDestroy() { MatchSettings.spectate = false; if (blinded) ProbeView.Restore(); }
 
         IEnumerator Start()
         {
@@ -349,9 +381,8 @@ namespace StarForge.EditorTools
             }
             var world = GameWorld.Instance;
             var ai = boot.AI;
-            foreach (var cam in FindObjectsByType<Camera>()) cam.cullingMask = 0;
-            Application.targetFrameRate = -1;
-            Time.timeScale = 8f;
+            blinded = true;
+            ProbeView.Blind();
             const System.Reflection.BindingFlags Priv = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             var waveOnField = typeof(Commander).GetField("waveOn", Priv);
             var repulsesField = typeof(Commander).GetField("mechRepulses", Priv);
@@ -409,7 +440,8 @@ namespace StarForge.EditorTools
     public sealed class StallProbe : MonoBehaviour
     {
         public string report = "staging";
-        void OnDestroy() => MatchSettings.spectate = false;
+        bool blinded;
+        void OnDestroy() { MatchSettings.spectate = false; if (blinded) ProbeView.Restore(); }
 
         IEnumerator Start()
         {
@@ -427,9 +459,8 @@ namespace StarForge.EditorTools
             }
             var world = GameWorld.Instance;
             var ai = boot.AI;
-            foreach (var cam in FindObjectsByType<Camera>()) cam.cullingMask = 0;
-            Application.targetFrameRate = -1;
-            Time.timeScale = 8f;
+            blinded = true;
+            ProbeView.Blind();
             const System.Reflection.BindingFlags Priv = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             var waveOnField = typeof(Commander).GetField("waveOn", Priv);
             var repulsesField = typeof(Commander).GetField("mechRepulses", Priv);
@@ -492,6 +523,7 @@ namespace StarForge.EditorTools
 
     public sealed class RaidProbe : MonoBehaviour
     {
+        bool blinded;
         GameWorld world;
         readonly int[] picks = new int[2], picksSameAsOld = new int[2], sorties = new int[2], badSquad = new int[2], squadTicks = new int[2];
         readonly double[] infNew = new double[2], infOld = new double[2], distNew = new double[2], distOld = new double[2];
@@ -519,9 +551,8 @@ namespace StarForge.EditorTools
             world = GameWorld.Instance;
             boot.AI.Personality.raidTaste = 0.9f;
             if (boot.PlayerProxy != null) boot.PlayerProxy.Personality.raidTaste = 0.9f;
-            foreach (var cam in FindObjectsByType<Camera>()) cam.cullingMask = 0;
-            Application.targetFrameRate = -1;
-            Time.timeScale = 8f;
+            blinded = true;
+            ProbeView.Blind();
             world.Ticked += OnTick;
             world.Event += OnEvent;
         }
@@ -530,6 +561,7 @@ namespace StarForge.EditorTools
         {
             if (world != null) { world.Ticked -= OnTick; world.Event -= OnEvent; }
             MatchSettings.spectate = false;   // the trial's, not the next match's
+            if (blinded) ProbeView.Restore();
         }
 
         void OnEvent(GameEvent e)
@@ -668,6 +700,7 @@ namespace StarForge.EditorTools
         {
             if (world != null) world.Ticked -= OnTick;
             MatchSettings.spectate = false;   // the trial's, not the next match's
+            Time.timeScale = 1f;   // its 8x
         }
 
         void OnTick(float dt)

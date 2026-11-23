@@ -22,6 +22,9 @@ namespace StarForge.EditorTools
         const string MutedKey = "StarForge.AgentAudio.muted", HadKey = "StarForge.AgentAudio.userMute";
         const string PlayKey = "StarForge.AgentAudio.agentPlay", NextKey = "StarForge.AgentAudio.muteNext", HearKey = "StarForge.AgentAudio.hear";
         static bool inCommand, startedInCommand;
+        /// <summary>The last play session entered was an agent's (set as it starts, kept after it ends, so any
+        /// EnteredEditMode handler can read it whatever order the handlers run in).</summary>
+        public static bool LastPlayWasAgent { get; private set; }
 
         static AgentAudio()
         {
@@ -56,6 +59,7 @@ namespace StarForge.EditorTools
             {
                 if (inCommand) startedInCommand = true;
                 bool agent = inCommand || Recent(PlayKey, 1.0) || Recent(NextKey, WindowMinutes);
+                LastPlayWasAgent = agent;
                 SessionState.EraseString(PlayKey);
                 SessionState.EraseString(NextKey);
                 if (agent && !Recent(HearKey, WindowMinutes)) MuteNow();

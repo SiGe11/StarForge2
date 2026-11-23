@@ -32,9 +32,9 @@
 // Targeting and Harvest silence the opponent AI (Commander.Suspended) and run at 3x while
 // they run, through a hold count shared by the trials here: saved on the first HoldStatics,
 // put back on the last ReleaseStatics -- OnDestroy included, because Unity skips a
-// coroutine's finally when its object goes (play stopped, a trial staged again). (The
-// names are their own: MoraleTrials derives from BugTrial with a Hold/Release/Listen of
-// its own, and its own OnDestroy, which Unity calls instead of this one.) Unit.StickyTargets,
+// coroutine's finally when its object goes (play stopped, a trial staged again). MoraleTrials'
+// Hold/Release go through the same count, and a subclass's own OnDestroy overrides this one
+// and calls it (a private one hid it: Unity calls only the most derived). Unit.StickyTargets,
 // the Targeting A/B, is also cleared on every entry into play mode: these statics survive
 // play sessions (domain reload off), and left on it would undo the fix in every later
 // match, evaluations included. Each leaves the match running.
@@ -594,7 +594,8 @@ namespace StarForge.EditorTools
             PlayerPrefs.SetInt(AIEvalRunner.PrefFirst, first);
             EditorApplication.playModeStateChanged -= StickyForEval;
             if (oldRule) EditorApplication.playModeStateChanged += StickyForEval;
-            AIEvalMenu.Run(games, 900f);
+            string refused = AIEvalMenu.Run(games, 900f);
+            if (refused != null) { EditorApplication.playModeStateChanged -= StickyForEval; return refused; }
             return $"evaluating {kind} games {first + 1}-{first + games} with the {(oldRule ? "old" : "current")} targeting rule";
         }
 
@@ -612,7 +613,8 @@ namespace StarForge.EditorTools
         /// all should read off once no trial runs, however the last one ended.</summary>
         public static string Statics() =>
             $"Commander.Suspended={Commander.Suspended} Unit.StickyTargets={Unit.StickyTargets} timeScale={Time.timeScale:0.##} " +
-            $"trials running {Object.FindObjectsByType<BugTrial>().Length} playing={EditorApplication.isPlaying}";
+            $"trials running {Object.FindObjectsByType<BugTrial>().Length} playing={EditorApplication.isPlaying}; " +
+            $"match settings: {AgentInbox.HeldSettings()}";
 
         /// <summary>The game speed survives a pause: x2, pause, resume.</summary>
         public static string PauseSpeed()
@@ -764,8 +766,9 @@ namespace StarForge.EditorTools
                 "overshoot kept: Think told 1.00 s a second at both speeds; before 0.83 at a 0.1 s step)\n" + sb;
         }
 
-        void OnDestroy()
+        protected override void OnDestroy()
         {
+            base.OnDestroy();
             var boot = GameBootstrap.Instance;
             if (restoreSpeed > 0f && boot != null) boot.SetSpeed(restoreSpeed);
         }
@@ -773,12 +776,22 @@ namespace StarForge.EditorTools
 
     public abstract class BugTrial : MonoBehaviour
     {
-        public string report = "staging";
+        string reportText = "staging";
+        /// <summary>Why a Wait could not run its span: the report then says so first, so editor.sh wait exits 1
+        /// instead of reading a cut-short run as done.</summary>
+        protected string incomplete;
+        public string report
+        {
+            get => incomplete == null ? reportText : $"INCOMPLETE ({incomplete}): {reportText}";
+            set => reportText = value;
+        }
 
         protected GameWorld world;
         protected MapInfo map;
 
         static int holds;
+        /// <summary>A BugTrial or MoraleTrial holds Commander.Suspended now (other trials leave it alone).</summary>
+        public static bool Holding => holds > 0;
         static bool savedSuspended;
         static float savedScale = 1f;
         static bool scaleOwned;
@@ -833,7 +846,8 @@ namespace StarForge.EditorTools
             if (handler != null && world != null) world.Event += handler;
         }
 
-        void OnDestroy()
+        /// <summary>A subclass with cleanup of its own overrides this and calls base.OnDestroy().</summary>
+        protected virtual void OnDestroy()
         {
             ClearSpawned();
             ReleaseStatics();
@@ -846,10 +860,9 @@ namespace StarForge.EditorTools
             Unit.StickyTargets = false;
             TacticalRules.NoMistakes = false; TacticalRules.NoTankTactics = false;
             UnitView.CutterSpin = UnitView.CutterSpinUsual;
-            // MoraleTrials keeps a hold count of its own: overlapping one of its trials with
-            // one of these, the later release could put back a Suspended the other had set,
-            // and the next play -- the user's own included -- had a silent opponent. No trial
-            // runs at play entry, so whatever is left on goes here.
+            // A hold count left by a trial cut off mid-run (the morale trials share it since
+            // 2026-11-23; with a count of their own, an overlap could put back a Suspended the
+            // other had set). No trial runs at play entry, so whatever is left on goes here.
             Commander.Suspended = false;
             // Trials (these, MechTrials, FxLook, GroundLook) start their matches with the AI's memory
             // off and none put it back: the user's next match in the editor ran with no memory, and
@@ -868,16 +881,42 @@ namespace StarForge.EditorTools
                 MatchSettings.spectate = false;
                 boot.StartMatch();
                 yield return new WaitForSecondsRealtime(1.5f);
+                // A slow start (a busy Editor) reported "no match running" after the fixed wait.
+                float until = Time.realtimeSinceStartup + 10f;
+                while ((world == null || !world.running) && Time.realtimeSinceStartup < until)
+                {
+                    yield return null;
+                    world = GameWorld.Instance;
+                    map = MapInfo.Instance;
+                }
             }
         }
 
         protected bool Ready => world != null && map != null && world.running;
 
-        /// <summary>Wait this much match time.</summary>
+        /// <summary>Wait this much match time. A world replaced by a reload or destroyed, or match time standing
+        /// still for 30 s of real time (a slow Editor still counts: only a clock that does not move), ends it and
+        /// marks the trial INCOMPLETE: before, the report sat on "staging" for editor.sh wait's whole 540 s.</summary>
         protected IEnumerator Wait(float seconds)
         {
-            float until = world.time + seconds;
-            while (world.time < until) yield return null;
+            var w = world;
+            float until = w.time + seconds, lastT = w.time, lastReal = Time.realtimeSinceStartup;
+            while (true)
+            {
+                if (w == null || !ReferenceEquals(GameWorld.Instance, w))
+                {
+                    incomplete = $"the world was replaced during a Wait({seconds:0.#})";
+                    yield break;
+                }
+                if (w.time >= until) yield break;
+                if (w.time > lastT) { lastT = w.time; lastReal = Time.realtimeSinceStartup; }
+                else if (Time.realtimeSinceStartup - lastReal > 30f)
+                {
+                    incomplete = $"match time stood still at {w.time:0.0} s for 30 s of a Wait({seconds:0.#})";
+                    yield break;
+                }
+                yield return null;
+            }
         }
 
         /// <summary>Dry, open ground away from both bases, with room for a Sentinel.</summary>
@@ -2680,7 +2719,8 @@ namespace StarForge.EditorTools
                      $"its riflemen got at most {maxAway:0} m from home (their base {(h0 - h1).magnitude:0} m off); team 0 structures {structs0} -> {structs}; deaths {deaths}; winner {world.winner}; trace" + trace;
         }
 
-        void OnDestroy() { MatchSettings.spectate = false; }
+        // Cut off mid-run it left 8x on for the rest of the session.
+        protected override void OnDestroy() { base.OnDestroy(); MatchSettings.spectate = false; Time.timeScale = 1f; }
     }
 
     public sealed class DiggerScoutTrial : BugTrial
@@ -3417,6 +3457,7 @@ namespace StarForge.EditorTools
                      $"the first {(firstWave >= 0f ? $"{firstWave:0} s after" : "never")}; {world.time - t0:0} s watched, winner {world.winner}; at the end army {army[0]}/{army[1]}, structures {structs[0]}/{structs[1]}";
         }
 
-        void OnDestroy() { MatchSettings.spectate = false; }
+        // Cut off mid-run it left 8x on for the rest of the session.
+        protected override void OnDestroy() { base.OnDestroy(); MatchSettings.spectate = false; Time.timeScale = 1f; }
     }
 }

@@ -19,6 +19,7 @@ Writes <name>_heat.bmp next to the input: grey is the average change per frame,
 cyan marks vibrating pixels, red marks pixels that spike well above their own
 median, yellow marks flashes. Needs only numpy.
 """
+import os
 import struct
 import sys
 
@@ -37,8 +38,13 @@ def write_bmp(path, rgb):
 
 def main(path):
     raw = np.memmap(path, dtype=np.uint8, mode="r")
-    w, h, _ = struct.unpack("<iii", raw[:12].tobytes())
+    w, h, want = struct.unpack("<iii", raw[:12].tobytes())
     n = (raw.size - 12) // (w * h * 3)
+    # A burst cut short (player killed mid-write, a run that ended first) must not read
+    # as a clean one: say so and exit 1 after the analysis.
+    short = n != want or (raw.size - 12) % (w * h * 3) != 0
+    if n < 5:
+        sys.exit(f"{path}: {n} whole frames of {w}x{h} (header says {want}): too few to analyse")
     frames = raw[12:12 + n * w * h * 3].reshape(n, h, w, 3)
 
     # Luminance as uint8, frame by frame, rows flipped top-down.
@@ -55,7 +61,9 @@ def main(path):
         d = lum[t].astype(np.int16) - lum[t - 1].astype(np.int16)
         change += np.abs(d)
         if prev_d is not None:
-            flip_count += ((d * prev_d < 0) & (np.abs(d) > 8) & (np.abs(prev_d) > 8))
+            # Signs, not d * prev_d: that product is int16 and wraps past ~181 levels,
+            # so the strongest flicker was not counted.
+            flip_count += ((d > 8) & (prev_d < -8)) | ((d < -8) & (prev_d > 8))
         prev_d = d
     change /= 255.0 * max(1, n - 1)
     vibrating = flip_count / max(1, n - 2) > 0.10
@@ -65,8 +73,9 @@ def main(path):
         flash_count += (lum[t].astype(np.int16) - around > 40) & (lum[t] > 140)
     flashes = flash_count > 0
 
+    # Any frame over its median by 64 = the brightest frame over it; no n x h x w int16 copy.
     median = np.median(lum, axis=0)
-    spiking = ((lum.astype(np.int16) - median[None].astype(np.int16)) > 64).any(0)
+    spiking = (lum.max(0).astype(np.int16) - median.astype(np.int16)) > 64
 
     # Flashes on otherwise still ground: water glints and moving units flash
     # too, but inside a patch that is changing all over. A firefly is alone.
@@ -86,10 +95,15 @@ def main(path):
     img[vibrating] = [40, 200, 255]
     img[spiking] = [255, 40, 40]
     img[flashes] = [255, 230, 0]
-    write_bmp(path.rsplit(".", 1)[0] + "_heat.bmp", img)
+    write_bmp(os.path.splitext(path)[0] + "_heat.bmp", img)
+    if short:
+        print(f"TRUNCATED: the header asks for {want} frames, the file holds {n}"
+              f"{' and part of another' if (raw.size - 12) % (w * h * 3) else ''}")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         sys.exit(__doc__)
-    main(sys.argv[1])
+    sys.exit(main(sys.argv[1]))

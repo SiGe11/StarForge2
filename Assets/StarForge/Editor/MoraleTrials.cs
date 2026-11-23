@@ -292,35 +292,11 @@ namespace StarForge.EditorTools
     /// what happens to it.</summary>
     public abstract class MoraleTrial : BugTrial
     {
-        // The opponent silenced and the clock at 3x while any morale trial runs, put back when
-        // the last one ends -- also when play stops or a trial is replaced mid-run (a
-        // coroutine's finally does not run then). Counted across trials: each saving what the
-        // other had set, two overlapping ones left Commander.Suspended on into the next match.
-        static int holders;
-        static bool savedSuspended;
-        static float savedScale = 1f;
-        bool holding;
-
-        protected void Hold()
-        {
-            if (holding) return;
-            holding = true;
-            if (holders++ == 0) { savedSuspended = Commander.Suspended; savedScale = Time.timeScale; }
-            Commander.Suspended = true;
-            Time.timeScale = 3f;
-        }
-
-        protected void Release()
-        {
-            if (!holding) return;
-            holding = false;
-            if (--holders > 0) return;
-            holders = 0;
-            Commander.Suspended = savedSuspended;
-            Time.timeScale = savedScale;
-        }
-
-        void OnDestroy() => Release();
+        // The opponent silenced and the clock at 3x while any morale trial runs, through BugTrial's
+        // one hold count (put back on the last release, OnDestroy included): with a count of its own,
+        // a morale trial overlapping a BugTrial could put back a Suspended the other had set.
+        protected void Hold() => HoldStatics();
+        protected void Release() => ReleaseStatics();
 
         protected readonly List<Unit> squad = new List<Unit>();
         /// <summary>The side whose soldiers break (0 the player's, 1 the opponent's).</summary>

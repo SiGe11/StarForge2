@@ -19,7 +19,6 @@ honest, and answers four questions:
 Exit status is 1 if anything failed.
 """
 import argparse
-import fnmatch
 import glob
 import html
 import json
@@ -221,36 +220,79 @@ SOURCES = [
       ["Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"]),
 ]
 
-# Made for this project: models from the Blender builders, generated textures,
-# synthesised ambience, icons, and the textures carried over from the author's
-# own C++ StarForge (MIT). Anything matching none of these and none of the
-# register above is an asset nobody has recorded the origin of.
+# Made for this project, by name (no wildcard: a file dropped into one of these folders must be
+# named here or registered above, the user's call of 2026-11-23). Each group's origin is in
+# THIRD-PARTY.md, "Everything else is made for this project". A name here with no file is a failure.
+def _own(prefix, *names):
+    return [prefix + n for n in names]
+
+
 OWN = [
-    M + "SF_*.fbx",                       # minus SF_SCAN_*, which the register claims
-    T + "*.png", T + "*.jpg",             # cape_fabric.png: made for this project by the author with an image model (2026-10-28);
-                                          # turf_lush.jpg, turf_dry.jpg, ground_burnt.jpg: the same, Google Gemini, 2026-11-20
-                                          # (Tools/blender/pack_turf.py; THIRD-PARTY.md, "Images made with an image model");
-                                          # scorch.jpg, armor.png's alpha, fog_unknown.png: the same, Google Gemini, 2026-11-20
-                                          # (Tools/pack_marks.py; THIRD-PARTY.md, "Battle marks, made with an image model")
-    "Assets/StarForge/Map/*.png",
-    "Assets/StarForge/Art/Icons/*.png",
-    "Assets/StarForge/Art/AppIcon.png",
-    "Assets/StarForge/UI/Art/*.jpg",      # menu key art, opponent holograms, the Chronicle's plates: the author with Google Gemini, 2026-11-20..23
-    "Assets/StarForge/Resources/Intro/*.mp4",        # the intro clip: the same, 2026-11-22 (THIRD-PARTY.md, "Menu illustrations")
-    "Assets/StarForge/Resources/MechStandards.png",  # the orders' standards: the same, 2026-11-23, packed by Tools/pack_standards.py
-    "Assets/icon.png", "Assets/cursor.png",
-    A + "Ambience/*.wav",
-    A + "Sfx/mech_radio_*.wav", A + "Sfx/mech_flamer.wav",   # synthesised by make_audio.py --mech
-    "Assets/StarForge/Scenes/**/*.exr",   # baked lighting
+    # Models built by Tools/blender/build_*.py and build_mechs.py (THIRD-PARTY.md: Models)
+    *_own(M, 'SF_AEGIS_HULL.fbx', 'SF_AEGIS_TURRET.fbx', 'SF_AIRFIELD.fbx', 'SF_AIRFIELD_CHUNKS.fbx',
+          'SF_ARMORY.fbx', 'SF_ARMORY_CHUNKS.fbx', 'SF_BIOLAB.fbx', 'SF_BIOLAB_CHUNKS.fbx', 'SF_BOULDER.fbx',
+          'SF_BUNKHOUSE.fbx', 'SF_BUNKHOUSE_CHUNKS.fbx', 'SF_FOUNDRY.fbx', 'SF_FOUNDRY_CHUNKS.fbx',
+          'SF_GARRISON.fbx', 'SF_GARRISON_CHUNKS.fbx', 'SF_GUNNER.fbx', 'SF_HAULER.fbx', 'SF_IRONCLAD_LEGS.fbx',
+          'SF_IRONCLAD_TORSO.fbx', 'SF_KESTREL.fbx', 'SF_LANCER_HULL.fbx', 'SF_LANCER_TURRET.fbx', 'SF_MARKSMAN.fbx',
+          'SF_MAULER_HULL.fbx', 'SF_MAULER_TURRET.fbx', 'SF_MECHHUNTER_HULL.fbx', 'SF_MECHHUNTER_TURRET.fbx',
+          'SF_MECH_BAY.fbx', 'SF_MECH_BAY_CHUNKS.fbx', 'SF_MECH_BAY_GUN.fbx', 'SF_MECH_FRAME_HEAVY.fbx',
+          'SF_MECH_FRAME_LIGHT.fbx', 'SF_MECH_FRAME_MEDIUM.fbx', 'SF_MECH_HOVER.fbx', 'SF_MECH_LEGS_BIPED.fbx',
+          'SF_MECH_LEGS_QUAD.fbx', 'SF_MECH_TRACKS.fbx', 'SF_MECH_W_AUTOCANNON.fbx', 'SF_MECH_W_FLAMER.fbx',
+          'SF_MECH_W_FLAMETOWER.fbx', 'SF_MECH_W_GATLING.fbx', 'SF_MECH_W_LASER.fbx', 'SF_MECH_W_MISSILES.fbx',
+          'SF_MECH_W_MORTAR.fbx', 'SF_MECH_W_RAILGUN.fbx', 'SF_ORE.fbx', 'SF_PROSPECTOR.fbx',
+          'SF_PROSPECTOR_TURRET.fbx', 'SF_REEDS.fbx', 'SF_REEDS_LOD1.fbx', 'SF_ROCKETEER.fbx', 'SF_ROCK_SHELF.fbx',
+          'SF_ROCK_SPIRE.fbx', 'SF_RUIN_CORNER.fbx', 'SF_RUIN_PYLON.fbx', 'SF_RUIN_WALL.fbx', 'SF_SCORCHER.fbx',
+          'SF_SENTINEL_BASE.fbx', 'SF_SENTINEL_BASE_CHUNKS.fbx', 'SF_SENTINEL_HEAD.fbx', 'SF_SKIMMER.fbx',
+          'SF_SWIFT.fbx', 'SF_THUMPER.fbx', 'SF_TREE_DEAD.fbx', 'SF_TREE_DEAD_LOD1.fbx', 'SF_TROOPER.fbx',
+          'SF_WALL_LOW.fbx', 'SF_WALL_SHORT.fbx', 'SF_WORKER.fbx', 'SF_WORKSHOP.fbx', 'SF_WORKSHOP_CHUNKS.fbx',
+          'SF_WRECK.fbx'),
+    # Generated textures (THIRD-PARTY.md: Generated textures; armor.png's alpha: Battle marks)
+    *_own(T, 'armor.png', 'armor_n.png', 'flames.png', 'foliage_broad.png', 'foliage_needle.png', 'smoke_puffs.png'),
+    # Made by the author with an image model (THIRD-PARTY.md: Images made with an image model, Battle marks)
+    *_own(T, 'cape_fabric.png', 'fog_unknown.png', 'ground_burnt.jpg', 'scorch.jpg', 'turf_dry.jpg', 'turf_lush.jpg'),
+    # Carried over from the original C++ StarForge (THIRD-PARTY.md: Textures carried over)
+    *_own(T, 'clouds.jpg', 'crystal.jpg', 'explosion.jpg', 'particles.jpg', 'terrain-macro.jpg', 'water_n.jpg'),
+    # Unit and building icons rendered by Build step 2 (PrefabBuilder; THIRD-PARTY.md: the icons)
+    *_own("Assets/StarForge/Art/Icons/", 'sf_ui_icon_Aegis.png', 'sf_ui_icon_Airfield.png', 'sf_ui_icon_Armory.png',
+          'sf_ui_icon_Biolab.png', 'sf_ui_icon_Bunkhouse.png', 'sf_ui_icon_Foundry.png', 'sf_ui_icon_Garrison.png',
+          'sf_ui_icon_Gorehorn.png', 'sf_ui_icon_Gunner.png', 'sf_ui_icon_Hauler.png', 'sf_ui_icon_Ironclad.png',
+          'sf_ui_icon_Kestrel.png', 'sf_ui_icon_Lancer.png', 'sf_ui_icon_Marksman.png', 'sf_ui_icon_Mauler.png',
+          'sf_ui_icon_Mech.png', 'sf_ui_icon_MechBay.png', 'sf_ui_icon_MechHunter.png', 'sf_ui_icon_Ore.png',
+          'sf_ui_icon_Prospector.png', 'sf_ui_icon_Razorwing.png', 'sf_ui_icon_Rocketeer.png',
+          'sf_ui_icon_Scorcher.png', 'sf_ui_icon_Sentinel.png', 'sf_ui_icon_Skimmer.png', 'sf_ui_icon_Skitter.png',
+          'sf_ui_icon_Spitter.png', 'sf_ui_icon_Swift.png', 'sf_ui_icon_Thumper.png', 'sf_ui_icon_Trooper.png',
+          'sf_ui_icon_Worker.png', 'sf_ui_icon_Workshop.png'),
+    # The cloud cookie and the lens dirt (THIRD-PARTY.md: Generated textures)
+    *_own("Assets/StarForge/Map/", 'SF_CloudCookie.png', 'SF_LensDirt.png'),
+    # The app icon, made from Assets/icon.png by Tools/make_app_icon.py (THIRD-PARTY.md: Generated textures)
+    *_own("Assets/StarForge/Art/", 'AppIcon.png'),
+    # Menu art, the Chronicle's plates, the intro and the orders' standards: the author with Google Gemini (THIRD-PARTY.md: Menu illustrations)
+    *_own("Assets/StarForge/UI/Art/", 'keyart.jpg', 'opponent_commander.jpg', 'opponent_recruit.jpg',
+          'opponent_veteran.jpg', 'plate_gantry.jpg', 'plate_quenching.jpg', 'plate_two_hands.jpg',
+          'plate_vespers.jpg'),
+    # (continued)
+    *_own("Assets/StarForge/Resources/", 'MechStandards.png', 'Intro/intro.mp4'),
+    # Carried over from the original C++ StarForge (THIRD-PARTY.md: Textures carried over)
+    *_own("Assets/", 'cursor.png', 'icon.png'),
+    # Synthesised by Tools/make_audio.py (THIRD-PARTY.md: Synthesised audio)
+    *_own(A, 'Ambience/bird_0.wav', 'Ambience/bird_1.wav', 'Ambience/bird_2.wav', 'Ambience/bird_3.wav',
+          'Ambience/bird_4.wav', 'Ambience/bird_5.wav', 'Ambience/fire.wav', 'Ambience/water.wav',
+          'Ambience/wind.wav', 'Sfx/mech_flamer.wav', 'Sfx/mech_radio_0.wav', 'Sfx/mech_radio_1.wav'),
+    # Unity's bake of the Battlefield scene's reflection probe (THIRD-PARTY.md: Baked lighting)
+    *_own("Assets/StarForge/Scenes/Battlefield/", 'ReflectionProbe-0.exr'),
 ]
 # Unity's own project-template leftovers: redistributable (Unity Companion
 # License) but not ours and unused, so they were deleted. Listed so a project
 # upgrade that drops them back in is noticed rather than silently shipped.
-TEMPLATE = ["Assets/TutorialInfo/*", "Assets/Readme.asset"]
+TEMPLATE = ["Assets/TutorialInfo/**", "Assets/Readme.asset"]
 
-MEDIA = (".png", ".jpg", ".jpeg", ".tga", ".exr", ".hdr", ".psd",
-         ".fbx", ".obj", ".blend", ".ttf", ".otf", ".wav", ".ogg", ".mp3", ".aiff",
-         ".mp4", ".mov", ".m4v", ".webm")
+MEDIA = (".png", ".jpg", ".jpeg", ".tga", ".exr", ".hdr", ".psd", ".psb", ".tif", ".tiff", ".bmp",
+         ".gif", ".webp", ".svg", ".dds", ".ktx", ".ktx2", ".astc", ".iff", ".pict",
+         ".fbx", ".obj", ".blend", ".dae", ".3ds", ".dxf", ".max", ".ma", ".mb", ".glb", ".gltf",
+         ".ply", ".stl", ".usd", ".usda", ".usdc", ".usdz", ".abc", ".vdb",
+         ".ttf", ".otf", ".ttc", ".woff", ".woff2", ".fnt",
+         ".wav", ".ogg", ".mp3", ".aif", ".aiff", ".flac", ".m4a", ".aac", ".wma", ".mod", ".it", ".s3m", ".xm",
+         ".mp4", ".mov", ".m4v", ".webm", ".avi", ".mkv", ".ogv", ".mpg", ".mpeg", ".wmv")
 
 # ---------------------------------------------------------------- live checks
 _cache = {}
@@ -321,35 +363,77 @@ def verify(src):
 
 
 # ---------------------------------------------------------------- structure
+_rx = {}
+
+
+def pattern_rx(p):
+    """A path pattern whose * and ? stay inside one folder and whose **/ spans any number
+    of them (fnmatch's * crosses '/', so T+"*.png" passed any png in any subfolder)."""
+    if p not in _rx:
+        out, i = "", 0
+        while i < len(p):
+            if p.startswith("**/", i):
+                out, i = out + "(?:[^/]+/)*", i + 3
+            elif p.startswith("**", i):
+                out, i = out + ".*", i + 2
+            elif p[i] == "*":
+                out, i = out + "[^/]*", i + 1
+            elif p[i] == "?":
+                out, i = out + "[^/]", i + 1
+            else:
+                out, i = out + re.escape(p[i]), i + 1
+        _rx[p] = re.compile(out + r"\Z")
+    return _rx[p]
+
+
 def matched(path, patterns):
-    return any(fnmatch.fnmatch(path, p) for p in patterns)
+    return any(pattern_rx(p).match(path) for p in patterns)
+
+
+_media = None
 
 
 def media_files():
+    global _media
+    if _media is not None:
+        return _media
     out = []
     for base, dirs, names in os.walk(os.path.join(ROOT, "Assets")):
         dirs[:] = [d for d in dirs if d not in (".git",)]
         for n in names:
             if n.lower().endswith(MEDIA):
                 out.append(os.path.relpath(os.path.join(base, n), ROOT))
-    return sorted(out)
+    _media = sorted(out)
+    return _media
+
+
+MISSING_BLOCKS = []
 
 
 def fetched_ids():
-    """Everything Tools/fetch_assets.py downloads, as the names it uses for them."""
+    """Everything Tools/fetch_assets.py downloads, as the names it uses for them. A list
+    this cannot find (renamed, its closing bracket indented) goes to MISSING_BLOCKS: read
+    as empty it would weaken the check without a word."""
     src = open(os.path.join(ROOT, "Tools", "fetch_assets.py")).read()
+    MISSING_BLOCKS.clear()
 
     def block(name, pattern):
         m = re.search(name + r"\s*=\s*[\[{](.*?)\n[\]}]", src, re.S)
-        return set(re.findall(pattern, m.group(1))) if m else set()
+        if not m:
+            MISSING_BLOCKS.append(name)
+            return set()
+        return set(re.findall(pattern, m.group(1)))
 
     ids = block("TEXTURES", r'"([a-z0-9_]+)":') | block("MODELS", r'"([a-z0-9_]+)":')
     ids |= block("FLORA", r'"([a-z0-9_]+)":')
     ids |= block("KENNEY", r'"([a-z\-]+)":')
     ids |= block("QUATERNIUS", r'"([A-Za-z0-9_\.]+)":') | block("SFX", r':\s*"([^"]+)"')
     ids |= block("JANGAFX", r'"([A-Za-z0-9_]+)":') | block("ITCH_PACKS", r'"([A-Za-z0-9_]+)":')
-    ids |= {t for _, _, t in re.findall(r'\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)',
-                                       re.search(r"MUSIC\s*=\s*\{(.*?)\n\}", src, re.S).group(1))}
+    m = re.search(r"MUSIC\s*=\s*\{(.*?)\n\}", src, re.S)
+    if m:
+        ids |= {t for _, _, t in re.findall(r'\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)', m.group(1))}
+    else:
+        MISSING_BLOCKS.append("MUSIC")
     return ids
 
 
@@ -361,7 +445,7 @@ def main():
 
     print("Third-party sources")
     for s in SOURCES:
-        if args.offline:
+        if args.offline and s["check"][0] != "font":   # a font's own name table is local
             said, ok = "(offline)", True
         else:
             try:
@@ -389,17 +473,24 @@ def main():
     for f in unknown:
         print(f"  FAIL {f} is in no register entry and on no list of our own work")
     bad += len(unknown)
-    if not unknown:
-        print(f"  ok   all {len(media_files())} images, models, fonts, sounds and videos under Assets/ are accounted for")
+    gone = [p for p in OWN if not os.path.exists(os.path.join(ROOT, p))]
+    for p in gone:
+        print(f"  FAIL the own-work list names {p}, which is not there (deleted or renamed: update the list and THIRD-PARTY.md)")
+    bad += len(gone)
+    if not unknown and not gone:
+        print(f"  ok   all {len(media_files())} images, models, fonts, sounds and videos under Assets/ are accounted for ({len(OWN)} of them our own, by name)")
 
     print("\nEverything fetch_assets.py downloads is registered")
     known = {i for s in SOURCES for i in s["ids"]} | {s["name"] for s in SOURCES}
-    loose = sorted(fetched_ids() - known)
+    ids = fetched_ids()
+    loose = sorted(ids - known)
     for i in loose:
         print(f"  FAIL {i} is downloaded but is in no register entry")
-    bad += len(loose)
-    if not loose:
-        print(f"  ok   all {len(fetched_ids())} downloads belong to a registered source")
+    for b in MISSING_BLOCKS:
+        print(f"  FAIL fetch_assets.py has no {b} list this check can read (renamed? bracket indented?)")
+    bad += len(loose) + len(MISSING_BLOCKS)
+    if not loose and not MISSING_BLOCKS:
+        print(f"  ok   all {len(ids)} downloads belong to a registered source")
 
     print("\nThe register is written down")
     reg = open(os.path.join(ROOT, "THIRD-PARTY.md")).read()

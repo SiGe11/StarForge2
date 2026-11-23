@@ -25,6 +25,7 @@ catches a dark passage inside an otherwise warm track.
 
 Needs numpy, and macOS's afconvert to decode.
 """
+import argparse
 import os
 import subprocess
 import sys
@@ -43,8 +44,10 @@ def decode(path):
     """Mono float samples, through afconvert (it reads ogg, mp3 and wav)."""
     with tempfile.TemporaryDirectory() as d:
         wav = os.path.join(d, "t.wav")
-        subprocess.run(["afconvert", "-f", "WAVE", "-d", f"LEI16@{SR}", "-c", "1", path, wav],
-                       check=True, capture_output=True)
+        r = subprocess.run(["afconvert", "-f", "WAVE", "-d", f"LEI16@{SR}", "-c", "1", path, wav],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError(f"afconvert could not decode it: {(r.stderr or r.stdout).strip()[:300]}")
         b = open(wav, "rb").read()
         return np.frombuffer(b[b.find(b"data") + 8:], dtype="<i2").astype(np.float64) / 32768.0
 
@@ -89,8 +92,17 @@ def dissonance(c):
     return float(np.mean(out))
 
 
-def measure(path):
-    x = decode(path)
+def moving_rms(x, n):
+    """np.sqrt(np.convolve(x * x, np.ones(n) / n, "same")), by a running sum: the direct
+    convolution with an 11,025-tap window took ~2.7 s a 4-minute track, this ~0.03 s."""
+    c = np.concatenate(([0.0], np.cumsum(x * x)))
+    k = np.arange(len(x)) + (n - 1) // 2            # "same" = the full convolution from (n-1)//2
+    hi = np.minimum(k, len(x) - 1) + 1
+    lo = np.maximum(k - n + 1, 0)
+    return np.sqrt(np.maximum(c[hi] - c[lo], 0.0) / n)
+
+
+def measure(x):
     S, f = spectra(x)
     c, live = chroma(S, f)
     g = c.mean(0)
@@ -105,7 +117,7 @@ def measure(path):
         d = np.abs(f[pk][:, None] - f[pk][None, :])
         rough.append(float((np.outer(e, e) * ((d > 15) & (d < 150))).sum() / 2))
     flux = np.maximum(0, np.diff(S.sum(1)))
-    env = np.sqrt(np.convolve(x * x, np.ones(SR // 2) / (SR // 2), "same"))
+    env = moving_rms(x, SR // 2)
     return {
         "key": key[1],
         "minor_share": round(minor_share(c), 2),
@@ -118,8 +130,7 @@ def measure(path):
     }
 
 
-def segments(path, window=20):
-    x = decode(path)
+def segments(x, window=20):
     out = []
     for s in range(0, max(1, len(x) - SR * 5), SR * window):
         S, f = spectra(x[s:s + SR * window])
@@ -129,16 +140,24 @@ def segments(path, window=20):
 
 
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    per_segment = "--segments" in sys.argv
-    if not args:
-        sys.exit(__doc__)
-    for path in args:
-        m = measure(path)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("files", nargs="+")
+    ap.add_argument("--segments", action="store_true", help="also print minor share and dissonance per 20 s")
+    a = ap.parse_args()
+    failed = 0
+    for path in a.files:
+        try:
+            x = decode(path)
+        except Exception as e:   # one bad file must not hide the rest
+            print(f"{os.path.basename(path):34s} FAILED: {e}")
+            failed += 1
+            continue
+        m = measure(x)
         print(f"{os.path.basename(path):34s} " + "  ".join(f"{k}={v}" for k, v in m.items()))
-        if per_segment:
-            print("    " + "  ".join(f"{t}s: minor {mi} diss {d}" for t, mi, d in segments(path)))
+        if a.segments:
+            print("    " + "  ".join(f"{t}s: minor {mi} diss {d}" for t, mi, d in segments(x)))
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

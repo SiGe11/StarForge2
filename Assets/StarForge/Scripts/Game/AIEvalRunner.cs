@@ -23,6 +23,29 @@ namespace StarForge.Game
         /// <summary>Replay one opponent's games only (-1: all four), from this game on
         /// (its seed), with the Mechs' reasoning traced every 30 s.</summary>
         public const string PrefOnly = "sf_eval_only", PrefFirst = "sf_eval_first";
+        /// <summary>When the run was asked for (UTC ticks, a string, set by AIEvalMenu.Run). A request older than
+        /// three minutes is dropped with every eval key: one whose play mode never started (compile errors, a
+        /// refused Play) turned the next Play, the user's own included, into an 8x evaluation.</summary>
+        public const string PrefGamesAt = "sf_eval_games_at";
+
+        static bool Requested()
+        {
+            if (PlayerPrefs.GetInt(PrefGames, 0) <= 0) return false;
+            if (long.TryParse(PlayerPrefs.GetString(PrefGamesAt, ""), out long at) &&
+                System.Math.Abs((System.DateTime.UtcNow - new System.DateTime(at, System.DateTimeKind.Utc)).TotalSeconds) <= 180.0)
+                return true;
+            Debug.LogWarning("[AIEval] dropped an evaluation request older than three minutes (its play mode never started)");
+            ClearRequest();
+            return false;
+        }
+
+        /// <summary>Every key a run is asked for with.</summary>
+        public static void ClearRequest()
+        {
+            foreach (var k in new[] { PrefGames, PrefGamesAt, PrefOnly, PrefFirst })
+                PlayerPrefs.DeleteKey(k);
+            PlayerPrefs.Save();
+        }
 
         sealed class KindStats
         {
@@ -37,12 +60,14 @@ namespace StarForge.Game
         static bool active;
         // The player's own match settings, put back when a run ends or is cut short: the run's
         // fixed seed, memory off and Commander difficulty stayed for every later match in the editor.
-        static bool userSaved, userMemory, userFixedSeed;
+        static bool userSaved, userMemory, userFixedSeed, userSpectate;
+        static int userVSync;
+        static readonly List<string> gameLines = new List<string>();
         static AIDifficulty userDifficulty;
         static uint userSeed;
 
         /// <summary>An evaluation is running or about to start (the map stays the default one).</summary>
-        public static bool Pending => active || PlayerPrefs.GetInt(PrefGames, 0) > 0;
+        public static bool Pending => active || Requested();
         /// <summary>The AI's level for the next run (Commander unless a trial asks for another:
         /// players meet Recruit and Veteran, which no run had measured); put back when the run ends.</summary>
         public static AIDifficulty EvalDifficulty = AIDifficulty.Commander;
@@ -68,13 +93,17 @@ namespace StarForge.Game
         readonly Dictionary<string, float> mechReason = new Dictionary<string, float>();
         float nextTrace = 30f;
         bool finished;
+        string lastIntentText, lastWhy = "";
 
         void Awake()
         {
-            if (!active && PlayerPrefs.GetInt(PrefGames, 0) > 0)
+            if (!active && Requested())
             {
                 active = true;
                 userSaved = true;
+                userSpectate = MatchSettings.spectate;
+                userVSync = QualitySettings.vSyncCount;
+                gameLines.Clear();
                 userMemory = MatchSettings.aiMemory;
                 userFixedSeed = MatchSettings.fixedSeed;
                 userDifficulty = MatchSettings.difficulty;
@@ -84,6 +113,7 @@ namespace StarForge.Game
                 onlyKind = PlayerPrefs.GetInt(PrefOnly, -1);
                 firstGame = Mathf.Max(0, PlayerPrefs.GetInt(PrefFirst, 0));
                 PlayerPrefs.DeleteKey(PrefGames);
+                PlayerPrefs.DeleteKey(PrefGamesAt);
                 PlayerPrefs.DeleteKey(PrefOnly);
                 PlayerPrefs.DeleteKey(PrefFirst);
                 PlayerPrefs.Save();
@@ -182,8 +212,14 @@ namespace StarForge.Game
             if (brain != null && aiMech != null)
             {
                 mechIntent[(int)brain.Mode] += dt;
-                // The reason behind the intent, without its numbers and places.
-                string why = System.Text.RegularExpressions.Regex.Replace(aiMech.mech.intentText ?? "", @"\(.*?\)|[0-9%]+| (at the base|on their side,.*|(north|south|east|west).*)$", "").Trim();
+                // The reason behind the intent, without its numbers and places (the regex only when the text changed).
+                string said = aiMech.mech.intentText ?? "";
+                if (said != lastIntentText)
+                {
+                    lastIntentText = said;
+                    lastWhy = System.Text.RegularExpressions.Regex.Replace(said, @"\(.*?\)|[0-9%]+| (at the base|on their side,.*|(north|south|east|west).*)$", "").Trim();
+                }
+                string why = lastWhy;
                 mechReason.TryGetValue(why, out float had);
                 mechReason[why] = had + dt;
             }
@@ -323,7 +359,7 @@ namespace StarForge.Game
             for (int i = 0; i < stratUse.Length; i++) s.stratUse[i] += stratUse[i];
             for (int i = 0; i < labelUse.Length; i++) s.labelUse[i] += labelUse[i];
 
-            Debug.Log($"[AIEval] vs {(ScriptedOpponent.Kind)kind} game {game + 1}: " +
+            string line = ($"[AIEval] vs {(ScriptedOpponent.Kind)kind} game {game + 1}: " +
                       $"{(world.winner == 1 ? "AI won" : world.winner == 0 ? "AI lost" : world.winner == 2 ? "draw" : "time cap")} at {world.time:0}s, " +
                       $"combat: {world.ShotsFired} rounds, {world.ShotsHit} struck, {world.SquadsMade[0] + world.SquadsMade[1]} squads formed, reports {world.ReportsMade[0]} and {world.ReportsMade[1]}, heard: fall back {world.SquadFallBacksHeard}, air {world.SquadAirCallsHeard}; " +
                       $"read correctly {(samples > 0 ? 100f * correct / samples : 0f):0}% of the time; " +
@@ -339,6 +375,8 @@ namespace StarForge.Game
                       $"AI Diggers lost {diggersLost} ({diggersToMech} by their Mech: {toMechSeen} with it seen in the last 4 s, from {(diggersToMech > 0 ? toMechRange / diggersToMech : 0f):0} m on average, {toMechAtHome} within 40 m of its start, {toMechNearThem} within 60 m of theirs, {toMechByFoundry} within 25 m of a Foundry of its own; their Mech {ModeShares(toMechMode)}; mining {toMechDoing[0]}, carrying {toMechDoing[1]}, walking {toMechDoing[2]}, building {toMechDoing[3]}{BuiltShares()}, other {toMechDoing[4]}){(noDiggersAt >= 0f ? $", none left from {noDiggersAt:0}s" : "")}, moved off guns {ai.Dbg.diggersMoved}, cleared {ai.Dbg.diggersCleared}; " +
                       $"APM {ai.BudgetBySite()}; " +
                       $"morale: {MoraleLine()}");
+            Debug.Log(line);
+            gameLines.Add(line);   // the report file carries them: editor.sh shows 120 chars of the log's
             var m0 = world.morale[0];
             var m1 = world.morale[1];
             if (m0.deserted + m1.deserted > 0) moraleGames++;
@@ -463,6 +501,8 @@ namespace StarForge.Game
             MatchSettings.fixedSeed = userFixedSeed;
             MatchSettings.difficulty = userDifficulty;
             MatchSettings.seed = userSeed;
+            MatchSettings.spectate = userSpectate;
+            QualitySettings.vSyncCount = userVSync;   // the run turns vsync off; Editor play after it ran AdaptiveResolution's vsync-off rule
         }
 
 #if UNITY_EDITOR
@@ -493,9 +533,9 @@ namespace StarForge.Game
                 if (s.games == 0) continue;
                 totalWins += s.wins;
                 totalGames += s.games;
-                int a = 0, b = 1;
+                int a = 0, b = -1;   // b: the runner-up, if any other plan was used at all
                 for (int i = 0; i < s.stratUse.Length; i++) if (s.stratUse[i] > s.stratUse[a]) a = i;
-                for (int i = 0; i < s.stratUse.Length; i++) if (i != a && s.stratUse[i] > s.stratUse[b]) b = i;
+                for (int i = 0; i < s.stratUse.Length; i++) if (i != a && s.stratUse[i] > 0f && (b < 0 || s.stratUse[i] > s.stratUse[b])) b = i;
                 float labels = 0f;
                 foreach (var v in s.labelUse) labels += v;
                 var read = new List<string>();
@@ -505,7 +545,7 @@ namespace StarForge.Game
                 sb.AppendLine(
                     $"{(ScriptedOpponent.Kind)k,-10}  {s.wins}/{s.games,-3}  {s.length / s.games,6:0}s  {100f * s.beliefAcc / s.games,8:0}%  " +
                     $"{(s.identN > 0 ? s.firstIdent / s.identN : -1f),7:0}s   {s.apm / s.games,4:0}/{s.peakApm,-4:0}      {s.switches / s.games,5:0.0}   " +
-                    $"{AINames.Of((Strategy)a)}, {AINames.Of((Strategy)b)} / {string.Join(", ", read)}");
+                    $"{AINames.Of((Strategy)a)}{(b >= 0 ? ", " + AINames.Of((Strategy)b) : "")} / {string.Join(", ", read)}");
                 sb.AppendLine($"            actions {s.actions / s.games} per game, {s.denied / s.games} refused by the APM cap " +
                               $"({100.0 * s.denied / System.Math.Max(1L, s.actions + s.denied):0}% of intents); " +
                               $"force come onto its half (each unit once, fading over 90 s): mean {s.flow / s.games:0}, peak {s.flowPeak / s.games:0}");
@@ -516,7 +556,7 @@ namespace StarForge.Game
                           $"wall time {Time.realtimeSinceStartup - wallStart:0}s");
             string text = sb.ToString();
             Debug.Log("[AIEval]\n" + text);
-            try { File.WriteAllText(Path.Combine(Application.persistentDataPath, "starforge_ai_eval.txt"), text); }
+            try { File.WriteAllText(Path.Combine(Application.persistentDataPath, "starforge_ai_eval.txt"), text + "per game:\n" + string.Join("\n", gameLines) + "\n"); }
             catch { /* the console copy is enough */ }
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;

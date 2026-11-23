@@ -187,7 +187,13 @@ Not third party, and not on the list above:
 - **Generated textures** — `armor.png`/`armor_n.png`, `flames.png`,
   `smoke_puffs.png`, `foliage_*.png`, the icons, the cloud cookie and the lens
   dirt: made by the `Tools/make_*.py` generators (`armor.png`'s alpha channel
-  is the damage mask below).
+  is the damage mask below); the app icon `Art/AppIcon.png`, made by
+  `Tools/make_app_icon.py` from `Assets/icon.png` (below, carried over).
+- **The cape's fabric** — `Art/Textures/cape_fabric.png` (a grey weave above,
+  the embroidered band at the bottom): made for this project by the author with
+  an image model on 2026-10-28. AI-generated, not a photograph.
+- **Baked lighting** — `Scenes/Battlefield/ReflectionProbe-0.exr`: Unity's bake
+  of the Battlefield scene's reflection probe, from the scene itself.
 - **Images made with an image model** — `Art/Textures/turf_lush.jpg`,
   `turf_dry.jpg` and `ground_burnt.jpg` (the meadow turf's and the burnt
   ground's detail): three top-down ground pictures the author made with Google
@@ -242,10 +248,10 @@ Not third party, and not on the list above:
   and the Mech's comms chirp and flamer roar (`Audio/Sfx/mech_radio_*.wav`,
   `mech_flamer.wav`), written by `Tools/make_audio.py` out of filtered noise and tones.
 - **Textures carried over from the original StarForge** — `clouds.jpg`,
-  `crystal.jpg`, `explosion.jpg`, `particles.jpg`, `smoke.jpg`,
-  `terrain-macro.jpg`, `water-height.jpg`, `water_n.jpg`, `trak.png`,
-  `windows.png`, `ground*.png`, `cliff*.png`, `Assets/icon.png`,
-  `Assets/cursor.png`. These come from the author's own C++ StarForge
+  `crystal.jpg`, `explosion.jpg`, `particles.jpg`, `terrain-macro.jpg`,
+  `water_n.jpg`, `Assets/icon.png`, `Assets/cursor.png` (the others carried
+  over once, `smoke.jpg`, `water-height.jpg`, `trak.png`, `windows.png` and the
+  old `ground*`/`cliff*` sheets, are gone from the project). These come from the author's own C++ StarForge
   (`~/repositories/StarForge`, MIT, © Simon Gergely), where they were authored
   for the project with an image generator rather than taken from a stock library.
 
@@ -259,4 +265,8 @@ python3 Tools/check_licences.py --offline # structure only, no network
 It verifies that each source still states the licence claimed here, that every
 file this register points at exists, that everything `Tools/fetch_assets.py`
 downloads is registered, and — the check that matters most — that no image,
-model, font or sound under `Assets/` is missing from this document.
+model, font or sound under `Assets/` is missing from this document. What is
+made for this project is listed in the script **by name**, file by file (since
+2026-11-23; a wildcard let any picture dropped into one of these folders pass):
+a new model, icon or texture of ours needs its name added there, and a new kind
+of it a line here.
