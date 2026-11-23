@@ -218,8 +218,21 @@ Not third party, and not on the list above:
   `opponent_veteran.jpg` and `opponent_commander.jpg` (the opponent's three
   holograms, scaled down from 2816×1536 to 1408×768): made by the author with
   Google Gemini (Google AI Pro) on 2026-11-20 from prompts written for the menus
-  (the originals are kept outside the repository). AI-generated; the game's
-  Credits page says so. Google's Terms of Service
+  (the originals are kept outside the repository). The key art was replaced on
+  2026-11-22 by the author's own edit of it, made with Google Gemini the same
+  way from prompt 1 in `docs/lore/prompts.md`: the same picture with the
+  Brightest Star and its reflections, a ruined farmhouse and field wall, and a
+  standard on the war machine, still 2752×1536. Added on 2026-11-23, made the
+  same way on 2026-11-22 and 23 from the prompts there: the Chronicle page's
+  four plates, `UI/Art/plate_quenching.jpg`, `plate_two_hands.jpg`,
+  `plate_vespers.jpg` and `plate_gantry.jpg` (prompts 2 to 5 and the touch-ups
+  7 to 9; scaled down from 2752×1536 to 1024×572); the ten-second intro clip
+  `Resources/Intro/intro.mp4` (1280×712, with sound: the key art set in motion
+  by prompt 6A, eight pale rows cropped off its bottom edge with ffmpeg); and
+  the eight knightly orders' standards on a Mech's banner,
+  `Resources/MechStandards.png` (1024×512), cut by `Tools/pack_standards.py`
+  out of one sheet of eight banners (prompt 10). AI-generated;
+  the game's Credits page says so. Google's Terms of Service
   (<https://policies.google.com/terms>, effective 30 July 2026, read 2026-11-20)
   say Google won't claim ownership of content its services generate, and put no
   condition on publishing it; its generative-AI use policy only forbids passing

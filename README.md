@@ -45,6 +45,28 @@ that goes into a sharper picture).
 
 ![A flock of songbirds feeding on open ground beside an ore seam](docs/birds.jpg)
 
+## The world
+
+The Empire of the Brightest Star has kept its own peace for seven centuries, ruled in the
+star's name by two hands that may never become one: the Khan, who holds, and the Holy
+Mother, who blesses. Long before it, the Makers worked **starfire**, a craft that gave made
+things a purpose of their own; that fire went out in a single night a thousand years ago.
+Now surveyors on the emptied farm-world of Vesper have found that its seams of teal ore all
+run back toward one origin, and concluded that the **Starforge**, the first hearth, is
+there. The Empire's army is kept in two equal wings so that no captain commands all of it.
+Blue would find the Starforge and relight it; Red would find it and seal it cold. Both
+landed to "secure the site", neither ruler has said a word, and two halves of one army,
+under one oath, are fighting over a thing no living person has seen.
+
+You command a field for the Blue Wing. The officer across it is served by a staff that
+studied you in peacetime and amends its file on you after every engagement. And the knightly
+orders in orbit, older than the Empire, owe each side that raises a gantry one knight and
+one ancient core: the Mech.
+
+The whole of it, with the rules for anything the game says or shows, is in
+[docs/lore/starforge-lore.md](docs/lore/starforge-lore.md); the prompts for its pictures
+and its intro clip are in [docs/lore/prompts.md](docs/lore/prompts.md).
+
 ## Quick start
 
 1. Open this folder with Unity **6000.6.9f1**.
@@ -60,7 +82,8 @@ The title sits over the live battlefield, the camera drifting through slow shots
 new map. The splash and the loading screen carry key art, and the opponent appears as a hologram
 for each of its three tiers (on Operation setup, in the field manual and in the after-action
 report): pictures the author made for StarForge with an image model (Google Gemini; see
-THIRD-PARTY.md). Arrows or WASD, Enter and Esc drive every page (Q and E or Tab switch tabs), and so
+THIRD-PARTY.md). The built game opens on a ten-second clip of the key art set in motion (made
+the same way; any key or click skips it, and `-sfnointro` leaves it out). Arrows or WASD, Enter and Esc drive every page (Q and E or Tab switch tabs), and so
 does the mouse.
 
 - **Skirmish** opens *Operation setup*: the battlefield from above with both bases and the
@@ -69,7 +92,8 @@ does the mouse.
   **Observe** is the same page for two AIs.
 - **Field manual**: every unit and structure from the game's own data (cost, what trains it,
   what it needs, hit points, damage a second, range, speed, sight), how the opponent thinks,
-  and the keys.
+  the keys, and the **Chronicle**: the world in twelve short entries, four of them with a
+  painted plate (made like the key art).
 - **Service record**: victories, defeats, win rate, time in command and the last eight
   engagements. Only matches started from Operation setup (and their rematches) count:
   never spectated ones, ones played with the cheat, or anything the benchmark, the
@@ -296,10 +320,12 @@ Digger started work on it: the bay may be placed again (the ore of a site shot d
 gone). A structure's site appears as soon as it is ordered, so a bay ordered into the
 enemy's base from afar is usually shot down before its Digger gets there.
 
-![A blue tracked Mech opens fire up a ravine at an orange four-legged Mech standing over a destroyed Sentinel, the wood between them burning](docs/mech_fight.jpg)
+![A blue tracked Mech opens fire up a ravine at a red four-legged Mech standing over a destroyed Sentinel, the wood between them burning](docs/mech_fight.jpg)
 
-**The Mech is an ally, not a unit.** Its pilot is a knight of one of the orders sworn to
-whichever side raises a bay; it fights for your cause by its own judgement and takes no
+**The Mech is an ally, not a unit.** Its pilot is a knight of one of the eight orders, which
+swear to neither wing but owe one knight and one ancient core to any side that raises a bay
+(its gantry). Its banner is your side's cloth with its order's standard sewn on, and the same
+device stands beside its name in the HUD; it fights on your side by its own judgement and takes no
 orders -- you can select it and read its status, but not command it. Its own AI sees the
 whole battlefield and acts as fast as it likes (about 1,200 actions a minute, where the
 opponent AI is held to a human's hands). Yours is a guardian, cautious and meaning to live:
@@ -320,7 +346,9 @@ Maulers and 5 Troopers moving on your Workshop from the east") and pull back -- 
 tag, and a call it has made lately about the same place is not repeated. In between, and
 kept rare -- one every few minutes at most, never on top of a call -- it keeps your spirits
 up, set apart in a quieter, quoted style: the voice of an old machine that has seen more
-wars than you have, about four hundred lines, chosen for the
+wars than you have (in the world's own telling, the ancient core the knight is sworn to),
+about five hundred lines, a hundred of them about the world it remembers and two that only
+a Mech of its own order says, chosen for the
 moment -- a fight won or lost, at home or on their side and at what cost, the battle
 turning, being surrounded or seeing the base taken, a quiet spell, the end of the match --
 by whether you are winning or losing, attacking or defending, and how it is going. A line

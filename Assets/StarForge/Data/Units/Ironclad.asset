@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 29
   displayName: Ironclad
-  blurb: Walking mini-mech. Twin shoulder cannons for the ground, missile pods for the air; slow and very hard to stop. Requires an Armory.
+  blurb: 'Walking mini-mech, the Host''s own: no core, and nothing to say. Twin shoulder cannons for the ground, missile pods for the air; slow and very hard to stop. Requires an Armory.'
   building: 0
   neutral: 0
   radius: 1.45

@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 27
   displayName: Biolab
-  blurb: Breeds Skitters, Spitters, Razorwings and Gorehorns. Requires a Garrison.
+  blurb: Breeds Skitters, Spitters, Razorwings and Gorehorns from Vesper's abandoned stock. Bred things swear no oath, so they never desert. Requires a Garrison.
   building: 1
   neutral: 0
   radius: 4.2

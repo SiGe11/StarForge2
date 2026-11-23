@@ -225,6 +225,28 @@
     align-items: center;
 }
 
+.mech-strip-name {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 1;
+}
+
+/* The knight's order: its standard's device, set by HUDController (View/OrderStandards). Hidden until there is one. */
+.mech-strip-device {
+    width: 18px;
+    height: 18px;
+    margin-right: 7px;
+    flex-shrink: 0;
+    border-width: 1px;
+    border-color: var(--panel-edge);
+    -unity-background-scale-mode: stretch-to-fill;   /* the sprite is the banner's square, squeezed in the atlas */
+    display: none;
+}
+
+.mech-strip-device--shown {
+    display: flex;
+}
+
 .mech-strip-title {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
     font-size: 12px;

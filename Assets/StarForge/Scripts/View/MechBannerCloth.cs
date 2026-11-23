@@ -16,13 +16,16 @@ namespace StarForge.View
         const float Reach = 3f;                  // the corner rests 1.16 away and swings to ~1.45 (at most ~2.5): only NaN/Inf gets past this
         const int MaxResets = 3;                 // a cloth that keeps going bad is given up: the rigid banner stays
         const float MaxStep = 0.1f;              // a longer frame (a hitch) is not simulated
+        // The order's standard, sewn on as a panel: grid lines, so its edge is a hard one. 0.45 x 0.60 m,
+        // 1.33 tall against the pictures' 1.30 (OrderStandards.SourceAspect).
+        const int PanelX0 = 2, PanelX1 = 14, PanelY0 = 4, PanelY1 = 19;
 
-        static Material clothMat, barMat;
+        static Material clothMat, barMat, panelMat;
         static Mesh barMesh;
 
         readonly Transform pivot;
         readonly float phase;
-        readonly int team;
+        readonly int team, order;
         GameObject root;
         Cloth cloth;
         Mesh mesh;
@@ -38,24 +41,40 @@ namespace StarForge.View
         /// spring banner, so one build measures both.</summary>
         static readonly bool Off = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-sfnocloth") >= 0;
 
-        public static MechBannerCloth Make(Transform rigid, int team, int id)
+        /// <param name="order">The knight's order (OrderStandards.IndexOf), whose standard is the
+        /// banner's panel; -1 keeps the plain side's banner with its diamond sigil.</param>
+        public static MechBannerCloth Make(Transform rigid, int team, int id, int order = -1)
         {
             if (Off || rigid == null || rigid.parent == null || FXDirector.Current == null || FXDirector.Current.debrisMaterial == null) return null;
-            var b = new MechBannerCloth(rigid, team, id);
+            if (order >= OrderStandards.Count || OrderStandards.Atlas == null) order = -1;
+            var b = new MechBannerCloth(rigid, team, id, order);
             b.Build();
             return b.root != null ? b : null;
         }
 
-        MechBannerCloth(Transform rigid, int team, int id) { pivot = rigid; this.team = team; phase = id * 0.37f; }
+        MechBannerCloth(Transform rigid, int team, int id, int order) { pivot = rigid; this.team = team; this.order = order; phase = id * 0.37f; }
 
         public bool Alive => root != null && cloth != null && !gaveUp;
 
-        /// <summary>For FxLook: how far the free bottom corner is from the crossbar (-1: none).</summary>
-        public float TipDistance()
+        /// <summary>The order whose standard the cloth carries, or -1.</summary>
+        public int Order => order;
+
+        /// <summary>For FxLook and BannerClothCheck: how far the free bottom corner is from the crossbar (-1: none).</summary>
+        public float TipDistance() => Alive ? Farthest(cloth.vertices) : -1f;
+
+        // The corner is the farthest particle. Found by what it is, not by index: Unity's Cloth welds
+        // coincident vertices (the panel's edge) and documents no particle order. A NaN or Inf anywhere
+        // answers infinity, so the caller's "under Reach" test fails for it.
+        static float Farthest(Vector3[] v)
         {
-            if (!Alive) return -1f;
-            var v = cloth.vertices;
-            return v.Length > 0 ? v[v.Length - 1].magnitude : -1f;
+            float far = -1f;
+            for (int i = 0; i < v.Length; i++)
+            {
+                float d = v[i].magnitude;
+                if (float.IsNaN(d) || float.IsInfinity(d)) return float.PositiveInfinity;
+                if (d > far) far = d;
+            }
+            return far;
         }
 
         /// <summary>One call a frame while the Mech is shown. Returns whether the cloth is the
@@ -82,7 +101,7 @@ namespace StarForge.View
             {
                 nextCheck = Time.time + 1f;
                 var v = cloth.vertices;
-                if (v.Length > 0 && !(v[v.Length - 1].magnitude < Reach))
+                if (v.Length > 0 && !(Farthest(v) < Reach))
                 {
                     Resets++;
                     Destroy();
@@ -111,6 +130,17 @@ namespace StarForge.View
                 barMat.SetColor("_BaseColor", new Color(0.12f, 0.12f, 0.13f));
                 barMesh = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
             }
+            if (order >= 0 && panelMat == null)
+            {
+                // The same material with the orders' atlas as its base map, for the whole banner: the panel's
+                // vertices are white under their cell, and the cloth round it samples the atlas's white strip
+                // under its own colours. One mesh, one submesh, as the capes are (a Cloth's welding of
+                // coincident vertices is proven there; across submeshes it is not).
+                panelMat = new Material(fx.debrisMaterial) { name = "SF_MechStandard" };
+                panelMat.SetColor("_BaseColor", Color.white);
+                panelMat.SetFloat("_Cull", 0f);
+                panelMat.SetTexture("_BaseMap", OrderStandards.Atlas);
+            }
             root = new GameObject("BannerCloth");
             root.transform.SetParent(pivot.parent, false);
             root.transform.localPosition = pivot.localPosition;
@@ -128,9 +158,9 @@ namespace StarForge.View
             go.transform.SetParent(root.transform, false);
             go.transform.localPosition = new Vector3(0f, -0.02f, -0.01f);
             var smr = go.AddComponent<SkinnedMeshRenderer>();
-            mesh = ClothMesh(team);
+            mesh = ClothMesh(team, order);
             smr.sharedMesh = mesh;
-            smr.sharedMaterial = clothMat;
+            smr.sharedMaterial = order >= 0 ? panelMat : clothMat;
             smr.shadowCastingMode = ShadowCastingMode.Off;   // Particles/Simple Lit has no shadow pass
             cloth = go.AddComponent<Cloth>();
             cloth.useGravity = true;
@@ -167,14 +197,19 @@ namespace StarForge.View
         }
 
         /// <summary>A grid hanging from the crossbar: the side's colour, dark trim along the
-        /// bottom and sides, and the model's diamond sigil (a lit rim round a pale core).</summary>
-        static Mesh ClothMesh(int team)
+        /// bottom and sides, and either the model's diamond sigil (a lit rim round a pale core) or,
+        /// with an order, that order's standard as a panel: vertices of its own (white, with the
+        /// atlas cell's UVs) lying on the grid's, which the Cloth welds to them, so its edge is a hard
+        /// one; the grid's own vertices then sample the atlas's white strip.</summary>
+        static Mesh ClothMesh(int team, int order)
         {
+            bool panel = order >= 0;
             Color main = team == 0 ? FXDirector.PlayerColor : FXDirector.EnemyColor;
             main = Color.Lerp(main, Color.gray, 0.15f);
             Color trim = main * 0.35f, rim = new Color(1f, 0.8f, 0.45f), core = new Color(0.85f, 0.88f, 0.9f);
             trim.a = main.a = 1f;
-            var v = new Vector3[Cols * Rows];
+            int grid = Cols * Rows, pw = PanelX1 - PanelX0 + 1, ph = PanelY1 - PanelY0 + 1;
+            var v = new Vector3[grid + (panel ? pw * ph : 0)];
             var col = new Color[v.Length];
             var uv = new Vector2[v.Length];
             for (int y = 0; y < Rows; y++)
@@ -184,10 +219,11 @@ namespace StarForge.View
                     int i = y * Cols + x;
                     float px = (fx - 0.5f) * Width, py = -fy * Drop;
                     v[i] = new Vector3(px, py, 0f);
-                    uv[i] = new Vector2(fx, 1f - fy);
+                    uv[i] = panel ? OrderStandards.White : new Vector2(fx, 1f - fy);
                     float d = Mathf.Abs(px) + Mathf.Abs(py + 0.50f);   // diamond round the sigil
                     Color c = main;
                     if (x == 0 || x == Cols - 1 || y >= Rows - 2) c = trim;
+                    else if (panel) c = main;                          // the standard takes the sigil's place
                     else if (d < 0.075f) c = core;
                     else if (d < 0.155f) c = rim;
                     col[i] = c;
@@ -196,10 +232,29 @@ namespace StarForge.View
             for (int y = 0; y < Rows - 1; y++)
                 for (int x = 0; x < Cols - 1; x++)
                 {
+                    if (panel && x >= PanelX0 && x < PanelX1 && y >= PanelY0 && y < PanelY1) continue;   // the panel's own quads cover these
                     int a = y * Cols + x, b = a + 1, c = a + Cols, d = c + 1;
                     tris.AddRange(new[] { a, b, c, b, d, c });
                 }
             var m = new Mesh { name = "SF_MechBanner" };
+            if (panel)
+            {
+                var cell = OrderStandards.Uv(order);
+                for (int y = 0; y < ph; y++)
+                    for (int x = 0; x < pw; x++)
+                    {
+                        int i = grid + y * pw + x;
+                        v[i] = v[(PanelY0 + y) * Cols + PanelX0 + x];   // on the grid's vertex: one cloth particle
+                        col[i] = Color.white;
+                        uv[i] = new Vector2(cell.xMin + cell.width * x / (pw - 1f), cell.yMax - cell.height * y / (ph - 1f));
+                    }
+                for (int y = 0; y < ph - 1; y++)
+                    for (int x = 0; x < pw - 1; x++)
+                    {
+                        int a = grid + y * pw + x, b = a + 1, c = a + pw, d = c + 1;
+                        tris.AddRange(new[] { a, b, c, b, d, c });
+                    }
+            }
             m.vertices = v;
             m.colors = col;
             m.uv = uv;

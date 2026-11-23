@@ -27,7 +27,10 @@
       <ui:VisualElement name="comms" class="comms" picking-mode="Ignore">
         <ui:VisualElement name="mechStrip" class="mech-strip">
           <ui:VisualElement class="mech-strip-head" picking-mode="Ignore">
-            <ui:Label name="mechStripTitle" class="mech-strip-title" text="" picking-mode="Ignore" />
+            <ui:VisualElement class="mech-strip-name" picking-mode="Ignore">
+              <ui:VisualElement name="mechStripDevice" class="mech-strip-device" picking-mode="Ignore" />
+              <ui:Label name="mechStripTitle" class="mech-strip-title" text="" picking-mode="Ignore" />
+            </ui:VisualElement>
             <ui:Label name="mechStripState" class="mech-strip-state" text="" picking-mode="Ignore" />
           </ui:VisualElement>
           <sf:BarElement name="mechHull" class="mech-strip-bar" picking-mode="Ignore" />

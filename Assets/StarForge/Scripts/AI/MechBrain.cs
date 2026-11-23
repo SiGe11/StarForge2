@@ -938,9 +938,10 @@ namespace StarForge.AI
             {
                 greeted = true;
                 Say(MechAdviceKind.Morale, m.pos, Pick(
-                    $"{d.pilot} of {d.order}, callsign {d.callsign}, on the ground. My guns are sworn to your cause, Commander.",
+                    // The orders swear to no wing; a lit gantry is owed one knight and one core (lore section 7).
+                    $"{d.pilot} of {d.order}, callsign {d.callsign}, on the ground. Your gantry is answered, Commander: one knight, one core, this field.",
                     $"{d.callsign} has made planetfall. {d.pilot}, {d.order}. Point me at the enemy -- or do not; I will find them.",
-                    $"This is {d.pilot}. {d.order} honours its oath: {d.callsign} stands with you."), m);
+                    $"This is {d.pilot}. {MechSpeech.Capital(d.order)} honours the Gantry Right: {d.callsign} stands with you."), m);
                 return;
             }
             if (m == null) return;

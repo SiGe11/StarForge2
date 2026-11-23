@@ -198,6 +198,13 @@ namespace StarForge.UI
         void OnDisable()
         {
             GameSettings.Flush();
+            if (intro != null)
+            {
+                // The menu goes with its scene, or play is stopping: the clip must not outlive it, nor its hush.
+                intro.Abort();
+                intro = null;
+                if (audioDir != null) audioDir.masterVolume = GameSettings.MasterVolume;
+            }
             if (bootstrap != null)
             {
                 bootstrap.StateChanged -= OnStateChanged;
@@ -478,6 +485,12 @@ namespace StarForge.UI
             AnimatePortraits(now, dt);
             UpdateAttract(Mathf.Min(dt, 0.1f));
             if (Top == credits) ScrollCredits(dt);
+            if (intro != null)
+            {
+                intro.Tick(dt);
+                HushFor(intro);
+                if (intro.Done) intro = null;
+            }
             if (splash.ClassListContains("m-splash--visible") && !splashOut)
             {
                 splashBlinkT += dt;
@@ -494,6 +507,11 @@ namespace StarForge.UI
             if (kb == null || deploying) return;
             var state = bootstrap != null ? bootstrap.State : MatchState.Menu;
 
+            if (intro != null)
+            {
+                if (kb.anyKey.wasPressedThisFrame) intro.Skip();   // the same key does not also leave the title
+                return;
+            }
             if (splash.ClassListContains("m-splash--visible") && !splashOut)
             {
                 if (kb.anyKey.wasPressedThisFrame) DismissSplash();
@@ -781,7 +799,7 @@ namespace StarForge.UI
             var nav = root.Q("mainNav");
             NavItem(main, nav, "01", "SKIRMISH", "Deploy against the adaptive AI. It scouts, reads how you play and remembers you.", () => OpenSetup(false), "skirmishButton");
             NavItem(main, nav, "02", "OBSERVE", "Watch two adaptive commanders fight it out.", () => OpenSetup(true), "spectateButton");
-            NavItem(main, nav, "03", "FIELD MANUAL", "Every unit and structure, the controls, and how the opponent thinks.", () => Push(manual), "manualButton");
+            NavItem(main, nav, "03", "FIELD MANUAL", "Every unit and structure, the controls, the opponent, and the world itself.", () => Push(manual), "manualButton");
             NavItem(main, nav, "04", "SERVICE RECORD", "Your victories, defeats and time in command.", () => Push(record), "recordButton");
             NavItem(main, nav, "05", "SETTINGS", "Camera, graphics and audio.", () => Push(settings), "settingsButton");
             NavItem(main, nav, "06", "CREDITS", "The people and the free assets behind StarForge.", () => Push(credits), "creditsButton");
@@ -909,7 +927,7 @@ namespace StarForge.UI
             mapPreview.MarkDirtyRepaint();
             mapPreview.Animate = true;
             uint s = map.seed;
-            mapName.text = $"SECTOR {(char)('A' + s % 26)}{(char)('A' + s / 26 % 26)}-{s / 676 % 10000:0000}";
+            mapName.text = $"VESPER · SECTOR {(char)('A' + s % 26)}{(char)('A' + s / 26 % 26)}-{s / 676 % 10000:0000}";
             mapStats.text = $"{size:0} × {size:0} M  ·  {seams} ORE SEAMS  ·  BASES {Vector2.Distance(map.StartPos(0), map.StartPos(1)):0} M APART";
         }
 
@@ -1079,8 +1097,8 @@ namespace StarForge.UI
         }
 
         // ------------------------------------------------------------ field manual
-        ScrollView unitList, opponentScroll, manualKeys;
-        VisualElement manualUnits, manualOpponent, manualControls, unitStats, unitTags;
+        ScrollView unitList, opponentScroll, manualKeys, chronicleScroll;
+        VisualElement manualUnits, manualOpponent, manualControls, manualChronicle, unitStats, unitTags;
         Label unitKicker, unitTitle, unitRole, unitBlurb;
         Image unitIcon;
         Label[] manualTabs;
@@ -1107,6 +1125,7 @@ namespace StarForge.UI
             unitList = root.Q<ScrollView>("unitList");
             opponentScroll = root.Q<ScrollView>("opponentScroll");
             manualKeys = root.Q<ScrollView>("manualKeys");
+            chronicleScroll = root.Q<ScrollView>("chronicleScroll");
             for (int i = 0; i < 3; i++)
             {
                 var d = (AIDifficulty)i;
@@ -1114,7 +1133,7 @@ namespace StarForge.UI
                 tag.text = $"{DifficultyName(d)} · {Apm(d):0} APM · {Reaction(d):0.00} S";
                 AddPortrait(tag.parent, manual).tab = 1;
             }
-            foreach (var sv in new[] { unitList, opponentScroll, manualKeys })
+            foreach (var sv in new[] { unitList, opponentScroll, manualKeys, chronicleScroll })
             {
                 sv.verticalScrollerVisibility = ScrollerVisibility.Hidden;
                 sv.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
@@ -1122,6 +1141,7 @@ namespace StarForge.UI
             manualUnits = root.Q("manualUnits");
             manualOpponent = root.Q("manualOpponent");
             manualControls = root.Q("manualControls");
+            manualChronicle = root.Q("manualChronicle");
             unitStats = root.Q("unitStatRows");   // "unitStats" is the HUD's selection label
             unitTags = root.Q("unitTags");
             unitKicker = root.Q<Label>("unitKicker");
@@ -1130,22 +1150,47 @@ namespace StarForge.UI
             unitBlurb = root.Q<Label>("unitBlurb");
             unitIcon = root.Q<Image>("unitIcon");
             unitIcon.scaleMode = ScaleMode.ScaleToFit;
-            manualTabs = Tabs(manual, "manualTabs", new[] { "UNITS", "THE OPPONENT", "CONTROLS" }, SetManualTab);
-            manual.tab = dir => SetManualTab((manualTab + dir + 3) % 3);
+            manualTabs = Tabs(manual, "manualTabs", new[] { "UNITS", "THE OPPONENT", "CONTROLS", "CHRONICLE" }, SetManualTab);
+            manual.tab = dir => SetManualTab((manualTab + dir + manualTabs.Length) % manualTabs.Length);
             manual.onShow = () => SetManualTab(manualTab);
             manualBack = ButtonNav(manual, "manualBack", Pop);
 
             // The opponent, as the player is told it (HUDController.OpponentHelp): each
             // paragraph's first sentence is its heading.
-            foreach (var para in HUDController.OpponentHelp.Split(new[] { "\n\n" }, StringSplitOptions.RemoveEmptyEntries))
+            Prose(opponentScroll, HUDController.OpponentHelp);
+            // The world, as the player is told it (LoreText; canon in docs/lore/starforge-lore.md).
+            Prose(chronicleScroll, LoreText.Chronicle, LoreText.PlateFor);
+            BuildKeys(manualKeys.contentContainer);
+        }
+
+        /// <summary>Paragraphs split by a blank line, each one's first sentence its heading.</summary>
+        /// <param name="plate">Null, or which entries have a picture: the heading to its USS class.</param>
+        static void Prose(ScrollView into, string text, Func<string, string> plate = null)
+        {
+            foreach (var para in text.Split(new[] { "\n\n" }, StringSplitOptions.RemoveEmptyEntries))
             {
                 int dot = para.IndexOf(". ", StringComparison.Ordinal);
-                string head = dot > 0 ? para.Substring(0, dot + 1) : para;
+                string head = (dot > 0 ? para.Substring(0, dot + 1) : para).TrimEnd('.').ToUpperInvariant();
                 string body = dot > 0 ? para.Substring(dot + 2) : "";
-                opponentScroll.Add(Text(head.TrimEnd('.').ToUpperInvariant(), "m-prose-head"));
-                if (body.Length > 0) opponentScroll.Add(Text(body, "m-prose-text"));
+                string picture = plate?.Invoke(head);
+                VisualElement col = into;
+                if (picture != null)
+                {
+                    // The picture at the left, its entry beside it.
+                    var row = new VisualElement { pickingMode = PickingMode.Ignore };
+                    row.AddToClassList("m-prose-entry");
+                    var img = new VisualElement { pickingMode = PickingMode.Ignore };
+                    img.AddToClassList("m-plate");
+                    img.AddToClassList(picture);
+                    row.Add(img);
+                    col = new VisualElement { pickingMode = PickingMode.Ignore };
+                    col.AddToClassList("m-prose-col");
+                    row.Add(col);
+                    into.Add(row);
+                }
+                col.Add(Text(head, "m-prose-head"));
+                if (body.Length > 0) col.Add(Text(body, "m-prose-text"));
             }
-            BuildKeys(manualKeys.contentContainer);
         }
 
         void SetManualTab(int tab)
@@ -1155,9 +1200,10 @@ namespace StarForge.UI
             manualUnits.style.display = tab == 0 ? DisplayStyle.Flex : DisplayStyle.None;
             manualOpponent.style.display = tab == 1 ? DisplayStyle.Flex : DisplayStyle.None;
             manualControls.style.display = tab == 2 ? DisplayStyle.Flex : DisplayStyle.None;
+            manualChronicle.style.display = tab == 3 ? DisplayStyle.Flex : DisplayStyle.None;
             ResetItems(manual);
             manual.onFocus = null;
-            manual.scroll = tab == 0 ? unitList : tab == 1 ? opponentScroll : manualKeys;
+            manual.scroll = tab == 0 ? unitList : tab == 1 ? opponentScroll : tab == 2 ? manualKeys : chronicleScroll;
             if (tab == 0) BuildUnitList();
             manual.items.Add(manualBack);
             if (tab != 0) manual.scroll.scrollOffset = Vector2.zero;
@@ -1421,7 +1467,9 @@ namespace StarForge.UI
             Line("Design, code and art. Rebuilt in Unity from the original C++ and Metal StarForge.");
             Head("ILLUSTRATIONS");
             Name("Simon Gergely, with Google Gemini");
-            Line("The title art and the opponent holograms · made with an image model for StarForge");
+            Line("The title art and the Chronicle's plates · made with an image model for StarForge");
+            Line("The opponent holograms and the knightly orders' standards · likewise");
+            Line("The intro · the title art set in motion by a video model");
             Head("ENGINE");
             Name("Unity 6 · Universal Render Pipeline");
             Head("TYPEFACES");
@@ -1754,6 +1802,9 @@ namespace StarForge.UI
         }
 
         // ------------------------------------------------------------ splash and veil
+        // The intro clip over the splash, while it plays (IntroClip: the built player's first title only).
+        IntroClip intro;
+
         void ShowSplash()
         {
             splashOut = false;
@@ -1761,6 +1812,17 @@ namespace StarForge.UI
             splash.AddToClassList("m-splash--visible");
             splash.RemoveFromClassList("m-splash--out");
             splashEmblem.Animate = true;
+            // The splash is shown again on every Menu state until a key dismisses it: a later call must not
+            // drop the clip the first one started (TryStart answers null from the second time on).
+            if (intro == null) intro = IntroClip.TryStart(root, GameSettings.MasterVolume);
+            if (intro != null) HushFor(intro);
+        }
+
+        // The clip has its own sound and a spoken line: the game's music and ambience (all of AudioDirector) stay
+        // silent under it and come up as it fades. ApplySettings would undo this, but no page opens while it plays.
+        void HushFor(IntroClip clip)
+        {
+            if (audioDir != null) audioDir.masterVolume = GameSettings.MasterVolume * (1f - clip.Level);
         }
 
         void DismissSplash()
@@ -1986,6 +2048,11 @@ namespace StarForge.UI
             "A soldier hit too hard, too far from friends, can break and run. Deserters camp behind their base.",
         };
 
-        string Tip() => Tips[UnityEngine.Random.Range(0, Tips.Length)];
+        // The play tips and the lore's (LoreText.Tips) in one rotation.
+        string Tip()
+        {
+            int i = UnityEngine.Random.Range(0, Tips.Length + LoreText.Tips.Length);
+            return i < Tips.Length ? Tips[i] : LoreText.Tips[i - Tips.Length];
+        }
     }
 }

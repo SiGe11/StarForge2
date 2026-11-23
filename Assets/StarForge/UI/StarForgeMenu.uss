@@ -495,6 +495,19 @@
     white-space: normal;
 }
 .m-prose-text { font-size: 15px; white-space: normal; color: #d7e2ec; margin: 6px 24px 0 12px; }
+/* A Chronicle entry with a picture: the plate at the left, the entry beside it. */
+.m-prose-entry { flex-direction: row; align-items: flex-start; margin-top: 18px; }
+.m-prose-col { flex-grow: 1; flex-shrink: 1; flex-basis: 0; }
+.m-prose-col > .m-prose-head { margin-top: 0; }
+.m-plate {
+    width: 380px; height: 212px; flex-shrink: 0; margin: 4px 0 0 12px;
+    border-width: 1px; border-color: rgba(79, 209, 255, 0.25);
+    -unity-background-scale-mode: scale-and-crop;
+}
+.m-plate--quenching { background-image: url("project://database/Assets/StarForge/UI/Art/plate_quenching.jpg"); }
+.m-plate--two-hands { background-image: url("project://database/Assets/StarForge/UI/Art/plate_two_hands.jpg"); }
+.m-plate--vespers { background-image: url("project://database/Assets/StarForge/UI/Art/plate_vespers.jpg"); }
+.m-plate--gantry { background-image: url("project://database/Assets/StarForge/UI/Art/plate_gantry.jpg"); }
 
 .m-keys-head {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");

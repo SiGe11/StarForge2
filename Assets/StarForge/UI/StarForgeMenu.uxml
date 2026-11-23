@@ -163,6 +163,11 @@
           <ui:ScrollView name="manualKeys" class="m-scroll" />
         </sf:SFFrame>
       </ui:VisualElement>
+      <ui:VisualElement name="manualChronicle" class="m-body m-row">
+        <sf:SFFrame class="m-card m-grow m-card--list">
+          <ui:ScrollView name="chronicleScroll" class="m-scroll m-prose" />
+        </sf:SFFrame>
+      </ui:VisualElement>
       <ui:VisualElement class="m-actions">
         <ui:Button name="manualBack" class="m-btn m-btn--ghost" text="BACK" />
       </ui:VisualElement>

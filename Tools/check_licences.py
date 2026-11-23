@@ -12,7 +12,7 @@ honest, and answers four questions:
 1. Does each source still state the licence the register claims? (network)
 2. Does every file the register points at exist?
 3. Is everything Tools/fetch_assets.py downloads registered?
-4. **Is every image, model, font and sound under Assets/ accounted for** -- by
+4. **Is every image, model, font, sound and video under Assets/ accounted for** -- by
    the register, or by the list of what we make ourselves? This is the check
    that catches an asset dropped in without anyone recording where it came from.
 
@@ -235,7 +235,9 @@ OWN = [
     "Assets/StarForge/Map/*.png",
     "Assets/StarForge/Art/Icons/*.png",
     "Assets/StarForge/Art/AppIcon.png",
-    "Assets/StarForge/UI/Art/*.jpg",      # menu key art and opponent holograms: the author with Google Gemini, 2026-11-20
+    "Assets/StarForge/UI/Art/*.jpg",      # menu key art, opponent holograms, the Chronicle's plates: the author with Google Gemini, 2026-11-20..23
+    "Assets/StarForge/Resources/Intro/*.mp4",        # the intro clip: the same, 2026-11-22 (THIRD-PARTY.md, "Menu illustrations")
+    "Assets/StarForge/Resources/MechStandards.png",  # the orders' standards: the same, 2026-11-23, packed by Tools/pack_standards.py
     "Assets/icon.png", "Assets/cursor.png",
     A + "Ambience/*.wav",
     A + "Sfx/mech_radio_*.wav", A + "Sfx/mech_flamer.wav",   # synthesised by make_audio.py --mech
@@ -247,7 +249,8 @@ OWN = [
 TEMPLATE = ["Assets/TutorialInfo/*", "Assets/Readme.asset"]
 
 MEDIA = (".png", ".jpg", ".jpeg", ".tga", ".exr", ".hdr", ".psd",
-         ".fbx", ".obj", ".blend", ".ttf", ".otf", ".wav", ".ogg", ".mp3", ".aiff")
+         ".fbx", ".obj", ".blend", ".ttf", ".otf", ".wav", ".ogg", ".mp3", ".aiff",
+         ".mp4", ".mov", ".m4v", ".webm")
 
 # ---------------------------------------------------------------- live checks
 _cache = {}
@@ -387,7 +390,7 @@ def main():
         print(f"  FAIL {f} is in no register entry and on no list of our own work")
     bad += len(unknown)
     if not unknown:
-        print(f"  ok   all {len(media_files())} images, models, fonts and sounds under Assets/ are accounted for")
+        print(f"  ok   all {len(media_files())} images, models, fonts, sounds and videos under Assets/ are accounted for")
 
     print("\nEverything fetch_assets.py downloads is registered")
     known = {i for s in SOURCES for i in s["ids"]} | {s["name"] for s in SOURCES}

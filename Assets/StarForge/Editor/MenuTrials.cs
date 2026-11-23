@@ -111,6 +111,27 @@ namespace StarForge.EditorTools
             return Invoke("Reload", (System.Action)(() => b.ReturnToMenu()), "SURVEYING A NEW SECTOR", "setup");
         }
 
+        /// <summary>Edit mode: the next Play's title starts with the intro clip (the Editor never plays it otherwise).</summary>
+        public static string IntroNext() { StarForge.UI.IntroClip.AskInEditor(); return "a play's title within 3 minutes starts with the intro clip; then wait IntroState \"done|not started\""; }
+        /// <summary>Edit mode, after stopping a play part-way through the clip: nothing of it may be left
+        /// (its player and sound go with the scene, its texture is released by the menu's OnDisable).</summary>
+        public static string IntroLeak()
+        {
+            int players = Resources.FindObjectsOfTypeAll<UnityEngine.Video.VideoPlayer>().Length, textures = 0, hosts = 0;
+            foreach (var rt in Resources.FindObjectsOfTypeAll<RenderTexture>()) if (rt.name == "SF_Intro") textures++;
+            foreach (var go in Resources.FindObjectsOfTypeAll<GameObject>()) if (go.name == "IntroClip") hosts++;
+            return $"left over: {players} VideoPlayer(s), {textures} SF_Intro texture(s), {hosts} IntroClip object(s) (want 0, 0, 0); last report: {StarForge.UI.IntroClip.Report}";
+        }
+        /// <summary>What the intro clip did or is doing, and how loud the game's own sound is under it
+        /// (0 while it plays, back at the saved master volume once it has faded).</summary>
+        public static string IntroState()
+        {
+            var a = Object.FindAnyObjectByType<AudioDirector>();
+            return StarForge.UI.IntroClip.Report + (a != null ? $"; game sound {a.masterVolume:0.00} of {GameSettings.MasterVolume:0.00}" : "");
+        }
+        /// <summary>A picture of the Game view now (Temp/intro_shot.png), for the clip while it plays.</summary>
+        public static string IntroShot() { ScreenCapture.CaptureScreenshot("Temp/intro_shot.png"); return "Temp/intro_shot.png next frame; " + IntroState(); }
+
         /// <summary>Where the menus stand: state, the page on top, the veil, the record.</summary>
         public static string State()
         {
@@ -291,13 +312,23 @@ namespace StarForge.EditorTools
 
             var manual = Field("manual");
             Call("Push", manual);
-            for (int t = 0; t < 3; t++)
+            for (int t = 0; t < 4; t++)   // units, the opponent, controls, chronicle
             {
                 Call("SetManualTab", t);
                 if (t == 0) for (int i = 0; i < 9; i++) Call("Move", 1);
                 yield return Wait(0.7f);
                 yield return Shot($"manual_{t}");
             }
+            // Q/E and Tab go through the page's own tab step, not SetManualTab: step it round both ways.
+            if (manual.GetType().GetField("tab")?.GetValue(manual) is System.Action<int> step)
+            {
+                Call("SetManualTab", 0);
+                var seen = new StringBuilder();
+                for (int i = 0; i < 4; i++) { step(1); seen.Append(Field("manualTab")).Append(' '); }
+                for (int i = 0; i < 4; i++) { step(-1); seen.Append(Field("manualTab")).Append(' '); }
+                sb.AppendLine($"manual: tab step forward then back from 0: {seen}(want 1 2 3 0 3 2 1 0)");
+            }
+            else sb.AppendLine("  !! the manual page has no tab step");
             Call("Pop");
 
             Call("Push", Field("record"));

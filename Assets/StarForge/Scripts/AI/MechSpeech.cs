@@ -68,11 +68,18 @@ namespace StarForge.AI
             public readonly float weight;
             public readonly Cue cue;
             public readonly string text;
+            /// <summary>Null: any Mech's. Else the order (as <see cref="MechDesign.order"/>
+            /// spells it) whose Mech alone says it.</summary>
+            public readonly string order;
 
-            public Line(int n, Moment moment, Tone tone, float weight, Cue cue, string text)
+            public Line(int n, Moment moment, Tone tone, float weight, Cue cue, string text, string order = null)
             {
                 this.n = n; this.moment = moment; this.tone = tone; this.weight = weight; this.cue = cue; this.text = text;
+                this.order = order;
             }
+
+            /// <summary>Whether the Mech of this design may say it.</summary>
+            public bool For(MechDesign d) => order == null || (d != null && order == d.order);
 
             public int Bucket => BucketOf(moment, tone);
         }
@@ -82,18 +89,24 @@ namespace StarForge.AI
         static readonly int BucketCount = ((int)Moment.Any + 1) * Tones;
 
         /// <summary>Every line it can say. 1-400 as written for it (British spelling; #286,
-        /// #329 and #400 reworded to stand on their own); 401-406 the lines it had before.
+        /// #329 and #400 reworded to stand on their own); 401-406 the lines it had before;
+        /// 407-506 written against the lore (docs/lore/starforge-lore.md, section 13 has the
+        /// voice and what no line may answer): 407-490 any Mech's, 491-506 two for each
+        /// order, said only by that order's Mech (<see cref="Line.order"/>).
         /// {pilot}, {callsign} and {order} are filled in from the Mech's design.</summary>
+        public const int LineCount = 506;
         public static readonly Line[] Lines = BuildLines();
         static readonly int[][] ByBucket = IndexBuckets();
 
         static Line[] BuildLines()
         {
-            var L = new List<Line>(410);
+            var L = new List<Line>(LineCount + 4);
             Moment m = Moment.Attack;
             Tone t = Tone.Good;
             void S(Moment mo, Tone to) { m = mo; t = to; }
             void A(int n, string text, float w = 1f, Cue cue = Cue.None) => L.Add(new Line(n, m, t, w, cue, text));
+            // One order's own: weighted up, since only one Mech in eight can say it.
+            void O(string order, int n, string text, float w = 2f) => L.Add(new Line(n, m, t, w, Cue.None, text, order));
 
             S(Moment.Attack, Tone.Good);
             A(1, "The enemy has exposed itself. Such gifts should not be left unanswered.");
@@ -282,7 +295,7 @@ namespace StarForge.AI
             A(170, "We have survived the first wave. The next will meet a wiser defence.");
             A(171, "The battle is shrinking toward its decisive ground.");
             A(172, "We have not been broken. That remains the only fact that matters.");
-            A(402, "{order} has not lost a field it chose to hold. We will not start today.", 1.2f);
+            A(402, "{Order} has not lost a field it chose to hold. We will not start today.", 1.2f);
 
             S(Moment.LosingDefence, Tone.Bad);
             A(173, "The perimeter is collapsing. Survival now depends upon concentration.");
@@ -552,6 +565,154 @@ namespace StarForge.AI
             A(395, "I know precisely how dangerous this moment is. That is why I remain calm.", 1f, Cue.Hard);
             A(397, "You need not be stronger than the enemy everywhere. Only stronger where it matters.");
             A(399, "I have no faith in miracles. I have faith in preparation.");
+
+            // ---- 407-506: the lore's lines (docs/lore/starforge-lore.md). The core's voice:
+            // old, certain, dry. None answers what section 11 leaves open or takes a wing's side.
+            S(Moment.Calm, Tone.Neutral);
+            A(407, "Both camps sang vespers to the same star last night. It has not answered either.", 1.3f);
+            A(408, "Your surveyors follow the ore. So do theirs. Maps are generous that way.", 1.3f);
+            A(409, "Both hosts swore the same oath. One of them will be wrong by evening.");
+            A(410, "The seams ran this way before your Empire had a name. They are shorter today.");
+            A(411, "There were farms here once. The walls remember where. Use them.");
+            A(412, "It is quiet. Across the valley, someone is amending your file. Give them less to write.", 1.2f);
+            S(Moment.Calm, Tone.Good);
+            A(413, "Wolves took this valley back when the farms were cleared. They will take it back from us. I find that steadying.");
+            A(414, "A knight asks for no gifts and refuses none. I count a quiet hour among them.");
+            A(415, "Your soldiers stand well. Some of their great-grandparents ploughed this ground. It shows.", 1.2f);
+            A(416, "The summons is answered. That is all the law asks of us. The rest we do for reasons of our own.");
+            A(417, "The Diggers swore to the Foundry, not to this war. Guard them accordingly.");
+            S(Moment.Calm, Tone.Superior);
+            A(418, "By my reckoning this is a short watch. Use it well.");
+            A(419, "They study your file. I was old when their archive was founded. Let them study.", 1.3f);
+            A(420, "The Vigilants fitted me in the last seconds before the drop. I have had a thousand years to prepare for improvisation.", 1.2f);
+
+            S(Moment.Any, Tone.Solemn);
+            A(421, "It is called the Long Night. Nights are for keeping watch.", 1.3f);
+            A(422, "Once a wall was made that meant to stand. Now walls need soldiers. Stand.", 1.2f, Cue.Hard);
+            A(423, "The fire went out and the watch went on. That is the whole of what I know about endurance.", 1f, Cue.Hard);
+            A(424, "The dead have gone into the light. That is all the Luminary will say, and more than I can add.", 1f, Cue.Costly);
+            A(425, "An oath is the last thing your age knows how to forge. Do not break one lightly.");
+            A(426, "By the hand that holds and the hand that blesses. They swore it too. Fight them anyway, and do not hate them.", 1.2f);
+            A(427, "The star is still where it was. It has watched worse hours than this one and said nothing.", 1f, Cue.Hard);
+            A(428, "I kept my purpose when I lost the power to act on it. Your soldiers are being asked for less.", 1f, Cue.Hard);
+            S(Moment.Any, Tone.Superior);
+            A(429, "I was lit at a fire you have only read about. Do not ask whether I miss it.", 1.4f);
+            A(430, "One host would relight it and one would bury it. I guarded it, and I have learned to distrust both ambitions.", 1.2f);
+            A(431, "No one can make another of me. I mention it only to explain my caution.");
+            A(432, "The Empire is seven centuries old. I try to be patient with the young.", 1.2f);
+            A(433, "My makers left no names. Only work that outlived them. I am content to be evidence.");
+            A(434, "Your Empire is ruled from a star nobody has visited twice. I have served stranger arrangements.");
+            A(435, "The Host built the Ironclad in my likeness. It has no core and nothing to say. I am told it is reliable.");
+            A(436, "I remember the night the fire failed. I am not going to tell you about it.", 1.3f);
+
+            S(Moment.Victory, Tone.Solemn);
+            A(437, "It went our way. Both hosts will sing vespers tonight. One will have fewer voices.");
+            A(438, "They swore the oath you swore. Remember that when you count them.", 1.2f);
+            A(439, "It is won. Two seals could have spared every one of these. They were not used.", 1f, Cue.Costly);
+            A(440, "Another stretch of the seam is ours. We have not found what the seam leads to. We have found the cost.", 1f, Cue.Costly);
+            A(441, "No grudge is permitted. That rule is older than your Empire, and it holds today.");
+            S(Moment.Victory, Tone.Good);
+            A(442, "Well fought. The summons was for a decided field, and you are deciding it.");
+            A(443, "Well done. Your soldiers have earned their capes today.");
+            A(444, "That was soundly done. I shall say so when the order asks what manner of host raised my gantry.");
+            S(Moment.Victory, Tone.Superior);
+            A(445, "They had a dossier on you. It appears to be out of date.", 1.4f);
+            A(446, "I have seen this done worse by people the chronicles call great.");
+
+            S(Moment.Defeat, Tone.Solemn);
+            A(447, "The fire went out once and the world continued. So shall we.", 1.3f);
+            A(448, "We lost ground. Nobody here lost an oath. Remember which of the two the Host is built on.");
+            A(449, "Not every core that falls wakes again. I say it so that you know what was staked beside you.", 1f, Cue.Costly);
+            A(450, "Lauds is sung at sunrise whatever the night held. Be there to hear it.");
+            S(Moment.Defeat, Tone.Good);
+            A(451, "They hold that ground. They do not hold the seam. There is more of this war further along it.");
+            A(452, "A thing may keep its purpose and lose a battle. I have done both, more than once.", 1.2f);
+            A(453, "We are beaten on this ground. The oath did not mention this ground.");
+            S(Moment.Defeat, Tone.Superior);
+            A(454, "Both wings will cite today as proof of their case. They always do. I stopped keeping count long ago.");
+            S(Moment.Defeat, Tone.Bad);
+            A(455, "Badly done. I have watched hosts lose with more care than that.");
+            A(456, "They knew what you would do because you had done it before. Their file on you is thicker now.", 1.2f);
+
+            S(Moment.Critical, Tone.Good);
+            A(457, "I have stood through a longer night than this one. Stand with me.", 1.3f);
+            A(458, "A machine that meant to guard. That was the whole of my making. It is sufficient for today.");
+            A(459, "They are all round us. So is the dark, and I am well practised with that.", 1f, Cue.Surrounded);
+            A(460, "The orders stake one core on a field. This is the hour it was staked for.");
+            S(Moment.Critical, Tone.Bad);
+            A(461, "If I fall here I am not replaced. Neither are you. Act accordingly.", 1.3f);
+            A(462, "A knight is owed to this field once. The debt is being collected now. Hold.");
+            A(463, "This is how a watch fails: not at once, but one post at a time. Hold yours.");
+            A(464, "We are losing soldiers faster than the celebrants can reach the dying.", 1f, Cue.Costly);
+
+            S(Moment.TurningPoint, Tone.Good);
+            A(465, "There. Even a long night turns.", 1.3f);
+            A(466, "The Mother is silent and the Khan is silent. I advise you to be louder than both.", 1.2f);
+            A(467, "That was not in their file on you. Do it again before they amend it.");
+            S(Moment.TurningPoint, Tone.Bad);
+            A(468, "At last. I have waited a thousand years for less.", 1.2f);
+            A(469, "They have slipped. Do not wait for both seals to act on it.");
+            A(470, "An opening. The last one this size closed while a council debated it.");
+
+            S(Moment.Attack, Tone.Good);
+            A(471, "They dig the same seam from the other end. Let us meet them in the middle.", 1.2f);
+            A(472, "They came to secure the site. So did we. Let us be the more secure.");
+            S(Moment.Attack, Tone.Bad);
+            A(473, "Two hosts, one oath, and we are the ones dithering. Finish it.");
+            S(Moment.Defence, Tone.Good);
+            A(474, "Let them come. I was made to guard, and they have kindly supplied the occasion.", 1.2f);
+            A(475, "Farmers held this ground for centuries with ploughs. We have guns. Hold it.");
+            S(Moment.Defence, Tone.Bad);
+            A(476, "The wall will not stand by itself. That stopped a thousand years ago. Reinforce it.");
+            A(477, "They are through the outer line. This is the part the oath was written for.");
+            S(Moment.LosingAttack, Tone.Good);
+            A(478, "We are behind. The Night has been ahead of us since before your Empire, and we are still here.");
+            A(479, "Their dossier says you will fall back now. Disappoint it.", 1.3f);
+            S(Moment.LosingAttack, Tone.Bad);
+            A(480, "We are spending soldiers to learn what a survey would have told us.", 1f, Cue.Costly);
+            S(Moment.LosingDefence, Tone.Good);
+            A(481, "Give them the ground. This valley has been lost before, and here its children stand.");
+            A(482, "Fall back and keep the watch. Walls can be printed again.", 1.2f);
+            S(Moment.LosingDefence, Tone.Bad);
+            A(483, "They are taking this base apart faster than a printworks can raise it.");
+            A(484, "I have outlasted every wall I was set to guard. I would rather not add this one. Tighten the line.");
+            S(Moment.WinningAttack, Tone.Good);
+            A(485, "They are falling back along the seam they came by. Follow the ore. Everyone else has.", 1f, Cue.Retreating);
+            A(486, "Their line is going out lamp by lamp. I have seen how that ends.");
+            S(Moment.WinningAttack, Tone.Bad);
+            A(487, "Ahead is not decided, and the orders count only decided fields. Stop giving this one back.");
+            S(Moment.WinningDefence, Tone.Good);
+            A(488, "They broke on us. These hills have seen ploughs, wolves and now this. They remain unimpressed.");
+            A(489, "Thrown back. Let them sing about it at vespers.", 1.2f);
+            S(Moment.WinningDefence, Tone.Bad);
+            A(490, "We held. The price was paid in soldiers who swore the same words as the ones they stopped.", 1f, Cue.Costly);
+
+            // Each order's own two (its teaching, lore section 7): one for a quiet spell, one iconic.
+            // The names are MechParts.Orders', letter for letter: Check() finds one no design draws.
+            const string Ashen = "the Ashen Covenant", Lantern = "the Order of the Iron Lantern", Ninth = "the Ninth Vigil",
+                         Sable = "the Sable Oath", Crown = "the Order of the Broken Crown", Ember = "the Emberguard",
+                         Wardens = "the Wardens of the Long Night", Brazen = "the Brazen Host";
+            S(Moment.Calm, Tone.Neutral);
+            O(Ashen, 491, "The fire is dead. What it made is not. That is the whole of our rule, and it has been enough.");
+            O(Ninth, 495, "The ninth watch was never relieved. This one will not be either.");
+            O(Sable, 497, "An oath needs no picture. It needs keeping. See that your soldiers know which they swore.");
+            O(Wardens, 503, "The Night is the age appointed. We were not asked to like it. We were asked to stand it well.");
+            S(Moment.Calm, Tone.Good);
+            O(Lantern, 493, "Light is carried, not awaited. Find me a road and I will carry it down it.");
+            O(Ember, 501, "An ember is tended, not hurried. So is a battle. So, if you will permit it, are you.");
+            O(Brazen, 505, "The Makers were smiths first. The work is the offering. Find me some work.");
+            S(Moment.Calm, Tone.Superior);
+            O(Crown, 499, "We serve no crowned head. A lit gantry is another matter. You have my guns.");
+            S(Moment.Any, Tone.Solemn);
+            O(Ashen, 492, "The Covenant does not hurry. Nothing we guard has anywhere else to be.");
+            O(Lantern, 494, "The lantern on our standard is unlit. It is the bearer that matters.");
+            O(Sable, 498, "Our standard is plain black. There was nothing to add.");
+            O(Ember, 502, "The cores are the last embers. I would know. Bank your strength and it will last the night.");
+            O(Wardens, 504, "Others wait for morning. The Wardens keep the watch as though none were promised.");
+            S(Moment.Any, Tone.Superior);
+            O(Ninth, 496, "The Vigil was there. That is all it says, and I say less.");
+            O(Crown, 500, "We broke a crown once rather than hand it over. A line is less to ask of us.");
+            O(Brazen, 506, "The other orders dispute our descent from the forge-hands. They are welcome to dispute it with the hammer.");
             return L.ToArray();
         }
 
@@ -764,6 +925,19 @@ namespace StarForge.AI
             w.Event += OnEvent;
         }
 
+        /// <summary>A voice with no world, for <see cref="Check"/>: all it can do is <see cref="Say"/>.</summary>
+        MechSpeech(uint seed, float temper, float pride)
+        {
+            team = 1;   // nothing is journalled (Log returns before it reads the world)
+            rng = new Rng(seed);
+            this.temper = temper;
+            this.pride = pride;
+        }
+
+        float checkClock;
+        /// <summary>The match clock, or the check's own where there is no world.</summary>
+        float Clock => w != null ? w.time : checkClock;
+
         public void Dispose() => w.Event -= OnEvent;
 
         /// <summary>The pilot's temper (-1 cold .. 1 warm) and pride (0..1), drawn from the seed.</summary>
@@ -950,9 +1124,9 @@ namespace StarForge.AI
             for (int i = 0; i < fits.Count; i++)
             {
                 var (b, f) = fits[i];
-                bool fresh = false;
-                foreach (int k in ByBucket[b]) if (!said[k]) { fresh = true; break; }
-                if (ByBucket[b].Length == 0) f = 0f;
+                // Another order's lines are not this Mech's: they neither fill a bucket nor keep it fresh.
+                bool fresh = Fresh(ByBucket[b], d, said, out bool any);
+                if (!any) f = 0f;
                 else if (!fresh) f *= 0.1f;
                 fits[i] = (b, f);
                 total += f;
@@ -968,35 +1142,56 @@ namespace StarForge.AI
                 if (pick <= 0f) break;
             }
 
-            // A line from it: by weight and by what it says, never one already said while
-            // the bucket has others; once all are said, the one said longest ago.
-            int[] idx = ByBucket[bucket];
+            int chosen = Choose(ByBucket[bucket], d, r.cues, said, saidAt, rng);
+            if (chosen < 0) return null;
+            said[chosen] = true;
+            saidAt[chosen] = Clock;
+            var line = Lines[chosen];
+            string text = Fill(line.text, d);
+            Note(r, line, text);
+            return text;
+        }
+
+        /// <summary>Whether the bucket holds a line this Mech has not said yet; <paramref name="any"/>
+        /// whether it holds one it may say at all. Static, for <see cref="Check"/>.</summary>
+        static bool Fresh(int[] idx, MechDesign d, bool[] said, out bool any)
+        {
+            any = false;
+            foreach (int k in idx)
+            {
+                if (!Lines[k].For(d)) continue;
+                any = true;
+                if (!said[k]) return true;
+            }
+            return false;
+        }
+
+        /// <summary>A line of the bucket for this Mech: by weight and by what it says, never one
+        /// already said while the bucket has others it may say; once all are said, the one said
+        /// longest ago. -1 if the bucket holds none for it. Static, so <see cref="Check"/> runs
+        /// the very choice a match makes.</summary>
+        static int Choose(int[] idx, MechDesign d, Cue cues, bool[] said, float[] saidAt, Rng rng)
+        {
             float sum = 0f;
-            foreach (int k in idx) if (!said[k]) sum += Lines[k].weight * CueFit(Lines[k].cue, r.cues);
+            foreach (int k in idx) if (!said[k] && Lines[k].For(d)) sum += Lines[k].weight * CueFit(Lines[k].cue, cues);
             int chosen = -1;
             if (sum > 0f)
             {
                 float p = rng.F01() * sum;
                 foreach (int k in idx)
                 {
-                    if (said[k]) continue;
+                    if (said[k] || !Lines[k].For(d)) continue;
                     chosen = k;
-                    p -= Lines[k].weight * CueFit(Lines[k].cue, r.cues);
+                    p -= Lines[k].weight * CueFit(Lines[k].cue, cues);
                     if (p <= 0f) break;
                 }
             }
             else
             {
                 float oldest = float.MaxValue;
-                foreach (int k in idx) if (saidAt[k] < oldest) { oldest = saidAt[k]; chosen = k; }
+                foreach (int k in idx) if (Lines[k].For(d) && saidAt[k] < oldest) { oldest = saidAt[k]; chosen = k; }
             }
-            if (chosen < 0) return null;
-            said[chosen] = true;
-            saidAt[chosen] = w.time;
-            var line = Lines[chosen];
-            string text = Fill(line.text, d);
-            Note(r, line, text);
-            return text;
+            return chosen;
         }
 
         static string Fill(string text, MechDesign d)
@@ -1004,8 +1199,13 @@ namespace StarForge.AI
             if (text.IndexOf('{') < 0) return text;
             return text.Replace("{pilot}", d != null ? d.pilot : "The pilot")
                        .Replace("{callsign}", d != null ? d.callsign : "The Mech")
-                       .Replace("{order}", d != null ? d.order : "My order");
+                       .Replace("{order}", d != null ? d.order : "my order")
+                       .Replace("{Order}", Capital(d != null ? d.order : "My order"));   // at a sentence's start: "The Emberguard ..."
         }
+
+        /// <summary>An order's name as a sentence begins with it ("the Ninth Vigil" is how a design spells it).</summary>
+        public static string Capital(string s) =>
+            string.IsNullOrEmpty(s) || char.IsUpper(s[0]) ? s : char.ToUpperInvariant(s[0]) + s.Substring(1);
 
         // ------------------------------------------------------------ reading the battle
         /// <summary>What a unit is worth to its side, for the balance and the losses.</summary>
@@ -1240,17 +1440,83 @@ namespace StarForge.AI
             int problems = 0;
             var numbers = new HashSet<int>();
             var texts = new HashSet<string>();
-            var dummy = new MechDesign { pilot = "Pilot", callsign = "Callsign", order = "Order" };
+            var dummy = new MechDesign { pilot = "Pilot", callsign = "Callsign", order = "the Order" };   // as designs spell it
             foreach (var l in Lines)
             {
                 if (!numbers.Add(l.n)) { problems++; sb.AppendLine($"  #{l.n} twice"); }
                 if (!texts.Add(l.text)) { problems++; sb.AppendLine($"  #{l.n} text repeated"); }
                 string f = Fill(l.text, dummy);
                 if (f.IndexOf('{') >= 0 || f.IndexOf('}') >= 0) { problems++; sb.AppendLine($"  #{l.n} unfilled: {f}"); }
+                if (f.StartsWith("the Order") || f.Contains(". the Order") || f.Contains("! the Order") || f.Contains("? the Order"))
+                { problems++; sb.AppendLine($"  #{l.n} starts a sentence with the order's name in lower case (use {{Order}}): {f}"); }
                 if (l.weight <= 0f) { problems++; sb.AppendLine($"  #{l.n} has no weight"); }
             }
-            for (int n = 1; n <= 406; n++)
+            for (int n = 1; n <= LineCount; n++)
                 if (!numbers.Contains(n)) { problems++; sb.AppendLine($"  #{n} missing"); }
+            if (Lines.Length != LineCount) { problems++; sb.AppendLine($"  {Lines.Length} lines, {LineCount} expected"); }
+
+            // An order's line is said only by a Mech of that order: its name must be one the
+            // designs draw (a misspelt one would never be said, with no error), and a bucket
+            // must hold a line for every Mech.
+            var drawn = new SortedDictionary<string, int>();
+            for (uint s = 1; s <= 400; s++)
+            {
+                string o = MechParts.Generate(s * 2654435761u).order;
+                drawn[o] = drawn.TryGetValue(o, out int c0) ? c0 + 1 : 1;
+            }
+            var own = new SortedDictionary<string, int>();
+            foreach (var l in Lines)
+            {
+                if (l.order == null) continue;
+                own[l.order] = own.TryGetValue(l.order, out int c1) ? c1 + 1 : 1;
+                if (!drawn.ContainsKey(l.order)) { problems++; sb.AppendLine($"  #{l.n} is for '{l.order}', which no design draws"); }
+            }
+            foreach (var o in drawn.Keys)
+                if (!own.ContainsKey(o)) { problems++; sb.AppendLine($"  '{o}' has no line of its own"); }
+            for (int b = 0; b < BucketCount; b++)
+            {
+                if (ByBucket[b].Length == 0) continue;
+                bool general = false;
+                foreach (int k in ByBucket[b]) if (Lines[k].order == null) { general = true; break; }
+                if (!general) { problems++; sb.AppendLine($"  bucket {b} holds only one order's lines: other Mechs have none there"); }
+            }
+            // The choice a match makes, run for a Mech of each order (and one with no design)
+            // through every bucket and past its end: never another order's line, each of its
+            // own once, and never empty-handed where the bucket has lines.
+            var orders = new List<string>(drawn.Keys) { null };
+            var pick = new Rng(0x10AEu);
+            foreach (string o in orders)
+            {
+                var d = o == null ? null : new MechDesign { pilot = "Pilot", callsign = "Callsign", order = o };
+                var saidC = new bool[Lines.Length];
+                var atC = new float[Lines.Length];
+                int foreign = 0, ownSaid = 0, none = 0, twice = 0, stale = 0;
+                float clock = 0f;
+                for (int b = 0; b < BucketCount; b++)
+                {
+                    int n = ByBucket[b].Length, mine = 0;
+                    foreach (int k in ByBucket[b]) if (Lines[k].For(d)) mine++;
+                    for (int i = 0; i < n + 3; i++)
+                    {
+                        // Say()'s freshness test: fresh exactly while one of its own is unsaid.
+                        bool fresh = Fresh(ByBucket[b], d, saidC, out bool anyC);
+                        if (n > 0 && (fresh != (i < mine) || anyC != (mine > 0))) stale++;
+                        int k = Choose(ByBucket[b], d, Cue.None, saidC, atC, pick);
+                        if (k < 0) { if (n > 0) none++; continue; }
+                        if (Lines[k].order != null && Lines[k].order != o) foreign++;   // not by For(): it is what is being checked
+                        if (saidC[k] && i < mine) twice++;          // repeated while it still had fresh ones
+                        if (Lines[k].order != null && !saidC[k]) ownSaid++;
+                        saidC[k] = true;
+                        atC[k] = clock += 1f;
+                    }
+                }
+                int owned = o != null && own.TryGetValue(o, out int c2) ? c2 : 0;
+                if (foreign > 0 || none > 0 || twice > 0 || stale > 0 || ownSaid != owned)
+                {
+                    problems++;
+                    sb.AppendLine($"  choice for '{o ?? "no design"}': {foreign} of another order, {none} empty-handed, {twice} repeated early, {stale} wrong freshness, {ownSaid} of its own {owned}");
+                }
+            }
 
             // Walk every reading and collect the buckets that can be drawn from.
             var reach = new HashSet<int>();
@@ -1273,6 +1539,55 @@ namespace StarForge.AI
                                 Fits(r, into);
                                 foreach (var (b, f) in into) if (f > 0f) reach.Add(b);
                             }
+            // Say() itself, for a Mech of each order (and one with no design), over every reading
+            // twice: never a line of another order, never empty-handed, every text one of the table's,
+            // filled in and beginning a sentence, and every line that Mech may say said at least once.
+            var sayLines = new StringBuilder();
+            foreach (string o in orders)
+            {
+                var d = o == null ? null : new MechDesign { pilot = "Pilot", callsign = "Callsign", order = o };
+                var byText = new Dictionary<string, int>(Lines.Length);
+                for (int i = 0; i < Lines.Length; i++) byText[Fill(Lines[i].text, d)] = i;
+                var voice = new MechSpeech(0x5A1Du, 0f, 0.5f);
+                var heard = new bool[Lines.Length];
+                int foreign = 0, unknown = 0, mute = 0, lower = 0, calls = 0;
+                for (int round = 0; round < 2; round++)
+                    foreach (var oc in occasions)
+                    {
+                        if (oc == Occasion.None) continue;
+                        for (int st = -1; st <= 1; st++)
+                            for (int bits = 0; bits < 64; bits++)
+                                foreach (float te in tempers)
+                                    foreach (float pr in prides)
+                                    {
+                                        var r = new Reading
+                                        {
+                                            occasion = oc, standing = st, temper = te, pride = pr,
+                                            calm = (bits & 1) != 0, attack = (bits & 2) != 0, good = (bits & 4) != 0,
+                                            home = (bits & 8) != 0, decisive = (bits & 16) != 0, costly = (bits & 32) != 0,
+                                            longLosing = (bits & 1) != 0, cues = (Cue)bits
+                                        };
+                                        string text = voice.Say(r, d);
+                                        voice.checkClock += 1f;
+                                        calls++;
+                                        if (text == null) { mute++; continue; }
+                                        if (text.Length == 0 || char.IsLower(text[0])) lower++;
+                                        if (!byText.TryGetValue(text, out int k)) { unknown++; continue; }
+                                        if (Lines[k].order != null && Lines[k].order != o) foreign++;
+                                        heard[k] = true;
+                                    }
+                    }
+                int its = 0, itsSaid = 0;
+                for (int i = 0; i < Lines.Length; i++)
+                    if (Lines[i].order == null || Lines[i].order == o) { its++; if (heard[i]) itsSaid++; }
+                sayLines.AppendLine($"  Say() as {o ?? "no design"}: {itsSaid} of its {its} lines in {calls} calls");
+                if (foreign > 0 || unknown > 0 || mute > 0 || lower > 0 || itsSaid != its)
+                {
+                    problems++;
+                    sb.AppendLine($"  Say() as '{o ?? "no design"}': {foreign} of another order, {unknown} not in the table, {mute} empty-handed, {lower} not starting a sentence, {itsSaid} of its {its} said");
+                }
+            }
+
             var counts = new SortedDictionary<string, int>();
             foreach (var l in Lines)
             {
@@ -1283,6 +1598,8 @@ namespace StarForge.AI
             var head = new StringBuilder();
             head.AppendLine($"MechSpeech: {Lines.Length} lines, {counts.Count} buckets, {problems} problem(s)");
             foreach (var kv in counts) head.AppendLine($"  {kv.Key}: {kv.Value}");
+            foreach (var kv in own) head.AppendLine($"  {kv.Key}: {kv.Value} of its own");
+            head.Append(sayLines);
             return head.ToString() + sb;
         }
     }

@@ -16,4 +16,6 @@ Step 5 (shader variants) uses reflection into Unity's internal recorder (`Shader
 
 **A change to every model's look: `ModelSheet.SheetA`/`SheetB`/`SheetC`** (edit mode, about 4 s; `Builds/merge/sheet/<a|b|c>`) photographs all SF_Unit models on both teams, front, back, hurt and half-built, with nothing moving: shoot A and B before the change, C after, and compare with `/usr/bin/python3 Tools/diff_shots.py <a> <c> --group`. Old against old reads exactly 0 except half-built, whose scan runs on the clock. Lit dim so nothing clips, but glow still clips past 1.0, `_Burn` and a loaded Digger's ore glass are not in it, and crystal is swapped for `dark` (it breathes with the clock).
 
+**A trial's MonoBehaviour must not be named after its file** (`StandardsLook` in `StandardsTrials.cs`, `MechShowcase` in `MechTrials.cs`): Unity refuses to add a component whose script asset lies in an Editor folder ("Can't add script behaviour ... because it is an editor script"), and the trial then reports "none".
+
 `MapChecks.Report` (menu "Check Map Blocking"), `MechTrials`, `BugTrials`, `AIEvalMenu`, `AgentInbox` (file inbox behind `Tools/editor.sh`) live here; what each trial measures is in the area file of the code it tests (`../Scripts/World/CLAUDE.md`, `../Scripts/AI/CLAUDE.md`, `../Scripts/View/CLAUDE.md`).

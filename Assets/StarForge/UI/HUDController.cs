@@ -47,7 +47,8 @@ namespace StarForge.UI
         MinimapElement minimap;
         OverlayElement screenOverlay;
         bool overlayHadBox;
-        VisualElement mechStrip, commsFeed;
+        VisualElement mechStrip, mechStripDevice, commsFeed;
+        int shownOrder = int.MinValue;   // the order whose device the strip shows (-1 none)
         Label mechStripTitle, mechStripState, mechStripText;
         BarElement mechHull, mechShield;
         /// <summary>The last places the Mech pointed at, drawn on the minimap for a while.</summary>
@@ -148,6 +149,7 @@ namespace StarForge.UI
             mechStripTitle = root.Q<Label>("mechStripTitle");
             mechStripState = root.Q<Label>("mechStripState");
             mechStripText = root.Q<Label>("mechStripText");
+            mechStripDevice = root.Q("mechStripDevice");
             mechHull = root.Q<BarElement>("mechHull");
             mechShield = root.Q<BarElement>("mechShield");
             cheatLabel = root.Q<Label>("cheatLabel");
@@ -802,6 +804,15 @@ namespace StarForge.UI
             mechStrip.EnableInClassList("mech-strip--visible", show);
             if (!show) return;
             var d = F.design;
+            // The knight's order beside the name: the device of its standard, touched only when it changes.
+            int order = d != null ? OrderStandards.IndexOf(d.order) : -1;
+            if (order != shownOrder && mechStripDevice != null)
+            {
+                shownOrder = order;
+                var device = OrderStandards.Icon(order);
+                mechStripDevice.style.backgroundImage = device != null ? new StyleBackground(device) : new StyleBackground(StyleKeyword.None);
+                mechStripDevice.EnableInClassList("mech-strip-device--shown", device != null);
+            }
             var m = world.MechOf(me);
             string name = d == null ? "MECH" : F.designChosen ? $"{d.callsign} · {d.className}".ToUpperInvariant() : $"{d.callsign} · loadout picked at the drop".ToUpperInvariant();
             mechStripTitle.text = name;

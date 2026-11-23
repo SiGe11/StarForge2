@@ -181,7 +181,8 @@ namespace StarForge.View
             teamLight = unit.team == 0 ? new Color(0.45f, 0.75f, 1f) : new Color(1f, 0.55f, 0.35f);
             glowLight.color = teamLight;
             // The standard is real cloth where the model's rigid one hangs (that one is the fallback).
-            bannerCloth = MechBannerCloth.Make(banner, unit.team, unit.id);
+            // It carries the standard of the knight's order (docs/lore, section 7) on the side's cloth.
+            bannerCloth = MechBannerCloth.Make(banner, unit.team, unit.id, OrderStandards.IndexOf(d.order));
             renderers = GetComponentsInChildren<Renderer>(true);
             mpb = new MaterialPropertyBlock();
             lastPos = transform.position;

@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 0
   displayName: Digger
-  blurb: Harvests ore and constructs structures.
+  blurb: 'Guild labour: harvests ore and constructs structures. Flees guns in the open; never deserts.'
   building: 0
   neutral: 0
   radius: 0.7
