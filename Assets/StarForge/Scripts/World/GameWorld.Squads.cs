@@ -47,9 +47,10 @@ namespace StarForge.World
     {
         const float SquadJoin = 15f, SquadLeave = 30f, SquadMerge = 8f, SquadSameGoal = 12f, MergeAfterOrder = 10f;
         const float SquadEvery = 0.5f, TurnLasts = 4.5f;
-        // All 26: squads form about five a minute, and twelve came round again while the first were alive.
-        static readonly string[] CallSigns = { "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliet", "Kilo", "Lima",
-                                               "Mike", "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra", "Tango", "Uniform", "Victor", "Whiskey", "X-ray", "Yankee", "Zulu" };
+        // 26 birth-star names (the lore's field net names squads by them; no Earth alphabet): squads
+        // form about five a minute, and twelve came round again while the first were alive.
+        static readonly string[] CallSigns = { "Wren", "Lark", "Heron", "Crane", "Tern", "Hart", "Hound", "Otter", "Badger", "Ram", "Plough", "Sickle",
+                                               "Scythe", "Harp", "Bell", "Spindle", "Mill", "Weaver", "Wheel", "Key", "Quill", "Cup", "Comb", "Flint", "Rowan", "Thorn" };
         const float ReportSquadEvery = 30f, ReportSideEvery = 10f, ReportPlaceEvery = 60f, ReportPlace = 40f;
         const float NeedAirAfter = 8f, LossesLast = 20f, ContactAt = 40f;
 

@@ -15,6 +15,10 @@ there, and each one is recorded in `THIRD-PARTY.md` with the tool and the date.
 | 4 | Plate: vespers in two camps | optional | the result of prompt 1 | `plate_vespers.png` |
 | 5 | Plate: the gantry | optional | the result of prompt 1 | `plate_gantry.png` |
 | 6 | Intro clip, ten seconds | optional | the result of prompt 1 | `intro.mp4` |
+| 4 (v2) | Plate: vespers, redone for the lore of 2026-11-23 | **yes** (the old plate shows a male celebrant and knights' plate) | `keyart_star.jpg` and `ref_iron_trooper.png` | `plate_vespers_v2.png` |
+| 12 | Touch-up: seal the core, light the beacon (gantry plate) | **yes** (a core is never shown) | `plate_gantry.jpg` | `plate_gantry_v2.png` |
+| 13 | Plate: the Taking of the Light | new, wanted | `keyart_star.jpg` and `plate_two_hands.jpg` | `plate_taking.png` |
+| 14 | Plate: the iron | new, wanted | `keyart_star.jpg` and `ref_iron_trooper.png` | `plate_iron.png` |
 
 The key art is the title screen's background. The four plates are for the Field Manual's Chronicle
 page. The intro clip plays once before the title and can be skipped.
@@ -101,9 +105,16 @@ letters or writing on the sheet, no logos, no watermark. No modern objects. No m
 
 ---
 
-## 4. Plate: vespers in two camps (optional)
+## 4. Plate: vespers in two camps (v2 needed)
 
-Attach the finished key art from prompt 1. Save as `Art/Source/llm/lore/plate_vespers.png`.
+**Redone 2026-11-23** for the expanded lore: the clergy are women and veiled, soldiers wear the
+iron (the headless suit of the game's infantry model), and only soldiers who took the second oath
+wear a cape. The first plate (a bald man as celebrant, knights' plate, a cape on everyone) no longer
+fits.
+
+Attach `Art/Source/llm/lore/keyart_star.jpg` (for the style) and
+`Art/Source/llm/lore/ref_iron_trooper.png` (the soldier's armour, a render of the game's model).
+Save the result as `Art/Source/llm/lore/plate_vespers_v2.png`.
 
 ```text
 Paint a new picture in exactly the style of the attached painting: the same painterly digital
@@ -111,14 +122,21 @@ matte-painting brushwork, the same muted twilight palette of slate blue, moss gr
 grey stone, the same soft haze and the same dark vignette toward every edge. Use the attached
 painting only for its style. The new picture shows a different scene. Wide 16:9.
 
+The second attached picture shows only the soldiers' armour: copy that armour's shape, not that
+picture's style.
+
 The scene: dusk on a northern moorland. In the foreground is an army camp whose lamps and markings
-are clear blue. Armoured soldiers kneel bare-headed in rows with their helmets on the ground beside
-them, each wearing an ankle-length blue cloth cape; we see them from behind. In front of them a
-celebrant in a long white robe under a stiff gold mantle raises an oil lamp toward the sky, and a
-thin thread of incense rises beside him. Low heavy tanks are parked at the edge of the camp with
-their guns lowered. Across a shallow valley, small and far away, a second camp whose lamps are
-orange-red is doing exactly the same thing at the same moment: the same kneeling rows, the same
-raised lamp. Between the two camps lies dark ground with a few clusters of softly glowing pale teal
+are clear blue. Soldiers kneel in rows, seen from behind. Every soldier wears the same bulky suit
+of grey plate armour with no helmet and no visible head: the face is hidden behind a narrow slit
+high in the breastplate, the shoulder guards are large and painted blue, and two short slim masts
+rise from the back plate. A few of the soldiers, not most, wear an ankle-length blue cloth cape
+with a thin bronze edge over the armour. In front of them stands a celebrant, a woman in a long
+white linen robe girded with a gold cord, a stiff gold mantle over it, and a white veil that falls
+from her head to her waist so that her face is not seen. She raises a small oil hand-lamp toward
+the sky, and a thin thread of incense rises beside her. Low heavy tanks are parked at the edge of
+the camp with their guns lowered. Across a shallow valley, small and far away, a second camp whose lamps are
+orange-red is doing exactly the same thing at the same moment: the same kneeling rows in the same
+armour, the same veiled celebrant, the same raised lamp. Between the two camps lies dark ground with a few clusters of softly glowing pale teal
 crystals. Above both camps is the first star of the evening: one brilliant blue-white star with a
 faint four-point glint.
 
@@ -205,11 +223,11 @@ Shot 1, seconds 0 to 3: a black night sky. One brilliant blue-white star appears
 a faint four-point glint. The camera tilts slowly down to a northern moorland valley at dusk: spruce
 woods, grey cliffs, two small lakes, clusters of softly glowing pale teal crystals in the dark
 rocks. In the valley two small army camps face each other, one lit with blue lamps and one with
-orange-red lamps, with identical low heavy tanks and armoured infantry in ankle-length capes.
+orange-red lamps, with identical low heavy tanks and armoured infantry, a few of them in ankle-length capes.
 
 Shot 2, seconds 3 to 7: a walking war machine nine metres tall, angular and worn, falls out of the
 dusk clouds on retro-rockets and lands beside a floodlit steel gantry in a blast of dust. It
-straightens. A cloth standard unfurls from a crossbar on its back. Soldiers in blue capes look up at
+straightens. A cloth standard unfurls from a crossbar on its back. Soldiers in blue-shouldered armour look up at
 it from the height of its knees.
 
 Shot 3, seconds 7 to 10: wide over the whole valley. Thin lines of blue and orange-red tracer fire
@@ -379,6 +397,93 @@ watermark.
 
 ---
 
+## 12. Touch-up: seal the core and light the beacon in the gantry plate (needed)
+
+The lore of 2026-11-23: no core is ever shown (it rides sealed in a reliquary), and a gantry is a
+cradle and a beacon. Attach `Art/Source/llm/lore/plate_gantry.jpg`. Save the result as
+`Art/Source/llm/lore/plate_gantry_v2.png`.
+
+```text
+Edit the attached painting. Keep everything exactly as it is except for two things.
+
+First: behind the bars of the grille in the open chest of the war machine, the old dark-metal
+object is now completely closed and dark. It is a sealed casket of dark, worn metal, rounded like a
+lidded urn, with no window, no opening and no light of any kind. The bars of the grille are lit only
+by the floodlights, as the rest of the machine is.
+
+Second: on the very top of the steel gantry, at its highest point, add one beacon: a single round
+lamp on a short mast, giving a steady pale white light and a thin straight beam that points up into
+the sky. It is plainly a signal, calm, not a searchlight sweeping about.
+
+The knight on the platform, the machine, the standard, the sky, the star and everything else stay
+exactly as they are: the same image size, the same wide 16:9 shape, the same colours and brushwork.
+No text, no letters, no logos, no watermark.
+```
+
+---
+
+## 13. Plate: the Taking of the Light (new)
+
+Attach `Art/Source/llm/lore/keyart_star.jpg` (for the style) and
+`Art/Source/llm/lore/plate_two_hands.jpg` (the stone hall and the round opening in its roof).
+Save the result as `Art/Source/llm/lore/plate_taking.png`.
+
+```text
+Paint a new picture in exactly the style of the first attached painting: the same painterly
+digital matte-painting brushwork, the same muted palette of slate blue and weathered grey stone,
+warmed here by small lamp flames, the same soft haze and the same dark vignette toward every edge.
+Take the stone architecture from the second attached painting. The new picture shows a different
+scene. Wide 16:9.
+
+The scene: night inside a long hall of dark stone with no seats. High above the far end is a round
+opening in the roof, through which one brilliant blue-white star with a faint four-point glint
+shines down. Across the hall stands a tall pierced stone screen hung with small lamps and with
+painted gold-ground panels showing only stars, no figures; the two doors in its middle stand open.
+Through the open doors come women of the clergy in long white linen robes girded with gold cords,
+each veiled in white from the head to the waist so that no face is seen. The foremost holds out a
+small lit oil lamp and is touching its flame to the wick of a lamp held up by a kneeling worshipper.
+The worshippers, ordinary women and men in plain dark clothes, kneel on the stone floor in rows,
+seen from behind and the side, each holding a small clay lamp: the lamps nearest the screen are
+already lit, those further back are still dark, so the light visibly spreads from lamp to lamp
+toward the viewer. A thin haze of incense hangs in the air. The hall is otherwise dark.
+
+The lower third of the picture is darker and quiet, so that text can be laid over it. No text, no
+letters, no logos, no watermark. No faces turned to the viewer. No magic effects: every light is an
+ordinary small flame or the star.
+```
+
+---
+
+## 14. Plate: the iron (new)
+
+Attach `Art/Source/llm/lore/keyart_star.jpg` (for the style) and
+`Art/Source/llm/lore/ref_iron_trooper.png` (the soldiers' armour, a render of the game's model).
+Save the result as `Art/Source/llm/lore/plate_iron.png`.
+
+```text
+Paint a new picture in exactly the style of the first attached painting: the same painterly
+digital matte-painting brushwork, the same muted twilight palette of slate blue, moss green and
+weathered grey, the same soft haze and the same dark vignette toward every edge. The second
+attached picture shows only the armour: copy that armour's shape, not that picture's style. Wide
+16:9.
+
+The scene: dusk in a field workshop under an open-sided canvas awning at the edge of a camp on a
+northern moorland. Five empty suits of heavy grey plate armour stand on wooden frames in a row, each
+exactly like the attached armour: bulky, with no helmet and no head, a narrow slit high in the
+breastplate where the eyes would be, large shoulder guards, and two short slim masts on the back.
+The suits are old and much mended: scratched, dented, patched. Their shoulder guards are painted
+blue, but where the paint has worn away the same plain grey shows underneath. On the nearest suit a
+soldier in plain work clothes, seen from behind, is painting over an orange-red shoulder guard with
+blue, so that half of it is still red. Paint pots and brushes stand on a bench. Beyond the awning,
+far away, are the camp's blue lamps, and in the sky one brilliant blue-white star with a faint
+four-point glint.
+
+The lower third of the picture is darker and quiet, so that text can be laid over it. No text, no
+letters, no numbers, no logos, no watermark. No faces turned to the viewer.
+```
+
+---
+
 ## What to check before keeping a result
 
 - The orders' sheet: eight banners in two rows of four, in the order given; nine stars with only
@@ -390,8 +495,11 @@ watermark.
 - The Holy Mother's face is never seen; the war-leader wears no crown.
 - The old fire is white-gold and steady, a hearth and never a spell. Nobody alive has seen it, so it
   appears only in the Quenching plate.
-- The core in the gantry plate is dark metal with a faint steady light. It does not shine, show a
-  face or speak.
+- No core is ever shown: in the gantry plate only a sealed, unlit casket behind the grille (lore of
+  2026-11-23; touch-up 12). It does not shine, show a face or speak.
+- Clergy are women, veiled (to the waist for a celebrant). Knights are men.
+- Soldiers wear the iron: no helmet, no visible head, a slit in the breastplate, two masts on the
+  back. Only some wear a cape (the second oath), never all of them.
 - No text of any kind in a picture or in the clip.
 
 The ten-minute script written first, with its narration, is kept in `intro-long-script.md`.

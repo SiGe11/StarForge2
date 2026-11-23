@@ -22,6 +22,7 @@
           <ui:VisualElement class="m-brand-text" picking-mode="Ignore">
             <ui:Label class="m-logo" text="STARFORGE" />
             <ui:Label class="m-logo-sub" text="ADAPTIVE  WARFARE" />
+            <ui:Label class="m-logo-motto" text="APTENDE  WERRE" />
           </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement name="mainNav" class="m-nav" />
@@ -58,7 +59,7 @@
           <ui:Label name="mapStats" class="m-mono m-mono--muted" text="" />
           <ui:VisualElement class="m-legend" picking-mode="Ignore">
             <ui:VisualElement class="m-dot m-dot--blue" /><ui:Label class="m-legend-text" text="YOUR BASE" />
-            <ui:VisualElement class="m-dot m-dot--red" /><ui:Label class="m-legend-text" text="HOSTILE" />
+            <ui:VisualElement class="m-dot m-dot--red" /><ui:Label class="m-legend-text" text="RED WING" />
             <ui:VisualElement class="m-dot m-dot--ore" /><ui:Label class="m-legend-text" text="ORE" />
           </ui:VisualElement>
         </sf:SFFrame>

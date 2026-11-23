@@ -114,6 +114,16 @@
     color: #4fd1ff;
     margin-left: 4px;
 }
+/* The war college's motto in the Old Language under the tagline (docs/lore/old-language.md). */
+.m-logo-motto {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 10px;
+    letter-spacing: 7px;
+    color: #4fd1ff;
+    opacity: 0.5;
+    margin-left: 4px;
+    margin-top: 3px;
+}
 .m-main-side {
     flex-grow: 1;
     align-items: flex-end;

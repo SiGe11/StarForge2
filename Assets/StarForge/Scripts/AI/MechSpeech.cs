@@ -94,7 +94,7 @@ namespace StarForge.AI
         /// voice and what no line may answer): 407-490 any Mech's, 491-506 two for each
         /// order, said only by that order's Mech (<see cref="Line.order"/>).
         /// {pilot}, {callsign} and {order} are filled in from the Mech's design.</summary>
-        public const int LineCount = 506;
+        public const int LineCount = 519;
         public static readonly Line[] Lines = BuildLines();
         static readonly int[][] ByBucket = IndexBuckets();
 
@@ -597,12 +597,12 @@ namespace StarForge.AI
             A(428, "I kept my purpose when I lost the power to act on it. Your soldiers are being asked for less.", 1f, Cue.Hard);
             S(Moment.Any, Tone.Superior);
             A(429, "I was lit at a fire you have only read about. Do not ask whether I miss it.", 1.4f);
-            A(430, "One host would relight it and one would bury it. I guarded it, and I have learned to distrust both ambitions.", 1.2f);
+            A(430, "One wing would relight it, one would bury it, and two would carry it elsewhere. I guarded it, and I have learned to distrust all four ambitions.", 1.2f);
             A(431, "No one can make another of me. I mention it only to explain my caution.");
             A(432, "The Empire is seven centuries old. I try to be patient with the young.", 1.2f);
             A(433, "My makers left no names. Only work that outlived them. I am content to be evidence.");
             A(434, "Your Empire is ruled from a star nobody has visited twice. I have served stranger arrangements.");
-            A(435, "The Host built the Ironclad in my likeness. It has no core and nothing to say. I am told it is reliable.");
+            A(435, "The old houses built the Ironclad in my likeness, and the Host kept the pattern. It has no core and nothing to say. I am told it is reliable.");
             A(436, "I remember the night the fire failed. I am not going to tell you about it.", 1.3f);
 
             S(Moment.Victory, Tone.Solemn);
@@ -629,7 +629,7 @@ namespace StarForge.AI
             A(452, "A thing may keep its purpose and lose a battle. I have done both, more than once.", 1.2f);
             A(453, "We are beaten on this ground. The oath did not mention this ground.");
             S(Moment.Defeat, Tone.Superior);
-            A(454, "Both wings will cite today as proof of their case. They always do. I stopped keeping count long ago.");
+            A(454, "Every wing will cite today as proof of its case. They always do. I stopped keeping count long ago.");
             S(Moment.Defeat, Tone.Bad);
             A(455, "Badly done. I have watched hosts lose with more care than that.");
             A(456, "They knew what you would do because you had done it before. Their file on you is thicker now.", 1.2f);
@@ -713,6 +713,31 @@ namespace StarForge.AI
             O(Ninth, 496, "The Vigil was there. That is all it says, and I say less.");
             O(Crown, 500, "We broke a crown once rather than hand it over. A line is less to ask of us.");
             O(Brazen, 506, "The other orders dispute our descent from the forge-hands. They are welcome to dispute it with the hammer.");
+
+            // ---- 507-519: the expanded lore (2026-11-23): the iron, the houses' walkers, the lance,
+            // four wings, the hours. 514 is the one Old Language line (old-language.md section 8:
+            // one phrase, the line reads without it; said at most once a match like every line).
+            S(Moment.Calm, Tone.Neutral);
+            A(507, "Every breastplate in your line has other names scratched inside it. See that today adds as few as it must.", 1.2f);
+            A(508, "My frame was forged in my order's hold. The gifts on it are your Host's. The core is older than both.");
+            S(Moment.Calm, Tone.Good);
+            A(509, "Keep the night, your people say at compline. It is sound tactical advice.");
+            S(Moment.Calm, Tone.Superior);
+            A(510, "The houses built walkers when no order would answer them. They still walk. They still have nothing to say.");
+            A(511, "Four wings, four plans for one hearth, and not one of them has seen it. I find the agreement touching.", 1.2f);
+            S(Moment.Any, Tone.Solemn);
+            A(512, "They fight faceless, as the Makers worked. Nobody asks the iron who is inside, and the iron does not say.");
+            A(513, "Every ninth night the halls go dark and are lit again from one flame. I have watched it a long time. It has not yet failed.", 1.2f);
+            A(514, "Lihtþeinto gangen. The rest of us still have work.", 0.6f, Cue.Costly);
+            S(Moment.Any, Tone.Superior);
+            A(515, "Knights call the Ironclad a kettle. It is unkind, and it is accurate.", 1.2f);
+            A(516, "The lance was licensed against knights who forget the oath, and against the houses' copies. I have forgotten nothing.");
+            S(Moment.Victory, Tone.Solemn);
+            A(517, "Their celebrants and ours will both be busy tonight. Nobody aims at a white alb. It is the last courtesy left.", 1f, Cue.Costly);
+            S(Moment.Critical, Tone.Good);
+            A(518, "Your soldiers swore to stand in their wing until released. Nobody has released them. Nor me.", 1.2f);
+            S(Moment.Defence, Tone.Good);
+            A(519, "Field walls, house corners and iron. The farmers would have recognised two of them.");
             return L.ToArray();
         }
 

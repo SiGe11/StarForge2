@@ -58,7 +58,7 @@ Narration is about 1,130 words, about 115 words a minute with the pauses.
 | 2 | 0:50-1:55 | The Bright Age | white-gold |
 | 3 | 1:55-3:00 | The Quenching | gold to black |
 | 4 | 3:00-4:10 | The Compact and the two hands | cold slate |
-| 5 | 4:10-5:00 | The light received, the Host in two wings | lamplight |
+| 5 | 4:10-5:00 | The light received, the Host in four wings | lamplight |
 | 6 | 5:00-6:00 | Vesper and the Seam Survey | moss and twilight |
 | 7 | 6:00-7:05 | The split Muster and the Silence | slate, blue, red |
 | 8 | 7:05-8:15 | The orders, the cores, the gantry | steel and ember |
@@ -83,7 +83,7 @@ Shots:
 
 - 1.1 (8 s) Black. One blue-white star appears and steadies. Silence, then a single chanting voice.
 - 1.2 (8 s) Slow tilt down from the star to a moorland valley at dusk: spruce, lakes, pale teal crystals in dark rock.
-- 1.3 (10 s) An army camp marked in blue. Soldiers kneel bare-headed in rows, helmets beside them, blue capes. A celebrant in white and gold raises a lamp to the sky.
+- 1.3 (10 s) An army camp marked in blue. Soldiers kneel in rows in the iron (headless grey plate, a slit in the breastplate, blue shoulders, two masts on the back), a few in blue capes. A celebrant, a woman veiled to the waist, in white and gold, raises a lamp to the sky.
 - 1.4 (8 s) Close: a thurible swings, incense rises past a parked tank's lowered gun.
 - 1.5 (10 s) Across the valley, small and far, a camp marked in orange-red doing the same thing at the same moment. The chant arrives a heartbeat late, like an echo.
 - 1.6 (6 s) Both camps in one wide frame, the star above. Hold.
@@ -161,15 +161,16 @@ Shots:
 - 4.7 (12 s) A ship's bridge in silence. A man in a heavy fur-collared cloak stands at the glass. Before him, filling the view, a blue-white giant star. He kneels.
 - 4.8 (8 s) The same star as a single point in the night sky above three different worlds in turn: a desert, a harbour, a snowfield.
 
-#### 5. The light received, the Host in two wings (4:10-5:00)
+#### 5. The light received, the Host in four wings (4:10-5:00)
 
 Narration:
 
 > The old sun-cult widened as we spread among the stars. Every sun is a star, every star a sun,
 > all light one kindred. Since the fire went out, the light can no longer be worked. Only
 > received.
-> And the Empire's army, the Host, is kept in two equal wings, Blue and Red, so that no captain
-> ever commands all of it. The same equipment. The same ranks. The same oath, sworn under the
+> And the Empire's army, the Host, is kept in equal wings, so that no captain ever commands all
+> of it. Two at the founding, Blue and Red. Four since a cautious Khan split them: Green and
+> Yellow beside the old two. The same equipment. The same ranks. The same oath, sworn under the
 > Brightest Star: by the hand that holds, and the hand that blesses.
 
 Shots:
@@ -177,7 +178,7 @@ Shots:
 - 5.1 (9 s) The Great Liturgy at night: celebrant and people all facing the same way, toward the altar and the open sky; lamps, incense, kneeling.
 - 5.2 (7 s) Close: a shallow silver dish of water standing on a parapet under the open night sky, stars reflected in it.
 - 5.3 (8 s) A gloved hand dips a sprig in the dish and sprinkles a folded military standard.
-- 5.4 (10 s) A parade ground at dusk seen from above: an army drawn up in two exactly mirrored halves, one marked blue, one orange-red, an empty avenue between them.
+- 5.4 (10 s) A parade ground at dusk seen from above: an army drawn up in four exactly matched quarters, marked blue, orange-red, green and yellow, empty avenues between them.
 - 5.5 (8 s) Face-on: two soldiers, one of each colour, identical armour and rifles, right hands raised in the same oath.
 - 5.6 (8 s) A soldier kneels; an ankle-length cape in his wing's colour, edged with embroidered trim, is laid on his shoulders and sprinkled with water.
 
@@ -212,20 +213,25 @@ Shots:
 
 Narration:
 
-> The Muster was asked what should be done, and it split down the middle. The split fell along
-> the wings.
+> The Muster was asked what should be done, and it split four ways. The split fell along the
+> wings.
 > Blue would find the Starforge and relight it. The purposed things are failing one by one, they
 > say, and a people has a right to its inheritance. They are called Kindlers.
 > Red would find it and seal it cold, under both seals. The fire went home, they say, and to
 > take it down a second time is theft. They are called Keepers.
-> Each suspects the worst of the other.
+> Green would carry it whole to Matins, under both seals, for the two hands to decide together.
+> They are called Bearers.
+> Yellow would give it back to the orders, who guarded it before there was an Empire. They are
+> called Returners.
+> Each suspects the worst of the others.
 > Either the Khan or the Holy Mother could end this with a sentence. Neither has spoken. No wing
-> has been named rebel. Both landed on Vesper as lawful hosts of the Empire, to secure the site.
+> has been named rebel. Blue and Red landed on Vesper first, and Green and Yellow a season later,
+> each as a lawful host of the Empire, to secure the site.
 > So in law there is no civil war. There is a disputed custody.
 
 Shots:
 
-- 7.1 (9 s) A round stone council chamber full of house-captains. They rise and divide to the two sides of the floor, blue cloaks one way, red the other, leaving the centre bare.
+- 7.1 (9 s) A round stone council chamber full of house-captains. They rise and divide to the four quarters of the floor, blue, red, green and yellow cloaks, leaving the centre bare.
 - 7.2 (8 s) A captain in blue holds up an old lamp of Maker's work, dark and dead, and offers it to the chamber.
 - 7.3 (8 s) A captain in red lays his open hand flat on a covered stone hearth, as if keeping a lid down.
 - 7.4 (8 s) The Khan's high seat in the Camp, the man on it motionless, a line of messengers waiting unheard at the door.
@@ -244,21 +250,22 @@ Narration:
 > each of their war machines sits a core: a purposed mind, forged in the Bright Age. Nobody can
 > make another. Since the Quenching a core can think, remember and advise. It cannot move a limb
 > without a sworn human hand.
-> The orders swear to neither Khan nor Mother, and to neither wing. But by ancient right, any
-> lawful host that raises a gantry is owed one knight and one core. Once. And because both wings
-> are lawful, the orders answer both.
-> Your knight will not take your orders. It will tell you what it sees. Whether the quiet voice
-> you sometimes hear is the knight's, or something older, the orders decline to say.
+> The orders swear to neither Khan nor Mother, and to no wing. But by ancient right, any lawful
+> host that raises a gantry is owed one knight and one core. Once. And because every wing is
+> lawful, the orders answer all of them.
+> Your knight will not take your orders. He will tell you what he sees. The quiet sayings he
+> passes on, the orders say, are the core's, and only he hears it. Whether that is so, the orders
+> decline to prove.
 
 Shots:
 
 - 8.1 (8 s) Orbit over Vesper. Dark, plain ships hang in a loose line. On their hulls, simple painted devices: a white ring, an unlit lantern, a broken crown, a single ember, a hammer.
 - 8.2 (9 s) A vault aboard ship. An old dark-metal object the size of a barrel rests in a cradle, a faint steady light behind its grille like a banked ember. Lamps, not screens.
 - 8.3 (8 s) A knight in plain dark armour kneels and rests a bare hand on the grille. The light inside does not change.
-- 8.4 (8 s) Fitters swarm a modern walking frame in a launch bay, swinging weapons onto its arms in haste. The core is lowered into its chest and the plates close.
+- 8.4 (8 s) Fitters swarm a modern walking frame in a launch bay, swinging weapons onto its arms in haste. A sealed, unlit casket is lowered into its chest and the plates close.
 - 8.5 (8 s) On the ground at the edge of a blue-marked base: a steel gantry beside a landing pad, floodlit, empty, waiting.
 - 8.6 (12 s) The drop: a nine-metre war machine falls through dusk cloud on retro-rockets, lands in a blast of dust beside the gantry, straightens. A cloth standard unfurls from its back.
-- 8.7 (9 s) Scale: soldiers in blue capes look up at it from knee height. It turns its head toward the far ridge, not toward them.
+- 8.7 (9 s) Scale: soldiers in blue-shouldered iron look up at it from knee height. It turns its head toward the far ridge, not toward them.
 - 8.8 (8 s) Far across the valley, in the red camp, an identical gantry, and a second machine coming down.
 
 #### 9. The war that eats its own map (8:15-9:20)
@@ -266,11 +273,11 @@ Shots:
 Narration:
 
 > And so, the war. There is no front line. There are a hundred small fields along the seams,
-> each wing following the ore toward an origin neither has reached.
-> You will have noticed the difficulty. The seams are the only map to the Starforge, and both
-> wings dig them up to print tanks. This war eats its own map.
+> each wing following the ore toward an origin none has reached.
+> You will have noticed the difficulty. The seams are the only map to the Starforge, and every
+> wing digs them up to print tanks. This war eats its own map.
 > One caution, from my own office. Before the split, the Annalists kept a file on every officer
-> of the Host. When the wings parted, each took half the archive, and all of the habit. The
+> of the Host. When the wings parted, each took its share of the archive, and all of the habit. The
 > officer across the field from you is served by a staff that studied you in peacetime. They
 > see only what their own soldiers see. But they amend your file after every engagement.
 > Fight the same battle twice, and they will be waiting for it.
@@ -293,7 +300,7 @@ Narration:
 > A few surveyors hold one more opinion, and it is not in any report. Twin seams, from one pour,
 > all running back to one place. They wonder whether the teal does not point to the Starforge at
 > all. Whether it is the Starforge: broken on the night of the Quenching, and scattered.
-> If they are right, there is nothing to find, and both wings are feeding it into their
+> If they are right, there is nothing to find, and every wing is feeding it into its
 > foundries by the tonne.
 > That is not your concern, Commander. Your field is waiting. The first star is up.
 > They are already singing.

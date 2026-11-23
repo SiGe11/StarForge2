@@ -1669,6 +1669,7 @@ namespace StarForge.UI
             int t = Mathf.FloorToInt(world.time);
             endSubtitle.text = $"{t / 60}:{t % 60:00} · opponent {bootstrap.AI.Difficulty}";
             if (world.ReckoningTeam == me) endSubtitle.text += " · cheat mode: the animals had the last word";
+            else if (!MatchSettings.spectate && result == 0) endSubtitle.text += " · Lihtþeinto gangen: gone into the light";
             ((Button)rematchNav.el).text = MatchSettings.spectate ? "WATCH AGAIN" : "REMATCH";
             root.Q<Label>("vsLeft").text = MatchSettings.spectate ? "BLUE" : "YOU";
             root.Q<Label>("vsRight").text = MatchSettings.spectate ? "RED" : "OPPONENT";
