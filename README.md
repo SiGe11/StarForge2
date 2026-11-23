@@ -1298,6 +1298,354 @@ structure came apart); this last one is not yet identified.
 
 ![A blast: fireball, thrown debris, scorched ground and a damaged Sentinel glowing through its seams](docs/explosion.png)
 
+## Measurement records
+
+Dated measurements, A/B histories and evaluation tallies that the area notes (the folder `CLAUDE.md` files) point to as `README › <area>: <block>`. The rule, reason or target each one supports stays in its area file; these are the records behind them, kept as they were written.
+
+### World: Simulation
+
+*From the World notes (No managed garbage in per-frame paths, and UnityEngine.Object.name is garbage (a new strin…):*
+
+2026-11-20, AI against AI: 28.0 KB and ~200 allocations a frame before, 8.1 KB and 50 after (the rest: `NavIslands` triangulation, `Commander.OwnOf`, `Perception.Forget`'s `RemoveAll` closure, the HUD).
+
+### World: Targets, Diggers, match end
+
+*From the World notes (A target a unit picked up itself gives way (Unit.UpdateCombat): idle, holding, attack-movi…):*
+
+-- current rule 6 wins in 25 (0/5 in a Full eval, then 1/5, 1/5, 3/5 and 1 of 5 seed-1148 replays), old rule 5 in 20 (2/5, 1/5, 1/5, then 1 of 5 replays); the current rule lost twice, both on seed 1148 in a Mech base trade (its army collapsing as their Mech pushed in), but five replays of that seed under each rule came out the same (1 win, 4 caps, no loss), so 2 losses in 25 against 0 in 20 is chance at this sample. Every cap under either rule is the Macro side's Mech holding its bay (43-95%, 40-159 kills);
+
+### World: Tactical combat
+
+*From the World notes (Fight does not reach its target on today's maps. Six among cover against eight over open g…):*
+
+An earlier 10 of 12 was an artefact: plain soldiers kept suppression for good, and their aim with it.
+
+*From the World notes (Checks (Editor, 2026-11-04, map random per play, TacticalTrials): Squads: five together on…):*
+
+- Checks (Editor, 2026-11-04, map random per play, `TacticalTrials`): `Squads`: five together one squad, three 50 m off another; two of five sent off stay two after 1.7 s, three left; a squad and a fresh man sent, the same squad remembering; plain Move 3.5 m/s, hurried 6.3; out of ToCover hurried running after 0.4-0.6 s, pinned under three rifles still down after 10 s; **eight attack-moving at six: 1 squad, over half moving for more than 0.3 s in 1.3% of 2,076 contact frames (target under 5%), moved in 21 of 21 turns, 26 m gained a man in 40 s; plain Move through them 0.0% of 2,134, 20 of 21 turns, 31 m, 2 of 24 there after 40 s (both sides at 400 hp), 1,092 rounds**; the halves 4.0 and 6.0 m off the line, 3.6 and 5.0: **flanking is slight on open ground**; four against ten: FallBack after 2.1 s, once in 25 s, a click on the line selects the 2 alive; four held by a Mauler: NeedAir once in 16 s. `SquadWalk`: 3.5 m/s ahead, 2.8 the rest, 5-6 m ahead; a man stopped to shoot a Foundry, or on a way round, stays behind; **sent after one 38 m off, 0 of 8 lost the order or target in 20 s with 33-45 stops, three fields**. `Orders`: **Move from cover under three rifles left at 0.1 s but pinned and 21 m off after 25 s** (it got there in 12.3 s before Move was careful: hurry is the answer, and only suppressing them unpins him); Hold 0.2 m, 11 shots; the same attack-move asked every 0.5 s under cover or pinned 93%, 1.1 m; Idle stayed Idle. `Match`: 480 s at 8x, 0 exceptions, 1,440 rounds, 80% struck, kills 103 and 83, 5.2 squads formed a minute, **reports 10 and 7, 2.1 a minute both sides**. Switch off, Quick on this code: 3 of 4 won, Macro capped at 720 s, 0 lost, 0 exceptions (the last Quick 4 of 4; caps against Macro came in earlier Full runs too, so one game says little; the off path was also read through by the reviewer: every new branch inert). `CoverGoal` (sent under three rifles from 12 m off to 1.2 m behind a rock, five rocks): on three pinned on the way, order still Move after 25 s, 1.9-10.2 m short; on two the order ended after 2.6-3.6 s, one staying put, one moving 4.8 m on to other cover as an Idle man (target under 2 m, not met); none walked out of cover for the last metres. `Restart`: three matches in one session by the menu's way back, the new rules each time, 0 exceptions. **Unity 6000.6.8f1 with the merged models:** Quick with the new combat on (then asked for with `EvalNewCombat`, deleted since; the Commander was not tuned to it): 3 won, Turtle capped at 720 s, 0 lost, 0 exceptions, 1,583-3,330 rounds, 37-74 squads formed, 10-21 reports a match (about 2 a minute both sides). Player `-sfbench 420 -sfplay -sftactical`, High, AC charged, one run, not paired: 51.0 fps, 51.0 with a Mech in view, scale 0.65 (0.60), 1,788 rounds, sight 0.100 + lines 0.046 ms a frame, worst 78.7 ms, no stall. With squads on: `Cost` 253 units, 200 soldiers standing, sight rules 0.290 ms a frame (target under 0.5); `Walls` behind its own Garrison 1 round on the wall in 38 (0 in 15 runs before), the way round 33-60 m by path, first shot after 4.8-11.0 s, gave up never, 3 of 3; on ground with no path stood firing where a round reached them, 4 of 4. `FightWide` (`UseSeed1000` first; about 11 minutes): six among cover against eight, both thinking, with squads on, 3 of 12 (2 of 12 without; target 4 of 5, still missed: phase 5's low walls judge it), both plain 1 of 12 (4 of 12 before: the plain sides have no squads, so that is chance), 27-72 s against 11-27 s, and the same one field never makes contact.
+
+*From the World notes (Checks (Editor/TacticalArmsTrials.cs, Editor, 6000.6.8f1, 2026-11-04, map random per play)…):*
+
+- **Checks** (`Editor/TacticalArmsTrials.cs`, Editor, 6000.6.8f1, 2026-11-04, map random per play). `Grenades`: 6 open fights of 22 s, 13 frags and 13 smoke (20 smoke before the squad's wait went to 15 s), **0 frags with a friend in reach at landing or at burst, 0 friends hurt**; friends mixed among the enemy 18 m off: 1 frag, 0 with a friend in reach; a frag thrown at the middle of a 1.6 m rock cost a man 3.1 m from it 52 hp; a frag on a friend at 10 hp: dead, +1 friend hurt, +1 lost, 0 enemy kills, 0 alarms. `SmokeSight`: three fields, seen before, unseen both ways during, the ground behind unseen, 0 rounds through it in 6 s, seen after; a man under three rifles popped his own 4 of 4, after 2-7.5 s. `Flash`: 3 and 5.5 m stunned, 10 m not, behind a rock not (men who ran first were not, as they should not be). `Sidearms`: a Thumper at 5 m 14 pistol rounds and no mortar, at 20 m the mortar; a Rocketeer or Marksman at 4-5 m the pistol until he has run clear, then his gun; a Scorcher at 14 m the pistol; at 1.4 m the knife 8 times in 8 s; a Rocketeer by a Mauler 3 rockets, no pistol; a Thumper 2-3 m from a man behind a rock takes the one in the open with its mortar (48-72 hp); a Trooper hurried past an enemy 7 pistol rounds. `Restock`: 2/1/1 back by a Garrison in 45 s, 0/0/0 in the field. `Types`: a Thumper 0 shells with a friend by the target, 5 without; a long rifle strikes 94% at 30 m against the rifle's 47%. `Look` (`Temp/arms_look_*.png`): five rigged types in three stances, frag, flash, cloud. Rule trials on this code: `Orders` Move from cover there after 11.1 s, Hold 0.6 m, repeated attack-move 78% under cover or pinned; a Move while pinned reached cover 7 m short of its place and ended there (`CoverIsThere`, 6 m). `Pin` three rifles 2.2-3.8 s, one 4.3-13 s. `Hits` real firing at 20 m 66-70% at 1x, 77% at 8x. **`FightWide`: 4 of 12** (3 with squads alone, 2 before; target 4 of 5, for phase 5's low walls), 12 frags, 23 smoke, 4 flash, 19 pistol rounds, 0 stabs, 0 friends hurt, 2 men stunned; it can take over 11 minutes (`wait` with a long limit). **Player** `-sfbench 420 -sfplay -sftactical`, High at 0.60/0.35, AC charged, one run: 41.3 fps, 42.9 with a Mech in view, scale 0.72 (0.64), worst 5 s 36.6, worst frame 67 ms, no stall, 0 exceptions (41.6, 41.4 before the review's fixes). Quick with it on: 4/4, 0 exceptions. **Switch off, Full on the final code: 19 of 20 won, 1 cap (Macro), 0 lost, 0 exceptions, desertion in 1 of 20.** **The last batch** (2026-11-18, all 0 exceptions, after the review's fixes; the rule trials run with mistakes off, `RulesOnly`): `Magazines` in 30 s: Trooper 41 rounds at 20 m (at most 43 by its cycle), Marksman 9 (9), Rocketeer 15 (16), Scorcher 78 ticks (83), Thumper 10 (11), Gunner 110 (107 on average: it starts on a full belt), each 2 reloads or one a round; a Trooper with an enemy 11 m off 10 pistol rounds while reloading (overlapped reloads before the fix: Marksman 11, Rocketeer 17, over what the old cadence allows). `Mistakes` (three fights of twelve a rank): 23/18/9/3% of judgements; a green with a rank-3 man in his squad judges as rank 3. `Hulks`: a dead Mauler leaves 1 record (radius 1.3, height 1.5) and 1 wreck; on the field with the least else to get behind (0 rocks or trunks within 13 m) a man 5 m beside it under three rifles is in cover 1.9 m from its middle after 18 rounds, the place behind it walkable, reachable and sheltering 3 of 3 lines; on fields with folds or rocks he may take those instead (5.9 and 11.5 m off: a fold he could shoot from scores higher, by design); with a fight 9 m off it is still there 84 s after the death; gone 20 s after the fight ends (target 20-22), its wreck 15 s later; a dead Gorehorn leaves 0; a man by a friend's live Mauler under three rifles is in cover 1.9-2.1 m from it in 4 of 5 runs, the tank taking 252-399 hp of rounds. `Gunner`: pins a man 26 m off in 1.7-2.8 s, 4 of 4, against a Trooper's 1 of 4 in 20 s (each run prints rounds, peak suppression and how long he was seen: a man lying down at 26 m drops from sight); `GunnerClassic` refused (a trial deleted with the old combat). `Squads` (mistakes off): over half moving 0.2-1.1% and 0.6-1.0% of contact frames; four against ten FallBack after 2.2-3.3 s, the line rings those alive while pointed at and 0 after, a click selects them; four held by a Mauler NeedAir (FallBack-outgunned before the order rule). `Sidearms`, `Grenades` (13-20 frags, 0 with a friend in reach at landing or burst, 0 friends hurt), `Types`, `SquadWalk` as before; with mistakes on, `Sidearms` saw a Marksman 30 m off draw his pistol after a poor cover pick took him within 15 m. **Not exercised:** a thrower dead before his burst and a deserter in a burst (read, not run); capes on the rigged types; up to 12 clouds' cost; a Marksman retargeting from a man behind a rock (the staged field gave him no line to the other either); `Duels` under the new rules (phase 8).
+
+*From the World notes (Phase 5 checks (Editor, Unity 6000.6.9f1, 2026-11-18, after the review's fixes, 0 exceptio…):*
+
+- **Phase 5 checks** (Editor, Unity 6000.6.9f1, 2026-11-18, after the review's fixes, 0 exceptions). `BugTrials.MapSweepCover` (200 seeds, 170 s; the deformer is `Init`ed for each generated map, so the ditches are really dug: before, they went into the first map's detached copy and the sweep said nothing about them): bases not joined 0, a start off the NavMesh 0, ore unreachable 0, clusters dropped 0, wall middles a ground unit stands on 0, seeds with no soldier's path 0, **ditches a ground unit goes round 0** (of 687); 10.4 clusters and 3.4 ditches a map, 33 seeds under 8 clusters (4-7). `MapChecks.Report` with cover, map 1000: low walls 38/38, ruin walls 21/21, ore and structures 43/43, bases joined; trees 158/159 (as on the classic map). `TacticalCover.Map`: of 32 low walls a round at a crouching man behind stopped 32, one from a standing gun over it clear 21 (the rest: that far point on uneven ground, or another wall of the cluster). `TacticalCover.Vault`: 4 of 4 vaulted and there, the vehicles' way the longer each time; a round at a man lying on a ditch's bottom stopped 5 of 5. **`TacticalCover.Shots`** (rounds by `DecideShot` at a man on a low wall's cover spot, from a standing rifle across it): ducked 0.0/0.1/0.8% at 10/20/30 m (2,700-3,000 rounds each, `DuckedClear` 1.02; 0.0% at 1.04; with his head at 1.15 m 0.7-8.8%, and the review's 15% at 20 m with the old 1.0 m walls), up over it 78/30/17% (73/20/10% with a 1.6 m rise, tried 2026-11-20 and taken out, below), the same man in front of the wall 96/48/28%; a man in a wall's slab has a line wherever he has one just in front of it (38 of 38), and fired rounds struck him 81% from its faces against 84% in front of it (they stopped in the wall before `inside`). **`TacticalCover.Crush`**: a Mauler through a low wall 3 of 3, smashed after 2.0-2.4 s, the piece gone, rounds and the ground NavMesh through the gap 2.5 s later, a friend on its band unhurt. `AgentPlay.IslandReport` on a cover map: 51 islands, 0 joined to the main one. `Cost` 0.190 ms a frame (before the fixes). Quick with the switch on after the first fixes: 3 of 4, Macro capped, 0 lost; and after the second: 3 of 4, Macro capped at 720 s, 0 lost, 0 exceptions. Switch off, Full on the code before the fixes (they touch no off path): 17 of 20, 3 caps (Macro 1, Turtle 2), 0 lost, desertion in 2 of 20. **Player** `-sfbench 420 -sfplay -sftactical`, High at 0.60/0.35, 6000.6.9f1, AC charging at 75%, one run, map 1000 (10 clusters, 5 ditches): 41.0 fps, scale 0.76 (0.70), worst 5 s 37.0, worst frame 125 ms, 1,180 rounds, sight 0.112 + lines 0.095 ms a frame, 0 exceptions. **`TacticalTrials.FightWalls` (six behind a wall of the map's, eight attack-moving at them from 48 m, both thinking): 2 of 5 fields and a draw over four maps after the two reviews' fixes (1 of 3 and a draw after the first, 1 of 1 and 0 of 1 after the second; 1 of 9 before; target 4 of 5, carried from phase 2): missed.** The six were in cover only 23-63% of each fight even with room for three a wall and the pinned keeping their cover, and in cover struck 6-22% (mostly while up over it); one field a map is thin evidence. Why so much of the fight is spent out of cover is not traced: phase 8, or the user's call when playing. **Finishing pass (2026-11-20, `TacticalTrials.FightWallsDiag`: the both-thinking pass alone, saying for the six what each state cost them, when each first got into cover and who fired first; one field or none a map, so fresh maps by `editor.sh stop`/`play` in a loop, `Art/Source/staged/combat/fightdiag_*.txt`):** on the phase 8 code 3 of 5: missed, and **the user accepted about half as the target (2026-11-20)**, so it is not to be tuned further. Two rules were tried and taken out after the review, neither showing a measured benefit (Fisher p 1.0 and 0.42): staying up over a wall to fire while suppression is under 0.15 (6 of 10; its return to the rhythm could duck a man for one 0.26 s look, and it reached boulders, ditches and crater rims as well as walls, since `RiseOver` is a line's geometry, not a wall's tag), and counting a risen man 1.6 m tall (with it 6 of 14 and 2 draws; it left his eye, his spotting point and the drawn rig at full height)); and, last, a man up over cover resting his rifle on it with a prone man's steadiness (8 of 14 and a draw, 57%). Per round the rise did what it says (`Shots` above), but the fights did not move: **the eight, stopped beyond 15 m, lie prone, and a prone man at 30 m is about as hard to hit as one firing over a wall** (rounds struck about 20% either way), so eight against six is decided by numbers. Per share of the fight, up over a wall cost the six 6-8.5 hp a percent, at a rock's edge 2-3.5, down behind it about 1; the fields the six lost they fired fewer rounds than the eight (39-83 against 82-110). Marking upright men before prone ones at range made it worse (3 of 11: the eight then took the risen six) and was taken out. Call `ClearSeed` first: `UseSeed1000` holds for every Play after it, and map 1000 offers no wall site the trial takes.
+
+*From the World notes (Tanks (phase 6, Unit.Vehicle.cs, GameWorld.Vehicles.cs, TacticalRules.IsTank: Mauler, Lanc…):*
+
+Checks (`Editor/TacticalVehicleTrials.cs`, `TacticalVehicles.*`, 6000.6.9f1, 2026-11-20, 0 exceptions): `Guns` machine gun 100% of 93 rounds at the men, main gun 91% of 11 shells at the Lancer (targets 80%+; since the range pass its Lancer, 30 m now, shot first and the Mauler smoked itself in, 7 rounds and 1 shell a field, so the Lancer holds fire in it: 100% of 80 and 88% of 8 after the deletion, with the machine gun's longer reach); `Smoke` 5 of 5 within 0.1 s of the first rocket, 2 charges, a Workshop's refill; `Friends` 0 shells while a friend stood by the target, 5 once he moved off; `Backoff` (an idle Mauler, two Rocketeers sent at it; the fields follow the map, so read it over several plays) **with hold-and-suppress 4, 3, 4, 2, 3 and 2 of 5 over six maps** (18 of 30 fields; the first three: in their reach 61% of the time against 78%, hull lost 192 against 258; target 4 of 5 a map, met on two of six). The pure back-off read 5 of 5 on one map and then 2-4 of 5, 8 of 15 better on both counts, its hull 221 against 186: it cut the time in reach but not the hits.; `Instinct` Diggers ran 5 of 5 and 4 of 5 went back to work, Skitters at 25% broke off and came back 3 of 3 (after the deletion: the trial's Diggers all mine within 25 m of their Foundry, where they work on by rule, so the trial now also puts one Digger to ore 35 m+ from every Foundry of ours: it ran from the rifleman and went back to work; Skitters broke off 2-3 of 3 and came back 3 of 3); `CoverRounds` (guns held 10-15 m off, a spotter of theirs) behind a wall 0 hull lost against 1,307 in front on one map, 793 against 1,391 on another (open: a wall that leaks). On-path balance (`RosterTrials.DuelsPhase6`; `MechDuel.RunBaseFreshAll`; while the switch lived, `TacticalTrials.NewCombatOn` first): before phase 6 Mauler 10-6, Lancer 11-5, Aegis 7-9, Ironclad 9-7, Skitter 5-11, Spitter 11-4-1, Gorehorn 6-10, the bare Mech to 6.3 Maulers and 6.4 Troopers (10.2 under the old rules); after its rounds (before the review's fixes and phase 8's balance) Aegis 12-4, Ironclad 12-4, Skitter 2-14, Gorehorn 4-12, the Mech to 6.3 Maulers and 4.9 Troopers; **on the final code** (2026-11-20, after phase 8's balance and every fix) Mauler 10-6, Lancer 10-6, Aegis 8-7-1, Ironclad 10-6, Skitter 8-7-1, Spitter 10-6, Gorehorn 7-8-1: the x0.6 and x1.3 hold. `Guns` on the final code: machine gun 100% of 75 and 94 rounds at the men, main gun 88% of 8 and 90% of 10 at the Lancer. `TacticalVehicles.Outranged` (an idle Mauler, then a lone Sentinel, three riflemen sent at it from 40 m): answered within 10 s of the first rifle round in 5 of 5 and 4 of 5 fields, but the riflemen close in to 10-28 m on their attack order, so it reads the tank's or tower's own reach, not an answer from beyond it.
+
+*From the World notes (The four-line budgets are spent best first, on a deferred queue (NearestShootable, TankGun…):*
+
+**Tried and taken out, in order:** the grid's order (four men behind a wall used every look); best first with a hard four (four nearer men behind cover and the gun was silent every look); a place in the list handed on and aged after 1 s (committed fc5e0e5: with five or more armed men blocked the fall-back never reached a Digger, a Lancer between rounds looked at the same four, and risers let the fall-back hand over an unarmed target while an armed man showed); a 2.5 s clock memory (a riser stayed blocked through his next time up); a memory stamped on place (any movement voided it: the hard four again for movers); the first queue (a 1 s wait before a retry left every other look empty with four or fewer, and a crowd that kept changing stance starved the rest); a 30 s reuse of memory slots (it evicted men still in the list).
+
+*From the World notes (The four-line budgets are spent best first, on a deferred queue (NearestShootable, TankGun…):*
+
+**Checks** (`TacticalVehicles.*`, map 3469857940 by `UseLineBudgetSeed`, which holds for every Play until `TacticalTrials.ClearSeed`; the rest on map 1000; 2026-11-21, committed rotation against the queue on one tree): `LineBudgetFallback` (five men flat behind the wall, an enemy Digger past its end farther than they are; a field without the rifleman's line to it is dropped) never, never and 1.0 s against 0.8, 0.5 and 0.6 s (target 1.5 s); `LineBudgetRiseFlat` (four flat at the wall, four rising and ducking behind them) the gun on a man while he is up 20% against 42% on the field whose ducked men are hidden (pass 42%), 25% and 25% both ways on two fields where the ducked men keep a line (the staging, not the rule); `LineBudgetRise` 27-46% against 33-43% (the model reads them equal; 10 s fields); `LineBudgetWalk` (two men walking past the wall's ends; noMind men do follow `CmdMove`) 98-100% against 100%; `LineBudgetHide` 0 changes both; flat, mirror and crouched 0, 1 of 40, 0 both; `Guns` 100% of 84 and 88% of 8 against 100% of 115 and 100% of 11; `CoverRounds` 515 against 1,237 and 507 against 1,249; `CostMoving` in alternating pairs, walking lines 0.231 and 0.395 ms against 0.467 and 0.386 (the run-to-run spread), pickers 0.023 and 0.048 against 0.055 and 0.045; Quick 3 of 4, Turtle capped, 0 lost, 0 exceptions. **After the seventh review's fixes** (the line-free candidate, no slot reuse; the probes repaired: risers held in cover each frame and their places checked, 30 s fields, the gun's share of any-up frames; Walk's two lying flat behind four flat men; Fallback only where all five are seen), queue on map 3469857940 (the rotation's readings of these three ran on other maps, the recompile that swapped the rule in having reset the seed: they show the direction, not field-for-field pairs): `LineBudgetRiseFlat` the gun on a man who is up 66 / 59 / 66% and 75 / 54 / 60% of any-up frames, **no target while one was up 0, 0 and 5 of about 630 frames** (the rotation 43 / 0 / 22%, one field silent the whole 30 s); the share itself depends on the field's list order and phase (four looks are one rise cycle), so a gun with unlimited lines reads 27-90% there: judge by the frames with no target; `LineBudgetWalk` 91 / 93 / 95% (rotation 79 / 93 / 98%); `LineBudgetFallback` 0.3-0.9 s on three valid fields (rotation never; the same-map pair above: never, never, 1.0 s against 0.8, 0.5, 0.6 s); `LineBudgetRise` cannot tell the rules apart (four men, four lines a look): means 54, 64 and 68% against 65 and 65%, noise; `LineBudgetHide` 0 changes; `Guns` 100% of 115 and 100% of 12 (after the follow-ups below: 100% of 77 and 104, main gun 7 of 9 and 10 of 11 shells, 17 of 20 pooled; the follow-ups cannot reach that trial, nobody dies and `PickOpen` runs only from `CoverStops`); Quick 2 of 4, Macro and Turtle capped at 720 s, 0 lost, 0 exceptions.
+
+*From the World notes (The four-line budgets are spent best first, on a deferred queue (NearestShootable, TankGun…):*
+
+**With the queue in** (2026-11-22, 0 errors and 0 exceptions): `RosterTrials.DuelsPhase6` Mauler 11-5, Lancer 10-6, Aegis 7-9, Ironclad 8-7-1, Skitter 10-6, Spitter 11-5, Gorehorn 9-6-1, within the duels' run-to-run noise (the final phase 8 code's two runs, differing only in the Mauler's reach, came out differently in 15 of the ~75 fights without a Mauler, and the queue's run differs from the second in 14), so the Aegis and Ironclad x0.6 stands. Full 15 of 20 won, 0 lost, 0 exceptions, desertion in 2 of 20: Rusher 5, Macro 4, Turtle 1, Harasser 5 of 5. **Turtle undecided:** the direct baseline (F10 on the rotation, fc5e0e5) won Turtle 5 of 5 at 749 s on average, the queue 1 of 5 at 857 s (about p 0.05); over six recorded Fulls Turtle read 4, 4, 4, 1, 5, 1, and the 1 of 5 before the queue was on the code before F10. A plausible way in: `ShootableNow`'s fall-back to anything now comes within a second where the rotation never fell back with five or more armed men blocked, so a besieger that gave up its target may take a structure and keep it rather than walk on. **Decided by the A/B** (`TacticalVehicles.EvalTurtle`: the Full's five Turtle seeds, queue / rotation / rotation / queue, 0 exceptions): the queue 7 of 10 won, 3 caps, 0 lost, 803 s on average; the rotation 7 of 10, 3 caps, 0 lost, 746 s (wins p 1.0; length p 0.38 by permutation, per seed -124 to +322 s; with the two Fulls 8 of 15 against 12 of 15, p 0.25).
+
+*From the World notes (Switch-over and balance (phase 8). The new combat became the game's default, and then its…):*
+
+**After the deletion** (2026-11-20, 6000.6.9f1, 0 exceptions): `MenuTrials.Walk` 0 outside and 0 too wide on 18 pages; Quick 3 of 4, Macro capped, 0 lost; `TacticalAir.Dogfight` 1x 35 s, 8x 44 s, 0.25-0.27 hits a shot; Full 17 of 20 won, 0 lost, 3 caps (Rusher 3, Macro 5, Turtle 3), 0 exceptions, desertion in 3 of 20.
+
+*From the World notes (Switch-over and balance (phase 8). The new combat became the game's default, and then its…):*
+
+Full on it **19 of 20 won, 0 lost**, 1 cap (Turtle 2), 0 exceptions, desertion in 4 of 20 (run with the tank-answer rule below still in: it almost never fired); **on the final tree** a Quick 2 of 4, Macro and Turtle capped at 720 s, 0 lost, 0 exceptions, `Guns` machine gun 100% of 85, main gun 100% of 8, `Outranged` 4 of 5 (its miss is the known gap seen: riflemen held at 32.7 m, just beyond an idle Mauler's reach, and it never answered, 448 hull lost), `RosterTrials.AIvsAIAir` 601 s, 0 errors; the squad calls the Commander acted on, now on the evaluation line: 1 fall-back in 20 games, 0 calls for air
+
+*From the World notes (Switch-over and balance (phase 8). The new combat became the game's default, and then its…):*
+
+: `RosterTrials.DuelsPhase6` Mauler 10-6 (the same as at 32), `Outranged` 5 of 5 (at 32 its miss was riflemen held at 32.7 m), the Full with it 17 of 20 won, 0 lost, 3 caps (Macro 3 and 5, Turtle 4), 0 exceptions, desertion in 3 of 20.
+
+*From the World notes (Switch-over and balance (phase 8). The new combat became the game's default, and then its…):*
+
+Checks (2026-11-20, 6000.6.9f1, 0 exceptions): Quick under the new default 3 of 4 (Turtle capped), Full after the range pass (Sentinel 34, Mauler 32, Lancer/Aegis/Ironclad 30) and the home fall-back fix 18 of 20, **0 lost**, 2 caps, 0 exceptions (2026-11-20; before them 18 of 20 with 1 lost: Rusher game 2, the AI's army never passed 640, 22 Diggers lost, plan Turtle/Tech 96%; the final review's likeliest cause: every infantry gun but the Scorcher's now outranges the towers and tanks, Trooper 35, Thumper 45, Marksman 55 against Sentinel 20, Mauler 24: **a range pass for towers and tanks is phase 8's open item**) and 1 capped, desertion in 2 of 20; `MechDuel.RunBaseFreshAll` 6.6 Maulers (target 6-7), 6.0 Troopers; player `-sfbench 420 -sfplay`, High, AC charged, one run each: new default 40.7 fps (scale 0.76, worst 5 s 36.8), `-sfclassic` 42.6 (0.79, 35.6). Before the worker rule (25 m of their Foundry) the Quick was 1 of 4 (the Rusher game lost 42 Diggers).
+
+*From the World notes (Checks (Editor/TacticalTrials.cs, from a fresh Play at the menu, Editor, 2026-11-03, map r…):*
+
+Player, the code before the second review's fixes, `-sfbench 420 -sfplay -sftactical`, High, AC charged: 49.9, 49.6 fps (50.4, 48.8 with a Mech in view), 1,090 and 1,388 rounds, sight 0.086 + lines 0.009 ms a frame, 0 exceptions. Switch off, Full evaluation on the first review's code (nothing since changes an off match): 18/20 won, 0 lost, 2 caps, 0 exceptions.
+
+*From the World notes (Checks (Editor/TacticalTrials.cs, from a fresh Play at the menu, Editor, 2026-11-03, map r…):*
+
+Player with thinking, rigged soldiers (before `Orders`' fixes, which touch no drawing), `-sfbench 420 -sfplay -sftactical`, High, AC charged: 47.9 fps, 46.0 with a Mech in view, 1,057 rounds, sight 0.107 + lines 0.059 ms a frame, worst frame 125 ms, 0 exceptions. Switch off on the final code, Quick: 4/4 won, 0 lost, 0 exceptions.
+
+### World: Wider roster
+
+*From the World notes (Balance is measured, not guessed (Editor/RosterTrials.cs, play mode): Duels (every pair of…):*
+
+-- final round before the last Ironclad cut: Trooper 9-6, Skimmer 2-14 (a raider, unchanged), Mauler 10-5, Thumper 6-9, Scorcher 9-7, Marksman 5-11, Lancer 8-8, Aegis 9-7, Kestrel 8-8, Swift 10-6, Prospector 5-11, Skitter 8-7, Spitter 7-8, Razorwing 9-7, Rocketeer 7-9, Ironclad 13-3 (then 560 -> 480 hp, 26 -> 24 damage), Gorehorn 8-7;
+
+### World: Morale
+
+*From the World notes (Rare by design. Every 2 s each side is read; it is in a crisis only when at once: its army…):*
+
+At 55% / 400 / 2x the war gates passed only once the army was already gone (Full eval: 3006 of 4294 losing-side readings stopped at strength), so the decisive fight came before the side counted as losing: 0 desertions in 20 matches. With the war gates at 70% / 300 / 1.5x a crisis came 3 times in 20 matches, and at `BreakChance` 0.25 none broke.
+
+*From the World notes (Rare by design. Every 2 s each side is read; it is in a crisis only when at once: its army…):*
+
+With Mechs counted in the war and `BreakChance` 0.6: 2 of 20 (8 crises), both sides' Mechs already lost. With Mechs left out: 12 crises and 4 of 20 at 0.6; `BreakChance` 0.4: 3 of 20 (12 crises), then 2 of 20 (5 crises); wins 13-15/20 (one loss in one run, a match with no desertion on either side).
+
+*From the World notes (Rare by design. Every 2 s each side is read; it is in a crisis only when at once: its army…):*
+
+**Final `BreakChance` 0.25, rolls per opponent: 2 of 20 (13 crises), 13/20 wins; 2 of 20 (4 crises), 16/20; with the dying left out, 1 of 20 (7 crises), 15/20; with the rear-first pick, 1 of 20 (6 crises), 15/20; 0 losses and 0 exceptions in all four** -- 6 in 80 (about 1 in 13), each a lone soldier; before the rear-first pick 4 of 5 died 0-2 s after breaking, the one since 5 s after (its side was being routed, lost at 429 s).
+
+*From the World notes (Checks (Editor/MoraleTrials.cs, play mode; trials hold Commander.Suspended/3x through a st…):*
+
+; on the rear-first pick: rolls 0.43 then 0.24 against 0.35, broke at the second, verdict 8.8 s later; again 0.62/0.86/0.71/0.59/0.14, verdict 8.1 s later, put down each time
+
+*From the World notes (Checks (Editor/MoraleTrials.cs, play mode; trials hold Commander.Suspended/3x through a st…):*
+
+Before the Mech was left out of `SideStrength` and the verdict made patient, the punishment never followed a natural desertion (0 in 60 Full-eval matches).
+
+### AI: Perception
+
+*From the AI notes (A rusher who streams his units is read by the flow, not the peak (Perception.commitFlow ->…):*
+
+Full 2026-11-19 (Commander, 900 s, battery charging, 6000.6.9f1, 1,431 s wall): **20/20 won, 0 lost, 0 exceptions; Rusher read correctly 63% (45-78% a game) against 31% in the Full of 2026-11-18 on the same five seeds, Harasser 71% (71%), Turtle 84% (85%), Macro 11% (13%)**; flow mean / peak: Rusher 395 / 873, Harasser 155 / 425, Macro 24 / 138, Turtle 0 / 0.
+
+### AI: Wider roster
+
+*From the AI notes (The wider roster (Commander: TechBuildingWanted, PickInfantry/PickTank/PickAircraft/PickCr…):*
+
+Quick 2026-10-29 on this round: 4/4 won, 0 exceptions, a Mech-Hunter in 2 of 4 games, Haulers in all four; `AIvsAIAir` twice: 0 errors, Kestrels and Prospectors in the second, the programme bought by the air side in both but no Mech-Hunter fielded (open: it was ready late, or their Mech and bay were no longer known).
+
+*From the AI notes (The wider roster (Commander: TechBuildingWanted, PickInfantry/PickTank/PickAircraft/PickCr…):*
+
+Full 2026-10-27 on the roster: **20/20 won, 0 lost, 0 exceptions** (Rusher, Macro, Turtle, Harasser 5/5 each; before the roster 17/20), every new type but the Aegis trained (the scripted players field no aircraft, so it never needs one; `RosterTrials.AntiAir` -- AI against AI on seed 1000, team 0 given extra Kestrels from 200 to 560 s, topped up to six and attack-moved at team 1's base when idle (team 0's own Commander may take them into its squads too) -- has team 1, armour path, train 6 / 4 Aegis and 4 / 1 Marksmen in two runs; `AntiAirControl`, the same match with none given, 0 and 0; 0 errors; both put the match statics back when stopped part-way): Scorcher 240 in 20 games, Rocketeer 188 in 20, Thumper 68, Lancer 64, Hauler 61, Skitter 56, Spitter 41, Marksman 36, Kestrel 25, Prospector 23, Gorehorn 18, Razorwing 18, Ironclad 12, Swift 7; Armory research 90 levels (4.5 a game). Quick 2026-10-28 on the final roster code (review fixes and the WayBlocked clear-home branch in): 3/4 won (Macro capped at 720 s, both Mechs standing, theirs 62 kills), 0 lost, 0 exceptions, the roster trained in every game (Scorcher 13-22, Rocketeer 7-11, Lancer 1-13, Armory research 2-8); again with the capes in: 4/4, 0 lost, 0 exceptions.
+
+### AI: Variety and raids
+
+*From the AI notes (Variety. Commander.DrawPersonality draws a Personality from the match seed (opening, unit-…):*
+
+-- 2026-10-28 on the roster (fa7ccb5): 12/12 won (Rusher 383-657 s, Macro 697-875, Turtle 442-711, Harasser 341-534), 0 lost, 0 exceptions, 1 desertion in 12.
+
+*From the AI notes (Side raids (RunTactics, sideRaid): a personality with raidTaste > 0.5 (about half) builds…):*
+
+; Full 2026-10-21: raids beside another plan in 8 of 20 matches, 52 sorties.
+
+### AI: Budget and clocks
+
+*From the AI notes (Order loops stop at an empty budget (macro steps 5, 5b, 5c test Budget.Can(2)): past it ev…):*
+
+: Recruit Quick 2026-10-21 2/4 won, 0 lost, 12-27% refused, the rest the 90-APM cap working (Build's 3 a try, RunWave's re-orders).
+
+*From the AI notes (The Commander's timers keep their overshoot (Commander.Update, 2026-11-20, the bug hunt's…):*
+
+Full on one tree, Commander, 900 s, 0 exceptions both: before 16/20, 0 lost, 4 caps (Turtle), desertion in 4 of 20, read correctly Rusher 50% / Macro 10% / Turtle 89% / Harasser 34%, refused 2/2/2/4%; after 17/20, 0 lost, 3 caps (Macro), desertion in 3 of 20, 52/10/89/31%, refused 4/5/3/2%.
+
+### AI: Diggers and their Mech
+
+*From the AI notes (A Digger scouts only to find their base (RunScouts; looking for ore to expand to is SendEx…):*
+
+Full eval on the final rule: 12/20, 0 losses, 0 exceptions (7 of 8 caps their Mech holding its bay, as before); with the Mech training gate and the Digger reserve too: 15/20, 0 losses, 0 exceptions (all 5 caps their Mech alive), command fuzz seeds 2-5 clean, and both long-match stall maps decided (958 s, 400 s; 0 Diggers lost scouting).
+
+*From the AI notes (Their Mech's last sighting stays a danger for 30 s (MechLingers: within its 40 m reach of…):*
+
+Five Macro games, Diggers their Mech killed per game: before [24,0,28,37,0], [18,26,1,0,3], [0,18,0,0,30] (12.3 a game), the builder rule alone [24,28,0,0,21], the rules before the review's fixes [0,0,15,1,4] and [12,0,1,16,0] (4.9).
+
+*From the AI notes (Their Mech's last sighting stays a danger for 30 s (MechLingers: within its 40 m reach of…):*
+
+Full gate on the final code (2026-10-27, Commander, 900 s, Editor unthrottled in the background): 17/20 won, 0 lost, 0 exceptions (Rusher 4/5, Macro 3/5, Turtle 5/5, Harasser 5/5); their Mech killed [0,0,28,4,0] Diggers in its Macro games -- 5.4 a game over the 15 Macro games on the rules. The bad games (Macro 3: 28, Rusher 5: 16) are their Mech outliving its lost bay and hunting on at 23-91% hull (68-184 kills). **On the wider roster that has shrunk**: Full 2026-10-28 on HEAD (fa7ccb5, Commander, 900 s, Editor in front, AC charged): 20/20 won, 0 lost, 0 exceptions; their Mech killed 24 AI Diggers in 20 games (Turtle 3: 11, Macro 3: 6, Harasser 4: 3, Rusher 5: 2, Turtle 1-2: 1 each, the other 14 games 0; Macro 1.2 a game against 5.4).
+
+*From the AI notes (Their Mech's last sighting stays a danger for 30 s (MechLingers: within its 40 m reach of…):*
+
+-- Full 12/20 (Macro 0/5), 0 lost, fired 0-1 times a game
+
+*From the AI notes (Their Mech's last sighting stays a danger for 30 s (MechLingers: within its 40 m reach of…):*
+
+(Full 15/20, 0 lost, on the units refactor's assembly)
+
+### AI: Mech AI
+
+*From the AI notes (Two minds, one judgement (MechDoctrine.cs; the user's call): both Mechs fight the same cau…):*
+
+Gate: Full 2026-10-21 (Commander, 900 s) 15/20 won, 0 lost (5 caps: 4 Macro, 1 Rusher), the AI's Mech alive in 20/20, its calls heard (heeded or ignored) in 20/20, 0 exceptions -- the earlier Full runs at 13-16 are the bar; 16 Quick games at Commander, Recruit and Veteran: 0 lost, Mech alive and heard in all. Quick 2026-10-07: 2/4 wins, 0 losses; the AI Mech's time stayed cautious (vs Macro: guarding 25%, defending 9%, supporting 15%, hunting 21%, withdrawing 12%, repairing 13%); BayEdgeCases case 0: bay in its base down in 101 s, 0 fighting units lost.
+
+*From the AI notes (A hunt does not lead into their Mech's reach (MechBrain.FindPrey: prey within their Mech's…):*
+
+Five Macro games: withdrawing ~33% to ~18% of its time on average, waves 74 to 43, wins 1/5 either way -- the
+
+*From the AI notes (A hunt does not lead into their Mech's reach (MechBrain.FindPrey: prey within their Mech's…):*
+
+Gate: Full 2026-10-21 13/20, 0 lost, 0 exceptions (that day 15 before the round, 14 without this rule; 13-16 is the spread).
+
+*From the AI notes (A hunt does not lead into their Mech's reach (MechBrain.FindPrey: prey within their Mech's…):*
+
+BayEdgeCases on the final code: cases 0-9 0 exceptions, case 0's bay down in 111 s (1 fighting unit lost), cases 6/7 as before (the Digger dies on its way, the bay is never finished); one pass lost case 1 at 263 s, which six case-1 runs did not repeat (new rule bay down in 272-292 s, 13-17 units lost round it, no loss; old 277-322 s, 11-15, no loss): the spread of one match.
+
+*From the AI notes (Both Mechs go in beside a big attack on their Mech (MechDoctrine.commitWithArmy, true for…):*
+
+Five Macro games: 1/5, duelling 0-7% of the time -- near
+
+*From the AI notes (Both Mechs go in beside a big attack on their Mech (MechDoctrine.commitWithArmy, true for…):*
+
+Gate: Full 2026-10-22 14/20, 0 lost, 0 exceptions; the evaluation line's "their Mech's time" (the player's doctrine, for the scripted side) shows it hunting 12-78% of its time.
+
+*From the AI notes (Punishing deserters (MechBrain.Punish, rules in ../World/CLAUDE.md Morale): on its side's…):*
+
+**In a Full eval every desertion with a Mech on the field got a verdict (4 of 4: 2 punish, 2 spare), and one punishment put its deserter down itself** (Turtle game 1); the other "go" never found a free moment before its Mech fell 289 s later. Without a Mech the deserters mostly died to the enemy within a minute.
+
+### AI: Commander vs the enemy Mech
+
+*From the AI notes (A Mech lands seven minutes after its bay stands (GameWorld.MechDropDelay 420 s since 2026-…):*
+
+**Quick on this code (2026-11-04, Commander, 720 s, AC power and charged, 261 s wall): 4/4 won (447, 711, 541, 322 s), 0 lost, 0 exceptions**; their bay fell in all four, before its Mech in three; Rusher and Harasser ended before the AI's own Mech landed (its bay still up, 2 and 0 upgrades bought), Macro had both Mechs down (the AI's alive at 93% on 2 kills, 9 upgrades), Turtle the AI's alone (100%, 5 upgrades). **Full on the final code (same day, Commander, 900 s, AC power and charged, 1,549 s wall): 19/20 won, 0 lost, 0 exceptions** (Rusher 5/5 at 371-473 s, Macro 4/5 -- game 2, seed 1037, capped at 900 s with their Mech lost and their bay up, the AI's Mech alive at 77% -- Turtle 5/5, Harasser 5/5; 19/20 and 20/20 are the earlier Fulls' range); **both Mechs landed in 8 of the 20 games (the five Macro, three Turtle) and neither in the other 12, which ended before nine minutes: their bay fell before its Mech in every one of those 12**, in 19 of 20 games in all; the AI bought 7-10 upgrades in the games its Mech landed in, 0-3 in the rest; desertion in 2 of 20.
+
+*From the AI notes (MechNeed (450-950 by its guns since the Mech's scale round, 1,750-3,150 before; x its seen…):*
+
+In evaluations it is rare: massing began in 3 of 20 games in the Full of 2026-10-22, and none fired the stall rule. With the rule in `Plan` (since changed), five Macro games 2/5 against 1/5 without -- inside the spread; what it showed was fewer kills for their Mech (42 and 85 in two caps, 110-153 before). Full gate on the final code (2026-10-22, Commander, 900 s): 17/20 won, 0 lost, 0 exceptions (Rusher 5/5, Macro 5/5, Turtle 3/5, Harasser 4/5); massing began in 3 games and sent its massed wave in 2 (Turtle, at 565 and 835 s), none on a stalled army; Macro won 5/5 with massing in only one of them (the gain is not this rule's alone).
+
+*From the AI notes (Home defence counted units only and ignored a bay in the base. It now counts an enemy Mech…):*
+
+: 8 case-9 runs, team 1 won 6 (447-645 s), one 0 v 0 draw, one behind at the end (gated, the Mech roamed 118 m and took 23 Diggers; the rule decided once). Case 8's eight runs: team 1 won 4, ahead at the end in 3, behind in 1; bay down in 20-176 s.
+
+*From the AI notes (Home defence counted units only and ignored a bay in the base. It now counts an enemy Mech…):*
+
+Full on the scale round (2026-10-29, Commander, 900 s, Editor behind Safari at No Throttling, AC charged): **19/20 won, 0 lost, 0 exceptions** (Rusher, Turtle, Harasser 5/5, Macro 4/5: game 3 capped with the opponent at 3 structures, 0 Diggers, no army or Mech, against 3,055); Mech kills 1-34 a match (40-159 before), their Mech lost in 18/20 after 27-509 s, Macro wins at 551-636 s; no desertion in 20. Then with
+
+*From the AI notes (Home defence counted units only and ignored a bay in the base. It now counts an enemy Mech…):*
+
+: again **19/20, 0 lost, 0 exceptions**, the cap again Macro game 3 (seed 1148, five earlier replays of it 1 win and 4 caps under either rule: the opponent at 11 structures and 23 Diggers but an army of 50 against 875, out-mined 27k to 14k, massing from 561 s); Mech kills 0-32, their Mech lost in 15/20, 1 desertion in 20 (put down by its own Mech).
+
+*From the AI notes (Home defence counted units only and ignored a bay in the base. It now counts an enemy Mech…):*
+
+On HEAD (fa7ccb5 game files, this session): case 1 bay down at 293 / 196 s, 12 / 17 units lost; case 3 at 260 / 256 s, 5 / 5 lost, the AI's army and Diggers intact. On the cut: case 1's bay stood all match in 5 of 5 runs and the AI side collapsed (armies 0 at the end in 4, lost outright at 251 and 282 s), 13-49 units and 2-18 Diggers lost round it; case 3's stood in 3 of 3, 14-28 lost. The nerfed Mech rules with HEAD's AI values: case 3's bay down at 300-311 s, case 1 still bad (one loss at 282 s) -- so
+
+*From the AI notes (Home defence counted units only and ignored a bay in the base. It now counts an enemy Mech…):*
+
+On the code before the cut (3d766c3, one `RunAll`) the bay's side was wiped in case 2 and the other in cases 0, 4, 5 and 9; what the cut changed is cases 1 and 3 (bay down at 196-311 s and all 17 Diggers kept before).
+
+*From the AI notes (Home defence counted units only and ignored a bay in the base. It now counts an enemy Mech…):*
+
+Full with the first cut of the gate and the upgrades repriced: **20/20, 0 lost, 0 exceptions** (Macro 5/5, game 3 won at 562 s), Mech kills 3-37, 6-10 upgrades bought a game, 1 desertion in 20; on the final rule again **20/20, 0 lost, 0 exceptions** (Macro 5/5 at 637-730 s), Mech kills 2-36, 2 desertions in 20.
+
+*From the AI notes (Home defence counted units only and ignored a bay in the base. It now counts an enemy Mech…):*
+
+: `MechSpeech.Check` 406 lines, 0 problems; `MoraleTrials.PunishNatural` verdict 4.5 s after the break, unforced; Quick 4/4, 0 exceptions, Mech kills 4-11.
+
+### View: Capes
+
+*From the View notes (InfantryCape (made and ticked by UnitView, soldiers only: Eligible -- infantry class, not…):*
+
+(two runs: Trooper 0 / 22, Thumper 6 / 6, Marksman 8 / 7, Scorcher and Rocketeer 0 / 0; more where the Editor's frames ran long)
+
+*From the View notes (InfantryCape (made and ticked by UnitView, soldiers only: Eligible -- infantry class, not…):*
+
+Cost: player benchmark on seed 1000 with/without/with 51.1 / 51.2 / 50.3 fps (3-5 capes in that match); the full budget of 24 cloths is unmeasured on the player (a `-sfallcapes`/`-sfnocapes` series, run only while the user is away, had every run cut short) -- in the Editor (vsync off) 24 against none differed by less than its own few-ms spread, run to run (trimmed cape: 12.8 / 13.3, 13.4 / 13.6 ms cloth / rest).
+
+### View: Ironclad walk
+
+*From the View notes (Check IroncladTrials.Walk/WalkReport (play mode, ~2.5 min; wait ... "wrecks done"): 1x and…):*
+
+**2026-11-23, round 4 (the third review's D and F), map 1000, 6000.6.9f1, against round 3 on the same fields with the same trial** (straight / about turn / stop-start / 8-degree slope / 25-degree steep): **1x** drift 0.0 cm, landing and reach misses 0, one-sample swings 0, both up 0, re-lifts 0, standing 0 steps, in both; landing jumps 0.10/0.15/0.15/0.70/0.58 m against 0.18/0.18/0.23/1.22/0.81, one over the bound on the steep slope in both; speed jumps 0/0/0/1/0 against 0/0/0/0/1 (5 against 3 on hitch frames); the old swing pops 11 against 21 (round 2 on these fields had 0 swing pops and 3-6 landing slams a walk at 1.18-1.55 m); crouch 0.33 at most on flat. **8x**: landing misses 0/0 against 76.7 cm (8 degrees) and 19.5 (25), drift 0.0 against 19.5 cm, both feet up 0 against 6, standing 0 steps; re-lifts 49 against 43 and speed jumps 90 against 74 are a step of 2-3 frames of 150-200 ms. Earlier, on other fields: round 2's 8x standing took 17 steps (the twist rule on the hull's wandering yaw), and every version up to round 3 missed a landing on a 31-degree slope at 8x by 1.1-1.8 m (round 4 has not walked that field). 12 walking 0.157 ms a frame, ~13 us an Ironclad (Editor, Mono); both wrecks made, thrown and settled, the unseen one hidden; 0 exceptions. **Round 5 (`LongFrame` 0.05 s, the fourth review's notes) on 6000.6.10f1, same fields, round 4 run again first on the same engine:** 1x both rounds 0 everywhere (drift, misses, landing jumps over the bound, speed jumps, one-sample swings, both up, re-lifts, standing steps), landing jumps 0.12-0.19 m; 8x drift and landing misses 0, both up 1 each, landing pops 8 against 6, re-lifts 12 against 8; 10.6 against 10.0 us an Ironclad.
+
+*From the View notes (Check IroncladTrials.Walk/WalkReport (play mode, ~2.5 min; wait ... "wrecks done"): 1x and…):*
+
+**Player fps** (one build, `-sfnoironcladik` off/on/on/off, `-sfbench 420 -sfplay -sfholdscale 0.75`, seed 1000, High, AC charging 82-97%, unlocked, in front, 2026-11-23, on round 2's walker): 42.9 / 42.2 / 41.6 / 41.4 fps, worst 5 s 37.2 / 36.0 / 35.0 / 33.0, render thread 2.9-3.1 ms: no collateral cost; no Ironclad was trained in those four matches (one in 2 of 11 earlier reports), so the walk's own cost is the Editor's line above.
+
+### View: Infantry guns
+
+*From the View notes (Budget RosterTrials.ShotBudget (10 Scorchers, 10 Rocketeers, 6 Thumpers firing on the came…):*
+
+Player benchmark on seed 1000, one run, not paired, battery charging: 50.9 fps, 50.3 with a Mech in view (51.1 / 50.3 on the last pairs; `../Game/CLAUDE.md`); that match never stages 26 guns on the camera.
+
+### View: Unit surfaces
+
+*From the View notes (Flash, damage, the construction line, burning and a Digger's glow go on materials of the u…):*
+
+: `-sfbench 420 -sfplay`, seed 1000, *High*, 6000.6.9f1, one build, battery charging (67-99%), player in front, 2026-11-19, old-new-new-old (old = `-sfblocks -sfnograze`): **with the scale held at 0.75 (`-sfholdscale`), old 44.1, 44.5 fps, new 44.2, 43.7**; render thread 3.0, 3.0 against 3.0, 3.1 ms, main thread less the wait to present 9.9, 9.9 against 10.0, 10.1, frames over 40 ms 32, 30 against 27, 27, worst 5 s 37.0, 38.6 against 36.4, 35.2, 0 exceptions. With the controller on the two settled apart and say less: old 40.5, 40.7 fps at scale 0.83, 0.80, new 41.7, 42.0 at 0.78, 0.77 (the new pair is the preset's usual 42 at 0.77-0.78). (The player runs were on the build before the second review's fixes, which change no drawing.)
+
+### Game: Old-aim baselines
+
+*From the Game notes (The numbers in this section are at High's old aim, 0.28/0.10, and so are fps records in ot…):*
+
+*High* (150 m shadows, full grass, floor 0.55, `missHigh` 0.28): **49.3 fps, 47.3 with a Mech in view**, render scale 0.62 (two runs within 0.2); the wider roster on 6000.6.7f1 (2026-10-28, AC charged): 50.0 / 49.6, scale 0.67, against the 21 October build 49.5 / 48.7 (one pair, roster first); seed 1074 (540 s, old-new-new-old): 46.5 and 47.9 against 45.0 and 45.1 --
+
+*From the Game notes (The numbers in this section are at High's old aim, 0.28/0.10, and so are fps records in ot…):*
+
+; capes on/off/on on seed 1000: 51.1 / 51.2 / 50.3 (3-5 capes at most in that match); with the Scorcher's every-frame jet, the Thumper's Mech-sized mortar and the Rocketeer's trail (2026-11-03, one run, not paired, battery charging, 13 Scorchers, 10 Rocketeers, 4 Thumpers trained): 50.9, 50.3 with a Mech in view, scale 0.64; with a 0.60 floor before Mechs were fitted out at the drop: 49.8 / 50.1.
+
+*From the Game notes (The numbers in this section are at High's old aim, 0.28/0.10, and so are fps records in ot…):*
+
+With a Mech in view: 160 m shadows 45.3, a 0.70 floor 42.6; 160 m/1.0 grass 43.3, 110/1.0 46.1, 110/0.7 49.2 (all at the 0.60 floor).
+
+### Game: Rigged soldiers
+
+*From the Game notes (Rigged soldiers (SoldierRigProbe, nothing in a match reads it): -sfbench 120 -sfplay -sfri…):*
+
+Seed 1000, *High*, AC 100% charged, 120 s, quiet map (peak 1 projectile, no Mech, no fight), 2026-11-03, alternating none / rigged / rigid twice: none 50.6, 50.4 (render scale 0.70); 200 rigged 48.7, 49.4 (0.56, **the 0.55 floor reached**, so further cost comes straight off the frame rate: 1.7-2.0 ms of margin to 45); 200 rigid 46.9, 47.4 (0.56, 0.60); 100 rigged, one run, 53.1 (0.60).
+
+*From the Game notes (Rigged soldiers (SoldierRigProbe, nothing in a match reads it): -sfbench 120 -sfplay -sfri…):*
+
+Frame timing, averages: render thread none 2.9, rigged 5.45, rigid 7.65 ms (9 draws a soldier a pass against about 20); main thread less the wait to present none 10.8, rigged 12.5, rigid 12.3 ms; frames over 40 ms none 6-8, rigged 21-27, rigid 14-18.
+
+*From the Game notes (Rigged soldiers (SoldierRigProbe, nothing in a match reads it): -sfbench 120 -sfplay -sfri…):*
+
+**In a fight the target FAILED** (`-sfbench 420 -sfplay -sfrigfollow`, seed 1000, *High*, AC charged, alternating, 2026-11-03): none 51.0, 49.7 fps (50.8, 47.6 with a Mech in view; scale 0.65-0.66); 200 rigged 42.2, 43.6 (37.4, 39.8; scale 0.56-0.57, at the floor); main thread less the wait to present +3 ms, render thread +3 ms, frames over 40 ms 41-46 against 85-222. **The split, same fight, one run each, not alternated:** 200 rigid 44.7 fps (41.0 with a Mech in view); 200 rigged frozen with Animators off (`-sfrigfreeze`) 44.6 (39.8); rigged animated, a third run, 42.8 (37.0). Average of main thread less the wait, and render thread: none 12.05 and 3.9 ms; rigid 13.0 and 7.3; frozen 13.7 and 6.7; animated 15.0 and 7.0.
+
+*From the Game notes (Rigged soldiers (SoldierRigProbe, nothing in a match reads it): -sfbench 120 -sfplay -sfri…):*
+
+**With one material a soldier (`Tools/blender/CLAUDE.md`, one draw a pass for nine): 47.3, 47.0 fps (43.4, 43.0 with a Mech in view, scale 0.58) against none 49.8 (48.6, 0.64), AC charged, alternating; main thread less the wait 12.9 against 11.9, render thread 3.8-4.2 against 3.8 (7.0 before). Target met.** The picture: a pixel diff of the frozen pose sheet at an 8x box filter, old against merged, soldiers mean 1.43 and 2.62, two old runs against each other 1.22, merged 2.46; `SFMaterialLibrary.CheckPalette` compares both teams' palettes with the slot materials, 0 of 15 slots off.
+
+### Game: One material a model
+
+*From the Game notes (One material a model, for everything SF_Unit draws (Tools/blender/CLAUDE.md): 896 draws a…):*
+
+`-sfbench 420 -sfplay`, seed 1000, *High*, built with one DLL (old and merged `Assembly-CSharp.dll` the same), AC 100% charged, alternating, player in front, 2026-11-04: old 50.1, 49.6 fps (48.8, 48.7 with a Mech in view, scale 0.63, 0.62 and 0.56 with a Mech); merged 51.2, 50.8 (51.6, 51.1; 0.63, 0.64 and 0.57); an earlier merged run 50.4 (51.0). Render thread 3.9, 4.0 against 2.8, 2.8 ms; main thread less the wait to present 12.2, 12.8 against 12.3, 12.1; frames over 40 ms 48, 60 against 62, 33.
+
+### Game: Graphics rounds 2026-11-19 and 20
+
+*From the Game notes (Birds, the edge-on leaf-card fade and unit surfaces on own materials (2026-11-19, the engi…):*
+
+`-sfbench 420 -sfplay`, seed 1000, *High*, 6000.6.9f1, one build, battery charging (67-99%), player in front, 2026-11-19, old-new-new-old (old = `-sfblocks -sfnograze`): **with the scale held at 0.75 (`-sfholdscale`), old 44.1, 44.5 fps, new 44.2, 43.7**; render thread 3.0, 3.0 against 3.0, 3.1 ms, main thread less the wait to present 9.9, 9.9 against 10.0, 10.1, frames over 40 ms 32, 30 against 27, 27, worst 5 s 37.0, 38.6 against 36.4, 35.2, 0 exceptions. With the controller on the two settled apart and say less: old 40.5, 40.7 fps at scale 0.83, 0.80, new 41.7, 42.0 at 0.78, 0.77 (the new pair is the preset's usual 42 at 0.77-0.78).
+
+*From the Game notes (Meadow turf, grass from one GPU buffer, wildflowers, leaf lighting, building fire (2026-11…):*
+
+`-sfbench 420 -sfplay`, seed 1000, *High*, held 0.75, AC 100% charged, unlocked, player in front; old = the 19 November build (`Builds/veg/StarForge_before.app`, classic combat), new with `-sfclassic` (deleted with the old combat on 2026-11-20: a new build no longer compares with that one on equal rules). First build, old-new-new-old: old 45.4, 45.4 fps, new 44.7, 44.3. **After the turf's patches were taken from the terrain's variation texture instead of a noise per terrain pixel** (order new, old, new-combat, new): new 44.6, 45.0, old 44.9; render thread 2.7, 2.8 against 2.9 ms; worst 5 s 36.2, 41.4 against 38.8.
+
+*From the Game notes (Meadow turf, grass from one GPU buffer, wildflowers, leaf lighting, building fire (2026-11…):*
+
+The new combat on the same build, one run: 42.5 fps (worst 5 s 35.8, worst 30 s 37.3), about 2.3 under classic.
+
+*From the Game notes (Meadow turf, grass from one GPU buffer, wildflowers, leaf lighting, building fire (2026-11…):*
+
+**Levers tried with the camera held on the densest wood** (`-sfvegprobe [zoom]`, 120 s, held 0.75, one run each: read under ~1 fps as noise, the same setting gave 46.7, 47.3 and 47.5): half the grass (`-sfdensity 0.5`) 46.8; Unity's instancing for the grass (`-sfgrassold`) 46.3; the grass's sun shadow per pixel (`-sftune _SF_GrassPixelShadow=1`) 45.8; the turf off (`-sftune _SF_TuneA=-1`) 48.6 with the noise, 46.4 against 47.5 without it; a one-tap leaf shadow 46.7 and no opaque-colour copy at all 46.9 (both removed again: nothing to gain; a gate that skipped the copy with no water in view also never closed, its frustum test saw the water under the hills).
+
+*From the Game notes (Meadow turf, grass from one GPU buffer, wildflowers, leaf lighting, building fire (2026-11…):*
+
+**The turf's and the ash's detail textures (2026-11-20, a later build: combat's deletion and the menus in it, new combat only), on and off on one build** (`Builds/veg/StarForge_turf.app`, off = `-sftune _SF_TuneC=-1,0,-1,0 -sftune _SF_TuneD=-1`, order on, off, off, on, same conditions): on 39.9, 40.9 fps, off 40.9, 39.9 (worst 5 s 28.6, 33.6 against 32.4, 28.4; render thread 2.5-2.7 ms): nothing measurable, and
+
+*From the Game notes (Meadow turf, grass from one GPU buffer, wildflowers, leaf lighting, building fire (2026-11…):*
+
+Bursts at the wood (`-sfvegprobe 40`, held 0.77): on 1.958, 1.625% vibrating, off 1.650, 1.665%, half strength 1.480%. That build's 40.4 against the morning's 42.5 for the new combat (one run, an earlier build) is the day's other code, not isolated.
+
+*From the Game notes (Battle marks, the lake's surface, the hulls' damage mask (2026-11-20, the graphics round):…):*
+
+`-sfbench 420 -sfplay`, seed 1000, *High*, held 0.75, AC 100% charged, unlocked, player in front, old-new-new-old; old = `Builds/veg/StarForge_turf.app` (the line above's build), new = the 15:18 build, the same with the tread marks' lane rule and per-pixel count, the repacked `scorch.jpg`, SF_Unit's damage mask and SF_Water's blurred ripple and gated caustics: **old 42.8, 41.5 fps, new 41.6, 41.7** (render thread 2.6, 2.8 against 2.7, 2.7 ms; worst 5 s 32.6, 35.0 against 33.2, 34.6; frames over 41.7 ms 43, 26 against 19, 17; 0 exceptions): 0.5 fps apart, inside the old pair's own 1.3, so nothing measurable either way.
+
+*From the Game notes (Battle marks, the lake's surface, the hulls' damage mask (2026-11-20, the graphics round):…):*
+
+: vibrating old 14.4, 12.7, 14.6, 14.7%, new 14.0, 14.7, 14.4, 14.9%; flashes on still ground old 258, 280, 423, 491, new 678, 400, 272, 483.
+
+### Shaders: Leaf-card fade and meadow
+
+*From the Shaders notes (A leaf card seen edge-on fades out (SF_Tree CardFacing, material vector _CardGraze 0.10..0…):*
+
+: scale held at 0.75, 44.2, 43.7 fps with it against 44.1, 44.5 without (`../Scripts/View/CLAUDE.md`, Unit surfaces).
+
+*From the Shaders notes (The meadow's ground and its grass agree through SF_Meadow.hlsl (included by SF_Terrain's f…):*
+
+: with one the build read 44.7, 44.3 fps against the previous build's 45.4, 45.4 over 420 s at a held 0.75; from the texture 44.6, 45.0 against 44.9; `../Scripts/Game/CLAUDE.md`
+
+### blender: Rigged soldier
+
+*From the blender notes (Keep a hand on the rifle under 0.95 of the arm's length, and ease the reach, never cut it…):*
+
+: 2026-11-03 misses 0.5-1.7 cm, reach 0.94 at most on the rifle (Reload's belt trip 0.97, Crawl's free hand 0.99), every loop's seam 0.000, Fire's elbow step 0.018 m; 2026-11-04 with the bind fixed and the side-arm clips,
+
 ## Scope, honestly
 
 - Single player against the AI (or AI vs AI). No multiplayer, campaign or saves.

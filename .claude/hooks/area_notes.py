@@ -197,8 +197,12 @@ def main():
             text = open(os.path.join(root, a, "CLAUDE.md"), encoding="utf-8").read().strip()
             parts, cur = [], ""
             for sec in re.split(r"\n(?=## )", text):
-                while len(sec) > CAP:  # a single huge section: split on blank lines
+                if len(sec) > CAP and cur:  # send what came before first, or a huge section's slices jump it
+                    parts.append(cur); cur = ""
+                while len(sec) > CAP:  # a single huge section: split on blank lines, else at a paragraph's end
                     cut = sec.rfind("\n\n", 0, CAP)
+                    if cut <= 0:  # paragraphs here are one per line: a cut at CAP fell mid-sentence
+                        cut = sec.rfind("\n", 0, CAP)
                     cut = cut if cut > 0 else CAP
                     parts.append(sec[:cut]); sec = sec[cut:].lstrip("\n")
                 if len(cur) + len(sec) + 2 > CAP and cur:
