@@ -788,20 +788,40 @@
   },
   "IRONCLAD_LEGS": {
     "radius": 1.404,
-    "height": 2.381,
-    "triangles": 1572,
+    "height": 2.39,
+    "triangles": 2180,
     "materials": [
       "palette"
     ],
     "groups": {
-      "LegR": [
+      "ThighR": [
         0.82,
         2.05,
         0.0
       ],
-      "LegL": [
+      "ShinR": [
+        0.82,
+        1.2,
+        0.56
+      ],
+      "FootR": [
+        0.82,
+        0.34,
+        0.0
+      ],
+      "ThighL": [
         -0.82,
         2.05,
+        0.0
+      ],
+      "ShinL": [
+        -0.82,
+        1.2,
+        0.56
+      ],
+      "FootL": [
+        -0.82,
+        0.34,
         0.0
       ]
     },

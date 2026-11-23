@@ -5,6 +5,7 @@
 // Movable parts are the child objects the Blender exporter makes from
 // Model.group, found by name and animated about their own pivots:
 //   Trooper    legs swing with the stride, the gun kicks when firing
+//   Ironclad   feet planted and the legs bent to them by IK (View/IroncladLegs)
 //   Digger     the arm dips and the cutter spins while mining; the drum turns while hauling;
 //              ore heaps up in the hopper and its glass glows with the load
 //   Ore seam   the crystal cluster shrinks as the seam is mined out
@@ -70,6 +71,10 @@ namespace StarForge.World
         public const float CutterSpinUsual = 300f;
 
         Transform legL, legR, gun, arm, cutter, drum, barrel, head, trolley, load, crystals, rotorL, rotorR;
+        // A walker's jointed legs (the Ironclad's thigh > shin > foot), planted and solved each frame.
+        IroncladLegs walk;
+        /// <summary>The jointed legs' walk, or null (for checks).</summary>
+        public IroncladLegs Walk => walk;
         // A Biolab creature's animal model (Quaternius, legacy clips): what it plays moving,
         // standing, striking and dying.
         Animation anim;
@@ -346,6 +351,9 @@ namespace StarForge.World
                 cutter.SetParent(arm, true);
                 cutterRest = cutter.localRotation;
             }
+            // The Ironclad's thigh, shin and foot side by side likewise: chained, planted and bent by IK.
+            if (walk == null && u.Type == UnitType.Ironclad)
+                walk = IroncladLegs.Rig(transform, body, u.World != null ? u.World.Map : MapInfo.Instance);
         }
 
         public void OnDeath() { }
@@ -477,11 +485,16 @@ namespace StarForge.World
                 }
                 else if (unit.Type == UnitType.Trooper || unit.def.upgradeClass == UnitClass.Infantry)
                     y += Mathf.Abs(Mathf.Sin(unit.bob)) * 0.06f;
-                else if (unit.Type == UnitType.Ironclad)
-                    y -= Mathf.Abs(Mathf.Sin(unit.bob * 0.45f)) * 0.10f;
+                // A walker's body rides its feet on the ground itself (craters included), not
+                // the NavMesh, with each step's dip and a crouch where a foot needs it.
+                if (walk != null)
+                {
+                    walk.Step(dt, velocity);
+                    y += walk.BodyY;
+                }
                 // Units ride the NavMesh, which craters do not change: sink the model
                 // into the crater instead.
-                if (!unit.def.building && !unit.def.flying && unit.World.GroundShape != null)
+                else if (!unit.def.building && !unit.def.flying && unit.World.GroundShape != null)
                     y -= unit.World.GroundShape.Drop(unit.pos);
                 if (unit.dying)
                 {
@@ -530,7 +543,13 @@ namespace StarForge.World
                     y += sUp;
                     if (!unit.def.flying) body.localRotation = Quaternion.Euler(sPitch, sYaw, 0f);
                 }
-                body.localPosition = new Vector3(lp.x, y, z);
+                float x = lp.x;
+                if (walk != null)
+                {
+                    x = walk.Sway;
+                    body.localRotation = Quaternion.Euler(walk.Pitch, 0f, walk.Roll);
+                }
+                body.localPosition = new Vector3(x, y, z);
 
                 if (unit.Type == UnitType.Skimmer)
                 {
@@ -614,12 +633,12 @@ namespace StarForge.World
 
             if (legL != null && legR != null)
             {
-                // The mini-mech strides at half the cadence, longer and heavier.
-                float phase = unit.Type == UnitType.Ironclad ? unit.bob * 0.45f : unit.bob;
-                float swing = Mathf.Sin(phase) * (unit.Type == UnitType.Ironclad ? 24f : 30f) * Mathf.Clamp01(speed / 2f);
+                float swing = Mathf.Sin(unit.bob) * 30f * Mathf.Clamp01(speed / 2f);
                 legL.localRotation = legLRest * Quaternion.Euler(swing, 0f, 0f);
                 legR.localRotation = legRRest * Quaternion.Euler(-swing, 0f, 0f);
             }
+            // After the body is placed: the hips ride it.
+            if (walk != null && !unit.dying) walk.Pose();
             if (gun != null) gun.localPosition = gunRest + Vector3.back * 0.12f * kick;
             if (barrel != null) barrel.localPosition = barrelRest + Vector3.back * (unit.Type == UnitType.Mauler || unit.Type == UnitType.Lancer ? 0.38f : 0.22f) * kick;
 

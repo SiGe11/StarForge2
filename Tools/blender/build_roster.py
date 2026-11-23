@@ -19,7 +19,7 @@ and palette, movable parts as Model.group (UnitView animates them by name).
     KESTREL        gunship: a fuselage between two ducted rotors, rocket pods
     SWIFT          interceptor: a delta wing, twin fins, one hot engine
     ROCKETEER      anti-armour infantry: a long rocket launcher level on the shoulder
-    IRONCLAD_LEGS  the mini-mech's legs and pelvis (LegL/LegR swing)
+    IRONCLAD_LEGS  the mini-mech's legs and pelvis (ThighX > ShinX > FootX, walked by IK)
     IRONCLAD_TORSO its turning upper half: twin shoulder cannons, missile pods
     MECHHUNTER_HULL    light four-wheeled chassis, thin armour, a flag on a pole (Banner)
     MECHHUNTER_TURRET  an open mount with a long coil lance for killing Mechs (Barrel)
@@ -603,24 +603,63 @@ def build_gunner():
     return m
 
 
+# The Ironclad's leg joints at rest, game space, right leg (the left mirrors x). The knee
+# stands forward so the planted foot can reach about a metre fore and aft of the hip:
+# hip-to-ankle is 0.84 of thigh + shin. UnitView reads the joints from the groups' pivots.
+IRONCLAD_HIP = (0.82, 2.05, 0.0)
+IRONCLAD_KNEE = (0.82, 1.20, 0.56)
+IRONCLAD_ANKLE = (0.82, 0.34, 0.0)
+
+
+def _pin(m, c, r, half_w, mat='steel'):
+    """A joint drum along x centred on `c`, end caps standing 2 cm proud (never flush)."""
+    m.add(cyl((c.x - half_w, c.y, c.z), r, r, half_w * 2.0, 12, mat, axis='x', bevel_w=0.02))
+    for s in (-1, 1):
+        base = c.x + s * half_w - (0.01 if s > 0 else 0.02)
+        m.add(cyl((base, c.y, c.z), r * 0.5, r * 0.5, 0.03, 10, 'dark', axis='x', bevel_w=0.0))
+
+
 def build_ironclad_legs():
-    """Ironclad's lower half: two thick digitigrade legs on broad feet under a squat
-    pelvis -- a walker the size of a small building's door, heavier than any tank."""
+    """Ironclad's lower half: two thick legs on broad feet under a squat pelvis -- a
+    walker the size of a small building's door, heavier than any tank. Each leg is
+    thigh, shin and foot (groups ThighX, ShinX, FootX, pivots at hip, knee and ankle),
+    exported side by side under the root and chained by UnitView, which plants the
+    feet and bends the knees by two-bone IK. Rigid plates: nothing bends but the pins,
+    and each pin's drum is wider and rounder than the beams meeting on it, so no
+    wedge opens at a joint however far it turns."""
+    from build_mechs import strut
     m = Model(MESH_BASE + 15, 'IRONCLAD_LEGS')
     m.add(frustum((0, 2.05, 0), (0.85, 0.32, 0.70), top=(1.05, 1.0), mat='armor_dark', bevel_w=0.06))
-    for side in (1, -1):
-        x = 0.82 * side
-        m.group('LegR' if side > 0 else 'LegL', (x, 2.05, 0.0))
-        hip = cyl((x - 0.25 * side, 2.05, 0), 0.34, 0.34, 0.5, 10, 'steel', axis='x', bevel_w=0.03)
-        m.add(hip)
-        m.add(frustum((x, 1.55, 0.18), (0.30, 0.55, 0.34), top=(1.1, 1.0), shift=(0.0, 0.12), mat='armor', bevel_w=0.05))
-        m.add(frustum((x, 0.80, -0.05), (0.24, 0.42, 0.26), top=(1.2, 1.1), shift=(0.0, 0.10), mat='armor_dark', bevel_w=0.04))
-        m.add(box((x + 0.18 * side, 1.40, 0.30), (0.05, 0.30, 0.14), 'team', bevel_w=0.015))
-        m.add(cyl((x - 0.18 * side, 1.10, 0.06), 0.18, 0.18, 0.36, 10, 'steel', axis='x', bevel_w=0.02))
-        foot = frustum((x, 0.16, 0.10), (0.38, 0.16, 0.62), top=(0.75, 0.70), shift=(0.0, 0.08), mat='armor_dark', bevel_w=0.04)
-        m.add(foot)
+    for side, tag in ((1, 'R'), (-1, 'L')):
+        H = Vector((IRONCLAD_HIP[0] * side, IRONCLAD_HIP[1], IRONCLAD_HIP[2]))
+        K = Vector((IRONCLAD_KNEE[0] * side, IRONCLAD_KNEE[1], IRONCLAD_KNEE[2]))
+        A = Vector((IRONCLAD_ANKLE[0] * side, IRONCLAD_ANKLE[1], IRONCLAD_ANKLE[2]))
+        out = Vector((side, 0.0, 0.0))
+
+        # ---- thigh: hip drum, a heavy beam to the knee, the team stripe outboard.
+        m.group('Thigh' + tag, tuple(H))
+        _pin(m, H, 0.34, 0.30)
+        m.add(strut(H, K, 0.26, 0.30, 'armor', taper=(1.0, 0.8), bevel_w=0.05))
+        # Clear of the hip cap (its face is at 0.32 out, the stripe's at 0.33) and starting beyond it.
+        m.add(strut(H.lerp(K, 0.25) + out * 0.285, H.lerp(K, 0.66) + out * 0.285, 0.045, 0.13, 'team', bevel_w=0.015))
+
+        # ---- shin: knee drum, a slimmer beam back to the ankle, a plate down its front.
+        m.group('Shin' + tag, tuple(K))
+        _pin(m, K, 0.25, 0.31)
+        m.add(strut(K, A, 0.21, 0.24, 'armor_dark', taper=(1.0, 0.75), bevel_w=0.04))
+        b = (A - K).normalized()
+        front = Vector((0.0, b.z, -b.y))   # across the shin in its own plane, facing forward
+        if front.z < 0:
+            front = -front
+        m.add(strut(K.lerp(A, 0.18) + front * 0.24, K.lerp(A, 0.66) + front * 0.21, 0.16, 0.05, 'armor', taper=(0.85, 1.0), bevel_w=0.02))
+
+        # ---- foot: ankle drum on a broad sole, three toes.
+        m.group('Foot' + tag, tuple(A))
+        _pin(m, A, 0.21, 0.25)
+        m.add(frustum((A.x, 0.16, 0.10), (0.38, 0.16, 0.62), top=(0.75, 0.70), shift=(0.0, 0.08), mat='armor_dark', bevel_w=0.04))
+        # Toes 1.5 cm off the sole's plane (flush bottoms showed on a lifted foot).
         for t in (-1, 0, 1):
-            m.add(box((x + 0.24 * t, 0.10, 0.70), (0.08, 0.10, 0.14), 'dark', bevel_w=0.02))
+            m.add(box((A.x + 0.24 * t, 0.115, 0.70), (0.08, 0.10, 0.14), 'dark', bevel_w=0.02))
         m.group('')
     return m
 
