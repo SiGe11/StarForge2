@@ -39,7 +39,7 @@ namespace StarForge.EditorTools
             {
                 //   type               name        bld    neu    rad    hp   spd   turn  rng  dmg  cd     spl   sight bt  cost sup give key
                 Def(UnitType.Worker,   "Digger",   false, false, 0.70f,  60, 6.6f, 7.0f, 2f,  5,  1.00f, 0f,   22, 12,  50, 1, 0, 'U',
-                    "Harvests ore and constructs structures."),
+                    "Guild labour: harvests ore and constructs structures. Flees guns in the open; never deserts."),
                 Def(UnitType.Trooper,  "Trooper",  false, false, 0.58f,  55, 6.0f, 9.0f, 16f, 7,  0.70f, 0f,   30, 14,  50, 1, 0, 'T',
                     "Cheap ranged infantry. Strong in numbers."),
                 Def(UnitType.Mauler,   "Mauler",   false, false, 1.50f, 180, 4.1f, 2.6f, 24f, 32, 2.20f, 4.5f, 34, 30, 150, 3, 0, 'M',
@@ -59,13 +59,14 @@ namespace StarForge.EditorTools
                 Def(UnitType.Ore,      "Ore Seam", false, true,  1.6f, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ' ', "Crystal ore. Diggers carry 8 per trip."),
                 Def(UnitType.Boulder,  "Boulder",  false, true,  1.1f, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ' ', ""),
                 Def(UnitType.MechBay,  "Mech Bay", true,  false, 4.2f, 1800, 0, 3.0f, 24f, 22, 0.60f, 0f, 30, 35, 100, 0, 0, 'Y',
-                    "Calls down your Mech seven minutes after it stands: a war machine with a mind of its own, allied to you " +
-                    "but not under your orders. One a match, never rebuilt. Guards itself with a gun tower, mends itself, " +
+                    "Raises a gantry. Seven minutes after it stands, a knightly order answers it with your Mech: one knight and one core, " +
+                    "allied to you but not under your orders. One a match, never rebuilt. Guards itself with a gun tower, mends itself, " +
                     "repairs the Mech and sells its upgrades."),
                 // The Mech's real numbers come from its parts (World/MechParts); these are
                 // what the rest of the game reads before one exists.
                 Def(UnitType.Mech,     "Mech",     false, false, 2.5f, 3700, 5.0f, 2.1f, 30f, 1, 1.00f, 0f, 36, 0, 0, 0, 0, ' ',
-                    "An autonomous war machine from the Mech Bay. Fights on your side, by its own judgement."),
+                    "A knight of the orders and the ancient core sworn to that knight's hand, in a war machine fitted out for this field. " +
+                    "Fights on your side, by its own judgement."),
 
                 // ---- the wider roster (README "Units"); numbers are the starting sheet, tuned in the assets
                 //   type                 name          bld    neu    rad    hp   spd    turn  rng  dmg  cd     spl   sight bt  cost sup give key
@@ -98,7 +99,7 @@ namespace StarForge.EditorTools
                 Def(UnitType.Rocketeer, "Rocketeer",  false, false, 0.62f,  90, 5.4f,  8.0f, 19f, 34, 1.90f, 0.8f, 26, 18,  90, 2, 0, 'B',
                     "Anti-armour infantry. A shoulder rocket that wrecks tanks, Mechs and buildings; poor against infantry, cannot fire at aircraft."),
                 Def(UnitType.Ironclad,  "Ironclad",   false, false, 1.45f, 480, 3.8f,  2.4f, 20f, 24, 1.30f, 0f,   32, 45, 300, 6, 0, 'T',
-                    "Walking mini-mech. Twin shoulder cannons for the ground, missile pods for the air; slow and very hard to stop. Requires an Armory."),
+                    "Walking mini-mech, the Host's own: no core, and nothing to say. Twin shoulder cannons for the ground, missile pods for the air; slow and very hard to stop. Requires an Armory."),
                 Def(UnitType.Gorehorn,  "Gorehorn",   false, false, 1.40f, 520, 5.0f,  4.0f, 2.2f, 32, 1.30f, 2.4f, 24, 32, 275, 5, 0, 'G',
                     "Bred armoured beast. Charges in and sweeps its tusks through everything round what it strikes; cannot reach aircraft. Requires an Armory."),
                 Def(UnitType.Armory,    "Armory",     true,  false, 3.6f,  900, 0, 0, 0, 0, 0, 0, 24, 30, 150, 0, 0, 'U',
@@ -106,9 +107,9 @@ namespace StarForge.EditorTools
                 Def(UnitType.Airfield,  "Airfield",   true,  false, 5.0f, 1100, 0, 0, 0, 0, 0, 0, 28, 40, 200, 0, 0, 'L',
                     "Builds the Kestrel gunship and the Swift interceptor. Requires a Workshop."),
                 Def(UnitType.Biolab,    "Biolab",     true,  false, 4.2f, 1000, 0, 0, 0, 0, 0, 0, 26, 35, 175, 0, 0, 'O',
-                    "Breeds Skitters, Spitters, Razorwings and Gorehorns. Requires a Garrison."),
+                    "Breeds Skitters, Spitters, Razorwings and Gorehorns from Vesper's abandoned stock. Bred things swear no oath, so they never desert. Requires a Garrison."),
                 Def(UnitType.MechHunter,"Mech-Hunter",false, false, 1.10f, 160, 5.4f,  3.0f, 26f, 60, 3.20f, 0f,   30, 32, 250, 3, 0, 'K',
-                    "Mech killer. A coil lance that tears through Mechs and Ironclads; little use against anything else, and thinly armoured. " +
+                    "Mech killer, licensed by an order and flying its flag. A coil lance that tears through Mechs and Ironclads; little use against anything else, and thinly armoured. " +
                     "One in the field at a time, and a wait after it falls. Requires an Armory and its Mech-Hunter Programme."),
             };
             Find(defs, UnitType.Worker).producer = UnitType.Foundry;

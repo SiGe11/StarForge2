@@ -19,9 +19,15 @@ namespace StarForge.View
         // The order's standard, sewn on as a panel: grid lines, so its edge is a hard one. 0.45 x 0.60 m,
         // 1.33 tall against the pictures' 1.30 (OrderStandards.SourceAspect).
         const int PanelX0 = 2, PanelX1 = 14, PanelY0 = 4, PanelY1 = 19;
+        /// <summary>For <see cref="Make"/>'s order: the unit rides under an order of its own (OrderStandards.ForUnit).</summary>
+        public const int OwnOrder = -2;
+        // The rigid banner's panel: the modelled cloth's faces stand 0.028 and 0.008 from the pivot's plane and its
+        // sigil's 0.042 and 0.02 (Tools/blender/build_mechs.py, build_roster.py), so the panel stands proud of both.
+        const float RigidFront = -0.052f, RigidBack = 0.03f;
 
         static Material clothMat, barMat, panelMat;
         static Mesh barMesh;
+        static readonly Mesh[] rigidPanels = new Mesh[OrderStandards.Count];
 
         readonly Transform pivot;
         readonly float phase;
@@ -41,12 +47,15 @@ namespace StarForge.View
         /// spring banner, so one build measures both.</summary>
         static readonly bool Off = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-sfnocloth") >= 0;
 
-        /// <param name="order">The knight's order (OrderStandards.IndexOf), whose standard is the
-        /// banner's panel; -1 keeps the plain side's banner with its diamond sigil.</param>
-        public static MechBannerCloth Make(Transform rigid, int team, int id, int order = -1)
+        /// <param name="order">The order whose standard is the banner's panel: a knight's
+        /// (OrderStandards.IndexOf, from MechView), or <see cref="OwnOrder"/>, the default, for a unit with no
+        /// knight (the Mech-Hunter's flag: UnitView passes none); -1 keeps the plain side's banner with its
+        /// diamond sigil.</param>
+        public static MechBannerCloth Make(Transform rigid, int team, int id, int order = OwnOrder)
         {
             if (Off || rigid == null || rigid.parent == null || FXDirector.Current == null || FXDirector.Current.debrisMaterial == null) return null;
-            if (order >= OrderStandards.Count || OrderStandards.Atlas == null) order = -1;
+            if (order == OwnOrder) order = OrderStandards.ForUnit(id);
+            if (order < 0 || order >= OrderStandards.Count || OrderStandards.Atlas == null) order = -1;
             var b = new MechBannerCloth(rigid, team, id, order);
             b.Build();
             return b.root != null ? b : null;
@@ -141,6 +150,7 @@ namespace StarForge.View
                 panelMat.SetFloat("_Cull", 0f);
                 panelMat.SetTexture("_BaseMap", OrderStandards.Atlas);
             }
+            if (order >= 0) RigidPanel();
             root = new GameObject("BannerCloth");
             root.transform.SetParent(pivot.parent, false);
             root.transform.localPosition = pivot.localPosition;
@@ -185,6 +195,52 @@ namespace StarForge.View
             root.SetActive(false);
             running = false;
             nextCheck = Time.time + 1f;
+        }
+
+        /// <summary>The rigid banner shows whenever the cloth cannot run (the drop, above 3.5x, a hitch) and on the
+        /// wreck, so it carries the same standard: two quads just proud of the model's cloth and sigil, one facing each
+        /// way so neither reads mirrored. Made once a banner (a cloth rebuilt after going bad finds it there); it is
+        /// the rigid banner's child, so it swings, hides and goes to the wreck with it.</summary>
+        void RigidPanel()
+        {
+            if (pivot.Find("Standard") != null) return;
+            if (rigidPanels[order] == null) rigidPanels[order] = RigidMesh(order);   // Unity's null check: made in an earlier play, it is gone
+            var go = new GameObject("Standard");
+            go.transform.SetParent(pivot, false);
+            go.AddComponent<MeshFilter>().sharedMesh = rigidPanels[order];
+            var r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = panelMat;
+            r.shadowCastingMode = ShadowCastingMode.Off;
+        }
+
+        static Mesh RigidMesh(int order)
+        {
+            var cell = OrderStandards.Uv(order);
+            float x0 = (PanelX0 / (Cols - 1f) - 0.5f) * Width, x1 = (PanelX1 / (Cols - 1f) - 0.5f) * Width;
+            float y0 = -PanelY0 / (Rows - 1f) * Drop, y1 = -PanelY1 / (Rows - 1f) * Drop;
+            var v = new Vector3[8];
+            var uv = new Vector2[8];
+            var col = new Color[8];
+            for (int side = 0; side < 2; side++)
+            {
+                float z = side == 0 ? RigidFront : RigidBack;
+                // Seen from -z (side 0) +x is to the right; from +z it is to the left: flip u there.
+                float uL = side == 0 ? cell.xMin : cell.xMax, uR = side == 0 ? cell.xMax : cell.xMin;
+                int i = side * 4;
+                v[i] = new Vector3(x0, y0, z); uv[i] = new Vector2(uL, cell.yMax);
+                v[i + 1] = new Vector3(x1, y0, z); uv[i + 1] = new Vector2(uR, cell.yMax);
+                v[i + 2] = new Vector3(x0, y1, z); uv[i + 2] = new Vector2(uL, cell.yMin);
+                v[i + 3] = new Vector3(x1, y1, z); uv[i + 3] = new Vector2(uR, cell.yMin);
+                for (int k = 0; k < 4; k++) col[i + k] = Color.white;
+            }
+            var m = new Mesh { name = "SF_MechStandardRigid" };
+            m.vertices = v;
+            m.uv = uv;
+            m.colors = col;
+            m.triangles = new[] { 0, 1, 2, 1, 3, 2, 4, 6, 5, 5, 6, 7 };
+            m.RecalculateNormals();
+            m.RecalculateBounds();
+            return m;
         }
 
         public void Destroy()

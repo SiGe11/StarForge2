@@ -231,7 +231,8 @@ Not third party, and not on the list above:
   by prompt 6A, eight pale rows cropped off its bottom edge with ffmpeg); and
   the eight knightly orders' standards on a Mech's banner,
   `Resources/MechStandards.png` (1024×512), cut by `Tools/pack_standards.py`
-  out of one sheet of eight banners (prompt 10). AI-generated;
+  out of a sheet of eight banners (prompt 10) and its corrected copy (touch-up
+  11; one banner kept from the first sheet). AI-generated;
   the game's Credits page says so. Google's Terms of Service
   (<https://policies.google.com/terms>, effective 30 July 2026, read 2026-11-20)
   say Google won't claim ownership of content its services generate, and put no

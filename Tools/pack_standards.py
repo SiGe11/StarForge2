@@ -17,7 +17,8 @@ colours. OrderStandards.SourceAspect is the banner's real height over width (the
 
     /usr/bin/python3 Tools/pack_standards.py                 # writes Assets/StarForge/Resources/MechStandards.png
     /usr/bin/python3 Tools/pack_standards.py --out DIR       # stages it in DIR instead
-    /usr/bin/python3 Tools/pack_standards.py --sheet FILE    # another sheet (default: the newest of the two names)
+    /usr/bin/python3 Tools/pack_standards.py --sheet FILE    # another sheet, all eight from it (default: the
+                                                             # corrected sheet, KEEP_FIRST's banners from the first)
 
 Needs numpy and Pillow (/usr/bin/python3 has them; the Homebrew python3 does not).
 """
@@ -31,6 +32,9 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "Art", "Source", "llm", "lore")
 SHEETS = ["order_standards_v2.jpg", "order_standards.jpg"]
+# Banners taken from the FIRST sheet although the corrected one exists: touch-up 11 mended the Emberguard's ember
+# and the Broken Crown's field, and scattered stray crosses and a star over the Wardens' horizon (docs/lore/prompts.md).
+KEEP_FIRST = {6}
 DEST = os.path.join(ROOT, "Assets", "StarForge", "Resources", "MechStandards.png")
 NAMES = ["Ashen Covenant", "Iron Lantern", "Ninth Vigil", "Sable Oath",
          "Broken Crown", "Emberguard", "Wardens of the Long Night", "Brazen Host"]
@@ -52,14 +56,8 @@ def runs(on, least):
     return out
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--sheet")
-    ap.add_argument("--out")
-    a = ap.parse_args()
-    sheet = a.sheet or next((os.path.join(SRC, n) for n in SHEETS if os.path.exists(os.path.join(SRC, n))), None)
-    if not sheet or not os.path.exists(sheet):
-        sys.exit("no sheet: expected one of %s in %s" % (", ".join(SHEETS), SRC))
+def banners(sheet):
+    """The sheet's picture and its eight banners' boxes (x0, y0, x1, y1), row by row from the top left."""
     img = Image.open(sheet).convert("RGB")
     px = np.asarray(img).astype(np.int32)
     h, w = px.shape[:2]
@@ -79,6 +77,25 @@ def main():
             if len(ys) != 1:
                 sys.exit("banner at x %d-%d: no single block of cloth" % (x0, x1))
             boxes.append((x0 + INSET, y0 + ys[0][0] + INSET, x1 - INSET, y0 + ys[0][1] - INSET))
+    return img, boxes
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--sheet")
+    ap.add_argument("--out")
+    a = ap.parse_args()
+    sheet = a.sheet or next((os.path.join(SRC, n) for n in SHEETS if os.path.exists(os.path.join(SRC, n))), None)
+    if not sheet or not os.path.exists(sheet):
+        sys.exit("no sheet: expected one of %s in %s" % (", ".join(SHEETS), SRC))
+    img, boxes = banners(sheet)
+    w, h = img.size
+    first = os.path.join(SRC, SHEETS[-1])
+    kept = banners(first) if not a.sheet and sheet != first and KEEP_FIRST and os.path.exists(first) else None
+    sources = [img] * len(boxes)
+    if kept:
+        for i in KEEP_FIRST:
+            sources[i], boxes[i] = kept[0], kept[1][i]
     ws = [x1 - x0 for x0, _, x1, _ in boxes]
     hs = [y1 - y0 for _, y0, _, y1 in boxes]
     if max(ws) > min(ws) * 1.06 or max(hs) > min(hs) * 1.06:
@@ -86,15 +103,16 @@ def main():
     atlas = Image.new("RGB", (SHEET_W, SHEET_H), (255, 255, 255))
     print("sheet %s, %d x %d" % (os.path.relpath(sheet, ROOT), w, h))
     for i, (x0, y0, x1, y1) in enumerate(boxes):
-        cell = img.crop((x0, y0, x1, y1))
+        cell = sources[i].crop((x0, y0, x1, y1))
         left = np.asarray(cell).astype(np.int32)
         fringe = ((left[..., 1] > left[..., 0] + 30) & (left[..., 1] > left[..., 2] + 30)).mean()
         mean = left.reshape(-1, 3).mean(axis=0)
         cx, cy = (i % 4) * CELL_W, (i // 4) * CELL_H
         atlas.paste(cell.resize((CELL_W, CELL_H), Image.LANCZOS), (cx, cy))   # under the gutter: its own edge
         atlas.paste(cell.resize((CELL_W - 2 * GUTTER, CELL_H - 2 * GUTTER), Image.LANCZOS), (cx + GUTTER, cy + GUTTER))
-        print("  %d %-26s %4d x %4d at (%4d, %4d)  aspect %.3f  mean rgb %3d %3d %3d  green left %.2f%%"
-              % (i, NAMES[i], x1 - x0, y1 - y0, x0, y0, (y1 - y0) / (x1 - x0), mean[0], mean[1], mean[2], fringe * 100))
+        print("  %d %-26s %4d x %4d at (%4d, %4d)  aspect %.3f  mean rgb %3d %3d %3d  green left %.2f%%%s"
+              % (i, NAMES[i], x1 - x0, y1 - y0, x0, y0, (y1 - y0) / (x1 - x0), mean[0], mean[1], mean[2], fringe * 100,
+                 "  (from the first sheet)" if sources[i] is not img else ""))
     aspect = float(np.mean(hs)) / float(np.mean(ws))
     dest = os.path.join(a.out, os.path.basename(DEST)) if a.out else DEST
     os.makedirs(os.path.dirname(dest), exist_ok=True)

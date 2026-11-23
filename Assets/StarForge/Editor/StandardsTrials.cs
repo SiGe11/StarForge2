@@ -134,7 +134,8 @@ namespace StarForge.EditorTools
             cam.farClipPlane = 200f;
             for (int i = 0; i < views.Count; i++)
             {
-                string who = i < mechs.Count ? $"team {mechs[i].team} {OrderStandards.NameOf(i)}" : "Mech-Hunter (no order)";
+                string who = i < mechs.Count ? $"team {mechs[i].team} {OrderStandards.NameOf(i)}"
+                    : $"Mech-Hunter (an order of its own by its id: {OrderStandards.NameOf(OrderStandards.ForUnit(hunter.id))})";
                 Transform root = null, rigid = null;
                 if (views[i] != null)
                     foreach (var t in views[i].GetComponentsInChildren<Transform>(true))
@@ -155,10 +156,12 @@ namespace StarForge.EditorTools
                     particles = v.Length;
                     foreach (var p in v) { lowest = Mathf.Min(lowest, p.y); far = Mathf.Max(far, p.magnitude); }
                 }
+                var rigidPanel = rigid != null ? rigid.Find("Standard") : null;
                 sb.AppendLine($"{who}: cloth root on {root.gameObject.activeSelf}, rigid on {(rigid != null && rigid.gameObject.activeSelf)}, " +
+                              $"rigid panel {(rigidPanel != null ? rigidPanel.GetComponent<MeshFilter>().sharedMesh.name : "NONE")}, " +
                               $"carries order {(bc != null ? bc.Order.ToString() : "n/a")}, tip {(bc != null ? bc.TipDistance() : far):0.00}, resets {(bc != null ? bc.Resets : 0)}, " +
                               $"particles {particles} for {(smr != null && smr.sharedMesh != null ? smr.sharedMesh.vertexCount : 0)} vertices, " +
-                              $"material {(smr != null && smr.sharedMaterial != null ? smr.sharedMaterial.name : "none")}, lowest particle {lowest:0.00} (the hem rests at -1.12; a panel come loose reads about -2)");
+                              $"material {(smr != null && smr.sharedMaterial != null ? smr.sharedMaterial.name : "none")}, lowest particle {lowest:0.00} at scale {root.lossyScale.y:0.00} (the hem rests at -1.12 x the scale: a Mech's banner is drawn 1.2x; a panel come loose reads about -2 x it)");
                 // The cloth hangs by gravity under the crossbar; look at its middle along the crossbar's own facing.
                 Vector3 scale = root.lossyScale;
                 Vector3 centre = root.position + Vector3.down * 0.56f * scale.y;
@@ -204,6 +207,8 @@ namespace StarForge.EditorTools
             Time.timeScale = 8f;
             yield return new WaitForSecondsRealtime(1f);
             sb.AppendLine("at 8x: " + CountOn(views));
+            Shoot(views, "Temp/standards_rigid.png");
+            sb.AppendLine("Temp/standards_rigid.png: the rigid banners at 8x, the same columns and rows");
             Time.timeScale = 1f;
             yield return new WaitForSecondsRealtime(1.5f);
             sb.AppendLine("back at 1x: " + CountOn(views));
@@ -232,6 +237,55 @@ namespace StarForge.EditorTools
                 if (score > bestScore) { bestScore = score; best = p; }
             }
             return best;
+        }
+
+        // Each view's banner on show (the cloth, or the rigid one when the cloth cannot run), face on from both sides.
+        static void Shoot(List<Transform> views, string file)
+        {
+            const int W = 256, H = 448;
+            var sheet = new Texture2D(W * views.Count, H * 2, TextureFormat.RGB24, false);
+            var rt = new RenderTexture(W, H, 24);
+            var camGo = new GameObject("StandardsCam");
+            var cam = camGo.AddComponent<Camera>();
+            cam.enabled = false;
+            cam.targetTexture = rt;
+            cam.fieldOfView = 34f;
+            cam.nearClipPlane = 0.1f;
+            cam.farClipPlane = 200f;
+            for (int i = 0; i < views.Count; i++)
+            {
+                if (views[i] == null) continue;
+                Transform root = null, rigid = null;
+                foreach (var t in views[i].GetComponentsInChildren<Transform>(true))
+                {
+                    if (t.name == "BannerCloth") root = t;
+                    else if (t.name == "Banner") rigid = t;
+                }
+                var shown = root != null && root.gameObject.activeSelf ? root : rigid;
+                if (shown == null) continue;
+                Vector3 scale = shown.lossyScale;
+                Vector3 centre = shown.position + Vector3.down * 0.56f * scale.y;
+                Vector3 dir = shown.forward; dir.y = 0f;
+                if (dir.sqrMagnitude < 1e-4f) dir = views[i].forward;
+                dir.Normalize();
+                for (int side = 0; side < 2; side++)
+                {
+                    cam.transform.position = centre + dir * (side == 0 ? 2.6f : -2.6f) * scale.y;
+                    cam.transform.LookAt(centre, Vector3.up);
+                    cam.Render();
+                    var was = RenderTexture.active;
+                    RenderTexture.active = rt;
+                    sheet.ReadPixels(new Rect(0, 0, W, H), i * W, side == 0 ? H : 0);
+                    RenderTexture.active = was;
+                }
+            }
+            sheet.Apply();
+            File.WriteAllBytes(file, sheet.EncodeToPNG());
+            cam.targetTexture = null;
+            Destroy(camGo);
+            rt.Release();
+            Destroy(rt);
+            Destroy(sheet);
         }
 
         static string CountOn(List<Transform> views)

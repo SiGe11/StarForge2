@@ -192,6 +192,6 @@ The desertion rows hold in an honest match. In the Reckoning (the cheat) anyone 
 - The title's key art, with the Brightest Star, the Clearance's farmhouse and the Mech's standard: `UI/Art/keyart.jpg`.
 - The Field Manual's Chronicle page with its four plates (the Quenching, the two hands, vespers, the gantry), the lore tips and the setup's "VESPER · SECTOR": `UI/LoreText.cs`, `UI/Art/plate_*.jpg`.
 - The ten-second intro before the title, the key art set in motion: `UI/IntroClip.cs`, `Resources/Intro/intro.mp4`.
-- The orders' standards (section 7's table): a panel on each Mech's cloth banner and the device beside its name in the HUD, `View/OrderStandards.cs`, `Resources/MechStandards.png`. The Mech-Hunter's flag and the stiff banner (the drop, fast game speed, the wreck) still carry the old diamond.
+- The orders' standards (section 7's table): a panel on each Mech's cloth banner and the device beside its name in the HUD, `View/OrderStandards.cs`, `Resources/MechStandards.png`. A Mech-Hunter flies the standard of an order of its own (one of the eight, fixed for that machine: the licensed lance), and the stiff banner (the drop, a wreck) carries the same panel as the cloth.
 
 **Art.** The motifs that are always drawn the same way (the Brightest Star, the teal seams, two identical wings, the veiled Holy Mother, the faceless Makers) are in `prompts.md` (each prompt there is complete in one block). Every picture or film made with a model is recorded in `THIRD-PARTY.md` when it is committed.

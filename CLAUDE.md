@@ -65,6 +65,7 @@ Testing cheat: `Ctrl`/`Cmd`+`Shift`+`M` (+5000 ore, +100 supply, toggles 5x trai
 - **Generated content** (materials, prefabs, icons, map scene, pipeline asset) comes from `Editor/` generators: change the generator, never hand-edit output; Step 3 regenerates `Scenes/Battlefield.unity` from scratch; Step 2 preserves tuned `Data/Units/*.asset` values (hotkeys too: edit the asset as well).
 - **Shaders:** after adding shaders/keywords play a match and re-run Build step 5; alpha test only on tree foliage; no shader writes motion vectors (so no TAA/STP). Others: `Shaders/CLAUDE.md`.
 - **Measure, don't guess.** Nothing here can be listened to or watched from the agent's side: use the named `AgentPlay.*`/`MechTrials` helpers, burst capture and numeric checks, and report numbers.
+- **The lore is canon** (`docs/lore/starforge-lore.md`; its section 13 holds the writing rules): player-facing text, names, the Mech's lines and art prompts follow it; a change to the lore itself needs the user's OK; its section 11 questions are never answered. Generated pictures come from the prompts in `docs/lore/prompts.md`.
 
 ## Reading and context discipline
 

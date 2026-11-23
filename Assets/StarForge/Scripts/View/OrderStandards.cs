@@ -60,6 +60,16 @@ namespace StarForge.View
             return -1;
         }
 
+        /// <summary>The order a unit rides under when it has no knight of its own (the Mech-Hunter's licensed
+        /// lance, lore section 7): one of the eight by the unit's id, so it is that unit's for as long as it
+        /// lives. A hash, never the match's random stream: the view must not shift a seeded match.</summary>
+        public static int ForUnit(int id)
+        {
+            uint h = (uint)id * 2654435761u;
+            h ^= h >> 15;
+            return (int)(h % Count);
+        }
+
         /// <summary>The order's name as the lore writes it ("the Emberguard"), or null.</summary>
         public static string NameOf(int index) => index >= 0 && index < Count ? Names[index] : null;
 

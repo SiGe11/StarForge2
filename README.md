@@ -325,7 +325,8 @@ enemy's base from afar is usually shot down before its Digger gets there.
 **The Mech is an ally, not a unit.** Its pilot is a knight of one of the eight orders, which
 swear to neither wing but owe one knight and one ancient core to any side that raises a bay
 (its gantry). Its banner is your side's cloth with its order's standard sewn on, and the same
-device stands beside its name in the HUD; it fights on your side by its own judgement and takes no
+device stands beside its name in the HUD (a Mech-Hunter flies the standard of whichever order
+licensed it); it fights on your side by its own judgement and takes no
 orders -- you can select it and read its status, but not command it. Its own AI sees the
 whole battlefield and acts as fast as it likes (about 1,200 actions a minute, where the
 opponent AI is held to a human's hands). Yours is a guardian, cautious and meaning to live:
