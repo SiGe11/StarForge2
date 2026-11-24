@@ -218,6 +218,9 @@ SOURCES = [
     S("Roboto Mono", "The Roboto Mono Project Authors", "Apache 2.0",
       "https://fonts.google.com/specimen/Roboto+Mono", ("font", "Apache License, Version 2.0"),
       ["Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"]),
+    S("Cinzel", "The Cinzel Project Authors", "SIL OFL 1.1", "https://github.com/NDISCOVER/Cinzel",
+      ("font", "SIL Open Font License, Version 1.1"), ["Assets/StarForge/UI/Fonts/Cinzel-Regular.ttf",
+                                                       "Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf"]),
 ]
 
 # Made for this project, by name (no wildcard: a file dropped into one of these folders must be
@@ -499,11 +502,11 @@ def main():
             print(f"  FAIL THIRD-PARTY.md does not mention {s['name']}")
             bad += 1
     readme = open(os.path.join(ROOT, "README.md")).read()
-    for who in ("Poly Haven", "Kenney", "Quaternius", "KayKit", "JangaFX", "OpenGameArt", "Inter", "Roboto Mono"):
+    for who in ("Poly Haven", "Kenney", "Quaternius", "KayKit", "JangaFX", "OpenGameArt", "Inter", "Roboto Mono", "Cinzel"):
         if who not in readme:
             print(f"  FAIL the README credits no {who}")
             bad += 1
-    for lic in ("CC0-1.0.txt", "OFL-1.1-Inter.txt", "Apache-2.0.txt"):
+    for lic in ("CC0-1.0.txt", "OFL-1.1-Inter.txt", "OFL-1.1-Cinzel.txt", "Apache-2.0.txt"):
         if not os.path.exists(os.path.join(ROOT, "LICENSES", lic)):
             print(f"  FAIL LICENSES/{lic} is missing")
             bad += 1

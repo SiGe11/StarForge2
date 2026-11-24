@@ -1321,7 +1321,7 @@ namespace StarForge.UI
             return t.ToString().ToUpperInvariant();
         }
 
-        /// <summary>The key reference, from <see cref="HUDController.ControlsHelp"/>'s facts.</summary>
+        /// <summary>The key reference (PlayerController's keys; the README's Controls table says the same).</summary>
         void BuildKeys(VisualElement into)
         {
             void Head(string t) => into.Add(Text(t, "m-keys-head"));
@@ -1342,11 +1342,18 @@ namespace StarForge.UI
             K("Zoom", "WHEEL");
             K("Grab the ground", "MIDDLE DRAG");
             K("Centre on the selection", "SPACE");
+            K("Save the view to a camera spot / go back to it", "CTRL + OPTION + 1-4", "OPTION + 1-4");
+            K("Go to a camera spot as in StarCraft II (fn on a MacBook; macOS may keep Ctrl + F5-F8 for itself)", "F5-F8", "CTRL + F5-F8");
+            K("To the latest alert; again for the ones before", "TAB");
+            K("Select the next Foundry and look at it", "BACKSPACE");
             Head("SELECTION");
             K("Select, or drag a box", "CLICK", "DRAG");
-            K("Every unit of that type on screen", "DOUBLE-CLICK");
+            K("Every unit of that type on screen", "DOUBLE-CLICK", "CTRL + CLICK");
             K("Add to the selection", "SHIFT");
-            K("Make a group / recall it", "CTRL + 1-0", "1-0");
+            K("Make a group / add the selection to it / recall it", "CTRL + 1-0", "SHIFT + 1-0", "1-0");
+            K("Go to a group", "1-0 TWICE");
+            K("Groups on the bar: click selects, double-click goes there, Shift-click adds", "GROUP BAR");
+            K("Next idle Digger / every idle Digger (fn on a MacBook; or the IDLE button, Ctrl-click for all)", "F1", "SHIFT + F1");
             K("The whole army", "F2");
             Head("ORDERS");
             K("Move, attack or mine", "RIGHT-CLICK");
@@ -1477,6 +1484,8 @@ namespace StarForge.UI
             Line("The Inter Project Authors (Rasmus Andersson) · SIL Open Font License 1.1");
             Name("Roboto Mono");
             Line("The Roboto Mono Project Authors (Christian Robertson, Google) · Apache License 2.0");
+            Name("Cinzel");
+            Line("The Cinzel Project Authors (Natanael Gama) · SIL Open Font License 1.1");
             Head("TERRAIN, ROCK AND PLANT SCANS");
             Name("Poly Haven");
             Name("ambientCG");

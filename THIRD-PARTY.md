@@ -4,7 +4,7 @@ This repository is public (`github.com/SiGe11/StarForge2`), so everything
 committed to it has to be free to **redistribute**, not merely free to use. That
 rules out the Unity Asset Store EULA, CC-BY-NC and "free for personal use",
 however generous they sound; in practice the art and audio here are all CC0,
-and the two font families carry the only attribution obligations we have.
+and the three font families carry the only attribution obligations we have.
 
 The project's own code and art are MIT ([LICENSE](LICENSE), © Simon Gergely).
 That covers what we wrote; everything below keeps the terms of whoever made it,
@@ -15,7 +15,7 @@ and fails if a committed asset is not on this list.
 | Licence | What it obliges us to do | Text |
 |---|---|---|
 | CC0 1.0 | Nothing. Credit is given here anyway, because the people who made these deserve it. | [LICENSES/CC0-1.0.txt](LICENSES/CC0-1.0.txt) |
-| SIL OFL 1.1 | Ship the licence text with the font; don't sell the font on its own; don't release a modified copy under the original name. We do none of those. | [LICENSES/OFL-1.1-Inter.txt](LICENSES/OFL-1.1-Inter.txt) |
+| SIL OFL 1.1 | Ship the licence text with the font; don't sell the font on its own; don't release a modified copy under the original name. We do none of those. | [LICENSES/OFL-1.1-Inter.txt](LICENSES/OFL-1.1-Inter.txt), [LICENSES/OFL-1.1-Cinzel.txt](LICENSES/OFL-1.1-Cinzel.txt) |
 | Apache 2.0 | Ship the licence text and keep the copyright notice. | [LICENSES/Apache-2.0.txt](LICENSES/Apache-2.0.txt) |
 
 `python3 Tools/fetch_assets.py` downloads the sources into `Art/Source/`, which
@@ -152,13 +152,14 @@ What the guns and the felled trees are built from, in `Tools/make_audio.py`.
 
 The only assets here that are not CC0, and the only ones with conditions. Both
 licences allow redistribution in a public repository; both require the licence
-text to travel with the font, which is what `LICENSES/` is for. Neither font is
+text to travel with the font, which is what `LICENSES/` is for. No font is
 modified, renamed or sold.
 
 | Font | Author | Licence | Files |
 |---|---|---|---|
 | [Inter](https://rsms.me/inter/) 3.009/3.010 | The Inter Project Authors (Rasmus Andersson) | SIL Open Font License 1.1 | `UI/Fonts/Inter-Regular.ttf`, `Inter-SemiBold.ttf` |
 | [Roboto Mono](https://fonts.google.com/specimen/Roboto+Mono) 3.000 | The Roboto Mono Project Authors (Christian Robertson, Google) | Apache License 2.0, as stated in the file we ship — upstream has since moved to OFL 1.1 | `UI/Fonts/RobotoMono-Bold.ttf` |
+| [Cinzel](https://github.com/NDISCOVER/Cinzel) 2.000 | The Cinzel Project Authors (Natanael Gama) | SIL Open Font License 1.1, as stated in the files' name tables and the repository's `OFL.txt` (Reserved Font Name "Cinzel Decorative", which we do not ship) | `UI/Fonts/Cinzel-Regular.ttf`, `Cinzel-Bold.ttf` (the HUD's headings, 2026-11-24; fetched by `Tools/fetch_assets.py`) |
 
 ## Unity
 

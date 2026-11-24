@@ -267,6 +267,30 @@ def fetch_itch():
         print(f"  {sub} {name}  {os.path.getsize(zpath) / 1e6:.1f} MB")
 
 
+# Cinzel (SIL OFL 1.1, the font's own name table and OFL.txt in its repository): the HUD's
+# headings since 2026-11-24. The two static TTFs are committed as downloaded
+# (Assets/StarForge/UI/Fonts/), their licence text as LICENSES/OFL-1.1-Cinzel.txt. Inter and
+# Roboto Mono, committed earlier, were downloaded by hand from the pages THIRD-PARTY.md names.
+FONTS = {
+    "cinzel": ("https://raw.githubusercontent.com/NDISCOVER/Cinzel/master/",
+               ["fonts/ttf/Cinzel-Regular.ttf", "fonts/ttf/Cinzel-Bold.ttf", "OFL.txt"]),
+}
+
+
+def fetch_fonts():
+    for name, (base, files) in FONTS.items():
+        folder = os.path.join(ROOT, "Art", "Source", "fonts", name)
+        os.makedirs(folder, exist_ok=True)
+        for f in files:
+            path = os.path.join(folder, os.path.basename(f))
+            if os.path.exists(path):
+                continue
+            req = urllib.request.Request(base + f, headers={"User-Agent": "StarForge-fetch/1.0"})
+            with urllib.request.urlopen(req, timeout=120) as r, open(path, "wb") as out:
+                out.write(r.read())
+            print(f"  font {name} {os.path.basename(f)}  {os.path.getsize(path) / 1e3:.0f} KB")
+
+
 def fetch_kenney():
     import zipfile
     out = os.path.join(ROOT, "Art", "Source", "kenney")
@@ -373,6 +397,7 @@ def main():
     fetch_plain()
     fetch_itch()
     fetch_jangafx()
+    fetch_fonts()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 // PlayerController.cs — mouse and keyboard to game commands: selection, orders,
 // structure placement, control groups and the command card. Everything it does
-// goes through GameWorld's Cmd* API, the same entry points the AI uses.
+// goes through GameWorld's Cmd* API, the same entry points the AI uses. The keys
+// that only move the eye (camera spots, alerts, Foundry, idle Diggers): PlayerController.Hotkeys.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -37,7 +38,7 @@ namespace StarForge.View
         public string caption;
     }
 
-    public sealed class PlayerController : MonoBehaviour
+    public sealed partial class PlayerController : MonoBehaviour
     {
         public GameWorld world;
         public RTSCamera rig;
@@ -187,6 +188,7 @@ namespace StarForge.View
         {
             bool ctrl = kb.ctrlKey.isPressed || kb.leftCommandKey.isPressed || kb.rightCommandKey.isPressed;
             bool shift = kb.shiftKey.isPressed;
+            bool alt = kb.altKey.isPressed;
 
             if (kb.escapeKey.wasPressedThisFrame)
             {
@@ -205,32 +207,17 @@ namespace StarForge.View
             if (kb.f2Key.wasPressedThisFrame) SelectAllArmy();
             if (kb.periodKey.wasPressedThisFrame) bs.SetSpeed(bs.Speed + 0.5f);
             if (kb.commaKey.wasPressedThisFrame) bs.SetSpeed(bs.Speed - 0.5f);
+            HandleEyeKeys(kb, ctrl, alt);
 
+            // Control groups as StarCraft II has them: Ctrl (or Cmd) + # makes one, Shift + # adds the
+            // selection to it, # selects it, twice quickly goes to it. Option + # is the camera spots'.
             for (int i = 0; i < 10; i++)
             {
                 var key = kb[(Key)((int)Key.Digit1 + (i == 0 ? 9 : i - 1))];
-                if (!key.wasPressedThisFrame) continue;
-                if (ctrl && CanCommand)
-                {
-                    groups[i].Clear();
-                    foreach (var u in Selection) if (Mine(u)) groups[i].Add(u);
-                }
-                else if (shift)
-                {
-                    foreach (var u in groups[i]) if (Unit.Live(u) && Mine(u) && !Selection.Contains(u)) Selection.Add(u);
-                    SelectionChanged?.Invoke();
-                }
-                else
-                {
-                    groups[i].RemoveAll(u => !Unit.Live(u) || !Mine(u));
-                    if (groups[i].Count == 0) continue;
-                    Selection.Clear();
-                    Selection.AddRange(groups[i]);
-                    SelectionChanged?.Invoke();
-                    if (lastGroupTap == i && Time.unscaledTime - lastGroupTapTime < 0.35f) rig.CenterOn(Centroid(Selection));
-                    lastGroupTap = i;
-                    lastGroupTapTime = Time.unscaledTime;
-                }
+                if (!key.wasPressedThisFrame || alt) continue;
+                if (ctrl) SetGroup(i);
+                else if (shift) AddToGroup(i);
+                else RecallGroup(i);
             }
 
             // Testing cheat, documented only in the README: Ctrl (or Cmd) + Shift + M (GameWorld.Cheat).
@@ -322,8 +309,11 @@ namespace StarForge.View
             bool doubleClick = Time.unscaledTime - lastClickTime < 0.3f && lastClickType == u.Type && u.team == team;
             lastClickTime = Time.unscaledTime;
             lastClickType = u.Type;
+            // Ctrl (or Cmd) + click is StarCraft II's way to the same: every one of that type on screen.
+            var kb = Keyboard.current;
+            bool ctrl = kb != null && (kb.ctrlKey.isPressed || kb.leftCommandKey.isPressed || kb.rightCommandKey.isPressed);
 
-            if (doubleClick)
+            if (doubleClick || (ctrl && u.team == team))
             {
                 // Everything of that type on screen.
                 if (!shift) Selection.Clear();
@@ -378,6 +368,57 @@ namespace StarForge.View
             foreach (var u in world.units)
                 if (Unit.Live(u) && Mine(u) && u.def.IsArmy) Selection.Add(u);
             SelectionChanged?.Invoke();
+        }
+
+        // ------------------------------------------------------------ control groups
+        /// <summary>Counts every change to a group's members, so the HUD's group bar redraws only then
+        /// (deaths it notices on its own timer).</summary>
+        public int GroupsVersion { get; private set; }
+
+        /// <summary>Group i (0-9, as the key reads): may hold the dead until it is next recalled.</summary>
+        public IReadOnlyList<Unit> Group(int i) => groups[i];
+
+        /// <summary>Ctrl (or Cmd) + #: the group becomes the player's own units in the selection.</summary>
+        public void SetGroup(int i)
+        {
+            if (!CanCommand) return;
+            groups[i].Clear();
+            foreach (var u in Selection) if (Mine(u)) groups[i].Add(u);
+            GroupsVersion++;
+        }
+
+        /// <summary>Shift + # (StarCraft II): the selection joins the group and stays selected.</summary>
+        public void AddToGroup(int i)
+        {
+            if (!CanCommand) return;
+            foreach (var u in Selection) if (Mine(u) && !groups[i].Contains(u)) groups[i].Add(u);
+            GroupsVersion++;
+        }
+
+        /// <summary>#: select group i (add: to the selection, the group bar's Shift-click); the same group
+        /// twice within 0.35 s takes the camera to it.</summary>
+        public void RecallGroup(int i, bool add = false)
+        {
+            int before = groups[i].Count;
+            groups[i].RemoveAll(u => !Unit.Live(u) || !Mine(u));
+            if (groups[i].Count != before) GroupsVersion++;
+            if (groups[i].Count == 0) return;
+            if (!add) Selection.Clear();
+            foreach (var u in groups[i]) if (!Selection.Contains(u)) Selection.Add(u);
+            SelectionChanged?.Invoke();
+            if (lastGroupTap == i && Time.unscaledTime - lastGroupTapTime < 0.35f) rig.CenterOn(Centroid(groups[i]));
+            lastGroupTap = i;
+            lastGroupTapTime = Time.unscaledTime;
+        }
+
+        /// <summary>The camera to group i, selection untouched (the group bar's double-click). Pruned as a
+        /// recall prunes, so a deserter running for a corner does not pull the camera off the group.</summary>
+        public void CenterOnGroup(int i)
+        {
+            int before = groups[i].Count;
+            groups[i].RemoveAll(u => !Unit.Live(u) || !Mine(u));
+            if (groups[i].Count != before) GroupsVersion++;
+            if (groups[i].Count > 0) rig.CenterOn(Centroid(groups[i]));
         }
 
         List<Unit> OwnSelection()

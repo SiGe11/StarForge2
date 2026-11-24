@@ -17,7 +17,7 @@ using StarForge.World;
 namespace StarForge.UI
 {
     [RequireComponent(typeof(UIDocument))]
-    public sealed class HUDController : MonoBehaviour
+    public sealed partial class HUDController : MonoBehaviour
     {
         public GameWorld world;
         public PlayerController player;
@@ -168,6 +168,7 @@ namespace StarForge.UI
 
             // The menus live in this document (StarForgeMenu.uxml, instanced by the HUD's).
             if (GetComponent<MenuController>() == null) gameObject.AddComponent<MenuController>();
+            InitUX();
         }
 
         void OnEnable()
@@ -302,6 +303,7 @@ namespace StarForge.UI
 
             UpdateSelectionPanel();
             UpdateMechStrip();
+            UpdateUX(dt);
             if ((cardT -= dt) <= 0f || selectionDirty) { cardT = 0.2f; RefreshCommandCard(); }
             if ((minimapT -= dt) <= 0f) { minimapT = 0.1f; UpdateMinimap(); }
             if (inspector.ClassListContains("inspector--visible") && (inspT -= dt) <= 0f) { inspT = 0.25f; UpdateInspector(); }
@@ -572,61 +574,61 @@ namespace StarForge.UI
             switch (e.kind)
             {
                 case GameEventKind.UnderAttack when e.team == me:
-                    if (Time.unscaledTime - underAttackT > 10f && bootstrap.State == MatchState.Playing)
-                    {
-                        underAttackT = Time.unscaledTime;
-                        Alert(e.unit != null && e.unit.def.building ? "Your base is under attack" : "Your forces are under attack", "alert--warn");
-                    }
+                    UnderAttack(e);
                     break;
+                // Headings in the world's names (the guild raises structures, the High Watch brings the
+                // Mech, squads report on the field net); the text stays the game's plain voice.
                 case GameEventKind.StructureComplete when e.team == me:
-                    Alert($"{Defs.Get(e.type).displayName} complete", "alert--good");
-                    if (e.type == UnitType.MechBay) Alert($"Mech drop in {Clock(GameWorld.MechDropDelay)}", "alert--good");
+                    Dispatch("THE GUILD", $"{Defs.Get(e.type).displayName} complete", "alert--good", 2.6f, PlaceOf(e));
+                    if (e.type == UnitType.MechBay) Dispatch("HIGH WATCH", $"Mech drop in {Clock(GameWorld.MechDropDelay)}", "alert--good", 2.6f);
                     break;
                 case GameEventKind.Promoted when e.team == me:
-                    Alert($"{Defs.Get(e.type).displayName} promoted to rank {e.scale:0}", "alert--good");
+                    Dispatch("FIELD NET", $"{Defs.Get(e.type).displayName} promoted to rank {e.scale:0}", "alert--good", 2.6f, PlaceOf(e));
                     break;
                 case GameEventKind.Refused when e.team == me:
-                    Alert(e.text, "alert--warn");
+                    Dispatch(null, e.text, "alert--refused", 2.6f);
                     break;
                 case GameEventKind.Reckoning when e.team == me:
-                    Alert("You cheated. The animals have come for you.", "alert--warn", 10f);
+                    Dispatch("THE FALLOW OATH", "You cheated. The animals have come for you.", "alert--warn", 10f);
                     break;
                 case GameEventKind.Notice when e.team == me:
-                    Alert(e.text, "alert--good");
+                    Dispatch(null, e.text, "alert--good", 2.6f);
                     break;
                 case GameEventKind.StructureIgnited when e.team == me:
-                    Alert($"{Defs.Get(e.type).displayName} is on fire", "alert--warn");
+                    Dispatch(Net(PlaceOf(e)), $"{Defs.Get(e.type).displayName} is on fire", "alert--warn", 2.6f, PlaceOf(e));
                     break;
                 case GameEventKind.Death when e.team == me && e.unit != null && e.unit.def.building:
-                    Alert($"{Defs.Get(e.type).displayName} destroyed", "alert--warn");
+                    Dispatch(Net(PlaceOf(e)), $"{Defs.Get(e.type).displayName} destroyed", "alert--warn", 2.6f, PlaceOf(e));
                     if (e.type == UnitType.MechBay && !world.factions[me].mechDropped)
-                        Alert(world.factions[me].bayPlaced || world.factions[me].bayLost ? "The Mech will not come now"
-                              : "Its Digger never started on it -- the Mech Bay may be placed again", "alert--warn");
+                        Dispatch("HIGH WATCH", world.factions[me].bayPlaced || world.factions[me].bayLost ? "The Mech will not come now"
+                              : "Its Digger never started on it -- the Mech Bay may be placed again", "alert--warn", 2.6f);
                     break;
                 case GameEventKind.Death when e.type == UnitType.Mech:
-                    if (e.team == me) Alert("Your Mech has fallen", "alert--warn");
-                    else if (e.unit != null && (e.unit.visibleToPlayer || MatchSettings.spectate)) Alert("Enemy Mech destroyed", "alert--good");
+                    if (e.team == me) Dispatch(OrderHead(me), "Your Mech has fallen", "alert--warn", 2.6f, PlaceOf(e));
+                    else if (e.unit != null && (e.unit.visibleToPlayer || MatchSettings.spectate)) Dispatch("FIELD NET", "Enemy Mech has fallen", "alert--good", 2.6f, PlaceOf(e));
                     break;
                 case GameEventKind.MechInbound when e.team == me:
-                    Alert("Mech inbound -- landing beside the Mech Bay", "alert--good");
+                    Dispatch("HIGH WATCH", "Mech inbound -- landing beside the Mech Bay", "alert--good", 2.6f, PlaceOf(e));
                     break;
                 case GameEventKind.MechLanded when e.team != me && e.unit != null && (e.unit.visibleToPlayer || world.Explored(me, new Vector2(e.pos.x, e.pos.z))):
-                    Alert("Enemy Mech has landed", "alert--warn");
+                    Dispatch(Net(PlaceOf(e)), "Enemy Mech has landed", "alert--warn", 2.6f, PlaceOf(e));
                     break;
                 case GameEventKind.UpgradeComplete when e.team == me:
+                    Dispatch("THE GANTRY", e.text, "alert--good", 2.6f);
+                    break;
                 case GameEventKind.ArmyUpgradeComplete when e.team == me:
-                    Alert(e.text, "alert--good");
+                    Dispatch("ARMORY", e.text, "alert--good", 2.6f);
                     break;
                 case GameEventKind.Desertion:
                     if (e.team == me)
                     {
                         // Long on screen: it does not happen often, and it costs the player units.
-                        Alert($"{e.text} deserting -- running for the {Corner(e.end)} corner", "alert--warn", 8f);
+                        Dispatch("FIELD NET · GONE QUIET", $"{e.text} deserting -- running for the {Corner(e.end)} corner", "alert--warn", 8f, new Vector2(e.pos.x, e.pos.z));
                         desertPings.Add((new Vector2(e.pos.x, e.pos.z), Time.unscaledTime));
                         desertPings.Add((new Vector2(e.end.x, e.end.z), Time.unscaledTime));
                     }
                     else if (MatchSettings.spectate || world.Visible(me, new Vector2(e.pos.x, e.pos.z)))
-                        Alert("Enemy soldiers are deserting", "alert--good", 5f);
+                        Dispatch("FIELD NET", "Enemy soldiers are deserting", "alert--good", 5f, new Vector2(e.pos.x, e.pos.z));
                     break;
                 case GameEventKind.MechAdvice when e.team == me:
                     Comms(e);
@@ -792,6 +794,7 @@ namespace StarForge.UI
                         advicePings[i] = (at, Time.unscaledTime, kind);
                         return;
                     }
+            if (!refresh) RememberPlace(at);
             advicePings.Add((at, Time.unscaledTime, kind));
             if (advicePings.Count > 4) advicePings.RemoveAt(0);
         }
@@ -867,37 +870,9 @@ namespace StarForge.UI
         float textAt;
         float shownSpeed = float.NaN;
 
-        void Alert(string text, string cls, float seconds = 2.6f)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-            long hold = (long)(seconds * 1000f);
-            // The same message repeating (a supply block, say) is one situation, not
-            // four: refresh the line that is already up instead of stacking copies.
-            for (int i = alerts.childCount - 1; i >= 0; i--)
-                if (alerts[i] is Label existing && existing.text == text)
-                {
-                    existing.RemoveFromClassList("alert--fading");
-                    ScheduleFade(existing, hold);
-                    return;
-                }
-            if (alerts.childCount >= 4) alerts.RemoveAt(0);
-            var l = new Label(text) { pickingMode = PickingMode.Ignore };
-            l.AddToClassList("alert");
-            l.AddToClassList(cls);
-            alerts.Add(l);
-            ScheduleFade(l, hold);
-        }
-
-        /// <summary>A line's fade and removal, keyed to its latest showing: a repeat restarts its time,
-        /// and the earlier showing's callbacks then do nothing (they used to take the refreshed line
-        /// down on the first showing's schedule).</summary>
-        static void ScheduleFade(Label l, long hold)
-        {
-            int token = (l.userData is int n ? n : 0) + 1;
-            l.userData = token;
-            l.schedule.Execute(() => { if (l.userData is int k && k == token) l.AddToClassList("alert--fading"); }).StartingIn(hold);
-            l.schedule.Execute(() => { if (l.userData is int k && k == token) l.RemoveFromHierarchy(); }).StartingIn(hold + 500);
-        }
+        /// <summary>A dispatch with no heading or place (HUDController.UX's Dispatch). The same message
+        /// repeating (a supply block, say) refreshes the one already up instead of stacking copies.</summary>
+        void Alert(string text, string cls, float seconds = 2.6f) => Dispatch(null, text, cls, seconds);
 
         // ------------------------------------------------------------ minimap
         void WireMinimap()
@@ -1171,8 +1146,8 @@ namespace StarForge.UI
         // Read by the menus (Field manual, Settings > Controls); keep OpponentHelp consistent
         // with Commander and the README's "The opponent AI".
         public const string ControlsHelp =
-            "Camera   WASD / arrows / screen edge pan · Q E rotate · wheel zoom · middle-drag · Space centre\n" +
-            "Select   click · drag box · double-click type · Shift add · Ctrl+1-0 group · 1-0 recall · F2 army\n" +
+            "Camera   WASD / arrows / screen edge pan · Q E rotate · wheel zoom · middle-drag · Space centre · Option+1-4 / F5-F8 camera spot (Ctrl+Option+1-4 saves) · Tab latest alert · Backspace Foundry\n" +
+            "Select   click · drag box · double-click or Ctrl+click type · Shift add · Ctrl+1-0 group · Shift+1-0 add to group · 1-0 recall · F1 idle Digger · F2 army\n" +
             "Orders   right-click move/attack/mine · double right-click hurry · R attack-move · C stop · H hold · F fire at ground\n" +
             "Build    Digger: B basic (F foundry · B bunkhouse · G garrison · N sentinel · V workshop) · V advanced (U armory · L airfield · O biolab · Y mech bay) · X/Esc back\n" +
             "Train    Foundry U J K · Garrison T K F M N B G · Workshop M L F T K · Airfield F G · Biolab T G V Z · X cancel\n" +

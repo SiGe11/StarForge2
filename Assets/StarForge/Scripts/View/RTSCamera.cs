@@ -1,7 +1,7 @@
 // RTSCamera.cs — the RTS camera: focus point, yaw and distance, with the pitch
 // steepening as you zoom out (close-in detail and a readable overview from the
 // same control). WASD and the arrow keys pan, Q and E rotate; the commands
-// keep to the other letters.
+// keep to the other letters. Saved views (camera spots) are PlayerController's.
 using UnityEngine;
 using UnityEngine.InputSystem;
 using StarForge.World;
@@ -67,6 +67,21 @@ namespace StarForge.View
         public void CenterOn(Vector2 p) { Moves++; focusTarget = p; }
 
         public void ZoomTo(float dist) { Moves++; distTarget = Mathf.Clamp(dist, minDistance, maxDistance); }
+
+        /// <summary>A saved view: where, which way and how far out (the camera spots, PlayerController.Hotkeys).</summary>
+        public struct Shot { public Vector2 focus; public float yaw, distance; }
+
+        /// <summary>The view the camera is headed for: saved mid-glide, it keeps where the glide ends.</summary>
+        public Shot Capture() => new Shot { focus = focusTarget, yaw = yawTarget, distance = distTarget };
+
+        /// <summary>Glides to a saved view, turn and zoom included (LerpAngle takes the short way round).</summary>
+        public void GoTo(Shot s)
+        {
+            Moves++;
+            focusTarget = s.focus;
+            yawTarget = s.yaw;
+            distTarget = Mathf.Clamp(s.distance, minDistance, maxDistance);
+        }
 
         /// <summary>The title screen's drift: aims the camera without counting as a move.</summary>
         public void Glide(Vector2 p, float yawDeg, float dist)

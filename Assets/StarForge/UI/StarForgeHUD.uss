@@ -1,3 +1,7 @@
+/* The Host's look (docs/lore, section 6: the iron, the old Host grey under the paint; capes
+   trimmed in bronze and gold): grey iron panels, bronze edges, gilt for headings and news,
+   ember for trouble. The wing's blue (--accent) stays for what the player points at and
+   selects. Headings are set in Cinzel (OFL 1.1, THIRD-PARTY.md), body text in Inter. */
 :root {
     --accent: #4fd1ff;
     --accent-dim: rgba(79, 209, 255, 0.35);
@@ -5,12 +9,17 @@
     --amber: #ffb547;
     --danger: #ff5a4f;
     --ok: #59e38c;
-    --text: #dfe8f0;
-    --muted: #8ea3b6;
-    --panel: rgba(7, 12, 19, 0.84);
-    --panel-edge: rgba(79, 209, 255, 0.30);
+    --text: #e4e2da;
+    --muted: #9c988e;
+    --panel: rgba(15, 15, 17, 0.86);
+    --panel-edge: rgba(201, 164, 98, 0.30);
     --screen-dim: rgba(3, 6, 10, 0.72);
-    --radius: 6px;
+    --radius: 3px;
+    --gilt: #ddb86e;
+    --gilt-dim: rgba(221, 184, 110, 0.45);
+    --gilt-faint: rgba(221, 184, 110, 0.12);
+    --bronze: rgba(176, 129, 74, 0.55);
+    --ember: #eb5e42;
 }
 
 .root {
@@ -30,10 +39,10 @@
 }
 
 .section-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
-    font-size: 11px;
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
+    font-size: 12px;
     letter-spacing: 2px;
-    color: var(--accent);
+    color: var(--gilt);
     margin-top: 10px;
     margin-bottom: 4px;
 }
@@ -131,15 +140,15 @@
 }
 
 .top-button {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
-    border-radius: 4px;
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
+    border-radius: 2px;
     border-width: 1px;
     margin: 4px;
     color: var(--text);
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
     transition-duration: 0.12s;
-    background-color: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.14);
+    background-color: rgba(255, 255, 255, 0.03);
+    border-color: var(--bronze);
     font-size: 12px;
     padding: 5px 12px;
 }
@@ -162,33 +171,80 @@
     align-items: center;
 }
 
-.alert {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
-    background-color: rgba(7, 12, 19, 0.78);
-    border-width: 1px;
-    border-color: var(--accent-dim);
-    border-radius: 4px;
-    padding: 6px 18px;
+/* A dispatch (HUDController.UX): an SFFrame (cut corners, hairline edge, a tab in its colour,
+   painted in code) with the star as its seal, a heading in Cinzel and the text. Gilt for
+   news (alert--good), ember for trouble (alert--warn), ash for a refusal, the wing's blue
+   for the interface's own hints. "TAB" marks one with a place to go to. */
+.dispatch {
+    flex-direction: row;
+    align-items: center;
+    min-width: 260px;
+    max-width: 640px;
+    padding: 6px 14px 7px 12px;
     margin-bottom: 6px;
-    font-size: 15px;
     opacity: 1;
     translate: 0 0;
     transition-duration: 0.35s;
 }
 
-.alert--warn {
-    border-color: rgba(255, 90, 79, 0.7);
-    color: #ffd2cf;
+.dispatch--new {
+    opacity: 0;
+    translate: 0 -6px;
 }
 
-.alert--good {
-    border-color: rgba(89, 227, 140, 0.6);
-    color: #d6ffe4;
-}
-
-.alert--fading {
+.dispatch--fading {
     opacity: 0;
     translate: 0 -10px;
+}
+
+.dispatch-star {
+    width: 14px;
+    height: 14px;
+    margin-right: 11px;
+    flex-shrink: 0;
+}
+
+.dispatch-body {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.dispatch-head {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--gilt);
+    margin-bottom: 1px;
+}
+
+.dispatch-text {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    font-size: 15px;
+    color: var(--text);
+    white-space: normal;
+}
+
+.alert--warn .dispatch-head { color: #f29a82; }
+.alert--warn .dispatch-text { color: #ffe0d6; }
+.alert--good .dispatch-text { color: #f3ead6; }
+.alert--refused { min-width: 0; padding: 4px 12px 5px 10px; }
+.alert--refused .dispatch-text { font-size: 14px; color: #d8d4ca; }
+.alert--refused .dispatch-star { width: 10px; height: 10px; margin-right: 8px; }
+.alert--hint { min-width: 0; padding: 4px 12px 5px 10px; }
+.alert--hint .dispatch-text { font-size: 14px; color: #cfeefd; }
+.alert--hint .dispatch-star { width: 10px; height: 10px; margin-right: 8px; }
+
+.dispatch-key {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-left: 14px;
+    padding: 1px 5px 1px 5px;
+    border-width: 1px;
+    border-radius: 2px;
+    border-color: rgba(156, 152, 142, 0.45);
+    flex-shrink: 0;
 }
 
 /* ------------------------------------------------------------ the Mech: status strip and comms */
@@ -204,7 +260,7 @@
     border-width: 1px;
     border-left-width: 3px;
     border-color: var(--panel-edge);
-    border-left-color: var(--amber);
+    border-left-color: var(--gilt);
     border-radius: var(--radius);
     padding: 7px 10px 8px 10px;
     margin-bottom: 8px;
@@ -216,7 +272,7 @@
 }
 
 .mech-strip:hover {
-    background-color: rgba(14, 24, 36, 0.92);
+    background-color: rgba(28, 26, 24, 0.94);
 }
 
 .mech-strip-head {
@@ -248,10 +304,10 @@
 }
 
 .mech-strip-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
-    font-size: 12px;
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
+    font-size: 13px;
     letter-spacing: 1.5px;
-    color: var(--amber);
+    color: var(--gilt);
 }
 
 .mech-strip-state {
@@ -280,13 +336,14 @@
     flex-direction: column;
 }
 
+/* The knight on the field net: iron, a bronze hairline, the call's colour down the left. */
 .comms-line {
-    background-color: rgba(7, 12, 19, 0.86);
+    background-color: rgba(15, 15, 17, 0.88);
     border-width: 1px;
     border-left-width: 3px;
-    border-color: rgba(255, 181, 71, 0.30);
-    border-left-color: var(--amber);
-    border-radius: 4px;
+    border-color: rgba(201, 164, 98, 0.26);
+    border-left-color: var(--gilt);
+    border-radius: 2px;
     padding: 6px 10px 7px 10px;
     margin-bottom: 6px;
     opacity: 1;
@@ -295,7 +352,7 @@
 }
 
 .comms-line:hover {
-    background-color: rgba(14, 24, 36, 0.95);
+    background-color: rgba(30, 28, 25, 0.96);
 }
 
 .comms-line--new {
@@ -307,18 +364,18 @@
     opacity: 0;
 }
 
-.comms-line--attack { border-left-color: var(--danger); }
-.comms-line--defend { border-left-color: var(--amber); }
-.comms-line--regroup { border-left-color: #c99bff; }
-.comms-line--warning { border-left-color: var(--danger); }
-.comms-line--morale { border-left-color: #ffd873; }
-.comms-line--status { border-left-color: var(--accent); }
+.comms-line--attack { border-left-color: var(--ember); }
+.comms-line--defend { border-left-color: var(--gilt); }
+.comms-line--regroup { border-left-color: #b39ad8; }
+.comms-line--warning { border-left-color: var(--ember); }
+.comms-line--morale { border-left-color: rgba(221, 184, 110, 0.6); }
+.comms-line--status { border-left-color: #9fb7c9; }
 
 .comms-who {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
-    font-size: 11px;
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
+    font-size: 12px;
     letter-spacing: 1.5px;
-    color: var(--amber);
+    color: var(--gilt);
 }
 
 .comms-text {
@@ -347,23 +404,24 @@
     letter-spacing: 1.2px;
     padding: 1px 5px 1px 5px;
     margin-left: 8px;
-    border-radius: 3px;
-    color: #0a1119;
-    background-color: var(--accent);
+    border-radius: 2px;
+    color: #171209;
+    background-color: var(--gilt);
 }
 
-.comms-tag--attack { background-color: var(--danger); }
-.comms-tag--warning { background-color: var(--danger); }
-.comms-tag--defend { background-color: var(--amber); }
-.comms-tag--regroup { background-color: #c99bff; }
-.comms-tag--status { background-color: rgba(79, 209, 255, 0.22); color: var(--accent); }
+/* Like wax on a dispatch: ember for an attack or a warning, gilt to defend. */
+.comms-tag--attack { background-color: #c94a33; color: #fff1e6; }
+.comms-tag--warning { background-color: #c94a33; color: #fff1e6; }
+.comms-tag--defend { background-color: var(--gilt); }
+.comms-tag--regroup { background-color: #b39ad8; }
+.comms-tag--status { background-color: rgba(159, 183, 201, 0.18); color: #c4d6e3; }
 
 /* Flavour: the Mech talking, not advising -- quieter, lighter, untagged. */
 .comms-line--flair {
-    background-color: rgba(7, 12, 19, 0.50);
+    background-color: rgba(15, 15, 17, 0.55);
     border-width: 0;
     border-left-width: 2px;
-    border-left-color: rgba(255, 216, 115, 0.40);
+    border-left-color: rgba(221, 184, 110, 0.40);
     padding: 3px 10px 4px 10px;
 }
 
@@ -399,11 +457,90 @@
     bottom: 0;
 }
 
-.selection-panel {
+/* The selection and, on it, the control groups (HUDController.UX): the bar's 36 px fit in the
+   room the taller minimap and command card leave above the panel. */
+.selection-column {
     flex-grow: 1;
-    height: 170px;
     margin: 0 10px;
+}
+
+.selection-panel {
+    height: 170px;
     justify-content: center;
+}
+
+.group-bar {
+    flex-direction: row;
+    align-items: flex-end;
+    height: 36px;
+    margin-bottom: 5px;
+}
+
+.group-tab,
+.idle-tab {
+    flex-direction: row;
+    align-items: center;
+    height: 32px;
+    padding: 0 6px 0 4px;
+    margin-right: 4px;
+    background-color: var(--panel);
+    border-width: 1px;
+    border-color: var(--panel-edge);
+    border-radius: 2px;
+    transition-duration: 0.1s;
+    display: none;
+}
+
+.group-tab--shown,
+.idle-tab--shown {
+    display: flex;
+}
+
+.group-tab:hover,
+.idle-tab:hover {
+    border-color: var(--accent);
+    background-color: rgba(24, 30, 34, 0.92);
+}
+
+/* The selection is this group. */
+.group-tab--active {
+    border-color: var(--gilt);
+    border-top-width: 2px;
+    background-color: rgba(42, 36, 26, 0.92);
+}
+
+.group-tab-key {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 12px;
+    color: var(--gilt);
+    margin-right: 3px;
+    -unity-text-align: upper-left;
+}
+
+.group-tab-icon {
+    width: 24px;
+    height: 24px;
+}
+
+.group-tab-count {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    font-size: 13px;
+    color: var(--text);
+    margin-left: 3px;
+}
+
+/* The idle Diggers (F1): first on the bar, in the field's warning amber. */
+.idle-tab {
+    border-color: rgba(255, 181, 71, 0.55);
+    margin-right: 12px;
+}
+
+.idle-tab-word {
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--amber);
+    margin-left: 3px;
 }
 
 .single-info {
@@ -431,9 +568,10 @@
 }
 
 .unit-name {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Regular.ttf");
     font-size: 20px;
-    color: #ffffff;
+    letter-spacing: 1px;
+    color: #f4efe4;
 }
 
 .unit-stats {
@@ -538,10 +676,10 @@
     height: 64px;
     margin: 3px;
     padding: 0;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(255, 255, 255, 0.04);
     border-width: 1px;
-    border-color: rgba(255, 255, 255, 0.14);
-    border-radius: 4px;
+    border-color: rgba(201, 164, 98, 0.24);
+    border-radius: 2px;
     transition-duration: 0.1s;
 }
 
@@ -604,10 +742,11 @@
     bottom: 256px;
     width: 300px;
     padding: 10px 12px;
-    background-color: rgba(5, 9, 15, 0.95);
+    background-color: rgba(13, 13, 15, 0.96);
     border-width: 1px;
-    border-color: var(--accent-dim);
-    border-radius: 5px;
+    border-color: var(--panel-edge);
+    border-top-color: var(--gilt-dim);
+    border-radius: 2px;
     display: none;
 }
 
@@ -616,9 +755,9 @@
 }
 
 .tooltip-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Regular.ttf");
     font-size: 16px;
-    color: #ffffff;
+    color: #f4efe4;
 }
 
 .tooltip-cost {

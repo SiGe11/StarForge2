@@ -58,19 +58,23 @@
           <sf:MinimapElement name="minimap" class="minimap" />
         </ui:VisualElement>
 
-        <ui:VisualElement name="selectionPanel" class="panel selection-panel">
-          <ui:VisualElement name="singleInfo" class="single-info">
-            <ui:Image name="portrait" class="portrait" />
-            <ui:VisualElement class="single-text">
-              <ui:Label name="unitName" class="unit-name" text="" />
-              <ui:Label name="unitStats" class="unit-stats" text="" />
-              <sf:BarElement name="hpBar" class="hp-bar" />
-              <ui:Label name="unitStatus" class="unit-status" text="" />
-              <ui:VisualElement name="queue" class="queue" />
+        <!-- The control groups (and the idle Diggers) sit on the selection, as in StarCraft II: HUDController.UX. -->
+        <ui:VisualElement name="selectionColumn" class="selection-column" picking-mode="Ignore">
+          <ui:VisualElement name="groupBar" class="group-bar" picking-mode="Ignore" />
+          <ui:VisualElement name="selectionPanel" class="panel selection-panel">
+            <ui:VisualElement name="singleInfo" class="single-info">
+              <ui:Image name="portrait" class="portrait" />
+              <ui:VisualElement class="single-text">
+                <ui:Label name="unitName" class="unit-name" text="" />
+                <ui:Label name="unitStats" class="unit-stats" text="" />
+                <sf:BarElement name="hpBar" class="hp-bar" />
+                <ui:Label name="unitStatus" class="unit-status" text="" />
+                <ui:VisualElement name="queue" class="queue" />
+              </ui:VisualElement>
             </ui:VisualElement>
+            <ui:VisualElement name="multiGrid" class="multi-grid" />
+            <ui:Label name="selectionHint" class="selection-hint" text="Drag to select units · right-click to command · Ctrl + 1-0 makes a group" />
           </ui:VisualElement>
-          <ui:VisualElement name="multiGrid" class="multi-grid" />
-          <ui:Label name="selectionHint" class="selection-hint" text="Drag to select units · right-click to command" />
         </ui:VisualElement>
 
         <ui:VisualElement name="commandCard" class="panel command-card" />
