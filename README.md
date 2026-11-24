@@ -7,8 +7,8 @@ war machine worth half a dozen tanks, assembled from a random draw of parts, wit
 its own — an ally that fights for you by its own judgement and tells you what it sees
 ([Mechs](#mechs)).
 
-Note: This whole project is for testing Claude capabilities and Unity integration.
-
+StarForge is a complete game by one developer, written LLM-first: Claude writes the code
+under the author's direction, and the author owns the design calls and the testing.
 
 This is a rebuild of the C++/Metal StarForge (`~/repositories/StarForge`) in
 **Unity 6 (URP)**, tuned for the **MacBook Neo** (Apple A18 Pro, 5-core GPU,
