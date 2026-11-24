@@ -288,7 +288,7 @@ namespace StarForge.EditorTools
 
     /// <summary>The plan trace (2026-11-23, the plan retune): every think of every evaluation game, the
     /// plan selector's inputs and choice, written one CSV a game to Art/Source/staged/aiaudit/plans/traces/
-    /// <run>/. Read by Art/Source/staged/aiaudit/plans/replay.py, which replays the selector offline.
+    /// <run>/. Read by Tools/plan_replay.py, which replays the selector offline.
     /// Armed by AuditTrials.EvalTracedFull / EvalTracedQuick, disarmed when the run's report is written
     /// (or by PlanTraceStop); hooked on GameWorld.Ticked after the Commander's own handler, so each row is
     /// the think just made. Rows: game, t, think dt, current plan, then per plan score, legal, bias, then
@@ -357,6 +357,9 @@ namespace StarForge.EditorTools
             lastThinkSeconds = 0f;
             sb.Append("# game ").Append(game).Append(" seed ").Append(MatchSettings.seed).Append(" difficulty ").Append(ai.Difficulty)
               .Append(" doctrine ").Append(StrategySelector.VariedDoctrine ? "varied" : "legacy")
+              // The bar is the selector's rule, not the game's: legality stays Legal() alone and plan_replay applies the
+              // cap from this stamp (the 2026-11-23 22:55 trace wrote a barred Feint as not legal: replay it --legal-rule).
+              .Append(" feintcap ").Append(StrategySelector.VariedDoctrine ? $"{StrategySelector.FeintRun:0}/{StrategySelector.FeintRest:0}" : "off")
               .Append(" personality ").Append(ai.Dbg.personality.Replace(',', ';')).Append('\n');
             sb.Append("game,t,dt,cur");
             for (int i = 0; i < (int)Strategy.Count; i++) sb.Append(",s").Append(i);

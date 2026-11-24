@@ -10,7 +10,7 @@ doctrine the trace was recorded under it should agree with the recorded plan mos
 after 420 s (no exploration noise) its scores should match the recorded ones.
 
   /usr/bin/python3 Tools/plan_replay.py TRACE_DIR [--varied | --block Name] [--set Plan.Feature=v ...]
-                     [--setfile FILE] [--truth] [--draws 5] [--legal-rule --rule k=v] [--quiet]
+                     [--setfile FILE] [--truth] [--draws 5] [--legal-rule --rule k=v] [--feint-cap RUN,REST] [--quiet]
 Traces: Art/Source/staged/aiaudit/plans/traces/ (git-ignored). Run from the repo root.
 """
 import argparse, csv, glob, math, os, random, re, sys
@@ -95,8 +95,9 @@ RULES = dict(rush_troopers=4, harass_units=3, push_army=300, counter_army=200, c
              expand_ore=350, expand_workers=10)
 
 
-def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, extra=None):
-    """Step StrategySelector.Update (the audit's code, LegacyLearning off) over a game's rows."""
+def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, extra=None, feint_cap=None):
+    """Step StrategySelector.Update (the audit's code, LegacyLearning off) over a game's rows. feint_cap (run, rest):
+    a Feint run ends after `run` s and Feint is barred for `rest` s (StrategySelector's FeintRun/FeintRest)."""
     w = [row[:] for row in w0]
     cur = pend = 0
     commitT = evalT = lastAdv = 0.0
@@ -105,6 +106,8 @@ def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, ex
     runPay = [0.0] * S
     fatigue = [0.0] * S
     timeIn = [0.0] * S
+    lateIn = [0.0] * S
+    feintRestUntil = -1.0
     lastFeat = [0.0] * NF
     agree = 0
     resid = []
@@ -123,6 +126,8 @@ def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, ex
                 feat[i] = 0.02
             feat[truth_idx] = 0.90
         timeIn[cur] += dt; runTime[cur] += dt
+        if t > 480: lateIn[cur] += dt
+        if feint_cap and cur == 7 and runTime[7] > feint_cap[0]: feintRestUntil = t + feint_cap[1]
         for i in range(S):
             if i != cur: fatigue[i] = max(0.0, fatigue[i] - dt * 0.002)
         evalT += dt
@@ -135,7 +140,7 @@ def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, ex
         sc = [None] * S
         for si in range(S):
             legal = (r["l%d" % si] == "1") if legal_mode == "recorded" else legal_rule(si, r, rules)
-            if not legal:
+            if not legal or (si == 7 and t < feintRestUntil):
                 continue
             acc = sum(w[si][i] * feat[i] for i in range(NF))
             acc += rng.uniform(-1, 1) * 0.10 * (1 - min(1.0, t / 420.0))
@@ -171,7 +176,8 @@ def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, ex
         if cur == int(r["cur"]): agree += 1
         picks.append(cur)
     tot = sum(timeIn) or 1.0
-    return [x / tot for x in timeIn], agree / max(1, len(rows)), resid
+    late = sum(lateIn)
+    return [x / tot for x in timeIn], agree / max(1, len(rows)), resid, ([x / late for x in lateIn] if late > 0 else None)
 
 
 def entropy(sh):
@@ -190,6 +196,9 @@ def main():
     ap.add_argument("--draws", type=int, default=5)
     ap.add_argument("--legal-rule", action="store_true", help="legality from the trace's inputs and RULES")
     ap.add_argument("--rule", action="append", default=[], help="name=v for RULES")
+    ap.add_argument("--feint-cap", help="RUN,REST: a Feint run ends after RUN s, then Feint is barred REST s (default: the "
+                    "trace header's feintcap stamp; 1e9,0 turns it off). The 2026-11-23 22:55 trace has no stamp and wrote "
+                    "the bar into its legality: replay it with --legal-rule")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()
     if not a.block and "void DoctrineLegacy" in open(a.cs).read():
@@ -208,20 +217,31 @@ def main():
     games = load(a.trace)
     n = len(games)
     meta = " ".join(m for _, m, _ in games[:1])
+    stamp = re.search(r" feintcap (\d+)/(\d+)", meta)
+    cap = tuple(float(x) for x in a.feint_cap.split(",")) if a.feint_cap else \
+          ((float(stamp.group(1)), float(stamp.group(2))) if stamp else None)
+    if stamp and not a.feint_cap:
+        print(f"Feint cap from the trace header: {stamp.group(1)}/{stamp.group(2)} (--feint-cap 1e9,0 turns it off)")
     if " doctrine " in meta and (("doctrine varied" in meta) != (a.block == "DoctrineVaried")):
         print(f"WARNING: the trace was recorded under another doctrine ({meta.split(' doctrine ')[1].split()[0]}) than replayed ({a.block})")
     print(f"{n} games from {a.trace}; doctrine {a.block or os.path.basename(a.cs)}{'; ' + ', '.join(a.set) if a.set else ''}"
-          f"{'; TRUE READ' if a.truth else ''}{'; legality by rule ' + str(rules) if a.legal_rule else ''}")
+          f"{'; TRUE READ' if a.truth else ''}{'; legality by rule ' + str(rules) if a.legal_rule else ''}"
+          f"{f'; Feint capped {cap[0]:.0f} s, rest {cap[1]:.0f} s' if cap else ''}")
     allsh = [0.0] * S
     bykind = {}
+    latek = {}
     agrees, resids = [], []
     for gi, (name, meta, rows) in enumerate(games):
         kind = kind_of(gi, n)
         sh = [0.0] * S; ag = 0.0
         for d in range(a.draws):
-            s_, g_, res = replay(rows, w, random.Random(1000 + 7 * gi + d), TRUTH.get(kind) if a.truth else None,
-                                 "rule" if a.legal_rule else "recorded", rules)
+            s_, g_, res, lt = replay(rows, w, random.Random(1000 + 7 * gi + d), TRUTH.get(kind) if a.truth else None,
+                                     "rule" if a.legal_rule else "recorded", rules, feint_cap=cap)
             sh = [x + y / a.draws for x, y in zip(sh, s_)]
+            if lt is not None:
+                lk = latek.setdefault(kind, [0.0] * (S + 1))
+                for i in range(S): lk[i] += lt[i]
+                lk[S] += 1
             ag += g_ / a.draws
             resids += res
         # the recorded shares
@@ -244,6 +264,9 @@ def main():
     for k, v in bykind.items():
         cnt = sum(1 for gi in range(n) if kind_of(gi, n) == k)
         print(f"  {k:8}: " + ", ".join(f"{NAMES[i]} {100*v[i]/cnt:.0f}%" for i in range(S) if v[i] / cnt >= 0.005))
+        lk = latek.get(k)
+        if lk and lk[S]:
+            print(f"  {'':8}  after 480 s: " + ", ".join(f"{NAMES[i]} {100*lk[i]/lk[S]:.0f}%" for i in range(S) if lk[i] / lk[S] >= 0.005))
     if not a.set and a.block in (None, "DoctrineLegacy", "DoctrineVaried") and not a.truth and not a.legal_rule:
         print(f"validation: agreement with the recorded plan {100*sum(agrees)/max(1,len(agrees)):.1f}% (mean over games); "
               f"score residual after 425 s: mean {sum(resids)/max(1,len(resids)):.4f}, max {max(resids) if resids else 0:.4f}")

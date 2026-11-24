@@ -100,6 +100,7 @@ namespace StarForge.AI
             cur = pending = Strategy.Eco;
             conf = commitT = lastAdv = evalT = 0f;
             haveAdv = false;
+            feintBarredUntil = -1f;
             switches = 0;
             System.Array.Clear(lastFeat, 0, NFEAT);
             System.Array.Clear(timeIn, 0, S);
@@ -113,11 +114,21 @@ namespace StarForge.AI
         void W(Strategy s, F f, float v) => doctrine[(int)s, (int)f] = v;
 
         /// <summary>The varied doctrine, OFF by default (opt-in: AIEvalRunner.SetAuditSwitches bit 1024 turns it on; the
-        /// runner, the benchmark and AgentInbox's play stop clear it). Its gate (2026-11-23, 6000.6.10f1): 16/20 won,
-        /// 0 lost, every plan used, Timing Push 49% -> 29% -- but against the turtle Feint took 84% of the time after
-        /// 480 s (26% before), and the Feint path starts no wave (no massing, Mech-away or beaten bookkeeping):
-        /// Turtle 1/5 won against 2/5, massing in no game. Left off until Feint no longer owns the late game.</summary>
+        /// runner, the benchmark and AgentInbox's play stop clear it). First gate (2026-11-23, 6000.6.10f1): 16/20 won,
+        /// 0 lost, every plan used, Timing Push 49% -> 29% -- but Feint took 84% of the turtle's late game (the Feint
+        /// path starts no wave). With the Feint cap below: Feint 23% there, 17/20, 0 lost, but Expand took 64% of the
+        /// macro player's late game and 2 of its 5 games capped (3 caps against the legacy doctrine's 2 on the same
+        /// rules). Left off until no plan locks in late: the bandit credits the plan in force with the AI's growing lead.</summary>
         public static bool VariedDoctrine;
+        /// <summary>With the varied doctrine a feint is one manoeuvre, not a plan to stay on: a Feint run ends after
+        /// FeintRun s and Feint is barred for FeintRest s after it. Its attack starts no wave (no regroup, massing or
+        /// Mech-away bookkeeping), and the bandit credits the plan in force with the AI's growing lead: in the varied
+        /// doctrine's first gate learned weights carried Feint's score from ~2 to 4-5.5 against the turtle (its
+        /// doctrine score within 0.3 of Timing Push's) and its runs there lasted 183-623 s.</summary>
+        public const float FeintRun = 60f, FeintRest = 180f;
+        float feintBarredUntil = -1f;
+        /// <summary>Feint barred after a run (the varied doctrine only); AuditTrials' plan trace records it as not legal.</summary>
+        public bool Barred(Strategy st, float t) => VariedDoctrine && st == Strategy.Feint && t < feintBarredUntil;
         /// <summary>The doctrine the memory file's learned weights belong to: bumped by hand whenever the DEFAULT
         /// doctrine's numbers change, and AIMemory drops saved weights of another version once. 0: the legacy doctrine
         /// (still the default); bump to 2 when <see cref="VariedDoctrine"/> becomes the default (1 was used 13:58-18:30 on
@@ -228,7 +239,8 @@ namespace StarForge.AI
 
             // Feint: worth it against a player who reacts hard to what they see.
             // (As before: raised, Feint took the late game from Timing Push against a defensive player, and its
-            // path starts no wave -- no staging, no Mech-away or hurt-Mech waves, no beaten or massed count.)
+            // path starts no wave -- no staging, no Mech-away or hurt-Mech waves, no beaten or massed count.
+            // With this doctrine a Feint run is capped, FeintRun/FeintRest.)
             W(Strategy.Feint, F.Bias, -0.75f); W(Strategy.Feint, F.Defensive, 1.4f);
             W(Strategy.Feint, F.Army, 0.8f); W(Strategy.Feint, F.ArmyRatio, 0.6f);
             W(Strategy.Feint, F.Time, 0.5f);
@@ -303,6 +315,7 @@ namespace StarForge.AI
             Features(s, om, t, feat);
             timeIn[(int)cur] += dt;
             runTime[(int)cur] += dt;
+            if (VariedDoctrine && cur == Strategy.Feint && runTime[(int)cur] > FeintRun) feintBarredUntil = t + FeintRest;
             for (int i = 0; i < S; i++) if (i != (int)cur) fatigue[i] = Mathf.Max(0f, fatigue[i] - dt * 0.002f);
 
             // Online credit assignment for the plan we have been running.
@@ -324,7 +337,7 @@ namespace StarForge.AI
             for (int si = 0; si < S; si++)
             {
                 var st = (Strategy)si;
-                if (!Legal(st, s)) { score[si] = -1e30f; continue; }
+                if (!Legal(st, s) || Barred(st, t)) { score[si] = -1e30f; continue; }
                 float acc = 0f;
                 for (int i = 0; i < NFEAT; i++) acc += w[si, i] * feat[i];
                 // A little optimism keeps the AI trying things it has not measured

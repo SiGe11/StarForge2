@@ -760,8 +760,9 @@ won 16 of 20, none lost, four ending at the time cap. One thing tried was left o
 groups. A full run with it on gave 16 of 20, none lost; on the turtle's five seeds the like-for-like pair won 4 of 5 either way, at
 766 s on average with it and 675 s without, which five matches cannot tell apart, so the old way stays. So did the old plan
 doctrine: a reworked one that gives every plan its turn cut Timing Push from 49% of the AI's time to 29% and brought the unused plans
-in, but against the turtle it spent 84% of the late game feinting and won 1 of 5 where the old one won 2. It stays an option for
-testing, off.
+in, but against the turtle it spent 84% of the late game feinting and won 1 of 5 where the old one won 2. With a feint held to
+one minute and then rested three, feinting fell to 23% and the turtle was beaten 4 of 5 times, but expanding then took the macro
+player's late game and two of those matches ran to the time cap. It stays an option for testing, off.
 
 Runs vary: the same twenty seeds gave 13, 15, 12, 15 and 11 wins in the round that added
 the Mechs, 15, 10 and 12 in the round that added the loadouts picked at the drop, the
@@ -1505,6 +1506,10 @@ Read correctly in the Full: Rusher 60%, Harasser 34%, Macro 12%, Turtle 88% (the
 *From the AI notes (The plan doctrine is the legacy one by default; a varied one is opt-in):*
 
 Traced Fulls on 6000.6.10f1 (Commander, 900 s, the same five seeds, Editor muted, AC charged), 2026-11-23. Legacy doctrine (13:06): **16/20 won, 0 lost, 4 caps** (Rusher 5, Macro 4, Turtle 2, Harasser 5 of 5), desertion in 2 of 20; plan time Timing Push 48.7%, Turtle/Tech 24.6%, Expand 14.1%, Feint 5.7%, Economy 4.8%, Harass 1.6%, Counter-Attack 0.6%, Trooper Rush 0; after 480 s against the turtle Feint 26%, Timing Push 21%; massing began in 1 game. Varied doctrine (17:58): **16/20 won, 0 lost, 4 caps** (Rusher 5, Macro 5, Turtle 1, Harasser 5), 0 exception lines, desertion in 4 of 20; Timing Push 28.5%, Turtle/Tech 25.1%, Feint 23.0%, Expand 12.3%, Economy 3.7%, Trooper Rush 3.0%, Counter-Attack 2.5%, Harass 1.8% (no plan at 0%); after 480 s against the turtle Feint 84%, Timing Push 2% (against the macro player 38% / 38%); massing in no game; Turtle games 889 s on average against 737 s; Diggers at 180 s against the harasser 13.8 against 16.0 (Trooper Rush holds them at 12), ore mined higher against three of the four opponents (the rusher's level). Replay of the varied doctrine over the legacy trace had predicted Timing Push 34.6%, Feint 10.9% (24% against the turtle). Quick on the varied doctrine 2/4, 0 lost (Macro and Turtle capped at 720 s, as the legacy Quicks). Since 18:30 the same day the legacy doctrine is the default again and the varied one is mask bit 1024 (`AuditTrials.EvalFullVariedDoctrine`).
+
+*From the AI notes (It met the variety target and is left off, now because Expand owns the macro player's late game):*
+
+The Feint cap's gate, 2026-11-23 22:56 (traced Full, varied doctrine with `FeintRun` 60 / `FeintRest` 180, Commander, 900 s, 6000.6.10f1, the tree also carrying the combat session's uncommitted fb1 rules, wall 1,693 s): **17/20 won, 0 lost, 3 caps** (Rusher 5, Macro 3 with 2 caps, Turtle 4 with 1, Harasser 5), 0 exception lines, desertion in 4 of 20, massing in no game. Base on the same rules (legacy doctrine, the combat session's Full that evening): 18/20, 0 lost, 2 caps (Turtle 3 of 5), massing in no game. Plan time Turtle/Tech 30.2%, Timing Push 28.5%, Expand 24.0%, Feint 6.3%, Economy 3.9%, Trooper Rush 3.7%, Harass 2.5%, Counter-Attack 0.8% (no plan at 0%); 21 Feint runs, the longest 63 s. After 480 s: against the turtle Feint 23%, Timing Push 52%, Expand 25% (legacy trace 26 / 21 / 53%); against the macro player Expand 64%, Turtle/Tech 22%, Feint 8%, Timing Push 4% (legacy 15 / 0 / 25 / 56%). Turtle games 413, 851, 900, 851, 790 s (base 824, 900, 900, 825, 676). The 23% is the cap binding (a ~63 s run and a ~183 s bar hold Feint to ~25%): the same trace replayed with rule legality and no cap gives Feint 63% after 480 s against the turtle (per-game mean; the replay over the uncapped 17:58 trace had predicted 19% with the cap and 62% without, against 84% recorded there, pooled). The gate written before the run asked for at most 2 caps: failed by one, so the varied doctrine stays off.
 
 ### AI: Mech AI
 
