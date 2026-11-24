@@ -507,6 +507,8 @@ namespace StarForge.View
         /// <summary>Night maps only (day maps ring nothing): the great bell at vespers; in a Quenching one
         /// stroke and the chant at the darkening, a hand bell at lauds. Silent until Build step 4 wires them.</summary>
         AudioSource bellSrc, chantSrc;
+        /// <summary>The chant's level against the master volume: the Quenching's 0.35, the liturgy's 0.3.</summary>
+        float chantLevel = 0.35f;
 
         /// <summary>Every frame: the chant follows the master volume, pauses with the game and stops at the match's end.</summary>
         void NightAudioTick(bool paused)
@@ -515,7 +517,7 @@ namespace StarForge.View
             if (world != null && world.winner >= 0) { if (chantSrc.isPlaying) chantSrc.Stop(); return; }
             if (paused) { if (chantSrc.isPlaying) chantSrc.Pause(); return; }
             chantSrc.UnPause();
-            chantSrc.volume = 0.35f * masterVolume;
+            chantSrc.volume = chantLevel * masterVolume;
         }
         void NightBell(int phase)
         {
@@ -527,13 +529,13 @@ namespace StarForge.View
             else if (phase == 1)
             {
                 if (bank.bellVespers != null) { bellSrc.pitch = 0.94f; bellSrc.PlayOneShot(bank.bellVespers, 0.4f * masterVolume); }
-                if (bank.chant != null) { chantSrc.clip = bank.chant; chantSrc.volume = 0.35f * masterVolume; chantSrc.Play(); }   // its own fades are in the clip
+                if (bank.chant != null) { chantLevel = 0.35f; chantSrc.clip = bank.chant; chantSrc.volume = chantLevel * masterVolume; chantSrc.Play(); }   // its own fades are in the clip
             }
             else if (phase == 3)
             {
                 // The Taking of the Light (a night map's Great Liturgy): a hand bell as the lamps go out, the chant.
                 if (bank.bellHand != null) { bellSrc.pitch = 0.97f; bellSrc.PlayOneShot(bank.bellHand, 0.35f * masterVolume); }
-                if (bank.chant != null) { chantSrc.clip = bank.chant; chantSrc.volume = 0.3f * masterVolume; chantSrc.Play(); }
+                if (bank.chant != null) { chantLevel = 0.3f; chantSrc.clip = bank.chant; chantSrc.volume = chantLevel * masterVolume; chantSrc.Play(); }
             }
             else if (phase == 2)
             {

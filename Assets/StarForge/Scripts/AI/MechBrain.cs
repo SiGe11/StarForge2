@@ -1297,7 +1297,9 @@ namespace StarForge.AI
         {
             float mood = speech.Mood(m), temper = speech.Temper, pride = speech.Pride;
             // Its order leans it (MechBrain.Night, PunishWill); no new random number: the one roll below decides.
-            float will = PunishWill(F.design != null ? F.design.order : null, temper, pride, mood);
+            // Real matches only (MechSpeech.CounselAllowed = NightRules.RealMatch, like the night maps): evaluations and
+            // trials keep the old will, so their verdicts and records compare.
+            float will = PunishWill(MechSpeech.CounselAllowed && F.design != null ? F.design.order : null, temper, pride, mood);
             bool go = punishRng.F01() < will || forcePunish;
             LastVerdict = $"will {will:0.00} (temper {temper:+0.00;-0.00}, pride {pride:0.00}, mood {mood:+0.00;-0.00}){(forcePunish ? " forced" : "")}: {(go ? "punish" : "let them go")}";
             forcePunish = false;

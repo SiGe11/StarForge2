@@ -664,7 +664,7 @@ pause menu) shows the same text under *The opponent*.*
   It still scouts every game, so if you change how you play, it will notice.
   There is no switch for this in the game: the opponent learning you is the game.
 
-**The Night of the Quenching.** On the night maps where every lamp goes out it keeps the truce like everyone else: no shot until lauds; it calls a wave home, holds its army at its post (meeting, without firing, anyone who comes within 55 m of its base) and starts the next wave after dawn.
+**The Night of the Quenching.** On the night maps where every lamp goes out it keeps the truce like everyone else: no shot until lauds; it calls a wave home, holds its army at its post (meeting, without firing, any party big enough to matter that comes within 55 m of its base) and starts the next wave after dawn.
 
 ### How it works
 

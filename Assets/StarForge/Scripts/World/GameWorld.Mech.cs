@@ -225,7 +225,8 @@ namespace StarForge.World
             {
                 if (e == m || e.def.building || e.def.neutral || e.dying) continue;
                 float k = 1f - Saturate((e.pos - m.pos).magnitude / LandingRadius);
-                if (e.team != m.team && e.team < 2 && !e.def.flying) Damage(e, LandingDamage * k, m.pos, m, true);
+                // The Night of the Quenching: no harm until lauds, so a Mech landing in it only shoves.
+                if (e.team != m.team && e.team < 2 && !e.def.flying && !Truce) Damage(e, LandingDamage * k, m.pos, m, true);
                 Shove(e, e.pos - m.pos, 9f * k);
             }
             Blast(at, 6.5f, 4.2f, 0.5f, 0.25f);

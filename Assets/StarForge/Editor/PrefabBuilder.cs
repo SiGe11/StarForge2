@@ -59,7 +59,7 @@ namespace StarForge.EditorTools
                 Def(UnitType.Ore,      "Ore Seam", false, true,  1.6f, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ' ', "Ore. Soldiers call it teal and its proper name is quenchstone, the feedstock of the printworks. Diggers carry 8 per trip."),
                 Def(UnitType.Boulder,  "Boulder",  false, true,  1.1f, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ' ', ""),
                 Def(UnitType.MechBay,  "Mech Bay", true,  false, 4.2f, 1800, 0, 3.0f, 24f, 22, 0.60f, 0f, 30, 35, 100, 0, 0, 'Y',
-                    "Raises a gantry. Seven minutes after it stands, a knightly order answers it with your Mech: one knight and one core, " +
+                    "Raises a gantry, a cradle and a beacon. Seven minutes after it stands, a knightly order answers it with your Mech: one knight and one core, " +
                     "allied to you but not under your orders. One a match, never rebuilt. Guards itself with a gun tower, mends itself, " +
                     "repairs the Mech and fits the upgrades you give your knight."),
                 // The Mech's real numbers come from its parts (World/MechParts); these are
@@ -85,7 +85,7 @@ namespace StarForge.EditorTools
                 Def(UnitType.Kestrel,   "Kestrel",    false, false, 1.20f, 150, 8.5f,  3.5f, 12f, 18, 1.10f, 1.6f, 32, 26, 175, 3, 0, 'G',
                     "Gunship. Flies over cliffs, water and woods and rockets what is on the ground; cannot fire at aircraft. Aircrews never desert: there is nowhere to set down among the broken."),
                 Def(UnitType.Swift,     "Swift",      false, false, 1.00f, 110, 12.5f, 4.5f, 14f, 12, 0.60f, 0f,   34, 22, 125, 2, 0, 'F',
-                    "Interceptor. The fastest thing in the sky, made to hunt aircraft; strafes the ground for little."),
+                    "Interceptor. The fastest thing in the sky, made to hunt aircraft; a plane, it never hovers but makes firing runs, and strafes the ground for little. Its crews keep vespers by the first star seen from the air."),
                 Def(UnitType.Hauler,    "Hauler",     false, false, 1.25f, 280, 4.6f,  3.0f,  0f,  0, 0f,    0f,   20, 24, 125, 1, 0, 'J',
                     "Armoured ore carrier. Slow and costly, but brings in 20 ore a trip and shrugs off raids. Cannot build."),
                 Def(UnitType.Prospector,"Prospector", false, false, 1.00f, 150, 5.6f,  3.5f, 15f,  8, 0.75f, 0f,   26, 18, 100, 2, 0, 'K',
@@ -109,8 +109,8 @@ namespace StarForge.EditorTools
                 Def(UnitType.Biolab,    "Biolab",     true,  false, 4.2f, 1000, 0, 0, 0, 0, 0, 0, 26, 35, 175, 0, 0, 'O',
                     "Breeds Skitters, Spitters, Razorwings and Gorehorns from Vesper's abandoned stock. Bred things swear no oath, so they never desert. Requires a Garrison."),
                 Def(UnitType.MechHunter,"Mech-Hunter",false, false, 1.10f, 160, 5.4f,  3.0f, 26f, 60, 3.20f, 0f,   30, 32, 250, 3, 0, 'K',
-                    "Mech killer, licensed by an order and flying its flag. A coil lance that tears through Mechs and Ironclads; little use against anything else, and thinly armoured. " +
-                    "One in the field at a time, and a wait after it falls. Requires an Armory and its Mech-Hunter Programme."),
+                    "Mech killer, licensed by an order and flying its flag: the lance was made for knights and their cheap copies. A coil lance that tears through Mechs and Ironclads; little use against anything else, and thinly armoured. " +
+                    "One in the field at a time, and a wait for a new grant after it falls. Requires an Armory and its Mech-Hunter Programme."),
             };
             Find(defs, UnitType.Worker).producer = UnitType.Foundry;
             Find(defs, UnitType.Trooper).producer = UnitType.Garrison;
