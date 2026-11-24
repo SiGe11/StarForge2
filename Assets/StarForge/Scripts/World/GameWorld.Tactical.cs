@@ -542,6 +542,7 @@ namespace StarForge.World
         /// at where an unseen enemy is now.</summary>
         public void FireBlind(Unit s, Vector2 at)
         {
+            if (Truce) return;   // the Quenching's truce
             Vector2 to2 = at - s.pos;
             float len = to2.magnitude;
             Vector2 n = len > 1e-3f ? to2 / len : Vector2.up;

@@ -34,7 +34,7 @@ using static StarForge.SFMath;
 
 namespace StarForge.AI
 {
-    public sealed class MechSpeech
+    public sealed partial class MechSpeech
     {
         // ------------------------------------------------------------ the lines
         /// <summary>The situation a line is written for.</summary>
@@ -94,7 +94,15 @@ namespace StarForge.AI
         /// voice and what no line may answer): 407-490 any Mech's, 491-506 two for each
         /// order, said only by that order's Mech (<see cref="Line.order"/>).
         /// {pilot}, {callsign} and {order} are filled in from the Mech's design.</summary>
-        public const int LineCount = 519;
+        public const int LineCount = 522;
+        /// <summary>The table's numbers run 1-519, then 528 on: 520-527 are the counsel lines (MechSpeech.Counsel).
+        /// <see cref="LineCount"/> is the table's length.</summary>
+        public const int FirstRun = 519, SecondFrom = 528;
+        static System.Collections.Generic.IEnumerable<int> ExpectedNumbers()
+        {
+            for (int n = 1; n <= FirstRun; n++) yield return n;
+            for (int n = SecondFrom; n < SecondFrom + LineCount - FirstRun; n++) yield return n;
+        }
         public static readonly Line[] Lines = BuildLines();
         static readonly int[][] ByBucket = IndexBuckets();
 
@@ -209,7 +217,7 @@ namespace StarForge.AI
             A(90, "The threatened sector is obvious. So is the consequence of ignoring it.");
             A(91, "We cannot defend every place equally. Reality has never permitted such luxuries.", 0.9f);
             A(92, "Their artillery is dictating the rhythm. That rhythm must end.", 1f, Cue.Artillery);
-            A(93, "The outer line may be lost. The core must not follow it.");
+            A(93, "The outer line may be lost. The heart of the base must not follow it.");
             A(94, "Their advance is becoming an established fact. Facts can still be destroyed.");
             A(95, "The enemy has found a weakness. They must not be allowed to enjoy it.");
             A(96, "I dislike this position. The battlefield agrees with me.", 1.4f);
@@ -602,7 +610,7 @@ namespace StarForge.AI
             A(432, "The Empire is seven centuries old. I try to be patient with the young.", 1.2f);
             A(433, "My makers left no names. Only work that outlived them. I am content to be evidence.");
             A(434, "Your Empire is ruled from a star nobody has visited twice. I have served stranger arrangements.");
-            A(435, "The old houses built the Ironclad in my likeness, and the Host kept the pattern. It has no core and nothing to say. I am told it is reliable.");
+            A(435, "The old houses built their walker in my likeness, and the Host kept the pattern. It has no core and nothing to say. I am told it is reliable.");
             A(436, "I remember the night the fire failed. I am not going to tell you about it.", 1.3f);
 
             S(Moment.Victory, Tone.Solemn);
@@ -728,9 +736,9 @@ namespace StarForge.AI
             S(Moment.Any, Tone.Solemn);
             A(512, "They fight faceless, as the Makers worked. Nobody asks the iron who is inside, and the iron does not say.");
             A(513, "Every ninth night the halls go dark and are lit again from one flame. I have watched it a long time. It has not yet failed.", 1.2f);
-            A(514, "Lihtþeinto gangen. The rest of us still have work.", 0.6f, Cue.Costly);
+            A(514, "Lighttheinto gangen. The rest of us still have work.", 0.6f, Cue.Costly);
             S(Moment.Any, Tone.Superior);
-            A(515, "Knights call the Ironclad a kettle. It is unkind, and it is accurate.", 1.2f);
+            A(515, "Knights call the houses' walker a kettle. It is unkind, and it is accurate.", 1.2f);
             A(516, "The lance was licensed against knights who forget the oath, and against the houses' copies. I have forgotten nothing.");
             S(Moment.Victory, Tone.Solemn);
             A(517, "Their celebrants and ours will both be busy tonight. Nobody aims at a white alb. It is the last courtesy left.", 1f, Cue.Costly);
@@ -738,6 +746,14 @@ namespace StarForge.AI
             A(518, "Your soldiers swore to stand in their wing until released. Nobody has released them. Nor me.", 1.2f);
             S(Moment.Defence, Tone.Good);
             A(519, "Field walls, house corners and iron. The farmers would have recognised two of them.");
+
+            // ---- 528-530 (2026-11-24, lore sections 4 and 6): the twin houses, the watchmen, a knight's fire.
+            // After the counsel lines (520-527), so the table runs 1-519 and 528 on (ExpectedNumbers).
+            S(Moment.Calm, Tone.Neutral);
+            A(528, "Somewhere a twin house is singing one of the hours. In all my memory they have not let one lapse.");
+            A(529, "The watchmen keep the night and hold no office for it. We keep it by an older use, and hold none either.");
+            S(Moment.Any, Tone.Superior);
+            A(530, "Fire in a knight's frame is judged, not handed out. Your lamplighters are only handed it.");
             return L.ToArray();
         }
 
@@ -946,6 +962,7 @@ namespace StarForge.AI
             rng = new Rng(seed ^ 0x5BEE7u ^ (uint)(team * 104729));
             temper = rng.Range(-1f, 1f);
             pride = rng.F01();
+            InitCounsel(seed);   // its own stream (MechSpeech.Counsel): rng draws nothing new
             if (team == 0) Journal.Clear();
             w.Event += OnEvent;
         }
@@ -1352,6 +1369,7 @@ namespace StarForge.AI
                 if (!e.repeat) lastLineT = w.time;
                 // The brain's calls, for the journal (its flavour is noted as it is said).
                 if (e.advice != MechAdviceKind.Morale) Log($"CALL {e.advice}{(e.repeat ? " repeat" : "")}: {e.text}");
+                NoteCall(e);
                 return;
             }
             if (e.kind != GameEventKind.Death || e.team > 1) return;
@@ -1476,9 +1494,10 @@ namespace StarForge.AI
                 { problems++; sb.AppendLine($"  #{l.n} starts a sentence with the order's name in lower case (use {{Order}}): {f}"); }
                 if (l.weight <= 0f) { problems++; sb.AppendLine($"  #{l.n} has no weight"); }
             }
-            for (int n = 1; n <= LineCount; n++)
+            foreach (int n in ExpectedNumbers())
                 if (!numbers.Contains(n)) { problems++; sb.AppendLine($"  #{n} missing"); }
             if (Lines.Length != LineCount) { problems++; sb.AppendLine($"  {Lines.Length} lines, {LineCount} expected"); }
+            problems += CheckCounsel(sb, numbers, texts);
 
             // An order's line is said only by a Mech of that order: its name must be one the
             // designs draw (a misspelt one would never be said, with no error), and a bucket
@@ -1621,7 +1640,7 @@ namespace StarForge.AI
                 if (!reach.Contains(l.Bucket)) { problems++; sb.AppendLine($"  #{l.n} ({key}) can never be said"); }
             }
             var head = new StringBuilder();
-            head.AppendLine($"MechSpeech: {Lines.Length} lines, {counts.Count} buckets, {problems} problem(s)");
+            head.AppendLine($"MechSpeech: {Lines.Length} lines and {CounselLines.Length} counsel lines (#{CounselFirst}-#{CounselFirst + CounselLines.Length - 1}), {counts.Count} buckets, {problems} problem(s)");
             foreach (var kv in counts) head.AppendLine($"  {kv.Key}: {kv.Value}");
             foreach (var kv in own) head.AppendLine($"  {kv.Key}: {kv.Value} of its own");
             head.Append(sayLines);

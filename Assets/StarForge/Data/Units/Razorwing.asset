@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 24
   displayName: Razorwing
-  blurb: Bred flyer. A fast raider that stings what it hunts; hits ground and air.
+  blurb: Bred flyer; the soldiers call them wasps. A fast raider that stings what it hunts; hits ground and air.
   building: 0
   neutral: 0
   radius: 0.9

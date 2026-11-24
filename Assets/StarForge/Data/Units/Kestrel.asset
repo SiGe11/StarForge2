@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 18
   displayName: Kestrel
-  blurb: Gunship. Flies over cliffs, water and woods and rockets what is on the ground; cannot fire at aircraft.
+  blurb: 'Gunship. Flies over cliffs, water and woods and rockets what is on the ground; cannot fire at aircraft. Aircrews never desert: there is nowhere to set down among the broken.'
   building: 0
   neutral: 0
   radius: 1.2

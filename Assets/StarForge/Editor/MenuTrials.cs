@@ -312,7 +312,7 @@ namespace StarForge.EditorTools
 
             var manual = Field("manual");
             Call("Push", manual);
-            for (int t = 0; t < 4; t++)   // units, the opponent, controls, chronicle
+            for (int t = 0; t < 5; t++)   // units, the opponent, controls, chronicle, the orders
             {
                 Call("SetManualTab", t);
                 if (t == 0) for (int i = 0; i < 9; i++) Call("Move", 1);
@@ -324,9 +324,9 @@ namespace StarForge.EditorTools
             {
                 Call("SetManualTab", 0);
                 var seen = new StringBuilder();
-                for (int i = 0; i < 4; i++) { step(1); seen.Append(Field("manualTab")).Append(' '); }
-                for (int i = 0; i < 4; i++) { step(-1); seen.Append(Field("manualTab")).Append(' '); }
-                sb.AppendLine($"manual: tab step forward then back from 0: {seen}(want 1 2 3 0 3 2 1 0)");
+                for (int i = 0; i < 5; i++) { step(1); seen.Append(Field("manualTab")).Append(' '); }
+                for (int i = 0; i < 5; i++) { step(-1); seen.Append(Field("manualTab")).Append(' '); }
+                sb.AppendLine($"manual: tab step forward then back from 0: {seen}(want 1 2 3 4 0 4 3 2 1 0)");
             }
             else sb.AppendLine("  !! the manual page has no tab step");
             Call("Pop");

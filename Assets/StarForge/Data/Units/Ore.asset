@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 9
   displayName: Ore Seam
-  blurb: Crystal ore. Diggers carry 8 per trip.
+  blurb: Ore. Soldiers call it teal and its proper name is quenchstone, the feedstock of the printworks. Diggers carry 8 per trip.
   building: 0
   neutral: 1
   radius: 1.6

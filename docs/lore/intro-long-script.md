@@ -60,7 +60,7 @@ Narration is about 1,130 words, about 115 words a minute with the pauses.
 | 4 | 3:00-4:10 | The Compact and the two hands | cold slate |
 | 5 | 4:10-5:00 | The light received, the Host in four wings | lamplight |
 | 6 | 5:00-6:00 | Vesper and the Seam Survey | moss and twilight |
-| 7 | 6:00-7:05 | The split Muster and the Silence | slate, blue, red |
+| 7 | 6:00-7:05 | The Division and the Silence | slate, blue, red |
 | 8 | 7:05-8:15 | The orders, the cores, the gantry | steel and ember |
 | 9 | 8:15-9:20 | The war that eats its own map | blue, red, fire |
 | 10 | 9:20-10:00 | What the surveyors suspect; title | twilight |
@@ -209,11 +209,11 @@ Shots:
 - 6.7 (7 s) Two seams on facing hillsides, mirror images of each other.
 - 6.8 (7 s) Surveyors in field armour with tripods and lamps on a ridge at dusk. One draws lines on a chart (no readable marks); every line converges on one point. He looks up at the star.
 
-#### 7. The split Muster and the Silence (6:00-7:05)
+#### 7. The Division and the Silence (6:00-7:05)
 
 Narration:
 
-> The Muster was asked what should be done, and it split four ways. The split fell along the
+> The Muster was asked what should be done, and it split four ways. The Division fell along the
 > wings.
 > Blue would find the Starforge and relight it. The purposed things are failing one by one, they
 > say, and a people has a right to its inheritance. They are called Kindlers.
@@ -276,7 +276,7 @@ Narration:
 > each wing following the ore toward an origin none has reached.
 > You will have noticed the difficulty. The seams are the only map to the Starforge, and every
 > wing digs them up to print tanks. This war eats its own map.
-> One caution, from my own office. Before the split, the Annalists kept a file on every officer
+> One caution, from my own office. Before the Division, the Annalists kept a file on every officer
 > of the Host. When the wings parted, each took its share of the archive, and all of the habit. The
 > officer across the field from you is served by a staff that studied you in peacetime. They
 > see only what their own soldiers see. But they amend your file after every engagement.

@@ -46,7 +46,8 @@ namespace StarForge.UI
             "pairs, as if cast from one pour, and on Vesper every seam runs back toward one origin. The surveyors' conclusion: " +
             "the Starforge is here.\n\n" +
 
-            "The quarrel. Asked what should be done, the Muster split four ways, and the split fell along the wings. Blue, the " +
+            "The quarrel. Asked what should be done, the Muster divided four ways, and the division fell along the wings. The Host dates things from it: " +
+            "before the Division, since the Division. Blue, the " +
             "Kindlers, would find the Starforge and relight it. Red, the Keepers, would seal it cold. Green, the Bearers, would " +
             "carry it to Matins for the two hands to decide. Yellow, the Returners, would give it back to the orders. Blue and " +
             "Red landed first, and Green and Yellow a season later. Either the Khan or the Holy Mother could end it with a " +
@@ -68,7 +69,7 @@ namespace StarForge.UI
             "Mech-Hunter flies an order's flag, is crewed by its serjeants, and fells an Ironclad as readily as a Mech. Each " +
             "lance is granted once; when it falls, the host waits on a new grant.\n\n" +
 
-            "The enemy who knows you. Before the split, the Host's Annalists kept a file on every officer. Each wing took its " +
+            "The enemy who knows you. Before the Division, the Host's Annalists kept a file on every officer. Each wing took its " +
             "share of the archive and all of the habit. The officer across the field is served by a staff that studied you in " +
             "peacetime, sees only what its own units see, and amends your file after every engagement.\n\n" +
 
@@ -79,15 +80,60 @@ namespace StarForge.UI
 
             "Two tongues. Everyone speaks the Vulgar, on the field net as at home. The Old Language, which the clergy call the " +
             "High Speech, is the tongue of the Bright Age, kept for the liturgy, titles, mottos and oaths. Every soldier swears " +
-            "in it: \"Brihteste Sterreþe under, handþewiþ hwich haldeþ and handþewiþ hwich blesseþ\" -- under the Brightest " +
+            "in it: <i>Brighteste Sterrethe under, handthewith which holdeth and handthewith which blesseth</i> — under the Brightest " +
             "Star, by the hand that holds and the hand that blesses.\n\n" +
+
+            "The twin houses. The monastic life of the Rite is kept in twin houses: a house of vigil-sisters and a house of " +
+            "watchmen on one ground, a wall between them and one hall shared, with a screen down its middle and the two choirs " +
+            "answering across it. Between them they keep the hours unbroken: somewhere in the Empire a choir is always singing " +
+            "one. The sisters are clergy; the watchmen are laymen, who keep the hours and hold no office of the Rite. Vesper had " +
+            "several among its farms, and all but one are roofless now, emptied with the farms by the Clearance. The last, in " +
+            "the hills, keeps the hours between the lines, and nobody fires on it.\n\n" +
+
+            "The hours. The day is kept in offices: lauds at sunrise, vespers at the first star, compline before sleep, and " +
+            "vigils through the night before a feast. These four are the people's; the twin houses keep the full round, with " +
+            "matins in the night and terce, sext and nones through the day. People greet each other by the hours: good " +
+            "lauds, good vespers, and after " +
+            "compline, keep the night. At vespers the celebrant sings <i>Firste sterrethe waketh</i> — the first star wakes — " +
+            "and the people answer that they receive the light. Every ninth night the Great Liturgy runs from the first star " +
+            "to lauds, read and sung by heart in the dark, until at its height the flame is passed out from the hall-lamp, " +
+            "lamp to lamp: the Taking of the Light.\n\n" +
+
+            // Soldiers' lore (lore sections 6 and 9), in the game's own voice: soldiers' reports never carry it.
+            "Soldiers' lore. Soldiers of every wing share all of it: they were one Host until the Division. A soldier's fault " +
+            "is washed in star-water at lauds before the whole company, and the shame is the punishment. The fallen are buried " +
+            "where they fall. Their iron goes back to the Host with one more name scratched inside, and the next to wear it " +
+            "reads them all; iron taken from another wing's dead is painted over and worn, and nobody talks about whose names " +
+            "are in it. Letters come by slow ship, a season late, and a company reads its letters at vespers. Kin serving in " +
+            "another wing are cousins across.\n\n" +
+
+            "Birth-stars. Everyone is named under the star risen at their birth, and squads on the field net go by those " +
+            "names: Wren, Lark, Heron and the rest. A soldier on the feast of their star is spared the night watch by custom. " +
+            "To fall on one's own star's rising is to be taken at the rising, and is held a good death.\n\n" +
+
+            "The Ninth Watch. It is the slow march every wing sings in the same words; on quiet nights each camp hears " +
+            "another's verse a beat behind its own. Its refrain: nine watches kept and nobody slept; we walk the ninth till " +
+            "morning. To keep the ninth is to stay awake to the end of anything.\n\n" +
+
+            "Twins. It is the camp game, played with teal chips on a board scratched into a plank. The chips are laid in " +
+            "facing pairs, as the seams lie, and each player takes from their own side; whoever leaves a chip without its " +
+            "twin loses it. Officers forbid it, because the chips are Foundry feed.\n\n" +
+
+            "The Night of the Quenching. Once a year every camp on Vesper puts out its lamps one by one, within sight of " +
+            "each other, and no shot is fired until lauds. No order is given and no officer admits to it. Soldiers sometimes meet " +
+            "between the lines in the dark, trade letters for kin across and share food.\n\n" +
+
+            "The soldiers' words. In iron: serving. The grey: the old Host colour under every wing's paint. Gone quiet: " +
+            "deserted, the masts' leads cut. A season: a posting on Vesper. Teal: quenchstone. The lance: the Mech-Hunter. " +
+            "Kettle: an Ironclad, the knights' word. Lamplighter: a flame-trooper. Frogs, wasps, spiders, the cattle: the " +
+            "Biolab's creatures.\n\n" +
 
             "The war. There is no front line, only field after field along the seams, each wing following the ore toward an " +
             "origin none has reached. The seams are the only map to the Starforge, and every wing digs them up to print " +
             "tanks. The soldiers have one name for all of it. They say: I did two seasons in the Starforge.";
 
         /// <summary>The USS class of the picture beside a Chronicle entry (by its heading, upper case), or
-        /// null. The four plates are `UI/Art/plate_*.jpg` (docs/lore/prompts.md, prompts 2-5).</summary>
+        /// null. The six plates are `UI/Art/plate_*.jpg` (docs/lore/prompts.md, prompts 2-5, 4 v2, 12-14).</summary>
         public static string PlateFor(string heading)
         {
             switch (heading)
@@ -96,6 +142,8 @@ namespace StarForge.UI
                 case "THE TWO HANDS": return "m-plate--two-hands";
                 case "THE HOST": return "m-plate--vespers";
                 case "THE ORDERS": return "m-plate--gantry";
+                case "THE IRON": return "m-plate--iron";
+                case "TWO TONGUES": return "m-plate--taking";
                 default: return null;
             }
         }
@@ -107,17 +155,60 @@ namespace StarForge.UI
         {
             switch (order)
             {
-                case "the Ashen Covenant": return "<i>Fyrþe ded. Murn and weard.</i> — The fire is dead. Mourn and guard.";
-                case "the Order of the Iron Lantern": return "<i>Liht bereþsk, ne bideþsk.</i> — Light is carried, not awaited.";
-                case "the Ninth Vigil": return "<i>Nigoþa wæcce. Ne losed.</i> — The ninth watch. Not released.";
-                case "the Sable Oath": return "<i>Oþ eikonam ne neodeþ.</i> — An oath needs no picture.";
-                case "the Order of the Broken Crown": return "<i>Kruned hevedtö ne serveþ.</i> — It serves no crowned head.";
-                case "the Emberguard": return "<i>Kernenþa laste embren. Tend hem.</i> — The cores are the last embers. Tend them.";
-                case "the Wardens of the Long Night": return "<i>Nihtþe settede eld. Stand wel.</i> — The Night is the appointed age. Stand well.";
-                case "the Brazen Host": return "<i>Werkþe offrung.</i> — The work is the offering.";
+                case "the Ashen Covenant": return "<i>Firethe ded. Mourn and ward.</i> — The fire is dead. Mourn and guard.";
+                case "the Order of the Iron Lantern": return "<i>Light bearethsk, ne bidethsk.</i> — Light is carried, not awaited.";
+                case "the Ninth Vigil": return "<i>Ninthe wecche. Ne loosede.</i> — The ninth watch. Not released.";
+                case "the Sable Oath": return "<i>Oath eikonam ne needeth.</i> — An oath needs no picture.";
+                case "the Order of the Broken Crown": return "<i>Crowned hevedtö ne serveth.</i> — It serves no crowned head.";
+                case "the Emberguard": return "<i>Kernentha laste embren. Tend hem.</i> — The cores are the last embers. Tend them.";
+                case "the Wardens of the Long Night": return "<i>Nightthe settede eld. Stand wel.</i> — The Night is the appointed age. Stand well.";
+                case "the Brazen Host": return "<i>Workthe offrung.</i> — The work is the offering.";
                 default: return null;
             }
         }
+
+        /// <summary>One of the eight knightly orders, as the Field Manual's Orders page tells it
+        /// (lore section 7's table). <c>name</c> is <c>MechParts</c>' Orders, letter for letter.</summary>
+        public sealed class OrderEntry
+        {
+            public readonly string name, standard, teaching, repute;
+            public OrderEntry(string name, string standard, string teaching, string repute)
+            { this.name = name; this.standard = standard; this.teaching = teaching; this.repute = repute; }
+        }
+
+        public const string OrdersHead = "THE KNIGHTLY ORDERS";
+        public const string OrdersIntro =
+            "Eight orders, older than the Empire and older than the Luminary, descended from the guards of the Makers. They " +
+            "swear to neither Khan nor Mother nor wing. By the Gantry Right they answer any lawful host that raises a gantry: " +
+            "one knight and one core, once, for that field. Your Mech flies its order's standard and carries its motto.";
+        /// <summary>Repute is hearsay, and the page says so (lore section 7, under the table).</summary>
+        public const string OrdersFoot =
+            "Reputation is hearsay: in the field a knight's own temper and pride decide, not the order. Titles are offices, " +
+            "not ranks. A Castellan keeps an order's hold, a Seneschal its household, a Marshal its knights in the field and " +
+            "a Knight-Warden a single core; a Paladin is a sworn champion, a Knight-Errant answers the gantries nobody else " +
+            "will, and a Vigilant has served on the High Watch.";
+
+        public static readonly OrderEntry[] Orders =
+        {
+            new OrderEntry("the Ashen Covenant", "a white ring on grey",
+                "The fire is dead. Mourn it and guard what it made.", "the oldest, cold, never hurried."),
+            new OrderEntry("the Order of the Iron Lantern", "an unlit lantern, black on pale",
+                "Light is carried, not awaited.", "wayfinders."),
+            new OrderEntry("the Ninth Vigil", "eight hollow stars and one filled",
+                "It kept the ninth watch at the Quenching and was never relieved.", "it says least and is assumed to know most."),
+            new OrderEntry("the Sable Oath", "plain black, no device",
+                "An oath needs no picture.", "the hardest on the oathbroken."),
+            new OrderEntry("the Order of the Broken Crown", "a crown in two halves",
+                "Its founders broke their king's crown rather than see a conqueror wear it. It serves no crowned head.",
+                "proud. The Mothers are crowned, and the order has never said its motto does not mean them."),
+            new OrderEntry("the Emberguard", "one orange ember on black",
+                "The cores are the last embers. Tend them.", "warm, and the closest to their machines."),
+            new OrderEntry("the Wardens of the Long Night", "a pale horizon line on slate",
+                "The Night is the age appointed. Stand it well.", "stoic."),
+            new OrderEntry("the Brazen Host", "a brass hammer on charcoal",
+                "The Makers were smiths first. The work is the offering.",
+                "the largest and the loudest; it claims descent from the Makers' forge-hands, which the others dispute."),
+        };
 
         /// <summary>Joins the main menu's FIELD INTEL rotation.</summary>
         public static readonly string[] Tips =
@@ -128,8 +219,14 @@ namespace StarForge.UI
             "An order answers a gantry once. Lose the Mech Bay before the drop and no knight comes; lose the Mech and none follows.",
             "The staff across the field kept your file from the last engagement. Open differently.",
             "The lance was licensed against knights and their cheap copies: a Mech-Hunter fells an Ironclad in two shots.",
-            "Squads on the field net go by birth-star names. Point at a report and its men are ringed on the field.",
+            "Squads on the field net go by birth-star names. Point at a report and its soldiers are ringed on the field.",
             "A knight takes no orders. The Gantry Right owes you his guns, not his obedience.",
+            "One map in three is fought at night. The camps light their lamps at vespers, and soldiers call the celebrant who keeps them a lampwarden.",
+            "Deserters cut the leads of their iron's masts first. The field net loses them, and by night their mast lights are dark.",
+            "Inside every breastplate are the names of those who wore the iron before. Select one soldier to read them.",
+            "A fallen soldier's iron goes back to the Host and the next recruit wears it. Iron taken by another wing is painted over.",
+            "When knights of one order answer opposing gantries they fight in earnest, and no grudge is permitted.",
+            "The Field Manual's Orders page shows the eight orders' standards and mottos. Your Mech flies one of them.",
         };
     }
 }

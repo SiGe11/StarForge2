@@ -45,6 +45,7 @@ Shader "StarForge/FogOfWar"
             // Offsets on the survey grid, zero in every run that does not pass -sftune
             // (View/ShaderTune.cs): x its brightness (-1 takes it away), y its size.
             float4 _SF_FogTune;
+            float _SF_Night;   // a night map's level, 0..1 (FXDirector.Night): remembered ground kept readable
 
             float4 _SF_AtmoParams;   // x: density, y: height falloff, z: base height, w: enabled
             float4 _SF_AtmoHaze;     // x: start distance, y: density
@@ -128,7 +129,7 @@ Shader "StarForge/FogOfWar"
                 half shimmer = 0.5 + 0.5 * sin(_SF_FogParams.z * 1.7 + wp.x * 0.45 + wp.z * 0.31);
 
                 half lum = dot(c, half3(0.299, 0.587, 0.114));
-                half3 memory = lerp(c, lum.xxx * half3(0.80, 0.88, 1.06), 0.65) * 0.40;
+                half3 memory = lerp(c, lum.xxx * half3(0.80, 0.88, 1.06), 0.65) * (0.40 + 0.12 * _SF_Night);
                 half3 unknown = c * 0.05 + half3(0.004, 0.006, 0.012);
                 // The grid is cast straight down in the map's own coordinates (so it
                 // runs on past the rim) onto whatever the depth buffer holds: level ground

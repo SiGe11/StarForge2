@@ -614,7 +614,7 @@ namespace StarForge.EditorTools
         public static string Statics() =>
             $"Commander.Suspended={Commander.Suspended} Unit.StickyTargets={Unit.StickyTargets} timeScale={Time.timeScale:0.##} " +
             $"trials running {Object.FindObjectsByType<BugTrial>().Length} playing={EditorApplication.isPlaying}; " +
-            $"match settings: {AgentInbox.HeldSettings()}";
+            $"match settings: {AgentInbox.HeldSettings()}; night force={StarForge.World.NightRules.Force} darkening at={StarForge.World.NightRules.ForceDarkeningAt:0.#}";
 
         /// <summary>The game speed survives a pause: x2, pause, resume.</summary>
         public static string PauseSpeed()

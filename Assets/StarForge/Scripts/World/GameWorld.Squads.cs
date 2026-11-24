@@ -317,7 +317,7 @@ namespace StarForge.World
         // ------------------------------------------------------------ reports
         void Report(Squad q)
         {
-            if (q.men.Count == 0 || q.team > 1) return;
+            if (q.men.Count == 0 || q.team > 1 || Truce) return;   // contact needs no shot: nothing to report in the truce
             for (int i = q.lostAt.Count - 1; i >= 0; i--)
                 if (time - q.lostAt[i] > LossesLast) q.lostAt.RemoveAt(i);
             if (!q.contact || time - q.reportedAt < ReportSquadEvery || time - reportedSide[q.team] < ReportSideEvery) return;

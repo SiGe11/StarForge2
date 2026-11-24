@@ -53,19 +53,34 @@ Mother, who blesses. Long before it, the Makers worked **starfire**, a craft tha
 things a purpose of their own; that fire went out in a single night a thousand years ago.
 Now surveyors on the emptied farm-world of Vesper have found that its seams of teal ore all
 run back toward one origin, and concluded that the **Starforge**, the first hearth, is
-there. The Empire's army is kept in two equal wings so that no captain commands all of it.
-Blue would find the Starforge and relight it; Red would find it and seal it cold. Both
-landed to "secure the site", neither ruler has said a word, and two halves of one army,
+there. The Empire's army is kept in equal wings so that no captain commands all of it:
+two at the founding, four since a cautious Khan split them. Blue would find the Starforge
+and relight it; Red would seal it cold; Green would carry it to the seat-world for both hands
+to decide; Yellow would give it back to the knightly orders. Blue and Red landed first and
+the other two a season later, neither ruler has said a word, and four quarters of one army,
 under one oath, are fighting over a thing no living person has seen.
 
-You command a field for the Blue Wing. The officer across it is served by a staff that
+You command a field for the Blue Wing, against Red. The officer across it is served by a staff that
 studied you in peacetime and amends its file on you after every engagement. And the knightly
 orders in orbit, older than the Empire, owe each side that raises a gantry one knight and
 one ancient core: the Mech.
 
 The whole of it, with the rules for anything the game says or shows, is in
-[docs/lore/starforge-lore.md](docs/lore/starforge-lore.md); the prompts for its pictures
-and its intro clip are in [docs/lore/prompts.md](docs/lore/prompts.md).
+[docs/lore/starforge-lore.md](docs/lore/starforge-lore.md); its Old Language, the tongue of its
+liturgy, oaths and mottos, in [docs/lore/old-language.md](docs/lore/old-language.md); the prompts
+for its pictures and its intro clip are in [docs/lore/prompts.md](docs/lore/prompts.md).
+
+### Night maps and the Night of the Quenching
+
+About one map in three is fought at night (the map's own draw, and only in matches deployed from the menu: benchmarks, evaluations and trials stay by day). The match opens at dusk; at vespers, the first star, a bell rings, the camps light their lamps one by one, and a field celebrant in a white alb stands at each base. On about one night map in eight comes **the Night of the Quenching**: the lamps of both camps go out one by one and **nobody fires until lauds**, four minutes later, when dawn comes up and the fighting resumes. Soldiers keep moving and taking cover, and building and training go on; the opposing staff brings its army home for the night. Rules: `Scripts/World/GameWorld.Night.cs`; look: `Scripts/View/FXDirector.Night.cs`.
+
+On about one night map in nine without a Quenching the Great Liturgy reaches its height mid-match: every lamp but the Foundries' goes out one by one and the light is passed out again from them, nearest first (the Taking of the Light; nothing else changes). By night each soldier's two field-net masts show a faint light. Deserters cut their leads first, so theirs are dark, and the field net reports contact lost.
+
+The Mech's knight judges deserters with his order's repute leaning him (the Sable Oath almost always punishes, the Emberguard seldom does), and now and then the core's quiet line disagrees with the knight's call.
+
+### The orders, the iron and a halved oath
+
+The Field Manual has a page for the eight knightly orders, and the Chronicle tells the soldiers' lore (birth-stars, the Ninth Watch, Twins, the soldiers' words). **One soldier selected shows the names scratched inside their iron**: the wearer first, then those who wore it before. A fallen soldier's iron goes to the stores of whichever side had more soldiers within 15 m of the body, and that side's next recruit wears it; taken by the other wing it reads *painted-over*, and nobody reads out the names inside. It is told, not played: nothing in a match depends on it (`UI/IronLedger.cs`). **When both Mechs come from one order** the player's knight says so once and speaks soberly of the other's fall ("He was of my order: I carry his standard home"); the match itself is the same match (`AI/MechBrain.cs`). Checks: `LoreTrials.Iron`, `Orders`, `IronField`, `Halved` (`Editor/LoreTrials.cs`).
 
 ## Quick start
 
@@ -92,8 +107,9 @@ does the mouse.
   **Observe** is the same page for two AIs.
 - **Field manual**: every unit and structure from the game's own data (cost, what trains it,
   what it needs, hit points, damage a second, range, speed, sight), how the opponent thinks,
-  the keys, and the **Chronicle**: the world in twelve short entries, four of them with a
-  painted plate (made like the key art).
+  the keys, the **Chronicle**: the world in twenty-three short entries, six of them with a
+  painted plate (made like the key art), and **The Orders**: the eight knightly orders, each with
+  its standard, its motto in the Old Language, its teaching and its repute.
 - **Service record**: victories, defeats, win rate, time in command and the last eight
   engagements. Only matches started from Operation setup (and their rematches) count:
   never spectated ones, ones played with the cheat, or anything the benchmark, the
@@ -154,7 +170,7 @@ the deserters alone, and they do not stop until you have lost.
 | **Gunner** | 110 | 2 | 80 | Machine gunner (Garrison, needs an Armory): a belt-fed gun that pins whole squads from 40 m and also fires at aircraft, but must stop to fire and is slow to reload; little use against armour or walls |
 | **Lancer** | 175 | 3 | 280 | Tank destroyer: armour-piercing cannon, 1.5x against armour, wasteful against infantry |
 | **Aegis** | 150 | 3 | 200 | Anti-aircraft tank: flak that bursts round aircraft (2.2x against them), light work against ground targets |
-| **Ironclad** | 300 | 6 | 480 | Walking mini-mech (Workshop, needs an Armory): twin shoulder cannons against the ground, missile pods against aircraft; slow, very hard to stop |
+| **Ironclad** | 300 | 6 | 480 | House-wars walker (Workshop, needs an Armory): twin shoulder cannons against the ground, missile pods against aircraft; slow, very hard to stop |
 | **Kestrel** | 175 | 3 | 150 | Gunship (Airfield): flies over cliffs, water and woods, rockets ground targets; cannot fire at aircraft |
 | **Swift** | 125 | 2 | 110 | Interceptor (Airfield): the fastest thing in the sky, made to hunt aircraft. A plane: it never hovers, but makes firing runs -- in along its nose, over the target, out and round for the next -- and circles where it is sent (on Hold or idle it makes runs only at what comes near that spot); strafes the ground for little |
 | **Hauler** | 125 | 1 | 280 | Armoured ore carrier (Foundry, nothing else needed): slow and costly but light on supply (about 1.6 Diggers' ore for one supply), 20 ore a trip, shrugs off raids; cannot build |
@@ -172,7 +188,7 @@ the deserters alone, and they do not stop until you have lost.
 | Garrison | 150 | 1000 | Trains Troopers and Skimmers |
 | Workshop | 200 | 1250 | Trains Maulers (needs a Garrison) |
 | **Sentinel** *(new)* | 125 | 500 | Defensive turret (needs a Garrison) |
-| **Mech Bay** *(new)* | 100 | 1800 | Calls down the side's Mech; gun tower, self-repair, repairs the Mech, sells its upgrades. One a match, never rebuilt ([Mechs](#mechs)) |
+| **Mech Bay** *(new)* | 100 | 1800 | Calls down the side's Mech; gun tower, self-repair, repairs the Mech, fits its upgrades. One a match, never rebuilt ([Mechs](#mechs)) |
 | **Armory** | 150 | 900 | Research: weapons (+10% damage) and armour (-10% damage taken) for infantry, vehicles and creatures, two levels each; and the one-off Mech-Hunter Programme (200 ore, 50 s); unlocks the Thumper, the Marksman, the Ironclad and the Gorehorn (needs a Garrison) |
 | **Airfield** | 200 | 1100 | Builds the Kestrel and the Swift (needs a Workshop) |
 | **Biolab** | 175 | 1000 | Breeds Skitters, Spitters, Razorwings and Gorehorns (needs a Garrison) |
@@ -372,8 +388,8 @@ field, as the Mech's own AI does; the opponent AI never reads it.
 | Part | Options |
 |---|---|
 | **Locomotion** | *Strider* (reverse-jointed legs; balanced) · *Arachnid* (four legs; slow, steadiest platform, +8% range) · *Juggernaut* (twin tracks; toughest, slow to turn) · *Wraith* (grav skirt; fast, skims over shallows, lightly armoured) |
-| **Frame** | *Vanguard* (light, 3 hardpoints) · *Warden* (line, 4) · *Colossus* (siege, 5) |
-| **Weapons** | Autocannon (all-round bursts) · Rotary Cannon (hoses infantry) · Missile Rack (homing salvos onto a crowd) · Siege Mortar (longest reach, useless up close) · Laser Lance (burns through armour) · Inferno Projector (an arm flamer: sets infantry and the field alight) · Railgun (a slug through everything in its line) · Flame Tower (a flame turret on its own ring, on a shoulder or the back: it turns on its own and burns what comes close, all the way round) |
+| **Frame** | *Vanguard* (light, 3 hardpoints) · *Citadel* (line, 4) · *Colossus* (siege, 5) |
+| **Weapons** | Autocannon (all-round bursts) · Rotary Cannon (hoses infantry) · Missile Rack (homing salvos onto a crowd) · Siege Mortar (longest reach, useless up close) · Beam Cannon (burns through armour) · Inferno Projector (an arm flamer: sets infantry and the field alight) · Railgun (a slug through everything in its line) · Flame Tower (a flame turret on its own ring, on a shoulder or the back: it turns on its own and burns what comes close, all the way round) |
 | **Utility** | Shield Projector · Repair Nanites · Reactive Armour · Sensor Mast (or none) |
 
 Arm guns aim with the torso; launchers on the shoulders and back fire upward and shoot
@@ -597,7 +613,7 @@ pause menu) shows the same text under *The opponent*.*
 - **It fights like a player.** It focuses fire on the weakest target that can
   shoot back and lets one that runs go rather than chase it across the map, pulls its
   army home when a fight turns against it and gathers it again before going back in,
-  sends raiders at your workers rather than your army -- the most exposed ones, resting
+  sends raiders at your Diggers rather than your army -- the most exposed ones, resting
   a while when driven off -- and comes back to defend when you hit its base. When the
   ore by its Foundries runs low it saves for a new one at another field, it raises a new
   Foundry if it loses its own, and once it has lost track of everything of yours it
@@ -647,6 +663,8 @@ pause menu) shows the same text under *The opponent*.*
   and which of its plans worked against you, and each new match starts from that.
   It still scouts every game, so if you change how you play, it will notice.
   There is no switch for this in the game: the opponent learning you is the game.
+
+**The Night of the Quenching.** On the night maps where every lamp goes out it keeps the truce like everyone else: no shot until lauds; it calls a wave home, holds its army at its post (meeting, without firing, anyone who comes within 55 m of its base) and starts the next wave after dawn.
 
 ### How it works
 
@@ -878,6 +896,10 @@ out of it.
   made from, given horns, plates, spines and glands in Blender).
 - **KayKit** (Kay Lousberg, via itch.io): *Character Animations*, the skeleton and the motion of the
   legs and trunk under the rigged soldier.
+- **Blender Studio** (blender.org): *Human Base Meshes* (its *Body Female - Stylized* by Julien Kaspar), the body
+  of the field celebrant on night maps (her alb, sleeves, cord, veil and lamp made in Blender).
+- **Freesound**: *Short Church Bell Ring with Rural Ambience & Birds* by TSP-Talk (the vespers bell) and
+  *Humming in A Minor* by xkeril (the chant at the Quenching), both CC0.
 - **JangaFX** (jangafx.com): the EmberGen simulations *Small Camp Fire* and *Ground
   Explosion* from their free VDB library, rendered in Blender into the fire and
   explosion flipbooks.

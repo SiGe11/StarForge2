@@ -258,7 +258,11 @@ All five pictures came back at 2752 x 1536 as JPG and the clip at 1280 x 720, 24
 |---|---|
 | `keyart_star.jpg` | In the game since 2026-11-22 as `Assets/StarForge/UI/Art/keyart.jpg`. Used as it is: the star with its reflections, the farmhouse and wall, the standard. The dark areas the title sits on are unchanged (mean luminance within 0.007 of the old picture). |
 | `plate_two_hands.jpg` | Good as it is. (All four plates are scaled to 1024 x 572 for the game.) |
-| `plate_vespers.jpg` | Good as it is. |
+| `plate_vespers.jpg` | Good as it is. Replaced on 2026-11-23 by `plate_vespers_v2.jpg` (the lore's new rules). |
+| `plate_vespers_v2.jpg` | 2026-11-23, from prompt 4 v2. Soldiers in the iron (masts, blue shoulders, no heads), one in a cape, the celebrant a woman veiled to the waist with a gold cord; the red camp mirrors it. No gold mantle on her: accepted. In the game as `plate_vespers.jpg`. |
+| `plate_gantry_v2.jpg` | 2026-11-23, from touch-up 12. The casket behind the grille is closed and dark; a beacon on the gantry's top throws a straight beam up. In the game as `plate_gantry.jpg`. |
+| `plate_taking.jpg` | 2026-11-23, from prompt 13. Veiled clergy pass the flame through the open screen to kneeling women and men; nearly every lamp is already lit (the prompt asked for the light spreading back): accepted. In the game beside "Two tongues". |
+| `plate_iron.jpg` | 2026-11-23, from prompt 14. Five empty suits of the iron, blue worn to grey, a red shoulder being repainted. In the game beside "The iron". |
 | `plate_gantry.jpg` | First version: a hand gripped the grille from inside the chest (touch-up 7). Second version, 23:04: the hand is gone, and the core behind the grille went with it, so the chest is empty. Touch-up 9 below puts the core back. Third version, 23:08: the core is back behind the grille and there is no hand. Good as it is. |
 | `plate_quenching.jpg` | Usable. A second small star sits beside the Brightest Star, the hearth's fire is orange, and every lantern is lit. Touch-up 8 below, optional. |
 | `plate_quenching_v2.jpg` | 2026-11-23, from touch-up 8. The hearth's fire is white-gold and the smoke is gone, which was the point; the nine guards and the city are unchanged. The small second star is fainter but still there, and several lanterns are still lit: neither shows at the size the Chronicle page draws the plate. This is the version prepared for the game. |

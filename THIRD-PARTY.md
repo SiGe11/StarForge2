@@ -1,10 +1,13 @@
 # Third-party assets
 
 This repository is public (`github.com/SiGe11/StarForge2`), so everything
-committed to it has to be free to **redistribute**, not merely free to use. That
-rules out the Unity Asset Store EULA, CC-BY-NC and "free for personal use",
-however generous they sound; in practice the art and audio here are all CC0,
-and the three font families carry the only attribution obligations we have.
+committed to it has to be free to **redistribute**, not merely free to use. Art and
+audio must be **CC0 or CC BY** (attribution only, allowed since 2026-11-24); that rules out
+CC BY-SA, CC BY-NC and CC BY-ND, the Unity Asset Store and Fab EULAs, CGTrader's royalty-free
+licence, Mixamo and "free for personal use", however generous they sound. CC BY is for art and
+audio only, never code. A CC BY asset is credited by author, title, source, licence and what we
+changed, here, in the README and on the game's Credits page. Today the art and audio here are
+all CC0, and the three font families (Inter, Roboto Mono, Cinzel) carry the only attribution obligations we have.
 
 The project's own code and art are MIT ([LICENSE](LICENSE), © Simon Gergely).
 That covers what we wrote; everything below keeps the terms of whoever made it,
@@ -136,6 +139,22 @@ each one's loudness into `Audio/Music/music.json`. WAV sources are Vorbis-encode
 | [Boss Battle Music](https://opengameart.org/content/boss-battle-music) ("Epic Boss Battle") | Juhani Junkala (SubspaceAudio) | `music_combat_2.ogg` |
 | [QaziJamJam (orchestral battle theme)](https://opengameart.org/content/qazijamjam-orchestral-battle-theme) | Emma_MA | `music_combat_3.ogg` |
 
+## Blender Studio — CC0 1.0 (<https://studio.blender.org>)
+
+| Source | Author | Becomes |
+|---|---|---|
+| [Human Base Meshes](https://www.blender.org/download/demo/asset-bundles/human-base-meshes/) bundle v1.4.1 (each asset's licence field: CC0; fetched from `download.blender.org` by `Tools/fetch_assets.py`) | Blender Studio; its *Body Female - Stylized* by Julien Kaspar | the woman's body under `Resources/Celebrant.fbx`, the field celebrant of night maps: centred, scaled to 1.76 m, arms and eyes taken off, the head drawn in under the veil, decimated to a tenth and given a plain colour by `Tools/blender/build_celebrant.py`; the alb, its bell sleeves, the gold cord, the veil and the lamp held in both hands are ours (the same script) |
+
+## Freesound — CC0 1.0: recorded sound
+
+Night maps' sounds, built by `Tools/make_audio.py --bells` from the sounds' hq previews (fetched by
+`Tools/fetch_assets.py`; each page links CC0 1.0).
+
+| Source | Author | Becomes |
+|---|---|---|
+| [Short Church Bell Ring with Rural Ambience & Birds](https://freesound.org/s/847110/) | TSP-Talk | `Audio/Sfx/bell_vespers.wav` (the strike and its ring, low-passed against the birds, high-passed under the field's rumble, a dark echo for distance) and `bell_hand.wav` (the same strike nearly an octave up, short) |
+| [Humming in A Minor](https://freesound.org/s/685679/) | xkeril | `Audio/Ambience/chant.wav`: overlapping takes, every other a fourth below, darkened and given a stone hall's echoes, with its own 8 s fade in and 20 s fade out |
+
 ## OpenGameArt — CC0 1.0: recorded sound
 
 What the guns and the felled trees are built from, in `Tools/make_audio.py`.
@@ -233,7 +252,10 @@ Not third party, and not on the list above:
   same way on 2026-11-22 and 23 from the prompts there: the Chronicle page's
   four plates, `UI/Art/plate_quenching.jpg`, `plate_two_hands.jpg`,
   `plate_vespers.jpg` and `plate_gantry.jpg` (prompts 2 to 5 and the touch-ups
-  7 to 9; scaled down from 2752×1536 to 1024×572); the ten-second intro clip
+  7 to 9; scaled down from 2752×1536 to 1024×572; on 2026-11-23 the vespers plate
+  was replaced from prompt 4 v2, the gantry plate from touch-up 12, and two plates
+  were added, `plate_taking.jpg` and `plate_iron.jpg`, from prompts 13 and 14, all
+  made and scaled the same way); the ten-second intro clip
   `Resources/Intro/intro.mp4` (1280×712, with sound: the key art set in motion
   by prompt 6A, eight pale rows cropped off its bottom edge with ffmpeg); and
   the eight knightly orders' standards on a Mech's banner,

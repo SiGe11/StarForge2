@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 19
   displayName: Swift
-  blurb: Interceptor. The fastest thing in the sky, made to hunt aircraft; a plane, it never hovers but makes firing runs, and strafes the ground for little.
+  blurb: Interceptor. The fastest thing in the sky, made to hunt aircraft; a plane, it never hovers but makes firing runs, and strafes the ground for little. Its crews keep vespers by the first star seen from the air.
   building: 0
   neutral: 0
   radius: 1

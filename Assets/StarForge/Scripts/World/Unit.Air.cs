@@ -45,6 +45,8 @@ namespace StarForge.World
                     if (airRockets < fullR) airRockets = Mathf.Min(fullR, airRockets + 2);
                 }
             }
+            // The Night of the Quenching: these fire from the flight tick, outside UpdateCombat's gate.
+            if (world.Truce) return;
             if (Type == UnitType.Swift) { TickMissileLock(now); if (!TacticalRules.LegacyAir) TickRockets(now); }
             if (Type == UnitType.Kestrel) TickGunship(now);
         }

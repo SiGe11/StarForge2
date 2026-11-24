@@ -889,7 +889,8 @@ namespace StarForge.UI
             oppKicker.text = setupSpectate ? "BOTH COMMANDERS" : "OPPONENT PROFILE";
             oppName.text = DifficultyName(d);
             SetTier(oppName, oppPortrait, (int)d);
-            oppPortraitTag.text = setupSpectate ? $"ADAPTIVE AI × 2  ·  TIER {(int)d + 1}" : $"ADAPTIVE AI  ·  TIER {(int)d + 1}";
+            // Headings use the world's names (lore section 13): the staff across the field, by its grade.
+            oppPortraitTag.text = setupSpectate ? $"BOTH STAFFS  ·  {DifficultyName(d)}" : $"OPPOSING STAFF  ·  {DifficultyName(d)}";
             oppBlurb.text = DifficultyBlurb(d) + (setupSpectate ? "\nTwo of them, one a side. Spectated matches teach the AI nothing about you." : "");
             oppBars.Clear();
             float apm = Apm(d), react = Reaction(d);
@@ -1097,8 +1098,8 @@ namespace StarForge.UI
         }
 
         // ------------------------------------------------------------ field manual
-        ScrollView unitList, opponentScroll, manualKeys, chronicleScroll;
-        VisualElement manualUnits, manualOpponent, manualControls, manualChronicle, unitStats, unitTags;
+        ScrollView unitList, opponentScroll, manualKeys, chronicleScroll, ordersScroll;
+        VisualElement manualUnits, manualOpponent, manualControls, manualChronicle, manualOrders, unitStats, unitTags;
         Label unitKicker, unitTitle, unitRole, unitBlurb;
         Image unitIcon;
         Label[] manualTabs;
@@ -1126,6 +1127,7 @@ namespace StarForge.UI
             opponentScroll = root.Q<ScrollView>("opponentScroll");
             manualKeys = root.Q<ScrollView>("manualKeys");
             chronicleScroll = root.Q<ScrollView>("chronicleScroll");
+            ordersScroll = root.Q<ScrollView>("ordersScroll");
             for (int i = 0; i < 3; i++)
             {
                 var d = (AIDifficulty)i;
@@ -1133,7 +1135,7 @@ namespace StarForge.UI
                 tag.text = $"{DifficultyName(d)} · {Apm(d):0} APM · {Reaction(d):0.00} S";
                 AddPortrait(tag.parent, manual).tab = 1;
             }
-            foreach (var sv in new[] { unitList, opponentScroll, manualKeys, chronicleScroll })
+            foreach (var sv in new[] { unitList, opponentScroll, manualKeys, chronicleScroll, ordersScroll })
             {
                 sv.verticalScrollerVisibility = ScrollerVisibility.Hidden;
                 sv.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
@@ -1142,6 +1144,7 @@ namespace StarForge.UI
             manualOpponent = root.Q("manualOpponent");
             manualControls = root.Q("manualControls");
             manualChronicle = root.Q("manualChronicle");
+            manualOrders = root.Q("manualOrders");
             unitStats = root.Q("unitStatRows");   // "unitStats" is the HUD's selection label
             unitTags = root.Q("unitTags");
             unitKicker = root.Q<Label>("unitKicker");
@@ -1150,7 +1153,7 @@ namespace StarForge.UI
             unitBlurb = root.Q<Label>("unitBlurb");
             unitIcon = root.Q<Image>("unitIcon");
             unitIcon.scaleMode = ScaleMode.ScaleToFit;
-            manualTabs = Tabs(manual, "manualTabs", new[] { "UNITS", "THE OPPONENT", "CONTROLS", "CHRONICLE" }, SetManualTab);
+            manualTabs = Tabs(manual, "manualTabs", new[] { "UNITS", "THE OPPONENT", "CONTROLS", "CHRONICLE", "THE ORDERS" }, SetManualTab);
             manual.tab = dir => SetManualTab((manualTab + dir + manualTabs.Length) % manualTabs.Length);
             manual.onShow = () => SetManualTab(manualTab);
             manualBack = ButtonNav(manual, "manualBack", Pop);
@@ -1160,7 +1163,43 @@ namespace StarForge.UI
             Prose(opponentScroll, HUDController.OpponentHelp);
             // The world, as the player is told it (LoreText; canon in docs/lore/starforge-lore.md).
             Prose(chronicleScroll, LoreText.Chronicle, LoreText.PlateFor);
+            BuildOrders(ordersScroll);
             BuildKeys(manualKeys.contentContainer);
+        }
+
+        /// <summary>The Field Manual's page on the eight knightly orders (lore section 7's table):
+        /// each one's standard, its motto in the Old Language with the gloss, its teaching and
+        /// its repute. The standards are the Mechs' own (<c>OrderStandards</c>).</summary>
+        static void BuildOrders(ScrollView into)
+        {
+            into.Add(Text(LoreText.OrdersHead, "m-prose-head"));
+            into.Add(Text(LoreText.OrdersIntro, "m-prose-text"));
+            foreach (var o in LoreText.Orders)
+            {
+                var row = new VisualElement { pickingMode = PickingMode.Ignore };
+                row.AddToClassList("m-prose-entry");
+                int index = OrderStandards.IndexOf(o.name);
+                var sprite = index >= 0 ? OrderStandards.Icon(index) : null;
+                if (sprite != null)
+                {
+                    // The sprite is the banner's square, squeezed in the atlas: stretched back, as the HUD draws it.
+                    var img = new Image { sprite = sprite, scaleMode = ScaleMode.StretchToFill, pickingMode = PickingMode.Ignore };
+                    img.style.width = 112; img.style.height = 112; img.style.flexShrink = 0;
+                    img.style.marginLeft = 12; img.style.marginRight = 6;
+                    row.Add(img);
+                }
+                var col = new VisualElement { pickingMode = PickingMode.Ignore };
+                col.AddToClassList("m-prose-col");
+                col.Add(Text(o.name.ToUpperInvariant(), "m-prose-head"));
+                string motto = LoreText.Motto(o.name);
+                if (motto != null) col.Add(Text(motto, "m-prose-text"));
+                bool glossed = motto != null && motto.Contains(o.teaching);   // the gloss already says it
+                col.Add(Text(glossed ? $"Standard: {o.standard}." : $"Standard: {o.standard}. {o.teaching}", "m-prose-text"));
+                col.Add(Text($"By repute: {o.repute}", "m-prose-text"));
+                row.Add(col);
+                into.Add(row);
+            }
+            into.Add(Text(LoreText.OrdersFoot, "m-prose-text"));
         }
 
         /// <summary>Paragraphs split by a blank line, each one's first sentence its heading.</summary>
@@ -1201,9 +1240,10 @@ namespace StarForge.UI
             manualOpponent.style.display = tab == 1 ? DisplayStyle.Flex : DisplayStyle.None;
             manualControls.style.display = tab == 2 ? DisplayStyle.Flex : DisplayStyle.None;
             manualChronicle.style.display = tab == 3 ? DisplayStyle.Flex : DisplayStyle.None;
+            manualOrders.style.display = tab == 4 ? DisplayStyle.Flex : DisplayStyle.None;
             ResetItems(manual);
             manual.onFocus = null;
-            manual.scroll = tab == 0 ? unitList : tab == 1 ? opponentScroll : tab == 2 ? manualKeys : chronicleScroll;
+            manual.scroll = tab == 0 ? unitList : tab == 1 ? opponentScroll : tab == 2 ? manualKeys : tab == 3 ? chronicleScroll : ordersScroll;
             if (tab == 0) BuildUnitList();
             manual.items.Add(manualBack);
             if (tab != 0) manual.scroll.scrollOffset = Vector2.zero;
@@ -1678,7 +1718,7 @@ namespace StarForge.UI
             int t = Mathf.FloorToInt(world.time);
             endSubtitle.text = $"{t / 60}:{t % 60:00} · opponent {bootstrap.AI.Difficulty}";
             if (world.ReckoningTeam == me) endSubtitle.text += " · cheat mode: the animals had the last word";
-            else if (!MatchSettings.spectate && result == 0) endSubtitle.text += " · Lihtþeinto gangen: gone into the light";
+            else if (!MatchSettings.spectate && result == 0) endSubtitle.text += " · <i>Lighttheinto gangen</i> — gone into the light";
             ((Button)rematchNav.el).text = MatchSettings.spectate ? "WATCH AGAIN" : "REMATCH";
             root.Q<Label>("vsLeft").text = MatchSettings.spectate ? "BLUE" : "YOU";
             root.Q<Label>("vsRight").text = MatchSettings.spectate ? "RED" : "OPPONENT";
@@ -1690,7 +1730,7 @@ namespace StarForge.UI
             SetTier(endOppName, endPortrait, (int)diff);
             endOppName.text = DifficultyName(diff);
             endPortraitP.dim = result == 1;
-            endPortraitTag.text = result == 1 ? "SIGNAL LOST" : $"ADAPTIVE AI  ·  TIER {(int)diff + 1}";
+            endPortraitTag.text = result == 1 ? "SIGNAL LOST" : $"OPPOSING STAFF  ·  {DifficultyName(diff)}";
             endOppLine.text = (result == 1 ? "Outfought. " : result == 0 ? "It held the field. " : "Neither side stands. ")
                 + $"{Apm(diff):0} actions a minute, {Reaction(diff):0.00} s reactions.";
 
@@ -2035,8 +2075,8 @@ namespace StarForge.UI
 
         static string DifficultyBlurb(AIDifficulty d) =>
             d == AIDifficulty.Recruit ? "90 actions per minute, slow reactions. Still scouts, still reads you."
-            : d == AIDifficulty.Veteran ? "180 APM with half-second reactions. A solid club player."
-            : "330 APM with 0.22 s reactions — sized against a top StarCraft II professional.";
+            : d == AIDifficulty.Veteran ? "180 actions a minute with half-second reactions. A seasoned field officer."
+            : "330 actions a minute with 0.22 s reactions: as fast as the best officers alive.";
 
         static string Count(int n, string one, string many) => $"{n} {(n == 1 ? one : many)}";
 

@@ -76,6 +76,9 @@ namespace StarForge.EditorTools
             GameWorld.LegacyBreakPick = false;
             StarForge.View.MechView.LegacyTrackRide = false;
             StarForge.Game.AIEvalRunner.SetAuditSwitches(0);   // the AI audit's switches (2026-11-22/23)
+            StarForge.World.NightRules.Force = -1;             // the lore features' night switch (NightTrials)
+            StarForge.World.NightRules.ForceDarkeningAt = -1f;
+            StarForge.AI.MechSpeech.ForceCounsel = false;     // NightTrials.ForceCounsel
         }
 
         /// <summary>A map held for every later Play on purpose (TacticalTrials.UseSeed1000, TacticalVehicles.UseLineBudgetSeed;

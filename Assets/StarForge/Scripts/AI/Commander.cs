@@ -25,7 +25,7 @@ using static StarForge.SFMath;
 
 namespace StarForge.AI
 {
-    public sealed class Commander
+    public sealed partial class Commander
     {
         struct MacroPlan
         {
@@ -1791,6 +1791,8 @@ namespace StarForge.AI
             scouts.RemoveAll(u => !Unit.Live(u) || u.deserted);
             prong.RemoveAll(u => !Unit.Live(u) || u.deserted);
             reserve.RemoveAll(u => !Unit.Live(u) || u.deserted);
+            // The Night of the Quenching (Commander.Truce): no wave, no sortie until lauds; the army holds at home.
+            if (w.Truce) { KeepTruce(s); return; }
 
             // Assign fresh army units to a squad. Skimmers are the natural raiders. A personality
             // with a taste for raids (about half of them) keeps a pair of Skimmers at their Diggers
@@ -2601,6 +2603,7 @@ namespace StarForge.AI
         // ------------------------------------------------------------ micro
         void RunMicro()
         {
+            if (w.Truce) return;   // the Quenching: no focus fire until lauds
             // Focus fire: concentrating damage is what a human spends most combat
             // actions on, which is why the AI's APM spikes in fights like a player's.
             if (main.Count == 0 || !Budget.Can(2)) return;

@@ -32,7 +32,7 @@ using static StarForge.SFMath;
 
 namespace StarForge.AI
 {
-    public sealed class MechBrain
+    public sealed partial class MechBrain
     {
         /// <summary>How often it thinks: four times a second at rest, eight in a fight.</summary>
         const float ThinkPeriod = 0.25f, CombatThink = 0.12f;
@@ -81,6 +81,10 @@ namespace StarForge.AI
         // Advice pacing.
         float nextAdvice, lastDefendAdvice = -99f, lastAttackAdvice = -99f, lastRegroupAdvice = -99f;
         bool greeted, warnedLow, sawEnemyMech, warnedBayUnsafe;
+        /// <summary>A halved oath (lore section 7): their knight is of this knight's own order.
+        /// <c>halved</c> is kept past their Mech's fall, when its design can no longer be read.</summary>
+        bool halved, halvedSaid;
+        float halvedAt;
         // What it says to keep its side's spirits up (its own stream and pacing).
         MechSpeech speech;
         // A forward bay that could not mend it: when it docked, the hull it had then, and
@@ -158,6 +162,8 @@ namespace StarForge.AI
             var m = Mech;
             thinkT = thinkEvery = m != null && m.mech.Landed && InFight(m) ? CombatThink : ThinkPeriod;
             if (m != lastMech) { lastMech = m; repairing = false; greeted = false; }
+            // The Night of the Quenching (MechBrain.Night): no call and no hunt until lauds; its deserter clocks wait.
+            if (w.Truce) { KeepTruce(m); return; }
             // Its deserters. The purge is on only in a think where Punish goes after them: cleared
             // here first, since the repair and fall-back branches return before Punish. Gone: it
             // is over. The deserters all dead: it says how that went, wherever it is. Mending, or
@@ -1009,17 +1015,35 @@ namespace StarForge.AI
             {
                 sawEnemyMech = true;
                 var fd = foe.mech.design;
+                halved = fd != null && fd.order == d.order;
+                halvedAt = now + 6f;   // a few seconds after the warning, not on top of it
                 Say(MechAdviceKind.Warning, foe.pos, $"Enemy Mech on the field: a {fd.className}, {WeaponsOf(fd)}. " +
                     (MechParts.Covers(fd, true) ? "Keep your infantry spread." : "It is weak against a swarm.") +
                     " Do not feed it units piecemeal.", foe);
                 return;
             }
+            // A halved oath: knights of one order on opposing gantries fight in earnest, and no
+            // grudge is permitted. Said once, on the pass after their Mech is called.
+            // Through Narrate, not Say: it is news, so it must not hold back the calls a Commander
+            // acts on (Say pushes nextAdvice), and team 1's is kept to itself. No Pick either: the
+            // line is chosen by the Mech's id, so a seeded match draws the same numbers with or
+            // without it. No return: the rest of the pass goes on as it would have.
+            if (halved && !halvedSaid && foe != null && now >= halvedAt)
+            {
+                halvedSaid = true;
+                Narrate(m.pos, (m.id & 1) == 0
+                    ? $"That is a knight of {d.order} across the field, Commander: my own order. We answered opposing gantries, so we fight in earnest. No grudge is permitted."
+                    : $"Their knight is of my order, Commander. {MechSpeech.Capital(d.order)} answers every lawful gantry, theirs as well as yours. I will fight him as I would any other.", m);
+            }
             if (foe == null && sawEnemyMech && w.factions[1 - team].mechLost && enemyMechsBefore != 0)
             {
                 enemyMechsBefore = 0;
-                Say(MechAdviceKind.Status, m.pos, Pick(
-                    "Their Mech is down! The field is ours -- press them while they are broken.",
-                    "Their champion has fallen. Now we finish this."), m);
+                Say(MechAdviceKind.Status, m.pos, halved
+                    // The survivor carries the fallen standard home (lore section 7).
+                    ? Pick("Their Mech is down. He was of my order: I carry his standard home when this field is decided. Press them now.",
+                           "The knight across the field has fallen. He was of my order. No grudge was permitted, and none was needed. Finish it, Commander.")
+                    : Pick("Their Mech is down! The field is ours -- press them while they are broken.",
+                           "Their champion has fallen. Now we finish this."), m);
                 return;
             }
 
@@ -1035,6 +1059,9 @@ namespace StarForge.AI
                     defendHeardValue = val;
                 return;
             }
+
+            // Now and then the core's line against the call it follows (MechSpeech.Counsel): Speak holds back no call.
+            if (PlayersSide) Speak(m, speech.Counsel(m, d));
 
             if (now < nextAdvice) return;
 
@@ -1269,9 +1296,8 @@ namespace StarForge.AI
         void Verdict(Unit m, MoraleState M)
         {
             float mood = speech.Mood(m), temper = speech.Temper, pride = speech.Pride;
-            float will = 0.12f + 0.4f * Mathf.Max(0f, -temper) - 0.1f * Mathf.Max(0f, temper)
-                       + 0.15f * pride + 0.35f * Saturate(-mood * 2f);
-            will = Mathf.Clamp(will, 0.03f, 0.9f);
+            // Its order leans it (MechBrain.Night, PunishWill); no new random number: the one roll below decides.
+            float will = PunishWill(F.design != null ? F.design.order : null, temper, pride, mood);
             bool go = punishRng.F01() < will || forcePunish;
             LastVerdict = $"will {will:0.00} (temper {temper:+0.00;-0.00}, pride {pride:0.00}, mood {mood:+0.00;-0.00}){(forcePunish ? " forced" : "")}: {(go ? "punish" : "let them go")}";
             forcePunish = false;

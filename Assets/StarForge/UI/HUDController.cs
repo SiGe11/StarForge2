@@ -457,7 +457,29 @@ namespace StarForge.UI
         static Color HealthColor(float f) =>
             f > 0.6f ? new Color(0.35f, 0.9f, 0.55f) : f > 0.3f ? new Color(1f, 0.75f, 0.28f) : new Color(1f, 0.35f, 0.3f);
 
+        // The names scratched inside each soldier's iron (lore section 6; presentation only).
+        readonly IronLedger iron = new IronLedger();
+        public IronLedger Iron => iron;
+        string ironStatus, ironLine, ironBoth;
+
         string StatusText(Unit u)
+        {
+            string status = StatusOf(u);
+            // One soldier of ours selected: the card also reads the names in the iron.
+            if (!IronLedger.Wears(u) || u.deserted || (player != null && u.team != player.team && !MatchSettings.spectate)) return status;
+            string line = iron.Line(u, world);
+            if (line == null) return status;
+            // Joined once per change, not once a frame (the status texts are literals).
+            if (!ReferenceEquals(status, ironStatus) || !ReferenceEquals(line, ironLine))
+            {
+                ironStatus = status;
+                ironLine = line;
+                ironBoth = status + "\n" + line;
+            }
+            return ironBoth;
+        }
+
+        string StatusOf(Unit u)
         {
             if (u.mech != null)
             {
@@ -466,6 +488,9 @@ namespace StarForge.UI
                 // What an army has done to it shows (its hull bar is in sight anyway): a
                 // battered Mech fires slower, theirs as well as yours.
                 if (core.Battered > 0.01f) loadout = $"Battle-damaged: firing {100f * (1f - core.FireRate):0}% slower\n" + loadout;
+                // The order's motto in the Old Language with its gloss (docs/lore/old-language.md section 9).
+                string motto = core.design != null ? LoreText.Motto(core.design.order) : null;
+                if (motto != null) loadout += "\n" + motto;
                 if (u.team != player.team && !MatchSettings.spectate) return loadout;
                 return (string.IsNullOrEmpty(core.intentText) ? "" : core.intentText + "\n") + loadout;
             }
@@ -570,6 +595,7 @@ namespace StarForge.UI
         // ------------------------------------------------------------ alerts
         void OnWorldEvent(GameEvent e)
         {
+            iron.Note(e, world);   // deaths and new soldiers, either side: whose iron goes where
             int me = player != null ? player.team : 0;
             switch (e.kind)
             {
@@ -624,6 +650,7 @@ namespace StarForge.UI
                     {
                         // Long on screen: it does not happen often, and it costs the player units.
                         Dispatch("FIELD NET · GONE QUIET", $"{e.text} deserting -- running for the {Corner(e.end)} corner", "alert--warn", 8f, new Vector2(e.pos.x, e.pos.z));
+                        LostContactLines++;   // the UX round's field-net line is the "gone quiet" report (lore section 6)
                         desertPings.Add((new Vector2(e.pos.x, e.pos.z), Time.unscaledTime));
                         desertPings.Add((new Vector2(e.end.x, e.end.z), Time.unscaledTime));
                     }
@@ -636,8 +663,54 @@ namespace StarForge.UI
                 case GameEventKind.SquadReport when e.team == me:
                     SquadLine(e);
                     break;
+                case GameEventKind.Quenching:
+                    NightLine(e);
+                    break;
             }
         }
+
+        /// <summary>A night map's news (World/GameWorld.Night): vespers as an alert; in a Quenching the rule
+        /// in the game's own voice and a picket's report in the comms (who, where, what), and lauds the same.</summary>
+        void NightLine(GameEvent e)
+        {
+            if (e.index == 0) { Alert("Vespers: night falls over the field", "alert--good", 5f); return; }
+            if (e.index == 1) Alert($"The Night of the Quenching: nobody fires until lauds ({Clock(e.scale)})", "alert--good", 9f);
+            if (e.index == 3) Alert("The Great Liturgy: the Taking of the Light", "alert--good", 7f);
+            if (string.IsNullOrEmpty(e.text)) return;
+            var line = new VisualElement();
+            line.AddToClassList("comms-line");
+            line.AddToClassList("comms-line--status");
+            line.AddToClassList("comms-line--new");
+            var head = new VisualElement { pickingMode = PickingMode.Ignore };
+            head.AddToClassList("comms-head");
+            var who = new Label((e.who ?? "Picket").ToUpperInvariant()) { pickingMode = PickingMode.Ignore };
+            who.AddToClassList("comms-who");
+            head.Add(who);
+            var tag = new Label("REPORT") { pickingMode = PickingMode.Ignore };
+            tag.AddToClassList("comms-tag");
+            tag.AddToClassList("comms-tag--status");
+            head.Add(tag);
+            var text = new Label(e.text) { pickingMode = PickingMode.Ignore };
+            text.AddToClassList("comms-text");
+            line.Add(head);
+            line.Add(text);
+            Vector2 at = new Vector2(e.pos.x, e.pos.z);
+            line.RegisterCallback<ClickEvent>(_ => rig.CenterOn(at));
+            while (commsFeed.childCount >= 3)
+            {
+                VisualElement drop = null;
+                foreach (var c in commsFeed.Children())
+                    if (c.ClassListContains("comms-line--flair")) { drop = c; break; }
+                (drop ?? commsFeed[0]).RemoveFromHierarchy();
+            }
+            commsFeed.Add(line);
+            line.schedule.Execute(() => line.RemoveFromClassList("comms-line--new")).StartingIn(30);
+            line.schedule.Execute(() => line.AddToClassList("comms-line--fading")).StartingIn(14000);
+            line.schedule.Execute(() => line.RemoveFromHierarchy()).StartingIn(14450);
+        }
+
+        /// <summary>For trials: field-net "gone quiet" lines about deserters of ours (the UX round's Dispatch).</summary>
+        public static int LostContactLines;
 
         static string Clock(float seconds)
         {
@@ -839,7 +912,7 @@ namespace StarForge.UI
             if (F.mechLost)
             {
                 mechStripState.text = "lost";
-                mechStripText.text = F.mechDropped ? "Your Mech has fallen. It cannot be replaced." : "The Mech Bay fell before the Mech could land.";
+                mechStripText.text = F.mechDropped ? "Your Mech has fallen. It cannot be replaced. <i>Lighttheinto gangen</i> — gone into the light." : "The Mech Bay fell before the Mech could land.";
             }
             else if (m != null) { mechStripState.text = "inbound"; mechStripText.text = "Coming down beside the Mech Bay"; }
             else if (bay != null && !bay.Complete) { mechStripState.text = "bay " + Mathf.RoundToInt(bay.buildProgress * 100f) + "%"; mechStripText.text = "Raising the Mech Bay"; }
@@ -1158,6 +1231,8 @@ namespace StarForge.UI
             "It plays by your rules. It sees only what its own units see, gives orders through the same commands you do, " +
             "and has a limited number of actions a minute: about 90 on Recruit, 180 on Veteran and 330 on Commander, " +
             "with reactions from nearly a second down to a fifth of one.\n\n" +
+            "It keeps the Night of the Quenching. On the rare night map where every lamp goes out, nobody fires until lauds, " +
+            "and it calls its army home and starts nothing until dawn; it still meets anyone who comes up to its base, without a shot.\n\n" +
             "It scouts. It keeps a scout out whenever its picture of you is going stale, and a Skimmer is its favourite for " +
             "the job; a Digger goes out only to find your base, never to look at it again (or, with its own ore running out, " +
             "to look at an ore field it has not seen yet). Kill the scout or hide your army and it has to guess.\n\n" +
@@ -1167,7 +1242,7 @@ namespace StarForge.UI
             "or a feint. When its picture of you changes, so does its plan.\n\n" +
             "It fights like a player. It focuses fire on the weakest target that can shoot back and lets one that runs go rather " +
             "than chase it across the map, pulls its army home when a fight turns against it and gathers it again before going back in, " +
-            "sends raiders at your workers rather than your army -- the most exposed ones, resting a while when driven off -- and " +
+            "sends raiders at your Diggers rather than your army -- the most exposed ones, resting a while when driven off -- and " +
             "comes back to defend when you hit its base. When the ore by its Foundries runs low it saves for a new one at another " +
             "field, it raises a new Foundry if it loses its own, and once it has lost track of everything of yours it searches the " +
             "ore fields and base sites it has looked at least lately, then the open ground. Once every Foundry of yours it has seen " +

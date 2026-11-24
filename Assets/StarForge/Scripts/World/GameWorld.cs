@@ -90,7 +90,11 @@ namespace StarForge.World
         /// <summary>An animal bit one of the cheater's: <c>pos</c> where, <c>dir</c> the way it struck.</summary>
         AnimalBite,
         /// <summary>A squad tells its commander how it stands: <c>text</c>, <c>pos</c>, <c>men</c>; <c>index</c> a SquadReportKind.</summary>
-        SquadReport
+        SquadReport,
+        /// <summary>A night map's hour (GameWorld.Night): <c>index</c> 0 vespers, 1 the Quenching's
+        /// darkening (the truce begins; <c>scale</c> its length), 2 lauds; <c>team</c> 2 (both camps);
+        /// <c>who</c> and <c>text</c> the picket's report, <c>pos</c> the player's base.</summary>
+        Quenching
     }
 
     /// <summary>What a Mech's AI tells its side (MechBrain).</summary>
@@ -354,6 +358,8 @@ namespace StarForge.World
 
         public void BeginMatch(uint seed)
         {
+            Night = default;   // day unless GameBootstrap says otherwise (GameWorld.Night)
+            nightPhase = 0;
             rng = new Rng(seed);
             fireRng = new Rng(seed ^ 0xB0F1u);
             rosterRng = new Rng(seed ^ 0x5C0B7u);
@@ -1176,6 +1182,8 @@ namespace StarForge.World
         // ------------------------------------------------------------ combat
         public void Fire(Unit shooter, Unit target)
         {
+            // The Night of the Quenching: no gun of any kind fires from the darkening to lauds (GameWorld.Night).
+            if (Truce) return;
             var D = shooter.def;
             // Small arms are decided when fired, at aircraft too (as real homing rounds they all but never missed).
             if (D.shotSpread > 0f && target.def.flying && !TacticalRules.LegacyRounds) { FireShotAtAir(shooter, target); return; }

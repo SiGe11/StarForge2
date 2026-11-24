@@ -56,12 +56,12 @@ namespace StarForge.EditorTools
                     "Crew quarters. +8 supply."),
                 Def(UnitType.Sentinel, "Sentinel", true,  false, 1.7f,  500, 0, 3.5f, 20f, 13, 0.85f, 0f, 28, 25, 125, 0, 0, 'N',
                     "Defensive gun turret. Requires a Garrison."),
-                Def(UnitType.Ore,      "Ore Seam", false, true,  1.6f, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ' ', "Crystal ore. Diggers carry 8 per trip."),
+                Def(UnitType.Ore,      "Ore Seam", false, true,  1.6f, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ' ', "Ore. Soldiers call it teal and its proper name is quenchstone, the feedstock of the printworks. Diggers carry 8 per trip."),
                 Def(UnitType.Boulder,  "Boulder",  false, true,  1.1f, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ' ', ""),
                 Def(UnitType.MechBay,  "Mech Bay", true,  false, 4.2f, 1800, 0, 3.0f, 24f, 22, 0.60f, 0f, 30, 35, 100, 0, 0, 'Y',
                     "Raises a gantry. Seven minutes after it stands, a knightly order answers it with your Mech: one knight and one core, " +
                     "allied to you but not under your orders. One a match, never rebuilt. Guards itself with a gun tower, mends itself, " +
-                    "repairs the Mech and sells its upgrades."),
+                    "repairs the Mech and fits the upgrades you give your knight."),
                 // The Mech's real numbers come from its parts (World/MechParts); these are
                 // what the rest of the game reads before one exists.
                 Def(UnitType.Mech,     "Mech",     false, false, 2.5f, 3700, 5.0f, 2.1f, 30f, 1, 1.00f, 0f, 36, 0, 0, 0, 0, ' ',
@@ -99,7 +99,7 @@ namespace StarForge.EditorTools
                 Def(UnitType.Rocketeer, "Rocketeer",  false, false, 0.62f,  90, 5.4f,  8.0f, 19f, 34, 1.90f, 0.8f, 26, 18,  90, 2, 0, 'B',
                     "Anti-armour infantry. A shoulder rocket that wrecks tanks, Mechs and buildings; poor against infantry, cannot fire at aircraft."),
                 Def(UnitType.Ironclad,  "Ironclad",   false, false, 1.45f, 480, 3.8f,  2.4f, 20f, 24, 1.30f, 0f,   32, 45, 300, 6, 0, 'T',
-                    "Walking mini-mech, a house-wars pattern the Host kept: no core, and nothing to say. Twin shoulder cannons for the ground, missile pods for the air; slow and very hard to stop. Requires an Armory."),
+                    "A house-wars walker the Host kept: no core, and nothing to say. Twin shoulder cannons for the ground, missile pods for the air; slow and very hard to stop. Requires an Armory."),
                 Def(UnitType.Gorehorn,  "Gorehorn",   false, false, 1.40f, 520, 5.0f,  4.0f, 2.2f, 32, 1.30f, 2.4f, 24, 32, 275, 5, 0, 'G',
                     "Bred armoured beast from the Clearance's feral herds; the soldiers call them the cattle. Charges in and sweeps its tusks through everything round what it strikes; cannot reach aircraft. Requires an Armory."),
                 Def(UnitType.Armory,    "Armory",     true,  false, 3.6f,  900, 0, 0, 0, 0, 0, 0, 24, 30, 150, 0, 0, 'U',

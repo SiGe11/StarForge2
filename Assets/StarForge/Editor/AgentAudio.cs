@@ -60,6 +60,7 @@ namespace StarForge.EditorTools
                 if (inCommand) startedInCommand = true;
                 bool agent = inCommand || Recent(PlayKey, 1.0) || Recent(NextKey, WindowMinutes);
                 LastPlayWasAgent = agent;
+                SessionState.SetBool("sf_agent_play", agent);   // World.NightRules: an agent's play is never night
                 SessionState.EraseString(PlayKey);
                 SessionState.EraseString(NextKey);
                 if (agent && !Recent(HearKey, WindowMinutes)) MuteNow();

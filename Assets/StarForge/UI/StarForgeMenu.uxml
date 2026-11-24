@@ -22,7 +22,7 @@
           <ui:VisualElement class="m-brand-text" picking-mode="Ignore">
             <ui:Label class="m-logo" text="STARFORGE" />
             <ui:Label class="m-logo-sub" text="ADAPTIVE  WARFARE" />
-            <ui:Label class="m-logo-motto" text="APTENDE  WERRE" />
+            <ui:Label class="m-logo-motto" text="STERRETHE  UNDER" />
           </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement name="mainNav" class="m-nav" />
@@ -144,7 +144,7 @@
           <ui:ScrollView name="opponentScroll" class="m-scroll m-prose" />
         </sf:SFFrame>
         <sf:SFFrame class="m-card m-opp-roster" picking-mode="Ignore">
-          <ui:Label class="m-card-title" text="THREE TIERS" />
+          <ui:Label class="m-card-title" text="THREE GRADES" />
           <ui:VisualElement class="m-portrait m-roster-tile m-portrait--0" picking-mode="Ignore">
             <sf:SFShade class="m-fill" direction="Vertical" from="#02060B00" to="#02060BD8" power="2" />
             <ui:Label name="rosterTag0" class="m-portrait-tag" text="" />
@@ -167,6 +167,11 @@
       <ui:VisualElement name="manualChronicle" class="m-body m-row">
         <sf:SFFrame class="m-card m-grow m-card--list">
           <ui:ScrollView name="chronicleScroll" class="m-scroll m-prose" />
+        </sf:SFFrame>
+      </ui:VisualElement>
+      <ui:VisualElement name="manualOrders" class="m-body m-row">
+        <sf:SFFrame class="m-card m-grow m-card--list">
+          <ui:ScrollView name="ordersScroll" class="m-scroll m-prose" />
         </sf:SFFrame>
       </ui:VisualElement>
       <ui:VisualElement class="m-actions">
@@ -249,7 +254,7 @@
             <ui:Label name="endRecord" class="m-text m-text--muted m-end-record" text="" />
           </sf:SFFrame>
           <sf:SFFrame name="endDossierColumn" class="m-card m-grow">
-            <ui:Label class="m-card-title" text="THE AI'S DOSSIER ON YOU" />
+            <ui:Label class="m-card-title" text="THE ANNALISTS' FILE ON YOU" />
             <sf:BarChartElement name="endStyleChart" class="chart chart--six" />
             <ui:Label name="endDossier" class="m-text" text="" />
           </sf:SFFrame>

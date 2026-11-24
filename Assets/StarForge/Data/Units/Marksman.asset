@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 15
   displayName: Marksman
-  blurb: Sniper. Outranges everything but the Mech; one shot fells a rifleman. Fragile, slow to fire, poor against armour. Requires an Armory.
+  blurb: Sniper, drawn by custom from the Clearance families. Outranges everything but the Mech; one shot fells a rifleman. Fragile, slow to fire, poor against armour. Requires an Armory.
   building: 0
   neutral: 0
   radius: 0.56

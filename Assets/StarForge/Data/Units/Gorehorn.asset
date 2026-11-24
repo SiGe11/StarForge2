@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 30
   displayName: Gorehorn
-  blurb: Bred armoured beast. Charges in and sweeps its tusks through everything round what it strikes; cannot reach aircraft. Requires an Armory.
+  blurb: Bred armoured beast from the Clearance's feral herds; the soldiers call them the cattle. Charges in and sweeps its tusks through everything round what it strikes; cannot reach aircraft. Requires an Armory.
   building: 0
   neutral: 0
   radius: 1.4

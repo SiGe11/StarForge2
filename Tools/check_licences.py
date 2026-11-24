@@ -5,8 +5,8 @@
     python3 Tools/check_licences.py --offline   # structure only, no network
 
 The repository is public, so an asset is only usable here if its licence allows
-**redistribution**: CC0 for the art and the audio, SIL OFL 1.1 and Apache 2.0
-for the two font families. THIRD-PARTY.md is the register; this script keeps it
+**redistribution**: CC0 or CC-BY (attribution, allowed by the user 2026-11-24) for the
+art and the audio, SIL OFL 1.1 and Apache 2.0 for the two font families. THIRD-PARTY.md is the register; this script keeps it
 honest, and answers four questions:
 
 1. Does each source still state the licence the register claims? (network)
@@ -31,6 +31,11 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UA = {"User-Agent": "StarForge-licence-check/1.0"}
 CC0 = "CC0 1.0"
+# Attribution only (allowed for art and audio since 2026-11-24): a source under it is checked for the
+# licence's own link on its page, and never -SA, -NC or -ND. No asset uses it yet; the first one also
+# brings LICENSES/CC-BY-4.0.txt, a row in THIRD-PARTY.md's licence table and the in-game credit.
+CC_BY = "CC BY 4.0"
+R = "Assets/StarForge/Resources/"
 
 
 def S(name, authors, licence, url, check, files, ids=(), note=""):
@@ -46,6 +51,18 @@ A = "Assets/StarForge/Audio/"
 
 # ---------------------------------------------------------------- the register
 SOURCES = [
+    # Freesound -- recorded sound for night maps, built by Tools/make_audio.py --bells (CC0: each page's licence link)
+    S("Short Church Bell Ring with Rural Ambience & Birds", "TSP-Talk", CC0, "https://freesound.org/s/847110/",
+      ("freesound", "847110"), [A + "Sfx/bell_vespers.wav", A + "Sfx/bell_hand.wav"], ["847110_14079354-hq.mp3"]),
+    S("Humming in A Minor", "xkeril", CC0, "https://freesound.org/s/685679/",
+      ("freesound", "685679"), [A + "Ambience/chant.wav"], ["685679_13504080-hq.mp3"]),
+    # Blender Studio -- the field celebrant's body (Tools/blender/build_celebrant.py; the alb, sleeves,
+    # cord, veil and lamp in the same file are ours)
+    S("Human Base Meshes", "Blender Studio (Body Female - Stylized: Julien Kaspar)", CC0,
+      "https://www.blender.org/download/demo/asset-bundles/human-base-meshes/",
+      ("blender", ("human-base-meshes-bundle-v1.4.1", "Body Female - Stylized")), [R + "Celebrant.fbx"],
+      ["human-base-meshes-bundle-v1.4.1"]),
+
     # Poly Haven -- scanned ground and rock (CC0, https://polyhaven.com/license)
     S("Coast Sand Rocks 02", "Rob Tuytel", CC0, "https://polyhaven.com/a/coast_sand_rocks_02",
       ("polyhaven", "coast_sand_rocks_02"), [T + "Terrain/meadow_*"], ["coast_sand_rocks_02"]),
@@ -271,8 +288,8 @@ OWN = [
     *_own("Assets/StarForge/Art/", 'AppIcon.png'),
     # Menu art, the Chronicle's plates, the intro and the orders' standards: the author with Google Gemini (THIRD-PARTY.md: Menu illustrations)
     *_own("Assets/StarForge/UI/Art/", 'keyart.jpg', 'opponent_commander.jpg', 'opponent_recruit.jpg',
-          'opponent_veteran.jpg', 'plate_gantry.jpg', 'plate_quenching.jpg', 'plate_two_hands.jpg',
-          'plate_vespers.jpg'),
+          'opponent_veteran.jpg', 'plate_gantry.jpg', 'plate_iron.jpg', 'plate_quenching.jpg',
+          'plate_taking.jpg', 'plate_two_hands.jpg', 'plate_vespers.jpg'),
     # (continued)
     *_own("Assets/StarForge/Resources/", 'MechStandards.png', 'Intro/intro.mp4'),
     # Carried over from the original C++ StarForge (THIRD-PARTY.md: Textures carried over)
@@ -331,9 +348,49 @@ def font_licence(path):
     return " | ".join(out)
 
 
+def verify_blender(src, bundle, asset):
+    """A Blender Studio bundle: its page states CC0, but answers scripts with a bot check (HTTP 403), which
+    is not to be got round; failing it, the asset's own licence field in the fetched bundle is read with
+    Blender (headless). Both are Blender Studio's own statements."""
+    try:
+        page = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", fetch(src["url"]))))
+        if "CC0" in page:
+            return (True, "the bundle page states CC0")
+        blocked = "no CC0 on the page"
+    except Exception as e:
+        blocked = str(e)
+    blend = os.path.join(ROOT, "Art", "Source", "blender_studio", bundle, "human_base_meshes_bundle.blend")
+    app = "/Applications/Blender.app/Contents/MacOS/Blender"
+    if not (os.path.exists(blend) and os.path.exists(app)):
+        return (False, f"the page refused ({blocked}) and there is no fetched bundle or Blender to read it")
+    import subprocess
+    expr = ("import bpy; c = bpy.data.collections.get(%r); a = c.asset_data if c else None; "
+            "print('LICENCE=' + (a.license if a else '?') + '|' + (a.author if a else '?'))" % asset)
+    res = subprocess.run([app, "--background", "--factory-startup", blend, "--python-expr", expr],
+                         capture_output=True, text=True, timeout=300)
+    m = re.search(r"LICENCE=([^|\n]*)\|([^\n]*)", res.stdout)
+    lic = m.group(1).strip() if m else "?"
+    return (lic.upper() == "CC0", f"page refused scripts ({blocked[:32]}); the bundle's asset data: {lic} ({m.group(2) if m else '?'})")
+
+
+def cc_by_page(page):
+    """A page that links CC BY 4.0 or 3.0 itself, and no share-alike, non-commercial or no-derivatives form."""
+    return (re.search(r"creativecommons\.org/licenses/by/(4\.0|3\.0)", page) is not None
+            and re.search(r"creativecommons\.org/licenses/by-(sa|nc|nd)", page) is None)
+
+
 def verify(src):
     """Ask the source itself what licence it is under. Returns (ok, what it said)."""
     kind, key = src["check"]
+    if src["licence"] == CC_BY and kind in ("oga", "itch", "freesound"):
+        url = {"oga": "https://opengameart.org/content/" + str(key), "freesound": f"https://freesound.org/s/{key}/"}.get(kind, src["url"])
+        page = fetch(url)
+        return (cc_by_page(page), "the page links CC BY (no -SA, -NC, -ND)")
+    if kind == "freesound":
+        page = fetch(f"https://freesound.org/s/{key}/")
+        return ("creativecommons.org/publicdomain/zero/1.0" in page, "the sound's page links CC0 1.0")
+    if kind == "blender":
+        return verify_blender(src, *key)
     if kind == "polyhaven":
         fetch(f"https://api.polyhaven.com/info/{key}")           # the asset is still there
         page = fetch("https://polyhaven.com/license")
@@ -432,6 +489,7 @@ def fetched_ids():
     ids |= block("KENNEY", r'"([a-z\-]+)":')
     ids |= block("QUATERNIUS", r'"([A-Za-z0-9_\.]+)":') | block("SFX", r':\s*"([^"]+)"')
     ids |= block("JANGAFX", r'"([A-Za-z0-9_]+)":') | block("ITCH_PACKS", r'"([A-Za-z0-9_]+)":')
+    ids |= block("FREESOUND", r'"([0-9_]+-hq\.mp3)":') | block("BLENDER_BUNDLES", r'"([a-z0-9\-\.]+)":')
     m = re.search(r"MUSIC\s*=\s*\{(.*?)\n\}", src, re.S)
     if m:
         ids |= {t for _, _, t in re.findall(r'\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)', m.group(1))}
@@ -502,7 +560,7 @@ def main():
             print(f"  FAIL THIRD-PARTY.md does not mention {s['name']}")
             bad += 1
     readme = open(os.path.join(ROOT, "README.md")).read()
-    for who in ("Poly Haven", "Kenney", "Quaternius", "KayKit", "JangaFX", "OpenGameArt", "Inter", "Roboto Mono", "Cinzel"):
+    for who in ("Poly Haven", "Kenney", "Quaternius", "KayKit", "JangaFX", "OpenGameArt", "Freesound", "Blender Studio", "Inter", "Roboto Mono", "Cinzel"):
         if who not in readme:
             print(f"  FAIL the README credits no {who}")
             bad += 1

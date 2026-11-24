@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 23
   displayName: Spitter
-  blurb: Bred acid-spitter. Hops into range and spits acid at ground and air alike.
+  blurb: Bred acid-spitter; the soldiers call them frogs. Hops into range and spits acid at ground and air alike.
   building: 0
   neutral: 0
   radius: 0.75

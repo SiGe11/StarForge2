@@ -246,6 +246,7 @@ namespace StarForge.World
 
         public void FireTankGun(Unit s, Unit t)
         {
+            if (Truce) return;   // the Quenching's truce (also the Kestrel's gun)
             Unit struck = DecideShot(s, t, out Vector3 muzzle, out Vector3 end, out bool stopped, TacticalRules.TankGunSpread, GunHeightOf(s));
             TankGunShots++;
             if (struck != null)

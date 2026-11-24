@@ -55,6 +55,7 @@ namespace StarForge.World
         /// <summary>It leaves his hand: a little off where he meant, flying for a time worked out to land there.</summary>
         public void Throw(Unit s, Thrown what, Vector2 at)
         {
+            if (Truce) return;   // the Quenching's truce
             float meant = (at - s.pos).magnitude;
             Gauss(out float ex, out float ey);
             Vector2 err = new Vector2(ex, ey) * (meant * ThrowError);
@@ -311,6 +312,7 @@ namespace StarForge.World
         // ------------------------------------------------------------ pistol and knife
         public void FirePistol(Unit s, Unit t)
         {
+            if (Truce) return;   // the Quenching's truce
             Unit struck = DecideShot(s, t, out Vector3 muzzle, out Vector3 end, out bool stopped, TacticalRules.PistolSpread);
             ShotsFired++;
             PistolShots++;
@@ -331,6 +333,7 @@ namespace StarForge.World
         /// <summary>At arm's length: no noise to give him away.</summary>
         public void Stab(Unit s, Unit t)
         {
+            if (Truce) return;   // the Quenching's truce
             Stabs++;
             float dmg = TacticalRules.KnifeDamage * (1f + 0.15f * s.rank);
             Vector3 at = t.Ground + Vector3.up;

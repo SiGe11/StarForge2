@@ -154,12 +154,13 @@ namespace StarForge.View
             Shader.SetGlobalFloat(ShowerId, rainNow);
             if (atmo != null)
             {
-                atmo.density = fogBase * (1f + 1.3f * rainNow);
-                atmo.hazeDensity = hazeBase * (1f + 1.6f * rainNow);
-                atmo.sunScatterStrength = scatterBase * (1f - 0.6f * rainNow);
-                atmo.fogColor = Color.Lerp(fogColorBase, new Color(0.56f, 0.59f, 0.63f), 0.6f * rainNow);
+                // With the night's gains (FXDirector.Night; nightK 0 by day leaves every value as it was).
+                atmo.density = fogBase * (1f + 1.3f * rainNow) * (1f + 0.35f * nightK);
+                atmo.hazeDensity = hazeBase * (1f + 1.6f * rainNow) * (1f - 0.2f * nightK);
+                atmo.sunScatterStrength = scatterBase * (1f - 0.6f * rainNow) * (1f - 0.65f * nightK);
+                atmo.fogColor = Color.Lerp(Color.Lerp(fogColorBase, NightFog, nightK), new Color(0.56f, 0.59f, 0.63f) * (1f - 0.8f * nightK), 0.6f * rainNow);
             }
-            if (sunLight != null) sunLight.intensity = sunBase * (1f - 0.42f * rainNow);
+            if (sunLight != null) sunLight.intensity = sunBase * (1f - 0.42f * rainNow) * Mathf.Lerp(1f, NightSunGain, nightK);
 
             float reach = rig != null ? Mathf.Clamp(rig.distance * 0.9f + 18f, 30f, 90f) : 45f;
             if (rain != null && rainNow > 0.01f) Showers(dt, focus, wind, reach);

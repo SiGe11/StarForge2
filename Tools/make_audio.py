@@ -1105,7 +1105,93 @@ def copy_music(out=None):
         json.dump(info, f, indent=2)
 
 
+# ------------------------------------------------------------ night maps: the bell and the chant
+# (the lore features, World/GameWorld.Night: vespers, the Quenching's darkening, lauds). Built from
+# two CC0 Freesound recordings (THIRD-PARTY.md: Freesound): TSP-Talk's church bell (847110) and
+# xkeril's "Humming in A Minor" (685679), fetched by Tools/fetch_assets.py as Freesound's hq previews.
+# `--bells [--out DIR]` builds only these three.
+FREESOUND = os.path.join(ROOT, "Art", "Source", "freesound")
+RMS.update({"bell": 0.075, "chant": 0.05})
+
+
+def _strike(x, thresh=0.25):
+    """The first strong onset of a bell recording (birds and the room come before it)."""
+    env = np.abs(x)
+    k = int(np.argmax(env > thresh * env.max()))
+    return max(0, k - int(0.01 * SR))
+
+
+def bell_vespers():
+    x = decode(os.path.join(FREESOUND, "847110_14079354-hq.mp3"))
+    a = _strike(x)
+    y = cut(x, a / SR, 11.0, fade_in=0.004)
+    # The birds sing over 2.5 kHz and the bell's body lies under it: a gentle low-pass
+    # keeps the strike and the hum and leaves the birds faint. Distance: a dark echo.
+    y = filt_lin(y, 2600.0, order=2)
+    y = add(y, filt_lin(y, 1100.0) * 0.28, at=0.075)
+    # The field's rumble (wind on the mic) sits under the bell's own hum: cut below ~95 Hz.
+    y = hipass_lin(y, 95)
+    n = int(3.5 * SR)
+    y[-n:] *= np.linspace(1, 0, n) ** 1.5
+    return y
+
+
+def bell_hand(strike):
+    """The same strike an octave and a little up, short: a hand bell at lauds."""
+    y = pitched(strike[: int(6.0 * SR)], 1.9)
+    y = y[: int(3.2 * SR)].copy()
+    n = int(1.2 * SR)
+    y[-n:] *= np.linspace(1, 0, n) ** 1.5
+    return hipass_lin(filt_lin(y, 4200.0), 60)
+
+
+def chant(seconds=72.0):
+    """A distant sung drone for the darkening: the humming laid in overlapping takes,
+    every other one a fourth below (two voices), crossfaded, darkened and put in a
+    stone hall by a handful of decaying echoes; 8 s in, 20 s out (it plays once)."""
+    src = decode(os.path.join(FREESOUND, "685679_13504080-hq.mp3"))
+    src = src[_strike(src, 0.1):]
+    take = min(len(src) / SR - 0.5, 12.0)
+    out = np.zeros(int(seconds * SR))
+    t, k, step = 0.0, 0, take - 4.0
+    while t < seconds - 1.0:
+        piece = cut(src, 0.2, take, fade_in=3.5)
+        n_out = int(3.5 * SR)
+        piece[-n_out:] *= np.linspace(1, 0, n_out)
+        if k % 2: piece = pitched(piece, 0.749) * 0.8
+        out = add(out, piece, at=t)
+        t += step * (0.5 if k % 2 == 0 else 0.5)   # the two voices overlap by half a take
+        k += 1
+    out = out[: int(seconds * SR)]
+    out = filt_lin(out, 1500.0)
+    hall = np.zeros_like(out)
+    for d, g in ((0.11, 0.42), (0.23, 0.3), (0.37, 0.22), (0.53, 0.15), (0.79, 0.1)):
+        hall = add(hall, out * g, at=d)
+    out = out + filt_lin(hall[: len(out)], 900.0)
+    out = hipass_lin(out, 70)
+    a, b = int(8 * SR), int(20 * SR)
+    out[:a] *= np.linspace(0, 1, a)
+    out[-b:] *= np.linspace(1, 0, b)
+    return out
+
+
+def make_night_audio(out_dir=None):
+    sfx = out_dir or os.path.join(AUDIO, "Sfx")
+    amb = out_dir or os.path.join(AUDIO, "Ambience")
+    os.makedirs(sfx, exist_ok=True)
+    os.makedirs(amb, exist_ok=True)
+    great = bell_vespers()
+    built = [("bell_vespers", great, sfx), ("bell_hand", bell_hand(great), sfx), ("chant", chant(), amb)]
+    for name, x, d in built:
+        x = match(x, name)
+        write_wav(os.path.join(d, name + ".wav"), x)
+        print(spectrum_report(name, x), " rms %.3f" % float(np.sqrt(np.mean(x * x))))
+
+
 def main():
+    if "--bells" in sys.argv:   # the night's bell and chant only: `--bells [--out DIR]`
+        make_night_audio(sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else None)
+        return
     if "--mech" in sys.argv:
         make_mech_audio()       # the Mech's sounds only, leaving everything else as it is
         return

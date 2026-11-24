@@ -63,6 +63,8 @@ namespace StarForge.View
         public AudioClip[] mechStep, mechServo, mechAutocannon, mechGatling, mechMissile, mechMortar, mechLaser, mechRailgun, mechRadio;
         [Tooltip("The Mech coming down from orbit, landing; the flamer's roar and the reactor's hum (loops).")]
         public AudioClip mechDrop, mechLand, mechFlamer, mechHum;
+        [Tooltip("Night maps (World/GameWorld.Night): the great bell at vespers, a hand bell at lauds, the chant (with its own fades) at the Quenching's darkening. Built by make_audio.py --bells.")]
+        public AudioClip bellVespers, bellHand, chant;
     }
 
     public sealed class AudioDirector : MonoBehaviour
@@ -279,6 +281,9 @@ namespace StarForge.View
                     // A repeat the player has already heard makes no sound; the Mech's flavour a softer one.
                     if (!e.repeat && bank.mechRadio != null && bank.mechRadio.Length > 0)
                         PlayUI(bank.mechRadio[Random.Range(0, bank.mechRadio.Length)], e.advice == MechAdviceKind.Morale ? 0.2f : 0.5f, 1f);
+                    break;
+                case GameEventKind.Quenching:
+                    NightBell(e.index);
                     break;
                 case GameEventKind.SquadReport when e.team == me:
                     if (bank.mechRadio != null && bank.mechRadio.Length > 0)
@@ -499,6 +504,44 @@ namespace StarForge.View
             return best;
         }
 
+        /// <summary>Night maps only (day maps ring nothing): the great bell at vespers; in a Quenching one
+        /// stroke and the chant at the darkening, a hand bell at lauds. Silent until Build step 4 wires them.</summary>
+        AudioSource bellSrc, chantSrc;
+
+        /// <summary>Every frame: the chant follows the master volume, pauses with the game and stops at the match's end.</summary>
+        void NightAudioTick(bool paused)
+        {
+            if (chantSrc == null || chantSrc.clip == null) return;
+            if (world != null && world.winner >= 0) { if (chantSrc.isPlaying) chantSrc.Stop(); return; }
+            if (paused) { if (chantSrc.isPlaying) chantSrc.Pause(); return; }
+            chantSrc.UnPause();
+            chantSrc.volume = 0.35f * masterVolume;
+        }
+        void NightBell(int phase)
+        {
+            if (bank == null) return;
+            // Sources of their own: a bell's pitch is not the UI one-shots' to share, and the chant can be stopped.
+            if (bellSrc == null) { bellSrc = gameObject.AddComponent<AudioSource>(); bellSrc.playOnAwake = false; bellSrc.spatialBlend = 0f; }
+            if (chantSrc == null) { chantSrc = gameObject.AddComponent<AudioSource>(); chantSrc.playOnAwake = false; chantSrc.spatialBlend = 0f; }
+            if (phase == 0) { if (bank.bellVespers != null) { bellSrc.pitch = 1f; bellSrc.PlayOneShot(bank.bellVespers, 0.55f * masterVolume); } }
+            else if (phase == 1)
+            {
+                if (bank.bellVespers != null) { bellSrc.pitch = 0.94f; bellSrc.PlayOneShot(bank.bellVespers, 0.4f * masterVolume); }
+                if (bank.chant != null) { chantSrc.clip = bank.chant; chantSrc.volume = 0.35f * masterVolume; chantSrc.Play(); }   // its own fades are in the clip
+            }
+            else if (phase == 3)
+            {
+                // The Taking of the Light (a night map's Great Liturgy): a hand bell as the lamps go out, the chant.
+                if (bank.bellHand != null) { bellSrc.pitch = 0.97f; bellSrc.PlayOneShot(bank.bellHand, 0.35f * masterVolume); }
+                if (bank.chant != null) { chantSrc.clip = bank.chant; chantSrc.volume = 0.3f * masterVolume; chantSrc.Play(); }
+            }
+            else if (phase == 2)
+            {
+                if (chantSrc.isPlaying) chantSrc.Stop();
+                if (bank.bellHand != null) { bellSrc.pitch = 1f; bellSrc.PlayOneShot(bank.bellHand, 0.5f * masterVolume); }
+            }
+        }
+
         void PlayUI(AudioClip clip, float volume, float pitch)
         {
             if (clip == null) return;
@@ -511,6 +554,7 @@ namespace StarForge.View
         {
             float dt = Time.unscaledDeltaTime;
             bool paused = Time.timeScale < 0.01f;
+            NightAudioTick(paused);
             combatHeat = Mathf.Max(0f, combatHeat * Mathf.Exp(-dt / 7f) - dt * 0.01f);
             if (Time.unscaledTime >= nextScan) { nextScan = Time.unscaledTime + 0.25f; ScanView(); }
 

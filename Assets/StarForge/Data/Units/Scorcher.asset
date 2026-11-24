@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 14
   displayName: Scorcher
-  blurb: Flamethrower infantry. Short reach, burns everything on the ground in its jet; deadly to infantry and Diggers, weak against armour. Sets grass alight.
+  blurb: Flamethrower infantry. Short reach, burns everything on the ground in its jet; deadly to infantry and Diggers, weak against armour. Sets grass alight. The ranks call them lamplighters.
   building: 0
   neutral: 0
   radius: 0.62

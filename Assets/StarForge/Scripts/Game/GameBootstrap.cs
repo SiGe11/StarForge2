@@ -121,6 +121,10 @@ namespace StarForge.Game
             gpu?.Dispose();
             uint seed = MatchSettings.MatchSeed();
             world.BeginMatch(seed);
+            // Night maps (World/GameWorld.Night) and the core's counsel (AI/MechSpeech.Counsel): real matches only.
+            bool realMatch = NightRules.RealMatch(StarForge.UI.MenuController.MatchFromMenu, MatchSettings.fixedSeed);
+            MechSpeech.CounselAllowed = realMatch;
+            world.SetNight(NightRules.ForMatch(world.Map.seed, realMatch));
 
             for (int t = 0; t < 2; t++)
             {
@@ -160,6 +164,7 @@ namespace StarForge.Game
         {
             // A trial that silences the opponent silences morale too (GameWorld.Morale).
             world.moraleOn = !Commander.Suspended;
+            world.TickNight();
             AI?.Update(dt);
             PlayerProxy?.Update(dt);
             brainWatch.Restart();

@@ -234,6 +234,51 @@ ITCH_PACKS = {
     "KayKit_Character_Animations": ("https://kaylousberg.itch.io/kaykit-character-animations", 15799903, "kaykit"),
 }
 
+# Blender Studio's asset bundles, CC0 1.0 (each asset's own licence field in the bundle; the bundle
+# page says so too, but answers scripts with a bot check): name: (page, zip on Blender's own server).
+# The field celebrant's body (Tools/blender/build_celebrant.py) is its "Body Female - Stylized".
+BLENDER_BUNDLES = {
+    "human-base-meshes-bundle-v1.4.1": ("https://www.blender.org/download/demo/asset-bundles/human-base-meshes/",
+                                        "https://download.blender.org/demo/asset-bundles/human-base-meshes/human-base-meshes-bundle-v1.4.1.zip"),
+}
+
+
+def fetch_blender_bundles():
+    import zipfile
+    out = os.path.join(ROOT, "Art", "Source", "blender_studio")
+    os.makedirs(out, exist_ok=True)
+    for name, (page, url) in BLENDER_BUNDLES.items():
+        if os.path.isdir(os.path.join(out, name)):
+            continue
+        zpath = os.path.join(out, name + ".zip")
+        req = urllib.request.Request(url, headers={"User-Agent": "StarForge-fetch/1.0"})
+        with urllib.request.urlopen(req, timeout=600) as rsp, open(zpath, "wb") as o:
+            o.write(rsp.read())
+        with zipfile.ZipFile(zpath) as z:
+            z.extractall(out)
+        print(f"  blender studio {name}  {os.path.getsize(zpath) / 1e6:.1f} MB")
+
+# Recorded sound from Freesound, CC0 1.0 (each sound page's licence link): the hq previews, which
+# need no account; file name: (page, author, title). Tools/make_audio.py --bells builds from them.
+FREESOUND = {
+    "847110_14079354-hq.mp3": ("https://freesound.org/s/847110/", "TSP-Talk", "Short Church Bell Ring with Rural Ambience & Birds"),
+    "685679_13504080-hq.mp3": ("https://freesound.org/s/685679/", "xkeril", "Humming in A Minor"),
+}
+
+
+def fetch_freesound():
+    out = os.path.join(ROOT, "Art", "Source", "freesound")
+    os.makedirs(out, exist_ok=True)
+    for f, (page, author, title) in FREESOUND.items():
+        path = os.path.join(out, f)
+        if os.path.exists(path):
+            continue
+        url = f"https://cdn.freesound.org/previews/{f.split('_')[0][:-3]}/{f}"
+        req = urllib.request.Request(url, headers={"User-Agent": "StarForge-fetch/1.0"})
+        with urllib.request.urlopen(req, timeout=120) as r, open(path, "wb") as o:
+            o.write(r.read())
+        print(f"  freesound {title} by {author}  {os.path.getsize(path) / 1e6:.1f} MB")
+
 
 def fetch_itch():
     import http.cookiejar
@@ -396,6 +441,8 @@ def main():
     fetch_sfx()
     fetch_plain()
     fetch_itch()
+    fetch_freesound()
+    fetch_blender_bundles()
     fetch_jangafx()
     fetch_fonts()
 

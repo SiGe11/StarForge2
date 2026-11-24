@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 12
   displayName: Mech
-  blurb: A knight of the orders and the ancient core sworn to that knight's hand, in a war machine fitted out for this field. Fights on your side, by its own judgement.
+  blurb: A knight of the orders and the ancient core sworn to his hand, in a war machine fitted out for this field. Fights on your side, by its own judgement.
   building: 0
   neutral: 0
   radius: 2.5

@@ -356,6 +356,7 @@ namespace StarForge.EditorTools
                 mechRadio = Takes("Sfx", "mech_radio", "wav"),
                 mechDrop = One("Sfx/mech_drop.wav"), mechLand = One("Sfx/mech_land.wav"),
                 mechFlamer = One("Sfx/mech_flamer.wav"), mechHum = One("Sfx/mech_hum.wav"),
+                bellVespers = One("Sfx/bell_vespers.wav"), bellHand = One("Sfx/bell_hand.wav"), chant = One("Ambience/chant.wav"),
             };
             // Music: music_<mood>_<n>.ogg|mp3, with the loudness make_audio.py measured.
             string json = System.IO.File.Exists(Dir + "Music/music.json") ? System.IO.File.ReadAllText(Dir + "Music/music.json") : "";

@@ -274,6 +274,7 @@ namespace StarForge.World
         /// it; false, and nothing fired, while a friend is near where it would land.</summary>
         public bool LobAt(Unit s, Vector2 at)
         {
+            if (Truce) return false;   // the Quenching's truce
             var D = s.def;
             int k = s.id * 31 + (int)(time * 7f);
             float r = TacticalRules.BlindLobScatter * (0.35f + 0.65f * Mathf.Repeat(k * 0.618034f, 1f));

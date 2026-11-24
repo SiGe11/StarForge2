@@ -156,7 +156,7 @@ namespace StarForge.World
             }
         }
 
-        /// <summary>"Warden-class Strider: Autocannon, Missile Rack, Laser Lance; Shield Projector".</summary>
+        /// <summary>"Citadel-class Strider: Autocannon, Missile Rack, Beam Cannon; Shield Projector".</summary>
         public string Loadout(int extraMounted = 0)
         {
             var sb = new StringBuilder();
@@ -221,7 +221,8 @@ namespace StarForge.World
                 mounts = new[] { "ArmR", "ArmL", "Back", "ShoulderR", "ShoulderL" },
                 kinds = new[] { MountKind.Arm, MountKind.Arm, MountKind.Top, MountKind.Top, MountKind.Top },
                 blurb = "A light frame: three hardpoints, room left for the rest." },
-            new FramePart { id = MechFrame.Medium, name = "Warden", model = "MECH_FRAME_MEDIUM", points = 22,
+            // "Citadel", not "Warden": the Wardens of the Long Night are an order and Knight-Warden a title.
+            new FramePart { id = MechFrame.Medium, name = "Citadel", model = "MECH_FRAME_MEDIUM", points = 22,
                 hp = 1800f, armour = 0.12f, radius = 2.5f, hardpoints = 4, height = 2.7f,
                 mounts = new[] { "ArmR", "ArmL", "ShoulderR", "ShoulderL", "Back", "Chest" },
                 kinds = new[] { MountKind.Arm, MountKind.Arm, MountKind.Top, MountKind.Top, MountKind.Top, MountKind.Arm },
@@ -251,7 +252,8 @@ namespace StarForge.World
                 range = 46f, minRange = 10f, damage = 66f, vsStructure = 1f, splash = 4.5f, cooldown = 5.0f, projectile = 6, projectileSpeed = 30f,
                 vsLight = 0.24f, vsHeavy = 1.1f, topOnly = true, antiGroup = true, antiHeavy = true, kick = 0.7f,
                 blurb = "Lobs a heavy shell further than anything else in the field. Useless up close." },
-            new WeaponPart { id = MechWeapon.Laser, name = "Laser Lance", model = "MECH_W_LASER", points = 13,
+            // "Beam Cannon", not "Laser Lance": the lance is the Mech-Hunter's licensed weapon (lore section 7).
+            new WeaponPart { id = MechWeapon.Laser, name = "Beam Cannon", model = "MECH_W_LASER", points = 13,
                 range = 30f, damage = 55f, cooldown = 1.6f, vsLight = 0.28f, vsHeavy = 1.4f, antiHeavy = true, kick = 0.15f,
                 blurb = "A searing beam that burns through armour; wasted on infantry." },
             new WeaponPart { id = MechWeapon.Flamer, name = "Inferno Projector", model = "MECH_W_FLAMER", points = 8,
@@ -478,17 +480,19 @@ namespace StarForge.World
 
         // ------------------------------------------------------------ names
         // The pilots are a knightly order sworn to whichever side raises a Mech Bay:
-        // allies, not soldiers, who fight for the same end in their own way.
+        // allies, not soldiers, who fight for the same end in their own way. Knights are men and
+        // renounce their house (lore section 7): a birth-star byname stands where a family name
+        // would. Array lengths are what the seeded draws index: keep them (Given 16, Byname 14, Calls 16).
         static readonly string[] Titles = { "Castellan", "Knight-Warden", "Paladin", "Knight-Errant", "Seneschal", "Marshal", "Vigilant" };
-        static readonly string[] Given = { "Aurek", "Maren", "Tavish", "Ilse", "Corvan", "Brannoc", "Sefa", "Oriel", "Dagny", "Varro", "Hale", "Isolde", "Kestrel", "Anselm", "Rhoswen", "Teodor" };
-        static readonly string[] Family = { "Voss", "Ardent", "Kade", "Morrow", "Thane", "Galloway", "Reyne", "Ashcombe", "Stroud", "Vale", "Draycott", "Halloran", "Quill", "Serrin" };
-        static readonly string[] Calls = { "IRONCLAD", "BASTION", "HALBERD", "WARBELL", "EMBERFALL", "GRAVEN", "SUNDER", "TEMPEST", "OBELISK", "PALISADE", "HARROW", "CINDER", "ANVIL", "BULWARK", "LODESTAR", "RAMPART" };
+        static readonly string[] Given = { "Aurek", "Osric", "Tavish", "Lucan", "Corvan", "Brannoc", "Halvard", "Ivo", "Severin", "Varro", "Hale", "Rodric", "Edmar", "Anselm", "Tobin", "Teodor" };
+        static readonly string[] Byname = { "Wrenstar", "Larkstar", "Heronstar", "Cranestar", "Hartstar", "Houndstar", "Ploughstar", "Sicklestar", "Harpstar", "Spindlestar", "Bellstar", "Millstar", "Weaverstar", "Ternstar" };
+        static readonly string[] Calls = { "STEADFAST", "BASTION", "HALBERD", "WARBELL", "EMBERFALL", "GRAVEN", "SUNDER", "TEMPEST", "OBELISK", "PALISADE", "GREYWALL", "CINDER", "ANVIL", "BULWARK", "LODESTAR", "RAMPART" };
         static readonly string[] Orders = { "the Ashen Covenant", "the Order of the Iron Lantern", "the Ninth Vigil", "the Sable Oath", "the Order of the Broken Crown", "the Emberguard", "the Wardens of the Long Night", "the Brazen Host" };
 
         static void Name(MechDesign d, Rng r)
         {
             d.className = $"{d.Frame.name}-class {d.Loco.name}";
-            d.pilot = $"{Titles[r.IRange(0, Titles.Length)]} {Given[r.IRange(0, Given.Length)]} {Family[r.IRange(0, Family.Length)]}";
+            d.pilot = $"{Titles[r.IRange(0, Titles.Length)]} {Given[r.IRange(0, Given.Length)]} {Byname[r.IRange(0, Byname.Length)]}";
             d.callsign = Calls[r.IRange(0, Calls.Length)];
             d.order = Orders[r.IRange(0, Orders.Length)];
         }

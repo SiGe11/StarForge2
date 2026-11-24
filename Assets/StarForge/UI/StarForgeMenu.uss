@@ -518,6 +518,8 @@
 .m-plate--two-hands { background-image: url("project://database/Assets/StarForge/UI/Art/plate_two_hands.jpg"); }
 .m-plate--vespers { background-image: url("project://database/Assets/StarForge/UI/Art/plate_vespers.jpg"); }
 .m-plate--gantry { background-image: url("project://database/Assets/StarForge/UI/Art/plate_gantry.jpg"); }
+.m-plate--taking { background-image: url("project://database/Assets/StarForge/UI/Art/plate_taking.jpg"); }
+.m-plate--iron { background-image: url("project://database/Assets/StarForge/UI/Art/plate_iron.jpg"); }
 
 .m-keys-head {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");

@@ -314,6 +314,7 @@ namespace StarForge.View
             if (player != null) player.OrderMarker -= OnMarker;
             UnhookMechs();
             ClearWeather();
+            ClearNight();
             if (trackMaterial != null) { Destroy(trackMaterial); trackMaterial = null; }
         }
 
@@ -1827,6 +1828,7 @@ namespace StarForge.View
                 // the ground wet and the sky dimmed by a shower.
                 if (gusts.Count > 0) { gusts.Clear(); UploadGusts(Time.time); }
                 ClearWeather();
+                ClearNight();
                 return;
             }
             float now = Time.time;
@@ -2496,6 +2498,7 @@ namespace StarForge.View
                 SmokeScreens(dt);
                 MechEffects(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,
                             new Vector3(w2.x, 0f, w2.y));
+                NightEffects(dt);   // before the weather, which writes the sky with the night's gains
                 WeatherEffects(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,
                                new Vector3(w2.x, 0f, w2.y));
             }

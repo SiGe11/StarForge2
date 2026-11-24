@@ -101,6 +101,7 @@ Shader "StarForge/Unit"
             half _UsePalette;
         CBUFFER_END
         float _SF_Rain;   // how wet a shower has left everything, 0..1 (FXDirector.Weather)
+        float _SF_LampsOut;   // the Quenching's lamps out, 0..1 (FXDirector.Night); 0 by day
         ENDHLSL
 
         Pass
@@ -205,6 +206,8 @@ Shader "StarForge/Unit"
                     baseColor = row0.rgb;
                     smooth = row0.a;
                     emissionColor = row1.rgb;
+                    // The Quenching: a lamp's bright glow (never a team plate's faint one) goes out with the camps' lamps.
+                    emissionColor *= 1.0 - _SF_LampsOut * 0.92 * step(0.7, max(max(emissionColor.r, emissionColor.g), emissionColor.b));
                     metallic = row1.a;
                     wearAmount = row2.r;
                     grimeAmount = row2.g;

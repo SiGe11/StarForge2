@@ -138,8 +138,9 @@ namespace StarForge.World
 
         /// <summary>Does <paramref name="a"/> shoot at <paramref name="b"/>? The enemy; and a
         /// side's own deserters, but only to its Mech, and only while it is out to punish them.</summary>
+        /// The Night of the Quenching's truce (GameWorld.Night): nobody, the purge included.
         public bool Hostile(Unit a, Unit b) =>
-            a.team != b.team ? a.team < 2 && b.team < 2 : a.mech != null && b.deserted && Purging(a.team);
+            !Truce && (a.team != b.team ? a.team < 2 && b.team < 2 : a.mech != null && b.deserted && Purging(a.team));
 
         /// <summary><see cref="EnemiesNear"/>, and for a Mech out to punish its side's
         /// deserters, those of them in reach too.</summary>

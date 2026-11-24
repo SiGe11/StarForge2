@@ -539,11 +539,14 @@ namespace StarForge.World
         void UpdateCombat(float dt)
         {
             if (!def.Armed || !Complete) return;
+            // The Night of the Quenching (GameWorld.Night): no gun fires until lauds; a soldier still thinks.
+            if (world.Truce && def.bodyRadius <= 0f) { HoldFireForTruce(); return; }
             {
                 if (def.organic && CreatureFlees()) return;
                 if (def.bodyRadius > 0f)
                 {
                     TickSoldier(dt);
+                    if (world.Truce) { HoldFireForTruce(); return; }
                     // On his way to cover he runs; bolting, or frozen with fear, he does not shoot.
                     if (mode == SoldierMode.ToCover) { RunningShot(); return; }
                     if (mode == SoldierMode.Panic || throwing != Thrown.None) return;
@@ -768,7 +771,7 @@ namespace StarForge.World
             // only when an enemy hit one of them near it: a deserter stranded far from the camp
             // fights back too, and one in the camp does not answer a hit somewhere else.
             Vector2 spot = orderPos;
-            bool alarmed = def.Armed && world.time - M.alarmT < GameWorld.CampAlarm &&
+            bool alarmed = def.Armed && !world.Truce && world.time - M.alarmT < GameWorld.CampAlarm &&
                            (M.alarmAt - spot).sqrMagnitude < GameWorld.AlarmReach * GameWorld.AlarmReach;
             float reach = GameWorld.CampLeash + def.range;
             if (!alarmed || !Live(target) || target.team == team || (target.pos - spot).sqrMagnitude > reach * reach)

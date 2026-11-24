@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 31
   displayName: Mech-Hunter
-  blurb: Mech killer, licensed by an order and flying its flag. A coil lance that tears through Mechs and Ironclads; little use against anything else, and thinly armoured. One in the field at a time, and a wait after it falls. Requires an Armory and its Mech-Hunter Programme.
+  blurb: 'Mech killer, licensed by an order and flying its flag: the lance was made for knights and their cheap copies. A coil lance that tears through Mechs and Ironclads; little use against anything else, and thinly armoured. One in the field at a time, and a wait for a new grant after it falls. Requires an Armory and its Mech-Hunter Programme.'
   building: 0
   neutral: 0
   radius: 1.1

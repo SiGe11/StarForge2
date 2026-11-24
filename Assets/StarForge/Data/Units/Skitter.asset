@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 22
   displayName: Skitter
-  blurb: Bred swarmer. Cheap, very fast, bites what it reaches; strong in a pack, nothing alone. Cannot reach aircraft.
+  blurb: Bred swarmer; the soldiers call them spiders. Cheap, very fast, bites what it reaches; strong in a pack, nothing alone. Cannot reach aircraft.
   building: 0
   neutral: 0
   radius: 0.5

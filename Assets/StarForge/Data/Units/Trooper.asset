@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StarForge.Sim.UnitDef
   type: 1
   displayName: Trooper
-  blurb: Cheap ranged infantry. Strong in numbers.
+  blurb: Cheap ranged infantry in the iron. Strong in numbers.
   building: 0
   neutral: 0
   radius: 0.58
