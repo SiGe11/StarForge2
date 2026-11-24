@@ -99,6 +99,14 @@ namespace StarForge.UI
             "to lauds, read and sung by heart in the dark, until at its height the flame is passed out from the hall-lamp, " +
             "lamp to lamp: the Taking of the Light.\n\n" +
 
+            // docs/lore/the-three-books.md: the Readings' three books, the Compact as the Annals record it.
+            "The three books. At the Great Liturgy the lectors recite, by heart and in the dark, from three books. The Book " +
+            "of Makings holds sayings of the Bright Age that nobody signed. The Annals of the Long Night are the record since " +
+            "the Quenching: their first leaf is older than the Annalists, and the night it tells of has no year. The Annals' " +
+            "first dated leaf is the Compact, when Aveline, the first Holy Mother, named Temrik the first Khan on the condition " +
+            "that he hold the sword and never the light. The Book of Mothers keeps the Matriarchs' rulings and sermons, and " +
+            "its first gave the halls their saying: <i>Light bearethsk, ne makethsk</i> — light is born, not made.\n\n" +
+
             // Soldiers' lore (lore sections 6 and 9), in the game's own voice: soldiers' reports never carry it.
             "Soldiers' lore. Soldiers of every wing share all of it: they were one Host until the Division. A soldier's fault " +
             "is washed in star-water at lauds before the whole company, and the shame is the punishment. The fallen are buried " +
@@ -183,7 +191,7 @@ namespace StarForge.UI
             "one knight and one core, once, for that field. Your Mech flies its order's standard and carries its motto.";
         /// <summary>Repute is hearsay, and the page says so (lore section 7, under the table).</summary>
         public const string OrdersFoot =
-            "Reputation is hearsay: in the field a knight's own temper and pride decide, not the order. Titles are offices, " +
+            "Reputation leans a knight but does not bind him: in the field his own temper and pride decide the rest. Titles are offices, " +
             "not ranks. A Castellan keeps an order's hold, a Seneschal its household, a Marshal its knights in the field and " +
             "a Knight-Warden a single core; a Paladin is a sworn champion, a Knight-Errant answers the gantries nobody else " +
             "will, and a Vigilant has served on the High Watch.";
@@ -227,6 +235,33 @@ namespace StarForge.UI
             "A fallen soldier's iron goes back to the Host and the next recruit wears it. Iron taken by another wing is painted over.",
             "When knights of one order answer opposing gantries they fight in earnest, and no grudge is permitted.",
             "The Field Manual's Orders page shows the eight orders' standards and mottos. Your Mech flies one of them.",
+            "On the Night of the Quenching the halls read one saying only: bank the hearth, do not quench it. No gun fires from the darkening to lauds.",
+            "On a night of the Great Liturgy the lamps go dark and are lit again from the Foundries outward, as the flame is passed from the hall-lamp.",
+        };
+
+        /// <summary>The Readings on a night map (docs/lore/the-three-books.md), as the HUD's dispatches
+        /// quote them in the Vulgar: a heading naming the book, then the line.</summary>
+        public readonly struct Reading
+        {
+            public readonly string book, text;
+            public Reading(string book, string text) { this.book = book; this.text = text; }
+        }
+
+        /// <summary>Read only on the Night of the Quenching, the last words before the hall-lamp is put out.</summary>
+        public static readonly Reading QuenchingReading = new Reading("BOOK OF MAKINGS",
+            "At evening bank the hearth. Do not quench it, and do not feed it in the dark.");
+
+        /// <summary>A Great Liturgy night quotes one of these, chosen from the map's seed.</summary>
+        public static readonly Reading[] LiturgyReadings =
+        {
+            new Reading("BOOK OF MAKINGS", "The sun chooses no field. The maker chooses his iron."),
+            new Reading("BOOK OF MAKINGS", "Mark the work, not the maker. The work lasts; the maker goes."),
+            new Reading("BOOK OF MAKINGS", "Give the thing its purpose, and let it go."),
+            new Reading("ANNALS OF THE LONG NIGHT", "In the ninth watch the fire failed. Who kept the ninth watch is not written here."),
+            new Reading("ANNALS OF THE LONG NIGHT", "That morning the sun rose on every world as it had always risen."),
+            new Reading("ANNALS OF THE LONG NIGHT", "She named one captain over all the others, on the condition that he hold the sword and never the light."),
+            new Reading("BOOK OF MOTHERS", "Whoever bears a lamp bears the light to another. Light is born, not made."),
+            new Reading("BOOK OF MOTHERS", "A closed hand holds nothing of the light. It holds the dark that was in it already."),
         };
     }
 }

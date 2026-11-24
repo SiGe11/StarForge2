@@ -94,7 +94,7 @@ namespace StarForge.AI
         /// voice and what no line may answer): 407-490 any Mech's, 491-506 two for each
         /// order, said only by that order's Mech (<see cref="Line.order"/>).
         /// {pilot}, {callsign} and {order} are filled in from the Mech's design.</summary>
-        public const int LineCount = 522;
+        public const int LineCount = 530;
         /// <summary>The table's numbers run 1-519, then 528 on: 520-527 are the counsel lines (MechSpeech.Counsel).
         /// <see cref="LineCount"/> is the table's length.</summary>
         public const int FirstRun = 519, SecondFrom = 528;
@@ -754,6 +754,23 @@ namespace StarForge.AI
             A(529, "The watchmen keep the night and hold no office for it. We keep it by an older use, and hold none either.");
             S(Moment.Any, Tone.Superior);
             A(530, "Fire in a knight's frame is judged, not handed out. Your lamplighters are only handed it.");
+
+            // ---- 531-538 (2026-11-24, docs/lore/the-three-books.md): the core recalls the Book of
+            // Makings and the Annals. It quotes; it never says who said it first (lore section 11).
+            S(Moment.Calm, Tone.Neutral);
+            A(531, "Mark the work, not the maker. The Makers kept to that so well that I cannot give you one of their names.");
+            A(532, "Your halls count from the Compact, and before it from the night that has no year. I count from earlier still.", 1.2f);
+            S(Moment.Calm, Tone.Superior);
+            A(533, "Your lectors say the Book of Makings by heart, in the dark. Most of them even say it correctly.");
+            A(534, "The Host was made in two wings, two hammers on one anvil. The anvil has not noticed the quarrel.", 1.2f);
+            S(Moment.Attack, Tone.Good);
+            A(535, "The hammer does not ask the iron. The hand asks itself. Ask, Commander, then strike.");
+            S(Moment.Defence, Tone.Good);
+            A(536, "Whoever forges in anger makes a thing that keeps the anger. Hold this line coldly.");
+            S(Moment.Critical, Tone.Good);
+            A(537, "Mourn a thing when its purpose ends, not when its iron breaks. Mine has not ended.");
+            S(Moment.Victory, Tone.Solemn);
+            A(538, "Give the thing its purpose and let it go, the Book says. Your soldiers had theirs. Let them go well.", 1f, Cue.Costly);
             return L.ToArray();
         }
 

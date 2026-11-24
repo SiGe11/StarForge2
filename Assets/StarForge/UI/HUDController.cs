@@ -669,6 +669,8 @@ namespace StarForge.UI
             }
         }
 
+        void Reading(LoreText.Reading r) => Dispatch("THE READINGS · " + r.book, r.text, "alert--good", 10f);
+
         /// <summary>A night map's news (World/GameWorld.Night): vespers as an alert; in a Quenching the rule
         /// in the game's own voice and a picket's report in the comms (who, where, what), and lauds the same.</summary>
         void NightLine(GameEvent e)
@@ -676,6 +678,12 @@ namespace StarForge.UI
             if (e.index == 0) { Alert("Vespers: night falls over the field", "alert--good", 5f); return; }
             if (e.index == 1) Alert($"The Night of the Quenching: nobody fires until lauds ({Clock(e.scale)})", "alert--good", 9f);
             if (e.index == 3) Alert("The Great Liturgy: the Taking of the Light", "alert--good", 7f);
+            // The Readings (docs/lore/the-three-books.md), in the game's own voice under the book's name:
+            // the hearth saying belongs to the Quenching alone; a Liturgy quotes one line chosen by the map.
+            if (e.index == 1) Reading(LoreText.QuenchingReading);
+            if (e.index == 3 && world != null && world.Map != null)
+                Reading(LoreText.LiturgyReadings[(int)(StarForge.World.NightRules.Hash(world.Map.seed ^ 0x3B00C5u)
+                                                       % (uint)LoreText.LiturgyReadings.Length)]);
             if (string.IsNullOrEmpty(e.text)) return;
             var line = new VisualElement();
             line.AddToClassList("comms-line");
@@ -1232,7 +1240,7 @@ namespace StarForge.UI
             "and has a limited number of actions a minute: about 90 on Recruit, 180 on Veteran and 330 on Commander, " +
             "with reactions from nearly a second down to a fifth of one.\n\n" +
             "It keeps the Night of the Quenching. On the rare night map where every lamp goes out, nobody fires until lauds, " +
-            "and it calls its army home and starts nothing until dawn; it still meets anyone who comes up to its base, without a shot.\n\n" +
+            "and it calls its army home and starts nothing until dawn; it still meets any party big enough to matter that comes up to its base, without a shot.\n\n" +
             "It scouts. It keeps a scout out whenever its picture of you is going stale, and a Skimmer is its favourite for " +
             "the job; a Digger goes out only to find your base, never to look at it again (or, with its own ore running out, " +
             "to look at an ore field it has not seen yet). Kill the scout or hide your army and it has to guess.\n\n" +

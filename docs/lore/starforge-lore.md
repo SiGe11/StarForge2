@@ -288,7 +288,7 @@ Soldiers of every wing share all of it: they were one Host until the Division.
 - What the Makers left in the orders' keeping besides the lance's principle.
 
 ## 12. Sample lines for the core
-In the game since 2026-11-22 with 107 more written to the same rules (`MechSpeech`, lines 407-519), eight more in which the core counsels against its knight's call (lines 520-527), and three more on the twin houses, the watchmen and a knight's fire (lines 528-530).
+In the game since 2026-11-22 with 107 more written to the same rules (`MechSpeech`, lines 407-519), eight more in which the core counsels against its knight's call (lines 520-527), three more on the twin houses, the watchmen and a knight's fire (lines 528-530), and eight in which the core recalls the Book of Makings and the Annals (lines 531-538).
 - "I was lit at a fire you have only read about. Do not ask whether I miss it."
 - "Both hosts swore the same oath. One of them will be wrong by evening."
 - "Your surveyors follow the ore. So do theirs. Maps are generous that way."
@@ -354,10 +354,11 @@ For anything the game says or shows. Read this section before writing player-fac
 The desertion rows hold in an honest match. In the Reckoning (the cheat) anyone on the ground can run, Diggers, creatures and veterans among them (`World/GameWorld.Cheat.cs`).
 
 **Where the lore shows in the game** (keep this list current)
-- The Mech's quoted lines 407-519 and its arrival lines: `AI/MechSpeech.cs`, `AI/MechBrain.cs`; the core's rare counsel against a call (lines 520-527): `AI/MechSpeech.Counsel.cs`; lines 528-530 (the twin houses, the watchmen, a knight's fire): `AI/MechSpeech.cs`.
+- The Mech's quoted lines 407-519 and its arrival lines: `AI/MechSpeech.cs`, `AI/MechBrain.cs`; the core's rare counsel against a call (lines 520-527): `AI/MechSpeech.Counsel.cs`; lines 528-530 (the twin houses, the watchmen, a knight's fire) and 531-538 (the three books): `AI/MechSpeech.cs`.
 - Night maps, vespers, the lamps, the field celebrant and the Night of the Quenching: `World/GameWorld.Night.cs`, `View/FXDirector.Night.cs`, `View/AudioDirector.cs`, `UI/HUDController.cs` (the picket's report at the darkening and at lauds); the bell and the chant: `Audio/Sfx/bell_*.wav`, `Audio/Ambience/chant.wav`; the celebrant: `Resources/Celebrant.fbx`. Night is drawn for real matches only, never for the benchmark or the evaluation.
 - The verdict on deserters by order's repute: `AI/MechBrain.Night.cs`.
 - Lampwardens in the soldiers' reports (the picket at the darkening and at the Taking of the Light): `World/GameWorld.Night.cs`. The Taking of the Light and the deserters' dark mast lights: `View/FXDirector.Night.cs`; the field net's "lost contact": `UI/HUDController.cs`. The twin houses and the hours in the Chronicle, and two tips: `UI/LoreText.cs`.
+- The three books ([the-three-books.md](the-three-books.md)): the Chronicle's "The three books" entry and two tips, and the Readings on night maps, the hearth saying at a Quenching's darkening and one line chosen by the map at a Great Liturgy, as HUD dispatches headed THE READINGS: `UI/LoreText.cs` (`QuenchingReading`, `LiturgyReadings`), `UI/HUDController.cs` (`NightLine`).
 - Unit descriptions with a lore clause (Ore Seam, Mech Bay, Mech, Ironclad, Mech-Hunter, Biolab, Digger, Trooper, Scorcher, Marksman, Kestrel, Swift, Skitter, Spitter, Razorwing, Gorehorn): `Data/Units/*.asset`, field `blurb` (the generator's copy in `Editor/PrefabBuilder.cs` only seeds a new asset).
 - Knights' names, birth-star bynames and Mech callsigns: `World/Mech/MechParts.cs` (men only; no house name). Squad callsigns: `World/GameWorld.Squads.cs`.
 - The Old Language on screen: the title's line *Sterrethe under* beneath the war college's motto, which stays in the Vulgar (`UI/StarForgeMenu.uxml`), each order's motto on the Mech's card (`UI/LoreText.cs` `Motto`, shown by `UI/HUDController.cs`), *Lighttheinto gangen* on a defeat and on a fallen Mech (`UI/MenuController.cs`, `UI/HUDController.cs`), the Host-oath and the vespers versicle in the Chronicle, and one core line (514).
