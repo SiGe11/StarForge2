@@ -28,8 +28,10 @@ namespace StarForge.UI
             "and the light must carry both seals.\n\n" +
 
             "The Host. By old custom the Empire's army is kept in equal wings, so that no captain ever commands all of it. There " +
-            "were two at the founding, Blue and Red; a later Khan, wary of his own Host, split them into four, adding Green and " +
-            "Yellow. The same equipment, the same ranks, the same oath: by the hand that holds and the hand that blesses.\n\n" +
+            "were two at the founding, Blue and Red. In the year 212 of the Compact the Khan Baidur, wary of his own Host, had " +
+            "them dealt into four: half of the Blue Wing's houses became the Green Wing and half of the Red Wing's the Yellow, " +
+            "no house divided, and the Holy Mother blessed the four standards as the same wings counted again. The same " +
+            "equipment, the same ranks, the same oath: by the hand that holds and the hand that blesses.\n\n" +
 
             "The iron. Every soldier fights in the iron: a full suit of plate with no helm, the eyes behind a slit in the " +
             "breastplate, the shoulders in the wing's colour and two masts on the back to carry the field net. In the field " +
@@ -37,8 +39,8 @@ namespace StarForge.UI
             "of those who wore it before. Under every wing's paint is the same grey.\n\n" +
 
             "Vesper. A quiet farm-world of birch and spruce, wolf, fox and eagle, named for the hour: from here the Brightest " +
-            "Star is the evening star. A hundred years ago its smallholders were cleared off the land for ore concessions that " +
-            "failed. The field walls and house corners are what they left, and many soldiers of every wing are their " +
+            "Star is the evening star. A hundred years ago, in the year 603 of the Compact, its smallholders were cleared off " +
+            "the land for ore concessions that failed: the ship home cost more than the ore brought. The field walls and house corners are what they left, and many soldiers of every wing are their " +
             "great-grandchildren.\n\n" +
 
             "Teal. Its proper name is quenchstone. It is found only on worlds where starfire was once worked, it holds no magic, " +
@@ -105,7 +107,9 @@ namespace StarForge.UI
             "the Quenching: their first leaf is older than the Annalists, and the night it tells of has no year. The Annals' " +
             "first dated leaf is the Compact, when Aveline, the first Holy Mother, named Temrik the first Khan on the condition " +
             "that he hold the sword and never the light. The Book of Mothers keeps the Matriarchs' rulings and sermons, and " +
-            "its first gave the halls their saying: <i>Light bearethsk, ne makethsk</i> — light is born, not made.\n\n" +
+            "its first gave the halls their saying: <i>Light bearethsk, ne makethsk</i> — light is born, not made. The " +
+            "Annals' newest leaf holds the surveyors' report on Vesper's seams. It is written and not admitted: no hall reads " +
+            "it at the rite.\n\n" +
 
             // Soldiers' lore (lore sections 6 and 9), in the game's own voice: soldiers' reports never carry it.
             "Soldiers' lore. Soldiers of every wing share all of it: they were one Host until the Division. A soldier's fault " +
