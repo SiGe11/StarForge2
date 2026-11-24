@@ -23,7 +23,7 @@
 - very rarely, a phrase in a core's quiet line (section 8).
 
 ## 2. Its feel
-In vocabulary roughly 60% English, 15% Icelandic, 10% Latin and 5% Greek. In grammar roughly 30% English, 25% Latin, 25% Hungarian, 10% Greek and 10% Icelandic. These shares are for feel, not counting.
+In vocabulary it is mostly English, in old and middle forms, with a layer of Latin for the liturgy and the law and a few words each from Icelandic, Greek and Hungarian (the lexicon in section 10 is the count). In grammar roughly 30% English, 25% Latin, 25% Hungarian, 10% Greek and 10% Icelandic. The grammar's shares are for feel, not counting.
 - **Words: from English.** Old and Middle English forms an English reader can sound out: *light*, *oath*, *knight*, *iron*, *smithe* smithy, *sterre* star, *warra* war, *eld* age, *stilnesse* silence.
 - **Words: from Icelandic.** A few roots: *heim*, *himin*; and the article and the middle voice's *-sk* (grammar, below).
 - **Words: from Hungarian.** A small layer of rare liturgical words, written the English way: *chillagwater*, star-water (from *csillag*, star; the *cs* is written *ch*, which an English reader says as the Hungarian does). Nothing outside the rite takes these.
@@ -289,7 +289,7 @@ m, f, n = gender; adj = adjective; v = verb (infinitive); pl = plural; s = stron
 | stilnesse | f | silence; *Stilnessethe*, the Silence |
 | blessan | v | bless |
 | boke | n | book |
-| Makungas Boke | n | the Book of Makings |
+| Makunganas Boke | n | the Book of Makings (*makungan*, makings, in the genitive) |
 | Longa Nightes Annalan | n pl | the Annals of the Long Night |
 | Moderenes Boke | n | the Book of Mothers |
 | Darkung | f | the Darkening |
@@ -553,7 +553,7 @@ Ordinals (they agree as adjectives): *first*, *other* (second), *third*, *fourth
 | lytel | adj | little, small (superlative *lytest*, least) |
 | magan | v | may, be able to |
 | maister | m | master |
-| makung | f | a making (*Makungas Boke*) |
+| makung | f | a making (pl *makungan*; *Makunganas Boke*) |
 | mare | adj, adv | more; as a pronoun ("more", "a further thing") it does not decline |
 | menan | v | mean, intend |
 | merkan | v | mark, heed |

@@ -6,7 +6,7 @@
 
 ---
 
-## 1. The Book of Makings (*Makungas Boke*)
+## 1. The Book of Makings (*Makunganas Boke*)
 
 Sayings of the Bright Age, unsigned. No saying has a name over it, and the Luminary holds that none ever had one: the Makers left their work and no faces. The sayings are unnumbered. The halls give each page a heading from its first words.
 
