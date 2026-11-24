@@ -104,7 +104,7 @@ namespace StarForge.World
 
             // Pinned, or caught in the open with nowhere to go: smoke between him and them.
             if (smokes > 0 && suppression > 0.3f && d > 8f && !squadWaits &&
-                (mode == SoldierMode.Pinned || (mode == SoldierMode.Free && noCoverLast)) &&
+                (mode == SoldierMode.Pinned || (mode == SoldierMode.Free && noCoverLast && (TacticalRules.LegacySmoke || suppression >= TacticalRules.SmokeFreeSuppression))) &&
                 !world.SmokeNear(pos, TacticalRules.SmokeRadius * 1.5f))
             {
                 Vector2 to = (threat.pos - pos) / d;
@@ -155,7 +155,7 @@ namespace StarForge.World
                 Halt();
                 resumeMove = order == Order.Move;
             }
-            if (squad != null) squad.thrownUntil = world.time + (what == Thrown.Smoke ? SmokeSquadWaits : ThrowSquadWaits);
+            if (squad != null) squad.thrownUntil = world.time + (what == Thrown.Smoke ? (TacticalRules.LegacySmoke ? SmokeSquadWaits : TacticalRules.SmokeSquadWait) : ThrowSquadWaits);
         }
 
         /// <summary>It leaves his hand, unless his friends have walked to where it would land.</summary>

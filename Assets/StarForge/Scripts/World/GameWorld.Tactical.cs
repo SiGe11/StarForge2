@@ -69,9 +69,12 @@ namespace StarForge.World
         /// aims, so which way he faces now says nothing about the line).</summary>
         /// <summary>Where his round leaves from. <paramref name="leanSide"/> -1 or 1 leans out round his
         /// cover, 2 rises over it (a low wall: standing, the gun clears it).</summary>
-        static Vector3 ShotMuzzle(Unit s, Unit t, int leanSide = 0)
+        static Vector3 ShotMuzzle(Unit s, Unit t, int leanSide = 0) => ShotMuzzle(s, t.pos, leanSide);
+
+        /// <summary>The same, at a point (blind fire).</summary>
+        static Vector3 ShotMuzzle(Unit s, Vector2 at, int leanSide)
         {
-            Vector2 to = t.pos - s.pos;
+            Vector2 to = at - s.pos;
             float len = to.magnitude;
             if (len > 1e-3f) to /= len;
             bool rise = leanSide == RiseOver;
@@ -467,6 +470,110 @@ namespace StarForge.World
         }
 
         const float NearMiss = 2.5f, NearMissWeight = 0.06f;
+
+        /// <summary>The 2026-11-23 round's counters (trials read them as differences).</summary>
+        public int AirRoundsFired, AirRoundsHit, BlindEpisodes, BlindShots, BlindHits, BlindLobs, SwiftRocketsFired, HomingExpired;
+        /// <summary>Where the last blind round was aimed (the trial's check that it is the point seen, not where he went).</summary>
+        public Vector2 LastBlindAt;
+
+        /// <summary>A small-arms round at an aircraft, decided when fired: the round's error against the size the
+        /// aircraft shows at that range, a crossing aircraft widening the error (ShotSpread reads its speed). A hit is
+        /// dealt now and drawn as a tracer to it; a miss is drawn past it.</summary>
+        void FireShotAtAir(Unit s, Unit t)
+        {
+            var D = s.def;
+            Vector3 muzzle = ShotMuzzle(s, t, s.target == t ? s.leanSide : 0);
+            Vector3 aim = AimPoint(t);
+            Vector3 to = aim - muzzle;
+            float dist = Mathf.Max(1f, to.magnitude);
+            float sd = Mathf.Max(1e-4f, ShotSpread(s, t));
+            float a = t.def.radius * TacticalRules.AirBodyShare / dist;
+            float stop = Sight.FirstStop(muzzle, aim, Plants, boulders);
+            bool hit = stop >= 1f && CombatRoll() < 1f - Mathf.Exp(-a * a / (2f * sd * sd));
+            AirRoundsFired++;
+            ShotsFired++;
+            Vector3 end;
+            if (stop < 1f) end = muzzle + to * stop;
+            else if (hit)
+            {
+                AirRoundsHit++;
+                ShotsHit++;
+                Damage(t, ShotDamage(s, t), s.pos, s);
+                end = aim;
+            }
+            else
+            {
+                Vector3 dir = to / dist;
+                Vector3 right = Vector3.Cross(Vector3.up, dir).normalized;
+                Vector3 up = Vector3.Cross(dir, right);
+                Gauss(out float ex, out float ey);
+                Vector3 off = right * ex + up * ey;
+                if (off.sqrMagnitude < 1e-4f) off = right;
+                off = off.normalized * (t.def.radius * 1.2f + 0.5f * Mathf.Abs(ex + ey));
+                end = muzzle + (aim + off - muzzle) * 1.6f;
+            }
+            bool sniper = D.weapon == WeaponKind.Sniper;
+            int kind = sniper ? ProjSniper : D.weapon == WeaponKind.MachineGun ? ProjMG : 0;
+            if (!sniper) Tracer(s, muzzle, end, hit || stop < 1f);
+            Vector3 fwd = new Vector3(Mathf.Sin(s.yaw), 0f, Mathf.Cos(s.yaw));
+            Raise(new GameEvent { kind = GameEventKind.Fire, unit = s, type = D.type, team = s.team, pos = muzzle, dir = sniper ? (end - muzzle).normalized : fwd, end = sniper ? end : default, projectileKind = kind });
+        }
+
+        /// <summary>The other side's smoke (or nobody's) over this point or across the line to it, and none of his own side's
+        /// on it, and he outside every cloud: into a screen, never out of one, nor through his own side's.</summary>
+        public bool SmokeScreens(Vector2 from, Vector2 to, int team)
+        {
+            bool screened = false;
+            float inside = TacticalRules.SmokeRadius + 1f;
+            for (int i = 0; i < SmokeClouds.Count; i++)
+            {
+                var c = SmokeClouds[i];
+                if (time >= c.until) continue;
+                if ((c.at - from).sqrMagnitude < inside * inside) return false;
+                if (DistToSegment(c.at, from, to) >= TacticalRules.SmokeRadius) continue;
+                if (c.team == team) return false;
+                screened = true;
+            }
+            return screened;
+        }
+
+        /// <summary>Blind fire: a small-arms round into smoke at a point its side last saw an enemy, decided when fired
+        /// like any other (it strikes whatever is really on its line), with a wider error. Aims at the point only: never
+        /// at where an unseen enemy is now.</summary>
+        public void FireBlind(Unit s, Vector2 at)
+        {
+            Vector2 to2 = at - s.pos;
+            float len = to2.magnitude;
+            Vector2 n = len > 1e-3f ? to2 / len : Vector2.up;
+            Vector3 muzzle = ShotMuzzle(s, at, s.leanSide);
+            LastBlindAt = at;
+            Vector3 aim = Map.Ground(at) + Vector3.up * 0.9f;
+            Vector3 dir = aim - muzzle;
+            float dist = dir.magnitude;
+            dir = dist > 1e-3f ? dir / dist : new Vector3(n.x, 0f, n.y);
+            Vector3 right = Vector3.Cross(Vector3.up, dir).normalized;
+            Vector3 up = Vector3.Cross(dir, right);
+            Gauss(out float ex, out float ey);
+            float sd = s.def.shotSpread * TacticalRules.BlindSpreadMul * (s.posture == Posture.Prone ? 0.7f : s.posture == Posture.Crouch ? 0.85f : 1f)
+                       * (1f + 1.2f * Mathf.Min(1f, s.suppression));
+            dir = (dir + right * (ex * sd) + up * (ey * sd)).normalized;
+            Vector3 far = muzzle + dir * Mathf.Max(s.def.range * 1.25f, dist + 6f);
+            float stop = Sight.FirstStop(muzzle, far, Plants, boulders);
+            Unit struck = StruckOnLine(s, muzzle, far, ref stop);
+            Vector3 end = muzzle + (far - muzzle) * stop;
+            ShotsFired++;
+            BlindShots++;
+            if (struck != null)
+            {
+                ShotsHit++;
+                BlindHits++;
+                Damage(struck, ShotDamage(s, struck), s.pos, s);
+            }
+            Tracer(s, muzzle, end, stop < 1f);
+            SuppressAlong(s, muzzle, end);
+            int kind = s.def.weapon == WeaponKind.MachineGun ? ProjMG : 0;
+            Raise(new GameEvent { kind = GameEventKind.Fire, unit = s, type = s.Type, team = s.team, pos = muzzle, dir = new Vector3(n.x, 0f, n.y), projectileKind = kind });
+        }
 
         /// <summary>Every enemy soldier the round passed close to keeps his head down for it: the closer,
         /// the more, a round that struck him included (Damage adds what being hit does).</summary>
@@ -946,10 +1053,14 @@ namespace StarForge.World
             if (o == null || o.dying || o.team != 1 - e.team) return false;
             float reach = LookFrom(o);
             if (reach <= 0f) return false;
-            reach = reach * k + e.def.radius;
+            // A Mech's sensors (the user: "the Mech can see through fog"): within its sight nothing hides from it,
+            // lying down, in woods, in smoke or behind a rise.
+            bool sensors = o.mech != null && !TacticalRules.LegacyMechSensors;
+            reach = reach * (sensors ? 1f : k) + e.def.radius;
             float d2 = (o.pos - e.pos).sqrMagnitude;
             float near = Mathf.Max(reach, SpotAlways);
             if (d2 > near * near) return false;
+            if (sensors) return true;
             spotLines++;
             return Sight.Clear(EyeOf(o), TopOf(e), o.def.building ? o.def.radius : 0f);
         }
@@ -1072,6 +1183,8 @@ namespace StarForge.World
             e.viewAt = time;
             e.viewFrom = e.pos;
             if (sight <= 0f) { e.viewCount = 0; return; }
+            // The Mech's sensors show the ground all round it to its sight, whatever stands in the way.
+            if (e.mech != null && !TacticalRules.LegacyMechSensors) { e.viewCount = Sight.SweepOpen(e.pos, sight, ref e.viewCells); return; }
             float eye = EyeOf(e).y;
             e.viewCount = Sight.Sweep(e.pos, eye, sight, ViewOverGround, e.def.building ? e.def.radius : 0f, ref e.viewCells);
         }

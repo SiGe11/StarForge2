@@ -143,7 +143,9 @@ namespace StarForge.World
         /// burst catches them too, never anyone loyal.</summary>
         public bool purge;
 
-        public float ClassMul(Unit e) => e.def.building ? vsStructure : e.def.flying ? vsAir : e.def.Heavy ? vsHeavy : vsLight;
+        public float ClassMul(Unit e) => (e.def.building ? vsStructure : e.def.flying ? vsAir : e.def.Heavy ? vsHeavy : vsLight) * (e.def.bodyRadius > 0f ? vsSoldier : 1f);
+        /// <summary>Against a soldier, on top of vsLight (a Mech's rounds; 1 for everything else, Recycle puts it back).</summary>
+        public float vsSoldier = 1f;
         /// <summary>A missile's curve (kind 5): from where, over what, to what it last aimed at.</summary>
         public Vector3 from, ctrl, aim;
         public float flight;
@@ -1175,7 +1177,8 @@ namespace StarForge.World
         public void Fire(Unit shooter, Unit target)
         {
             var D = shooter.def;
-            // Shots at aircraft stay real rounds: they have a flight of their own to catch.
+            // Small arms are decided when fired, at aircraft too (as real homing rounds they all but never missed).
+            if (D.shotSpread > 0f && target.def.flying && !TacticalRules.LegacyRounds) { FireShotAtAir(shooter, target); return; }
             if (D.shotSpread > 0f && !target.def.flying) { FireShot(shooter, target); return; }
             if (D.weapon != WeaponKind.Auto) { FireRoster(shooter, target); return; }
             float ang = shooter.HasTurret ? shooter.turretYaw : shooter.yaw;
@@ -1209,6 +1212,7 @@ namespace StarForge.World
             // keep its multipliers (a rifle round came out at half damage on infantry).
             p.vsLight = D.vsLight; p.vsHeavy = D.vsHeavy; p.vsStructure = D.vsStructure; p.vsAir = D.vsAir;
             p.hitsAir = D.hitsAir; p.hitsGround = D.hitsGround;
+            p.vsSoldier = 1f;
             p.bounces = 0;
             p.purge = false;
             p.flight = 0f;
@@ -1224,9 +1228,9 @@ namespace StarForge.World
             }
             else
             {
-                p.life = 2f;
                 float speed = kind == 3 ? 140f : (kind == 2 ? 90f : 115f);
                 p.vel = (aim - muzzle).normalized * speed;
+                p.life = HomingLife(muzzle, aim, speed, target.def.flying);
             }
             CoverStops(p, muzzle);
             projectiles.Add(p);
@@ -1331,10 +1335,11 @@ namespace StarForge.World
                     {
                         Vector3 tp = AimPoint(t);
                         if ((np - tp).magnitude < t.def.radius + 0.7f) { hit = true; hitAt = tp; }
-                        // An aircraft: the nearest the round came to it over this step's flight. At an
-                        // evaluation's 0.1 s steps a round moves 11-26 m and stepped past it, turned, and
-                        // ran out of life without a hit (a ground target is caught by the ground below).
-                        else if (t.def.flying && DistToSegment3(tp, p.pos, np) < t.def.radius + 0.7f) { hit = true; hitAt = tp; }
+                        // The nearest the round came to it over this step's flight. At an evaluation's 0.1 s
+                        // steps a round moves 11-26 m and stepped past it, turned, and ran out of life without a
+                        // hit; at a ground target, tested only where a step ended, a round that overshot at 25-40 fps
+                        // or a sped-up clock turned back and looped round him to its 2 s life (2026-11-23).
+                        else if ((t.def.flying || !TacticalRules.LegacyRounds) && DistToSegment3(tp, p.pos, np) < t.def.radius + 0.7f) { hit = true; hitAt = tp; }
                     }
                     else if (p.life > 0.12f) p.life = 0.12f;
                 }
@@ -1350,7 +1355,7 @@ namespace StarForge.World
 
                 if (!hit)
                 {
-                    if (p.life <= 0f) { Recycle(k); continue; }
+                    if (p.life <= 0f) { if (!ballistic && p.kind != 5) HomingExpired++; Recycle(k); continue; }
                     p.pos = np;
                     continue;
                 }
@@ -1420,9 +1425,15 @@ namespace StarForge.World
             }
         }
 
+        /// <summary>How long a homing round lives: long enough to get there, not to circle (2 s under the old rounds, and at
+        /// an aircraft, which it may have to chase across the sky; the swept hit test keeps those from looping).</summary>
+        static float HomingLife(Vector3 from, Vector3 to, float speed, bool air) =>
+            TacticalRules.LegacyRounds || air ? 2f : Mathf.Min(2f, (to - from).magnitude / Mathf.Max(1f, speed) * TacticalRules.HomingLifeMul + TacticalRules.HomingLifeAdd);
+
         void Recycle(int index)
         {
             var p = projectiles[index];
+            p.vsSoldier = 1f;
             p.alive = false;
             p.target = null;
             p.shooter = null;
@@ -1519,6 +1530,7 @@ namespace StarForge.World
             {
                 if (!Unit.Live(u) || u.def.Autonomous || u.deserted) continue;
                 u.order = Order.Idle;
+                u.EndFireAt();
                 u.target = null;
                 u.harvestNode = null;
                 u.buildTarget = null;
@@ -1532,8 +1544,21 @@ namespace StarForge.World
             {
                 if (!Unit.Live(u) || u.def.building || u.def.Autonomous || u.deserted) continue;
                 u.order = Order.Hold;
+                u.EndFireAt();
                 u.Halt();
             }
+        }
+
+        /// <summary>Fire at a point (the player's "Fire at ground"): the selection holds where it stands, and every rifle,
+        /// machine gun and mortar in it fires at the point for TacticalRules.FireAtLasts (mortars FireAtLobs bombs), into
+        /// smoke or behind cover; a round strikes whatever is really on its line.</summary>
+        public void CmdFireAt(IReadOnlyList<Unit> sel, Vector2 at)
+        {
+            var able = new List<Unit>();
+            foreach (var u in sel)
+                if (Unit.Live(u) && !u.def.building && !u.deserted && u.CanFireAtGround) able.Add(u);
+            CmdHold(able);
+            foreach (var u in able) u.OrderFireAt(at);
         }
 
         public void CmdRally(IReadOnlyList<Unit> sel, Vector2 dest)

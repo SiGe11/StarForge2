@@ -457,6 +457,27 @@ namespace StarForge.World
         /// <summary>The fog cells an eye sees, into <paramref name="cells"/>; how many. Rays out from it,
         /// each keeping the steepest rise so far: a cell shows if something a man's height on it would
         /// clear that rise, until the foliage along the ray closes it.</summary>
+        /// <summary>Every leaf cell within this reach, nothing in the way (a Mech's sensors).</summary>
+        public int SweepOpen(Vector2 from, float sight, ref ushort[] cells)
+        {
+            float leaf = cell * (1 << LeafShift);
+            int r = Mathf.CeilToInt(sight / leaf) + 1;
+            int most = (2 * r + 1) * (2 * r + 1);
+            if (cells == null || cells.Length < most) cells = new ushort[most];
+            int count = 0;
+            int cx = (int)(from.x * inv) >> LeafShift, cz = (int)(from.y * inv) >> LeafShift;
+            float reach = sight + leaf * 0.5f, reach2 = reach * reach;
+            for (int z = cz - r; z <= cz + r; z++)
+                for (int x = cx - r; x <= cx + r; x++)
+                {
+                    if (x < 0 || z < 0 || x >= LeafN || z >= LeafN) continue;
+                    float wx = (x + 0.5f) * leaf - from.x, wz = (z + 0.5f) * leaf - from.y;
+                    if (wx * wx + wz * wz > reach2) continue;
+                    cells[count++] = (ushort)(z * LeafN + x);
+                }
+            return count;
+        }
+
         public int Sweep(Vector2 from, float eye, float sight, float viewOverGround, float ownRadius, ref ushort[] cells)
         {
             int r = (int)(sight * inv / (1 << LeafShift)) + 2;

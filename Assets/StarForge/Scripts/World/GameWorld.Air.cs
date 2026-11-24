@@ -51,6 +51,52 @@ namespace StarForge.World
             RaiseFire(s, m, (AimPoint(t) - m).normalized, 5);
         }
 
+        /// <summary>A pair of unguided rockets off the Swift's wings at a ground target: each a short curve down onto
+        /// where the target will be by what is seen of its pace, a couple of metres apart, bursting there on whatever stands.</summary>
+        public void FireSwiftRockets(Unit s, Unit t)
+        {
+            Vector3 v = t.Velocity;
+            for (int i = 0; i < 2; i++)
+            {
+                float side = i == 0 ? -1f : 1f;
+                Vector3 m = Muzzle(s, -0.5f, 0.4f) + new Vector3(Mathf.Cos(s.yaw), 0f, -Mathf.Sin(s.yaw)) * (0.9f * side);
+                var p = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
+                p.alive = true;
+                p.kind = 5;
+                p.pos = p.prevPos = m;
+                p.shooter = s;
+                p.team = s.team;
+                p.bounces = 0;
+                p.purge = false;
+                p.age = 0f;
+                p.vsSoldier = 1f;
+                float dist = (AimPoint(t) - m).magnitude;
+                float flight = Mathf.Clamp(dist / TacticalRules.SwiftRocketSpeed + 0.15f, 0.3f, 1.2f);
+                int k = s.id * 7 + (int)(time * 13f) + i;
+                Vector2 jitter = new Vector2(Mathf.Cos(k * 2.39996f), Mathf.Sin(k * 2.39996f)) * (0.6f + 0.8f * Mathf.Repeat(k * 0.618034f, 1f));
+                Vector3 aim = Map.Ground(t.pos + new Vector2(v.x, v.z) * flight + jitter) + Vector3.up * 0.4f;
+                // Unguided: no target to follow; a burst, not a direct round, so no cover verdict.
+                p.target = null;
+                p.coverStopped = false;
+                p.targetSheltered = false;
+                p.vel = (aim - m).normalized;
+                p.from = m;
+                p.aim = aim;
+                p.ctrl = Vector3.Lerp(m, aim, 0.5f) + Vector3.up * 0.6f;
+                p.flight = flight;
+                p.life = flight + 0.5f;
+                p.dmg = TacticalRules.SwiftRocketDamage * WeaponMul(s);
+                p.splash = TacticalRules.SwiftRocketSplash;
+                p.bonusVsWorkers = 1f;
+                p.vsLight = 1f; p.vsHeavy = 1f; p.vsStructure = 0.8f; p.vsAir = 0f;
+                p.hitsAir = false;
+                p.hitsGround = true;
+                SwiftRocketsFired++;
+                projectiles.Add(p);
+                RaiseFire(s, m, (aim - m).normalized, 5);
+            }
+        }
+
         /// <summary>A missile has just been launched at this aircraft.</summary>
         public void WarnAir(Unit shooter, Unit t)
         {

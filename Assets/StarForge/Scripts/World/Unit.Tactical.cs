@@ -120,8 +120,104 @@ namespace StarForge.World
         {
             if (!Live(target) || target.team == team) return;
             if (targetSeenOf != target) { targetSeenOf = target; targetSeenAt = target.pos; }
-            if (world.Sees(team, target)) { targetSeenAt = target.pos; return; }
+            if (world.Sees(team, target)) { targetSeenAt = target.pos; seenOf = target; seenPoint = target.pos; seenTime = world.time; return; }
+            // Lost from sight: once, if smoke hides him, fire into it at where he was last seen.
+            if (seenOf == target && blindFireUntil < seenTime) NoteLostInSmoke();
             if (!(order == Order.Attack && targetOrdered) || Dist(targetSeenAt) < 3f) { target = null; targetOrdered = false; }
+        }
+
+        /// <summary>Blind fire (2026-11-23): where its target was last seen and when, written only while its side sees
+        /// him (never where an unseen enemy is), and, once he is lost in smoke, the point it fires into and until when.</summary>
+        [System.NonSerialized] Vector2 seenPoint, blindAt;
+        [System.NonSerialized] float seenTime = -99f, blindFireUntil = -99f, blindShotAt = -99f;
+        [System.NonSerialized] int blindLobsLeft;
+        [System.NonSerialized] Unit seenOf, blindOf;
+        [System.NonSerialized] float blindFriendsLookAt;
+        [System.NonSerialized] bool blindFriendsOk;
+        /// <summary>Firing at a point it was ordered to (CmdFireAt), not one it lost a man at.</summary>
+        [System.NonSerialized] public bool fireAtOrdered;
+
+        /// <summary>A rifle, machine gun or mortar on a soldier: it can fire at a point.</summary>
+        public bool CanFireAtGround => CanFireBlind;
+
+        /// <summary>A Hold or a Stop given (CmdHold, CmdStop) ends a "Fire at ground"; any other order ends it in UpdateCombat.</summary>
+        public void EndFireAt()
+        {
+            if (!fireAtOrdered) return;
+            fireAtOrdered = false;
+            blindFireUntil = -99f;
+        }
+
+        /// <summary>The player's "Fire at ground": at this point while TacticalRules.FireAtLasts lasts (mortars
+        /// FireAtLobs bombs), smoke or none; CmdFireAt has put it on Hold, and any other order ends it.</summary>
+        public void OrderFireAt(Vector2 at)
+        {
+            blindAt = at;
+            blindOf = null;
+            blindFireUntil = world.time + TacticalRules.FireAtLasts;
+            blindLobsLeft = TacticalRules.FireAtLobs;
+            fireAtOrdered = true;
+        }
+
+        /// <summary>Firing into smoke just now: the rig holds its aim (read only by the view).</summary>
+        public bool FiringBlind => world != null && world.time < blindFireUntil && world.time - blindShotAt < 1.5f;
+
+        bool CanFireBlind => def.bodyRadius > 0f && ((def.shotSpread > 0f && def.weapon != WeaponKind.Sniper) || def.weapon == WeaponKind.Mortar);
+
+        void NoteLostInSmoke()
+        {
+            if (TacticalRules.LegacySmoke || fireAtOrdered || !CanFireBlind || world.time - seenTime > 3f) return;
+            if (!world.SmokeScreens(pos, seenPoint, team)) return;
+            blindAt = seenPoint;
+            blindOf = seenOf;
+            blindFireUntil = world.time + TacticalRules.BlindFireFor;
+            blindLobsLeft = TacticalRules.BlindLobs;
+            world.BlindEpisodes++;
+        }
+
+        /// <summary>Fire into the smoke at where the lost target was last seen: a rifle or machine gun at a slower pace
+        /// and a wider error, a mortar a few bombs round the point. Stopped, never hiding, pinned or running; false if
+        /// it did not fire.</summary>
+        bool BlindFire(float dt)
+        {
+            float now = world.time;
+            if ((TacticalRules.LegacySmoke && !fireAtOrdered) || now >= blindFireUntil || hiding || Moving || noMind) return false;
+            if (mode == SoldierMode.Panic || mode == SoldierMode.ToCover || mode == SoldierMode.Pinned) return false;
+            // The smoke gone: he is either seen again or not there; either way no more firing blind.
+            if (!fireAtOrdered && !world.SmokeScreens(pos, blindAt, team)) { blindFireUntil = -99f; return false; }
+            float d = Dist(blindAt);
+            if (d > def.range || d < def.minRange) return false;
+            // Ducked behind a low wall his gun is under its top: only up over it (his own wall would take the rounds).
+            if (leanSide == GameWorld.RiseOver && posture != Posture.Stand) return false;
+            if (def.weapon == WeaponKind.Mortar)
+            {
+                if (blindLobsLeft <= 0) return false;
+                // Friends near the point: asked twice a second, as FriendsAllow is (a grid search a tick per mortar).
+                if (now >= blindFriendsLookAt)
+                {
+                    blindFriendsLookAt = now + 0.5f;
+                    blindFriendsOk = world.FriendsClear(this, blindAt, def.splash + TacticalRules.BlindLobScatter + 1.5f, 2.6f);
+                }
+                if (!blindFriendsOk) return false;
+            }
+            float want = Mathf.Atan2(blindAt.x - pos.x, blindAt.y - pos.y);
+            yaw = StarForge.SFMath.ApproachAngle(yaw, want, def.turnRate * dt);
+            if (Mathf.Abs(StarForge.SFMath.WrapAngle(want - yaw)) > 0.35f || cooldown > 0f || Reloading) return true;
+            if (def.weapon == WeaponKind.Mortar)
+            {
+                if (!world.LobAt(this, blindAt)) return false;
+                blindLobsLeft--;
+                cooldown = Mathf.Min(cooldown, 0f) + def.cooldown;
+            }
+            else
+            {
+                cooldown = Mathf.Min(cooldown, 0f) + def.cooldown * TacticalRules.BlindCadenceMul;
+                world.FireBlind(this, blindAt);
+            }
+            blindShotAt = now;
+            world.RevealShooter(this);
+            SpendRound();
+            return true;
         }
 
         /// <summary>Where a closing unit walks for its target.</summary>

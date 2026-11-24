@@ -12,7 +12,7 @@ using StarForge.World;
 namespace StarForge.View
 {
     public enum CardKind { None, Build, Train, AttackMove, Stop, Hold, CancelQueue, CancelConstruction, CancelPlacement, MechUpgrade, CancelUpgrade, Info,
-                           ArmyUpgrade, CancelResearch, BuildMenu, MenuBack }
+                           ArmyUpgrade, CancelResearch, BuildMenu, MenuBack, FireAt }
 
     /// <summary>Which of the Digger's build cards is open (StarCraft's basic/advanced structures).</summary>
     public enum BuildMenu { None, Basic, Advanced }
@@ -51,6 +51,8 @@ namespace StarForge.View
         public Vector2 PlacementPos { get; private set; }
         public bool PlacementValid { get; private set; }
         public bool AttackMoveArmed { get; private set; }
+        /// <summary>"Fire at ground" chosen: the next left click on the ground is where they fire.</summary>
+        public bool FireAtArmed { get; private set; }
         public Unit Hovered { get; private set; }
         public bool Dragging { get; private set; }
         public Vector2 DragStart { get; private set; }
@@ -191,6 +193,7 @@ namespace StarForge.View
                 // Esc unwinds one step at a time; only with nothing left does it open the menu.
                 if (PlacingType != UnitType.None) PlacingType = UnitType.None;
                 else if (AttackMoveArmed) AttackMoveArmed = false;
+                else if (FireAtArmed) FireAtArmed = false;
                 else if (Menu != BuildMenu.None) SetMenu(BuildMenu.None);
                 else if (Selection.Count > 0) { Selection.Clear(); SelectionChanged?.Invoke(); }
                 else MenuRequested?.Invoke();
@@ -273,6 +276,13 @@ namespace StarForge.View
                     pressedOnWorld = false;
                     return;
                 }
+                if (FireAtArmed)
+                {
+                    if (hasGround) IssueFireAt(gp);
+                    if (!Keyboard.current.shiftKey.isPressed) FireAtArmed = false;
+                    pressedOnWorld = false;
+                    return;
+                }
                 DragStart = DragEnd = mp;
                 Dragging = false;
             }
@@ -296,6 +306,7 @@ namespace StarForge.View
             {
                 if (PlacingType != UnitType.None) { PlacingType = UnitType.None; return; }
                 if (AttackMoveArmed) { AttackMoveArmed = false; return; }
+                if (FireAtArmed) { FireAtArmed = false; return; }
                 if (hasGround && CanCommand) RightClick(gp);
             }
         }
@@ -414,6 +425,14 @@ namespace StarForge.View
             OrderMarker?.Invoke(world.Map.Ground(gp), 1);
         }
 
+        void IssueFireAt(Vector2 gp)
+        {
+            var own = new List<Unit>(OwnSelection());
+            if (!own.Exists(u => u.CanFireAtGround)) { FireAtArmed = false; return; }
+            world.CmdFireAt(own, gp);
+            OrderMarker?.Invoke(world.Map.Ground(gp), 1);
+        }
+
         void TryPlace(Vector2 gp, bool keepPlacing)
         {
             Unit builder = null;
@@ -457,7 +476,7 @@ namespace StarForge.View
                 return;
             }
 
-            bool anyWorker = false, anyMobile = false;
+            bool anyWorker = false, anyMobile = false, anyFireAt = false, anyStructure = false;
             UnitType structureType = UnitType.None;
             bool mixedStructures = false, anyIncomplete = false, anyQueue = false;
             foreach (var u in own)
@@ -465,6 +484,8 @@ namespace StarForge.View
                 if (u.def.builder) anyWorker = true;
                 // The Mech takes no orders: it adds no orders to the card.
                 if (u.def.IsMobile && !u.def.Autonomous) anyMobile = true;
+                if (u.CanFireAtGround) anyFireAt = true;
+                if (u.def.building) anyStructure = true;
                 if (u.def.building)
                 {
                     if (!u.Complete) anyIncomplete = true;
@@ -491,6 +512,11 @@ namespace StarForge.View
                 into.Add(new CardAction { kind = CardKind.AttackMove, hotkey = 'R', title = "Attack-move", body = "Move, engaging every enemy met on the way.", glyph = "⚔", enabled = true });
                 into.Add(new CardAction { kind = CardKind.Stop, hotkey = 'C', title = "Stop", body = "Cancel current orders.", glyph = "■", enabled = true });
                 into.Add(new CardAction { kind = CardKind.Hold, hotkey = 'H', title = "Hold position", body = "Fire at anything in range, never chase.", glyph = "⛨", enabled = true });
+                // F, unless a structure's training card is on the same card (the Aegis, Scorcher and Swift train on F).
+                if (anyFireAt)
+                    into.Add(new CardAction { kind = CardKind.FireAt, hotkey = anyStructure ? '\0' : 'F', title = "Fire at ground",
+                        body = $"Hold and fire at the spot you click: rifles and machine guns for {TacticalRules.FireAtLasts:0} s, mortars up to {TacticalRules.FireAtLobs} bombs. Use it on smoke and on cover.",
+                        glyph = "◎", enabled = true });
             }
             if (anyWorker)
             {
@@ -679,7 +705,8 @@ namespace StarForge.View
                     if (best != null) world.CmdTrain(best, c.type);
                     break;
                 }
-                case CardKind.AttackMove: AttackMoveArmed = true; PlacingType = UnitType.None; break;
+                case CardKind.AttackMove: AttackMoveArmed = true; FireAtArmed = false; PlacingType = UnitType.None; break;
+                case CardKind.FireAt: FireAtArmed = true; AttackMoveArmed = false; PlacingType = UnitType.None; break;
                 case CardKind.Stop: world.CmdStop(own); break;
                 case CardKind.Hold: world.CmdHold(own); break;
                 case CardKind.CancelQueue:
@@ -742,8 +769,10 @@ namespace StarForge.View
             var own = new List<Unit>(OwnSelection());
             if (own.Count == 0) return;
             if (own.TrueForAll(u => u.def.building)) world.CmdRally(own, world2D);
+            else if (FireAtArmed) world.CmdFireAt(own, world2D);
             else world.CmdMove(own, world2D, AttackMoveArmed);
             AttackMoveArmed = false;
+            FireAtArmed = false;
             OrderMarker?.Invoke(world.Map.Ground(world2D), 0);
         }
     }

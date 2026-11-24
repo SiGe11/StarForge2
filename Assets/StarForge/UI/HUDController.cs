@@ -1173,7 +1173,7 @@ namespace StarForge.UI
         public const string ControlsHelp =
             "Camera   WASD / arrows / screen edge pan · Q E rotate · wheel zoom · middle-drag · Space centre\n" +
             "Select   click · drag box · double-click type · Shift add · Ctrl+1-0 group · 1-0 recall · F2 army\n" +
-            "Orders   right-click move/attack/mine · double right-click hurry · R attack-move · C stop · H hold\n" +
+            "Orders   right-click move/attack/mine · double right-click hurry · R attack-move · C stop · H hold · F fire at ground\n" +
             "Build    Digger: B basic (F foundry · B bunkhouse · G garrison · N sentinel · V workshop) · V advanced (U armory · L airfield · O biolab · Y mech bay) · X/Esc back\n" +
             "Train    Foundry U J K · Garrison T K F M N B G · Workshop M L F T K · Airfield F G · Biolab T G V Z · X cancel\n" +
             "Mech     Mech Bay: V servos · B armour · N weapons · M hardpoint · K targeting · click the Mech strip to find it\n" +

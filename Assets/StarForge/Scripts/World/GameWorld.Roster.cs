@@ -261,11 +261,52 @@ namespace StarForge.World
             p.flight = 0f;
             p.age = 0f;
             if (kind == 5 && t != null && t.def.flying) WarnAir(s, t);
-            p.life = 2f;
+            p.vsSoldier = 1f;
             p.vel = (AimPoint(t) - muzzle).normalized * speed;
+            // Callers that fly a curve or an arc set their own life after this.
+            p.life = HomingLife(muzzle, AimPoint(t), speed, t != null && t.def.flying);
             CoverStops(p, muzzle);
             projectiles.Add(p);
             return p;
+        }
+
+        /// <summary>A mortar bomb lobbed blind at a point (into smoke where its side last saw an enemy), scattered round
+        /// it; false, and nothing fired, while a friend is near where it would land.</summary>
+        public bool LobAt(Unit s, Vector2 at)
+        {
+            var D = s.def;
+            int k = s.id * 31 + (int)(time * 7f);
+            float r = TacticalRules.BlindLobScatter * (0.35f + 0.65f * Mathf.Repeat(k * 0.618034f, 1f));
+            Vector2 land = at + new Vector2(Mathf.Cos(k * 2.39996f), Mathf.Sin(k * 2.39996f)) * r;
+            Vector3 m = Muzzle(s, 1.5f, 0.3f);
+            float time0 = Mathf.Clamp(new Vector2(land.x - m.x, land.y - m.z).magnitude / 13f, 1.3f, 2.6f);
+            if (!FriendsClear(s, land, D.splash + 1.5f, time0)) return false;
+            var p = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
+            p.alive = true;
+            p.kind = ProjLob;
+            p.pos = p.prevPos = m;
+            p.target = null;
+            p.shooter = s;
+            p.team = s.team;
+            p.dmg = D.damage * (1f + 0.15f * s.rank) * WeaponMul(s);
+            p.splash = D.splash;
+            p.bonusVsWorkers = D.bonusVsWorkers;
+            p.vsLight = D.vsLight; p.vsHeavy = D.vsHeavy; p.vsStructure = D.vsStructure; p.vsAir = D.vsAir;
+            p.hitsAir = D.hitsAir; p.hitsGround = D.hitsGround;
+            p.bounces = 0;
+            p.purge = false;
+            p.flight = 0f;
+            p.age = 0f;
+            p.friendly = true;
+            p.vsSoldier = 1f;
+            Vector3 aim = Map.Ground(land) + Vector3.up * 0.3f;
+            Vector3 d = aim - m;
+            p.life = time0;
+            p.vel = new Vector3(d.x / time0, d.y / time0 + 0.5f * MortarGravity * time0, d.z / time0);
+            projectiles.Add(p);
+            BlindLobs++;
+            RaiseFire(s, m, p.vel.normalized, ProjLob);
+            return true;
         }
 
         /// <summary>A shot leaving its gun; <paramref name="end"/> is where a blow dealt at once lands

@@ -418,6 +418,8 @@ namespace StarForge.World
             p.vsHeavy = part.vsHeavy;
             p.vsStructure = part.vsStructure;
             p.vsAir = part.vsLight;
+            // Against infantry (2026-11-23): what cover and spotting took from the Mech most.
+            p.vsSoldier = TacticalRules.LegacyMechPower ? 1f : TacticalRules.MechVsSoldier;
             // A burst catches the layer of what it was fired at: on an aircraft, aircraft round it; on the
             // ground, what stands there (a missile at an aircraft does not burst on the men under it).
             bool air = target != null && target.def.flying;

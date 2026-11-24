@@ -1019,6 +1019,22 @@ So far, for infantry (rules and numbers: `Assets/StarForge/Scripts/World/CLAUDE.
 - **The switch-over.** The new combat is what every match plays, and the old rules are gone. The AI
   commander hears its squads' reports: a squad that must fall back, away from home and outside a wave or a feint, is pulled back (rare: once in 20 evaluation games), and a squad held by
   armour gets the idle aircraft that can help.
+- **After the first play (2026-11-23).** Smoke has an answer: a rifleman or machine gunner who loses his
+  man behind a cloud keeps firing, slower and wider, at where his side last saw him, and a mortar drops a
+  few bombs there (what the field manuals teach: fire into and through it, put indirect fire on it). A
+  round strikes only what is really there, so this tells nobody where the man went. **Fire at ground**
+  (F, or the card) holds the selection and puts 12 s of rifle and machine-gun fire, or five mortar bombs,
+  on the spot you click, smoke or not. Smoke is thrown less: a squad waits 30 s between smoke grenades and
+  throws one in the open only when nearly pinned, and a tank's two charges come back one per 30 s. The
+  Swift fires four rockets in pairs at ground targets. Rounds no longer circle their target at low frame
+  rates or when the game is sped up (a homing round looped at 3x in 17 of 150 shots), and rifle fire at
+  aircraft is judged when fired rather than all but always hitting: six riflemen hit a circling Swift
+  with 48% of their rounds (99% before). **The Mech's sensors see through the fog of war**: within its
+  sight (48 m, more with Targeting or a Sensor Mast) nothing hides from it, lying down, in the woods, in
+  smoke or behind a rise, and what it senses its whole side sees. Its guns reach 1.3 times as far (never
+  past its sight; the flamers as before), since rifles and the Mauler had come to out-reach most of them,
+  and a gun that cover stops picks a target it can actually hit. A bare Mech now takes about 5 Maulers or
+  10 riflemen to bring down (it had fallen to under 4 and about 6).
 
 `Editor/TacticalTrials.cs` holds the checks; `Assets/StarForge/Scripts/World/CLAUDE.md` the rules and
 their numbers.
@@ -1390,6 +1406,8 @@ Player, the code before the second review's fixes, `-sfbench 420 -sfplay -sftact
 *From the World notes (Checks (Editor/TacticalTrials.cs, from a fresh Play at the menu, Editor, 2026-11-03, map r…):*
 
 Player with thinking, rigged soldiers (before `Orders`' fixes, which touch no drawing), `-sfbench 420 -sfplay -sftactical`, High, AC charged: 47.9 fps, 46.0 with a Mech in view, 1,057 rounds, sight 0.107 + lines 0.059 ms a frame, worst frame 125 ms, 0 exceptions. Switch off on the final code, Quick: 4/4 won, 0 lost, 0 exceptions.
+
+**The user's first play, 2026-11-23/24** (Unity 6000.6.10f1, Editor, `Editor/FeedbackTrials.cs`, every change A/B'd by its `TacticalRules.Legacy*` switch). `RoundLoops` at 3x: 17 of 150 homing rounds looped, 0 of 143 now (1x 0 either way). `AirRounds`: six riflemen at a circling Swift 99% struck before, 48% now, at a hovering Kestrel 100% / 99%; two Gunners at the Swift 101% / 18%; a Swift over six riflemen lives 1.5 s / 4.0 s. `SwiftStrike` (rockets): at six riflemen 0 down, 0 hull / 1 down, 93 hull; at a Mauler 139 hull in 35 s / down in 21 s. `RosterTrials.Duels`: the Swift 8-8 / 10-6, Prospector 10-6 / 8-8. `BlindFire` (three fields, after the episode fix): rounds and bombs into the smoke 0 / 21, 0 out of or through their own smoke, blind rounds 0.00 m from a spot a man was seen at and 3.1 m from where he went. `FireAt` 3 of 3 fields (35-42 rounds and 5 bombs an order, 0 after Hold or a Move, the man 6 m off answered). Smoke used less: `Grenades` smoke 14 / 12 in six fights; a tank kept on one charge lost about 70% more hull to rocket men on the same fields (`Backoff`), so it keeps two, one back per 30 s. **The Mech** (`MechDuel.RunBaseFreshAll`, bare, twelve designs, fresh map): 3.6 Maulers / 6.4 Troopers on the tree as it was; guns 0.30 and x1.3 at soldiers 3.5 / 5.8; that with the sensors 3.5 / 6.7; with the 1.3x reach too **5.3 / 10.3** (target 6-7 / ~10). `MechSensors`: new senses see a man in smoke, one lying down and one in deep woods (old: the smoke and woods men unseen); behind a boulder 2 of 3 clean (0 rounds stopped by cover, the open man hit), the third 24 rounds stopped with the hidden man unhurt (the trial does not test the open man's line against trunks, so whose rounds is not told). **Full evaluations:** before the round 16/20; with smoke, rounds, rockets and the Mech's power (fb1) 18/20, 0 lost, 2 caps; with the sensors and reach too **20/20, 0 caps, 0 lost, 0 exceptions**, games 60-80 s shorter (Rusher 487 s, Macro 723, Turtle 753, Harasser 491 against 563, 806, 825, 553), desertion in 2 of 20.
 
 ### World: Wider roster
 

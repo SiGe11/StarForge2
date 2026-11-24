@@ -10,7 +10,8 @@ namespace StarForge.World
     {
         /// <summary>The Swift's speed under the new combat (0 until it first flies).</summary>
         [System.NonSerialized] public float planeSpeed;
-        [System.NonSerialized] public int airMissiles = -1, airFlares = -1;
+        [System.NonSerialized] public int airMissiles = -1, airFlares = -1, airRockets = -1;
+        [System.NonSerialized] float rocketReadyAt;
         [System.NonSerialized] public float airWarnedAt = -99f;
         [System.NonSerialized] float airRearmAt, flareReadyAt, lockSince = -1f, breakUntil, breakSide, breakLookAt;
         [System.NonSerialized] Unit lockOn;
@@ -21,6 +22,7 @@ namespace StarForge.World
             if (airMissiles < 0)
             {
                 airMissiles = Type == UnitType.Swift ? TacticalRules.AirMissiles : 0;
+                airRockets = Type == UnitType.Swift ? TacticalRules.SwiftRockets : 0;
                 airFlares = Type == UnitType.Swift || Type == UnitType.Kestrel ? TacticalRules.AirFlares : 0;
             }
             // Flares as a missile comes at it.
@@ -35,13 +37,15 @@ namespace StarForge.World
                 airRearmAt = now + 10f;
                 int fullM = Type == UnitType.Swift ? TacticalRules.AirMissiles : 0;
                 int fullF = Type == UnitType.Swift || Type == UnitType.Kestrel ? TacticalRules.AirFlares : 0;
-                if ((airMissiles < fullM || airFlares < fullF) && world.NearAirfield(this))
+                int fullR = Type == UnitType.Swift ? TacticalRules.SwiftRockets : 0;
+                if ((airMissiles < fullM || airFlares < fullF || airRockets < fullR) && world.NearAirfield(this))
                 {
                     if (airMissiles < fullM) airMissiles++;
                     if (airFlares < fullF) airFlares++;
+                    if (airRockets < fullR) airRockets = Mathf.Min(fullR, airRockets + 2);
                 }
             }
-            if (Type == UnitType.Swift) TickMissileLock(now);
+            if (Type == UnitType.Swift) { TickMissileLock(now); if (!TacticalRules.LegacyAir) TickRockets(now); }
             if (Type == UnitType.Kestrel) TickGunship(now);
         }
 
@@ -58,6 +62,21 @@ namespace StarForge.World
             airMissiles--;
             lockSince = -1f;
             world.FireAirMissile(this, target);
+        }
+
+        /// <summary>The Swift's rockets: a pair on a run at what it is after on the ground, once its nose is on it at
+        /// 10-32 m (not on a plain Move).</summary>
+        void TickRockets(float now)
+        {
+            if (airRockets < 2 || now < rocketReadyAt || !Live(target) || target.def.flying || target.team == team || target.team > 1) return;
+            if ((order == Order.Move && !hurry) || !world.Sees(team, target)) return;
+            Vector2 to = target.pos - pos;
+            float d = to.magnitude;
+            if (d < TacticalRules.SwiftRocketMin || d > TacticalRules.SwiftRocketMax) return;
+            if (Mathf.Abs(WrapAngle(Mathf.Atan2(to.x, to.y) - yaw)) > TacticalRules.SwiftRocketCone) return;
+            airRockets -= 2;
+            rocketReadyAt = now + TacticalRules.SwiftRocketEvery;
+            world.FireSwiftRockets(this, target);
         }
 
         /// <summary>The Kestrel stays a hovering gunship: its rockets as before, and a machine gun at men and light things

@@ -78,7 +78,8 @@ namespace StarForge.World
         /// mortar, which is a siege gun.</summary>
         public float vsStructure = 0.45f;
 
-        public float Mul(StarForge.World.Unit e) => e.def.building ? vsStructure : e.def.Heavy ? vsHeavy : vsLight;
+        public float Mul(StarForge.World.Unit e) => (e.def.building ? vsStructure : e.def.Heavy ? vsHeavy : vsLight) *
+            (e.def.bodyRadius > 0f && !StarForge.Sim.TacticalRules.LegacyMechPower ? StarForge.Sim.TacticalRules.MechVsSoldier : 1f);
         /// <summary>Projectile kind for GameWorld (4 autocannon, 5 missile, 6 mortar), or
         /// -1 for a hitscan weapon whose shot is a GameEventKind.Beam.</summary>
         public int projectile = -1;

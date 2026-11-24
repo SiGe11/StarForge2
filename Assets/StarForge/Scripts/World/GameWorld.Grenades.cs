@@ -16,6 +16,8 @@ namespace StarForge.World
     {
         public Vector2 at;
         public float born, until;
+        /// <summary>The side that laid it (-1: nobody's, a trial's): no one fires blind through his own side's screen.</summary>
+        public int team = -1;
     }
 
     public sealed partial class GameWorld
@@ -144,7 +146,7 @@ namespace StarForge.World
             Vector2 c = new Vector2(p.pos.x, p.pos.z);
             if (p.kind == ProjSmoke)
             {
-                StartSmoke(c);
+                StartSmoke(c, p.team);
                 Raise(new GameEvent { kind = GameEventKind.Impact, team = p.team, pos = p.pos, scale = 0.3f, projectileKind = ProjSmoke });
                 return;
             }
@@ -220,10 +222,10 @@ namespace StarForge.World
         }
 
         // ------------------------------------------------------------ smoke
-        public void StartSmoke(Vector2 at)
+        public void StartSmoke(Vector2 at, int team = -1)
         {
             if (SmokeClouds.Count >= MostSmoke) SmokeClouds.RemoveAt(0);
-            SmokeClouds.Add(new SmokeCloud { at = at, born = time, until = time + TacticalRules.SmokeLasts });
+            SmokeClouds.Add(new SmokeCloud { at = at, born = time, until = time + TacticalRules.SmokeLasts, team = team });
             Sight.AddSmoke(at, TacticalRules.SmokeRadius);
             // What the units round it see of the ground has just changed: they look again.
             foreach (var o in units)

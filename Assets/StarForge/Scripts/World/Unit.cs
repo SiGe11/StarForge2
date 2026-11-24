@@ -553,6 +553,12 @@ namespace StarForge.World
                 if (StarForge.Sim.TacticalRules.IsTank(Type)) TickTank(dt);
                 if (def.flying) TickAir(dt);
             }
+            // Ordered to fire at a point (CmdFireAt): that first while it lasts; any other order ends it.
+            if (fireAtOrdered)
+            {
+                if (order != Order.Hold || world.time >= blindFireUntil) { fireAtOrdered = false; blindFireUntil = -99f; }
+                else if (world.NearestEnemyInReach(this, TacticalRules.PistolRange, true) == null && BlindFire(dt)) return;
+            }
             // Auto-acquire unless explicitly told to move without engaging.
             bool acquires = (order != Order.Move || Careful) && order != Order.Harvest && order != Order.Return && order != Order.Build;
             // An armed worker (the Prospector) at its work shoots back at what comes into its
@@ -594,7 +600,17 @@ namespace StarForge.World
                 else if (Dist(target) - target.def.radius > def.sight) target = world.NearestEnemy(this, def.sight);
                 targetOrdered = false;
             }
-            if (target == null) return;
+            // Nothing to shoot at: into the smoke an enemy was just lost in, if there is one.
+            if (target == null)
+            {
+                if (def.bodyRadius > 0f)
+                {
+                    // Lost without ReviewTarget's tick seeing it (he was throwing, say): the sighting still counts for 3 s.
+                    if (seenOf != null && blindFireUntil < seenTime && Live(seenOf) && !world.Sees(team, seenOf)) NoteLostInSmoke();
+                    BlindFire(dt);
+                }
+                return;
+            }
             if (def.bodyRadius > 0f && !noMind && CloseQuarters(dt)) return;
             // A mortar too close to fire: something else in its band, or it waits for the
             // others to deal with what is on top of it.
@@ -618,6 +634,9 @@ namespace StarForge.World
         /// <summary>Turn onto the target and fire when it bears: false if it is out of reach.</summary>
         bool AimAndFire(float dt)
         {
+            // Sent after a man lost in smoke: into it at where he was last seen, while that lasts (by that point's
+            // distance: where he is now is not his side's to know).
+            if (def.bodyRadius > 0f && !hiding && blindOf == target && !world.Sees(team, target) && BlindFire(dt)) { fireBlocked = false; return true; }
             float d = Dist(target) - target.def.radius;
             fireBlocked = false;
             if (d > def.range) return false;

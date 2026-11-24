@@ -161,6 +161,58 @@ namespace StarForge.Sim
             }
         }
 
+        // ---- The user's play, 2026-11-23 (README "Tactical combat"). A/B switches, off at each play entry (ResetSwitches).
+        /// <summary>Old rounds: a homing round tested for a hit only where a step ends (it looped round a target at low
+        /// frame rates and sped-up clocks, up to its 2 s life), and small arms at aircraft as real homing rounds (all but
+        /// certain to hit).</summary>
+        public static bool LegacyRounds;
+        /// <summary>Old smoke: two charges a tank, back every 10 s; a squad's smoke every 15 s and in the open at any
+        /// suppression over 0.3; no blind fire into it.</summary>
+        public static bool LegacySmoke;
+        /// <summary>Old Swift: no rockets.</summary>
+        public static bool LegacyAir;
+        /// <summary>Old Mech: guns at 0.28 and no more against soldiers than against anything light.</summary>
+        public static bool LegacyMechPower;
+        /// <summary>Old Mech senses: concealment, smoke, trees and the lie of the ground hid things from it as from anyone.</summary>
+        public static bool LegacyMechSensors;
+        /// <summary>Old Mech reach: its guns' pre-tactical ranges (most out-reached by a Mauler's 38 m and a rifle's 35).</summary>
+        public static bool LegacyMechReach;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetSwitches() { LegacyRounds = LegacySmoke = LegacyAir = LegacyMechPower = LegacyMechSensors = LegacyMechReach = false; }
+
+        /// <summary>The Mech's guns under the new combat: 1.3x their reach, never past its own sight (flamers as they were).</summary>
+        public const float MechReachMul = 1.3f;
+
+        /// <summary>A homing round lives its straight flight there and half again, and a quarter second.</summary>
+        public const float HomingLifeMul = 1.5f, HomingLifeAdd = 0.25f;
+        /// <summary>Small arms at an aircraft, decided when fired: the round's error against the share of the
+        /// aircraft's radius a round must pass within (ShotSpread already widens the error with the target's speed).</summary>
+        public const float AirBodyShare = 0.8f;
+        /// <summary>Smoke used less: a tank's two charges back one per 30 s (one charge left it 70% more hurt by rocket men); a squad's smoke every 30 s, and in the open
+        /// only when he is nearly pinned.</summary>
+        public const int TankSmokesNew = 2;
+        public const float TankSmokeRefill = 30f, SmokeSquadWait = 30f, SmokeFreeSuppression = 0.45f;
+        public static int TankSmokeCharges => LegacySmoke ? TankSmokes : TankSmokesNew;
+        public static float TankSmokeRefillNow => LegacySmoke ? 10f : TankSmokeRefill;
+        /// <summary>The counter to smoke (the field manuals: shoot into or through it, and put indirect fire on it): for
+        /// a while after an enemy is lost in smoke a rifle or machine gun fires at where its side last saw him, slower and
+        /// wider; a mortar lobs a few bombs scattered round that point.</summary>
+        public const float BlindFireFor = 6f, BlindSpreadMul = 3f, BlindCadenceMul = 1.5f, BlindLobScatter = 2.5f;
+        public const int BlindLobs = 3;
+        /// <summary>The player's "Fire at ground" (GameWorld.CmdFireAt): rifles and machine guns at the point this long,
+        /// mortars this many bombs.</summary>
+        public const float FireAtLasts = 12f;
+        public const int FireAtLobs = 5;
+        /// <summary>The Swift's rockets: a pair on a run at a ground target, once its nose is on it at 10-32 m; four in
+        /// all, a pair back every 10 s by an Airfield. Unguided: each lands where it was aimed.</summary>
+        public const int SwiftRockets = 4;
+        public const float SwiftRocketDamage = 24f, SwiftRocketSplash = 1.8f, SwiftRocketSpeed = 40f, SwiftRocketMin = 10f,
+            SwiftRocketMax = 32f, SwiftRocketCone = 0.3f, SwiftRocketEvery = 1.2f;
+        /// <summary>The Mech, a little stronger and most against infantry (the new combat's cover and spotting took the
+        /// most from it there: a bare Mech fell to ~6 riflemen against ~10 before).</summary>
+        public const float MechGunScale = 0.30f, MechVsSoldier = 1.3f;
+
         /// <summary>Phase 8's balance: creatures' hull under the new combat; a tank's machine gun by type (the Aegis
         /// and Ironclad won 12 of 16 duels with it at full weight).</summary>
         public const float CreatureHardier = 1.3f;

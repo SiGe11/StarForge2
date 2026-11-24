@@ -114,6 +114,11 @@ namespace StarForge.World
             return false;
         }
 
+        /// <summary>Whether a Mech's round from there would get to him (`MechLineGets` without its count and suppression):
+        /// its guns' target pick asks it.</summary>
+        public bool MechLineOpen(Vector3 muzzle, Unit t, Unit shooter) =>
+            Sight == null || t.def.bodyRadius <= 0f || (t.deserted && t.team == shooter.team) || BodyOpen(muzzle, t, shooter);
+
         /// <summary>The nearest anti-tank man (or Mech-Hunter) its side sees within his reach and the margin, and that reach.</summary>
         public Unit NearestAntiTank(Unit u, out float reach)
         {
@@ -270,7 +275,7 @@ namespace StarForge.World
         {
             Vector2 to = from - u.pos;
             float len = to.magnitude;
-            StartSmoke(len > 1e-3f ? u.pos + to / len * Mathf.Min(4f, len * 0.5f) : u.pos);
+            StartSmoke(len > 1e-3f ? u.pos + to / len * Mathf.Min(4f, len * 0.5f) : u.pos, u.team);
             TankSmokesPopped++;
         }
 

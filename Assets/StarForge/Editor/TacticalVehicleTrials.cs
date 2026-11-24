@@ -507,7 +507,7 @@ namespace StarForge.EditorTools
                 // Beside a Workshop of its own: its charges come back.
                 var shop = Put(UnitType.Workshop, 0, a - d * 12f);
                 float t1 = world.time;
-                while (world.time - t1 < 25f && tank.tankSmokes < TacticalRules.TankSmokes) yield return null;
+                while (world.time - t1 < 40f && tank.tankSmokes < TacticalRules.TankSmokeCharges) yield return null;
                 sb.AppendLine($"  field {f}: first rocket at {(firstRocketAt >= 0f ? (firstRocketAt - t0).ToString("0.0") : "-")} s, smoke {(lag >= 0f ? lag.ToString("0.0") + " s after it" : "never")}, charges left {left}, popped {world.TankSmokesPopped - popped0}; by a Workshop back to {tank.tankSmokes} in {world.time - t1:0} s");
                 ClearSpawned();
                 tank = null;

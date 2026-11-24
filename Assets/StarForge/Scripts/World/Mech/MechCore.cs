@@ -61,10 +61,13 @@ namespace StarForge.World
         /// unkillable, and matches between two of them never ended. Sized with the guns, not
         /// the hull: it holds the share of an enemy Mech's fire it always had (with the damage
         /// cut harder than the hull, a hull-sized rate would have mended twice that share).</summary>
-        public const float BayRepairUnderFire = 6f * MechParts.GunScale, RepairQuiet = 4f;
+        public const float BayRepairUnderFire = 6f * TacticalRules.MechGunScale, RepairQuiet = 4f;
 
         [System.NonSerialized] public MechDesign design;
         [System.NonSerialized] public readonly List<MechGun> guns = new List<MechGun>(7);
+        // PickTarget's scored candidates, reused.
+        [System.NonSerialized] readonly List<Unit> candU = new List<Unit>(32);
+        [System.NonSerialized] readonly List<float> candS = new List<float>(32);
         [System.NonSerialized] public float shield, dropLeft;
         [System.NonSerialized] public MechIntent intent = MechIntent.Dropping;
         [System.NonSerialized] public string intentText = "";
@@ -114,7 +117,7 @@ namespace StarForge.World
         public float Speed => design == null ? 4.5f : design.Loco.speed * (1f + 0.15f * Level(MechUpgrade.Servos));
         public float TurnRate => design == null ? 2f : design.Loco.turnRate * (1f + 0.15f * Level(MechUpgrade.Servos));
         /// <summary>What every shot's table damage is multiplied by: the scale, and Weapon Overcharge.</summary>
-        public float DamageMul => MechParts.GunScale * (1f + GunsPerLevel * Level(MechUpgrade.Weapons));
+        public float DamageMul => (TacticalRules.LegacyMechPower ? MechParts.GunScale : TacticalRules.MechGunScale) * (1f + GunsPerLevel * Level(MechUpgrade.Weapons));
 
         /// <summary>How far battle damage has worn its guns down: 0 above 60% hull, 1 at 15%
         /// and below, where every gun reloads <see cref="BatteredSlow"/> longer. A Mech at a
@@ -131,7 +134,22 @@ namespace StarForge.World
                                  * (design != null && design.utility == MechUtility.Sensors ? 1.1f : 1f);
         public float Sight => 48f + (Level(MechUpgrade.Targeting) > 0 ? 10f : 0f)
                               + (design != null && design.utility == MechUtility.Sensors ? 14f : 0f);
-        public float Range(MechGun g) => g.part.range * RangeMul;
+        public float Range(MechGun g) => Reach(g.part);
+
+        /// <summary>A gun's reach with the frame's and the upgrades' multipliers. The new combat lengthened every rifle and
+        /// tank (rifles 35 m, the Mauler 38) and left these at their old 15-46 m, so a Mech took fire it could not answer
+        /// while it closed: 1.3x under the new combat, never past its own sight (unless the gun reached further already);
+        /// the flamers as they were.</summary>
+        float Reach(WeaponPart p)
+        {
+            float r = p.range * RangeMul;
+            if (TacticalRules.LegacyMechReach || p.id == MechWeapon.Flamer || p.id == MechWeapon.FlameTower) return r;
+            return Mathf.Max(r, Mathf.Min(r * TacticalRules.MechReachMul, Sight));
+        }
+
+        /// <summary>The guns whose rounds cover stops (`MechLineGets`, `CoverStops`): the railgun pierces, a flame wraps,
+        /// missiles and the mortar burst over him.</summary>
+        static bool StoppedByCover(WeaponPart p) => p.id == MechWeapon.Autocannon || p.id == MechWeapon.Gatling || p.id == MechWeapon.Laser;
 
         /// <summary>The longest reach of any gun it carries.</summary>
         public float MaxRange
@@ -390,6 +408,8 @@ namespace StarForge.World
             var p = g.part;
             Unit best = null;
             float bestScore = float.MaxValue;
+            candU.Clear();
+            candS.Clear();
             foreach (var e in near)
             {
                 // The new combat: only what this gun may fire at (unseen, or a burst with friends by it, it was picked
@@ -429,7 +449,23 @@ namespace StarForge.World
                 else if (p.turret)
                     score += Mathf.Abs(WrapAngle(Mathf.Atan2(e.pos.x - unit.pos.x, e.pos.y - unit.pos.y) - (unit.turretYaw + g.yaw))) * 3f;
                 if (e == g.target) score -= 4f;                          // do not flit between equals
+                candU.Add(e);
+                candS.Add(score);
                 if (score < bestScore) { bestScore = score; best = e; }
+            }
+            // A gun cover stops takes, of its three best, the first a round reaches: its sensors find men behind rocks and
+            // walls, and one lying behind a rock soaked a gun's every round. All three behind cover, the best, to keep his
+            // head down. The old senses never saw such a man, so `LegacyMechSensors` keeps the old pick.
+            if (best == null || TacticalRules.LegacyMechSensors || !StoppedByCover(p)) return best;
+            for (int tries = 0; tries < 3; tries++)
+            {
+                int k = -1;
+                float s = float.MaxValue;
+                for (int i = 0; i < candU.Count; i++) if (candS[i] < s) { s = candS[i]; k = i; }
+                if (k < 0) break;
+                var u = candU[k];
+                if (u.def.bodyRadius <= 0f || world.MechLineOpen(Muzzle(g), u, unit)) return u;
+                candS[k] = float.MaxValue;
             }
             return best;
         }

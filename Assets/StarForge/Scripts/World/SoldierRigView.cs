@@ -151,7 +151,7 @@ namespace StarForge.World
 
             int want;
             float feet = 0f;
-            bool aiming = Unit.Live(unit.target) && !unit.hiding && unit.Dist(unit.target) - unit.target.def.radius <= unit.def.range;
+            bool aiming = (Unit.Live(unit.target) && !unit.hiding && unit.Dist(unit.target) - unit.target.def.radius <= unit.def.range) || unit.FiringBlind;
             if (posture == Posture.Prone)
             {
                 want = speed > 0.2f ? Crawl : ProneAim;

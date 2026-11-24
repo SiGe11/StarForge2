@@ -149,20 +149,21 @@ namespace StarForge.World
         void TickTank(float dt)
         {
             float now = world.time;
-            if (tankSmokes < 0) tankSmokes = TacticalRules.TankSmokes;
+            int charges = TacticalRules.TankSmokeCharges;
+            if (tankSmokes < 0) tankSmokes = charges;
             // A charge as the first anti-tank round comes at it, the second for the next one.
             if (tankSmokes > 0 && now - armourWarnedAt < 1f && now >= tankSmokeReadyAt)
             {
                 tankSmokes--;
                 tankSmokeReadyAt = now + 8f;
-                // Refilled only 10 s after one is spent (a depot gave it back on the tick it was popped).
-                tankRestockAt = now + 10f;
+                // Refilled only a while after one is spent (a depot gave it back on the tick it was popped).
+                tankRestockAt = now + TacticalRules.TankSmokeRefillNow;
                 smokedAt = now;
                 world.TankSmoke(this, armourWarnedFrom);
             }
-            if (tankSmokes < TacticalRules.TankSmokes && now >= tankRestockAt)
+            if (tankSmokes < charges && now >= tankRestockAt)
             {
-                tankRestockAt = now + 10f;
+                tankRestockAt = now + TacticalRules.TankSmokeRefillNow;
                 if (world.NearTankDepot(this)) tankSmokes++;
             }
             bool look = now >= tankLookAt;
