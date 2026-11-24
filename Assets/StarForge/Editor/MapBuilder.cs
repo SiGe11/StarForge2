@@ -156,7 +156,7 @@ namespace StarForge.EditorTools
             var number = "\\s*(-?[0-9.]+)\\s*";
             var seg = new System.Text.RegularExpressions.Regex($"\\[{number},{number},{number},{number},{number},{number}\\]");
             var list = new List<CoverPiece>();
-            foreach (string model in new[] { "WALL_LOW", "WALL_SHORT", "RUIN_WALL", "RUIN_CORNER" })
+            foreach (string model in new[] { "WALL_LOW", "WALL_SHORT", "RUIN_WALL", "RUIN_CORNER", "VESPER_HOUSE" })
             {
                 int at = json.IndexOf($"\"{model}\": {{", System.StringComparison.Ordinal);
                 int cov = at < 0 ? -1 : json.IndexOf("\"cover\":", at, System.StringComparison.Ordinal);

@@ -172,6 +172,8 @@ namespace StarForge.AI
                 if (e.team != enemy) continue;
                 // Enemy: only if one of our units can currently see it.
                 if (!w.Sees(team, e)) continue;
+                // In the kept twin house's grounds: no army, no target (GameWorld.Sanctuary).
+                if (e.inGrounds) continue;
                 // Their deserters are out of the war, as ours are (the player sees their bars in the
                 // deserter colour too): remembered, a camp 40-68 m out read as their army away from home.
                 if (e.deserted) continue;

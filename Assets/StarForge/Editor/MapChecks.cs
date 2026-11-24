@@ -73,8 +73,11 @@ namespace StarForge.EditorTools
             int trees = 0, treeLeaks = 0, open = 0;
             var veg = map.vegetation;
             if (veg != null)
-                foreach (var p in veg.plants)
+                for (int pi = 0; pi < veg.plants.Length; pi++)
                 {
+                    var p = veg.plants[pi];
+                    // Felled, burnt or cleared (the kept twin house's ground) in play: nothing left to block.
+                    if (pi < veg.live.Length && veg.live[pi].state != PlantState.Standing) continue;
                     var k = veg.kinds[p.kind];
                     if (p.volume < 0) { if (!k.bush) open++; continue; }
                     trees++;

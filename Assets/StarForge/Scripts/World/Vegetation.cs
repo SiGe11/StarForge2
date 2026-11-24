@@ -187,6 +187,8 @@ namespace StarForge.World
         {
             if (!woken) return;
             live = new Live[plants.Length];
+            Touched.Clear();
+            TouchedVersion++;
             BuildGrid();
             burning.Clear();
             burningGrass.Clear();
@@ -912,6 +914,33 @@ namespace StarForge.World
 
         /// <summary><paramref name="push"/> is how hard it was started over, in radians a
         /// second: a blast shoves it, a Mauler leans on it, a burned-out snag just gives.</summary>
+        /// <summary>Plants taken away or put back outside the fall (the kept twin house's ground, cleared when a
+        /// match begins), for the renderer's memory: told by <see cref="TouchedVersion"/>.</summary>
+        [NonSerialized] public readonly List<int> Touched = new List<int>();
+        [NonSerialized] public int TouchedVersion;
+
+        /// <summary>Gone at once: no fall, no event, its blocking volume off. The caller rebuilds the NavMesh.</summary>
+        public void Clear(int i)
+        {
+            if (i < 0 || i >= live.Length || live[i].state == PlantState.Gone) return;
+            live[i].state = PlantState.Gone;
+            int v = plants[i].volume;
+            if (v >= 0 && v < volumes.Length && volumes[v] != null) volumes[v].enabled = false;
+            Touched.Add(i);
+            TouchedVersion++;
+        }
+
+        /// <summary>Standing again as the map made it (a cleared plant whose house was taken away).</summary>
+        public void Restore(int i)
+        {
+            if (i < 0 || i >= live.Length) return;
+            live[i] = default;
+            int v = plants[i].volume;
+            if (v >= 0 && v < volumes.Length && volumes[v] != null) volumes[v].enabled = true;
+            Touched.Add(i);
+            TouchedVersion++;
+        }
+
         public void Fell(GameWorld world, int i, Vector2 dir, float push = 0.25f)
         {
             ref var s = ref live[i];

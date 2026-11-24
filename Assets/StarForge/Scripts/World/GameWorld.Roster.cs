@@ -68,7 +68,7 @@ namespace StarForge.World
                     {
                         var o = i < units.Count ? units[i] : null;
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable || !CanHit(u, o)) continue;
-                        if (!Sees(u.team, o)) continue;
+                        if (!Sees(u.team, o) || SanctBlocks(u, o)) continue;   // the kept twin house
                         float d = (o.pos - u.pos).magnitude - o.def.radius;
                         if (d < min || d >= bestD) continue;
                         bestD = d; best = o;
@@ -274,7 +274,7 @@ namespace StarForge.World
         /// it; false, and nothing fired, while a friend is near where it would land.</summary>
         public bool LobAt(Unit s, Vector2 at)
         {
-            if (Truce) return false;   // the Quenching's truce
+            if (Truce || s.inGrounds || SanctBlocks(s.pos, at)) return false;   // the Quenching's truce; the kept twin house
             var D = s.def;
             int k = s.id * 31 + (int)(time * 7f);
             float r = TacticalRules.BlindLobScatter * (0.35f + 0.65f * Mathf.Repeat(k * 0.618034f, 1f));
@@ -369,7 +369,7 @@ namespace StarForge.World
                     EnemiesNear(s, reach + 2f, flameScratch);
                     foreach (var e in flameScratch)
                     {
-                        if (!Unit.Live(e) || e.def.flying || e.Untargetable || e.team == 2) continue;
+                        if (!Unit.Live(e) || e.def.flying || e.Untargetable || e.team == 2 || SanctBlocks(s, e)) continue;   // the kept twin house
                         Vector2 r = e.pos - from;
                         float along = Vector2.Dot(r, axis);
                         if (along < 0f || along - e.def.radius > reach) continue;
@@ -514,7 +514,7 @@ namespace StarForge.World
                     EnemiesNear(s, D.range + D.splash + 3f, flameScratch);
                     foreach (var e in flameScratch)
                     {
-                        if (!Unit.Live(e) || e.def.flying || e.Untargetable || e.team == 2) continue;
+                        if (!Unit.Live(e) || e.def.flying || e.Untargetable || e.team == 2 || SanctBlocks(s, e)) continue;   // the kept twin house
                         if (e == t) { Damage(e, dmg * HitMul(D, e), s.pos, s); continue; }
                         if ((e.pos - at).magnitude - e.def.radius > D.splash) continue;
                         Damage(e, dmg * 0.6f * HitMul(D, e), s.pos, s);
@@ -558,6 +558,7 @@ namespace StarForge.World
                 foreach (var o in bounceScratch)
                 {
                     if (bounceHit.Contains(o) || o.dying || o.team == p.team || o.team == 2 || o.Untargetable) continue;
+                    if (SanctBlocks(at, o.pos)) continue;   // no bounce over the kept twin house
                     if (o.def.flying ? !p.hitsAir : !p.hitsGround) continue;
                     float d = (o.pos - at).sqrMagnitude;
                     if (d < best) { best = d; next = o; }

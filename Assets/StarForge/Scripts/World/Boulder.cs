@@ -30,5 +30,14 @@ namespace StarForge.World
             foreach (var v in GetComponents<NavMeshModifierVolume>()) v.enabled = false;
             gameObject.SetActive(false);
         }
+
+        /// <summary>Back as it stood (a rock cleared for the kept twin house, whose house was taken away).</summary>
+        public void Restore()
+        {
+            if (!smashed) return;
+            smashed = false;
+            gameObject.SetActive(true);
+            foreach (var v in GetComponents<NavMeshModifierVolume>()) v.enabled = true;
+        }
     }
 }

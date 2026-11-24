@@ -81,6 +81,7 @@ namespace StarForge.World
         {
             Force = -1;
             ForceDarkeningAt = -1f;
+            GameWorld.SanctuaryForce = GameWorld.CloisterForce = -1;   // the sanctuary's trial switches
             if (Application.isEditor) return;   // the Editor's command line is Unity's own
             var args = System.Environment.GetCommandLineArgs();
             int i = System.Array.IndexOf(args, "-sfnight");

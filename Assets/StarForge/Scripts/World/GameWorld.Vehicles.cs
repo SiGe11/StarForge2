@@ -71,7 +71,7 @@ namespace StarForge.World
                         if (o == null || o == not || o.dying || o.team == s.team || o.team == 2 || o.Untargetable) continue;
                         if (o.def.flying ? !s.def.hitsAir : !s.def.hitsGround) continue;
                         float d = (o.pos - s.pos).magnitude - o.def.radius;
-                        if (d > s.def.range || !Sees(s.team, o)) continue;
+                        if (d > s.def.range || !Sees(s.team, o) || SanctBlocks(s, o)) continue;   // the kept twin house
                         LineCandAdd(o, d);
                     }
             // Nearest first; anything but a soldier needs no look, and answers past the four. At most four soldiers'
@@ -173,7 +173,7 @@ namespace StarForge.World
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.def.flying || o.def.building || o.def.Heavy) continue;
                         if (o.mech != null || o.Untargetable) continue;
                         float d = (o.pos - u.pos).magnitude;
-                        if (d - o.def.radius > reach || !Sees(u.team, o)) continue;
+                        if (d - o.def.radius > reach || !Sees(u.team, o) || SanctBlocks(u, o)) continue;   // the kept twin house
                         LineCandAdd(o, d + (o == u.target ? 12f : 0f) + (o.def.bodyRadius > 0f ? 0f : 8f));
                     }
             // At most four lines a look (NearestShootable's limit). The man it is on first: kept while a round still
@@ -237,7 +237,7 @@ namespace StarForge.World
                         if (!o.def.Heavy && !o.def.building) continue;
                         if (o.def.flying ? !u.def.hitsAir : !u.def.hitsGround) continue;
                         float d = (o.pos - u.pos).magnitude - o.def.radius;
-                        if (d > u.def.range || !Sees(u.team, o)) continue;
+                        if (d > u.def.range || !Sees(u.team, o) || SanctBlocks(u, o)) continue;   // the kept twin house
                         if (!FightsBack(o)) d += 20f;
                         if (d < bestD) { bestD = d; best = o; }
                     }
@@ -246,7 +246,7 @@ namespace StarForge.World
 
         public void FireTankGun(Unit s, Unit t)
         {
-            if (Truce) return;   // the Quenching's truce (also the Kestrel's gun)
+            if (Truce || SanctBlocks(s, t)) return;   // the Quenching's truce (also the Kestrel's gun); the kept twin house
             Unit struck = DecideShot(s, t, out Vector3 muzzle, out Vector3 end, out bool stopped, TacticalRules.TankGunSpread, GunHeightOf(s));
             TankGunShots++;
             if (struck != null)

@@ -371,7 +371,7 @@ namespace StarForge.World
         }
 
         bool Valid(MechGun g, Unit t) =>
-            Unit.Live(t) && world.Hostile(unit, t) && !t.Untargetable && (!t.def.flying || g.part.HitsAir) && InRange(g, t) &&
+            Unit.Live(t) && world.Hostile(unit, t) && !t.Untargetable && !world.SanctBlocks(unit, t) && (!t.def.flying || g.part.HitsAir) && InRange(g, t) &&
             // The new combat: the guns take only what its side knows of (its brain still knows everything), and a gun
             // with a burst holds while friends are by the target. Its own deserters, under the punishment, are its own.
             (t.team == unit.team ||

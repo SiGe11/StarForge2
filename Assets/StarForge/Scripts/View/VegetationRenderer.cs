@@ -194,6 +194,8 @@ namespace StarForge.View
             seenGone[i] = gone;
         }
 
+        int touchedSeen;
+
         void LateUpdate()
         {
             var cam = Camera.main;
@@ -201,6 +203,12 @@ namespace StarForge.View
             if (cam == null || vegetation.live.Length != vegetation.plants.Length) return;
             // A map built again in place (the grove and camp trials) brings new plants.
             if (!ReferenceEquals(posePlants, vegetation.plants) || !ReferenceEquals(poseKinds, vegetation.kinds)) Init();
+            // Cleared for the kept twin house (or put back) off the fall: known at once, seen or not.
+            if (touchedSeen != vegetation.TouchedVersion)
+            {
+                touchedSeen = vegetation.TouchedVersion;
+                foreach (int i in vegetation.Touched) if (i < posePlants.Length) Remember(i);
+            }
 
             int team = player != null ? player.team : 0;
             bool all = world == null || !world.running || MatchSettings.spectate;

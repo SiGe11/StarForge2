@@ -109,8 +109,11 @@ namespace StarForge.World
         public float FireHeat => burnUntil <= 0f ? 0f
             : Mathf.Clamp01(Mathf.Min((world.time - burnStart) * 0.5f, (burnUntil - world.time) * 0.3f));
         public float MaxHp => mech != null ? mech.MaxHp : def.hp * (1f + 0.1f * rank);
-        /// <summary>Not to be shot at: a Mech still coming down from orbit.</summary>
-        public bool Untargetable => mech != null && !mech.Landed;
+        /// <summary>In the kept twin house's grounds, on foot (GameWorld.Sanctuary): neither fired on nor firing.
+        /// Set where the position is cached, every tick.</summary>
+        [System.NonSerialized] public bool inGrounds;
+        /// <summary>Not to be shot at: a Mech still coming down from orbit, or a unit in the sanctuary's grounds.</summary>
+        public bool Untargetable => (mech != null && !mech.Landed) || inGrounds;
         public float Speed => mech != null ? mech.Speed : def.speed * soldierPace * (vaulting ? VaultPace : 1f);
         public float TurnRate => mech != null ? mech.TurnRate : def.turnRate;
         public Vector3 Ground => world.Map.Ground(pos);
@@ -181,8 +184,10 @@ namespace StarForge.World
                 // Boulders stand on Rubble ground: only a Mauler's path runs
                 // through them, and a Mech's (they crush them, GameWorld.CrushBoulders).
                 // Soldiers vault low walls (the Vault area).
-                agent.areaMask = d.type == UnitType.Mauler || d.type == UnitType.Mech ? NavMesh.AllAreas
-                               : d.bodyRadius > 0f && d.upgradeClass == UnitClass.Infantry ? GameWorld.FootAreas : GameWorld.GroundAreas;
+                // The kept twin house's grounds (MapGenerator.SanctuaryArea) are on foot only: soldiers and Diggers.
+                agent.areaMask = d.type == UnitType.Mauler || d.type == UnitType.Mech ? NavMesh.AllAreas & ~(1 << MapGenerator.SanctuaryArea)
+                               : d.bodyRadius > 0f && d.upgradeClass == UnitClass.Infantry ? GameWorld.FootAreas
+                               : d.type == UnitType.Worker ? GameWorld.GroundAreas | (1 << MapGenerator.SanctuaryArea) : GameWorld.GroundAreas;
                 if (NavMesh.SamplePosition(transform.position, out var hit, 10f, NavMesh.AllAreas))
                 {
                     agent.enabled = true;
@@ -210,6 +215,8 @@ namespace StarForge.World
         {
             var p = transform.position;
             pos = new Vector2(p.x, p.z);
+            // A side turned out of the grounds (GameWorld.TurnOut) has no shelter there any more.
+            inGrounds = world != null && def != null && world.Sanct != null && GameWorld.OnFoot(this) && world.Sanct.Contains(pos) && !world.TurnedOut(team);
         }
 
         public float Dist(Unit o) => (o.pos - pos).magnitude;
@@ -540,13 +547,14 @@ namespace StarForge.World
         {
             if (!def.Armed || !Complete) return;
             // The Night of the Quenching (GameWorld.Night): no gun fires until lauds; a soldier still thinks.
-            if (world.Truce && def.bodyRadius <= 0f) { HoldFireForTruce(); return; }
+            // The kept twin house: a unit in its grounds holds fire too (GameWorld.Sanctuary).
+            if ((world.Truce || inGrounds) && def.bodyRadius <= 0f) { HoldFireForTruce(); return; }
             {
                 if (def.organic && CreatureFlees()) return;
                 if (def.bodyRadius > 0f)
                 {
                     TickSoldier(dt);
-                    if (world.Truce) { HoldFireForTruce(); return; }
+                    if (world.Truce || inGrounds) { HoldFireForTruce(); return; }
                     // On his way to cover he runs; bolting, or frozen with fear, he does not shoot.
                     if (mode == SoldierMode.ToCover) { RunningShot(); return; }
                     if (mode == SoldierMode.Panic || throwing != Thrown.None) return;
@@ -568,14 +576,16 @@ namespace StarForge.World
             // reach, and keeps working: it neither chases nor drops the load.
             if (!acquires && def.harvester && def.weapon != WeaponKind.Auto && (order == Order.Harvest || order == Order.Return))
             {
-                if (!Live(target) || target.team == team || Dist(target) - target.def.radius > def.range || !GameWorld.CanHit(this, target))
+                if (!Live(target) || target.team == team || target.inGrounds || Dist(target) - target.def.radius > def.range || !GameWorld.CanHit(this, target))
                     target = world.NearestEnemyInReach(this, def.range, false);
                 targetOrdered = false;
                 // Turned onto the target first: the Prospector's roof gun is a turret.
                 if (target != null && Dist(target) - target.def.radius >= def.minRange) AimAndFire(dt);
                 return;
             }
-            if (!Live(target) || target.team == team)
+            // A target gone into the kept twin house's grounds is lost like a dead one (kept, attackers closed
+            // on it and walked in after it).
+            if (!Live(target) || target.team == team || target.inGrounds)
             {
                 target = null;
                 targetOrdered = false;
@@ -644,7 +654,7 @@ namespace StarForge.World
             fireBlocked = false;
             if (d > def.range) return false;
             // No gun fires at what its side does not know of, and a round must have a way there.
-            if ((hiding || !world.Sees(team, target) || (def.DirectFire && !target.def.flying && !LineOfFireNow())))
+            if ((hiding || !world.Sees(team, target) || (def.DirectFire && !target.def.flying && !LineOfFireNow()) || world.SanctBlocks(this, target)))
             {
                 fireBlocked = true;
                 return false;

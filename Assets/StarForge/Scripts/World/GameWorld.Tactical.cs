@@ -322,7 +322,7 @@ namespace StarForge.World
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable || !CanHit(u, o)) continue;
                         if (fightsBackOnly && !FightsBack(o)) continue;
                         float d = (o.pos - u.pos).magnitude - o.def.radius;
-                        if (d > reach || !Sees(u.team, o)) continue;
+                        if (d > reach || !Sees(u.team, o) || SanctBlocks(u, o)) continue;   // the kept twin house
                         LineCandAdd(o, d);
                     }
             // The fresh first, nearest first (an aircraft needs no line: it answers when reached, never past fresh men
@@ -404,6 +404,12 @@ namespace StarForge.World
 
             float reach = gun > 0f ? dist + 6f : Mathf.Max(s.def.range * 1.25f, dist + 6f);
             Vector3 far = muzzle + dir * reach;
+            // A miss flying on stops where it meets the kept twin house's grounds (ground to ground: the sky stays open).
+            if (Sanct != null && !s.def.flying && !t.def.flying)
+            {
+                float se = Sanct.Enter(new Vector2(muzzle.x, muzzle.z), new Vector2(far.x, far.z));
+                if (se <= 1f) far = Vector3.Lerp(muzzle, far, se);
+            }
             // Fired on past him: a wall he stands in still lets the round reach him.
             float stop = Sight.FirstStop(muzzle, far, Plants, boulders, t.pos);
             Unit struck = StruckOnLine(s, muzzle, far, ref stop);
@@ -542,7 +548,7 @@ namespace StarForge.World
         /// at where an unseen enemy is now.</summary>
         public void FireBlind(Unit s, Vector2 at)
         {
-            if (Truce) return;   // the Quenching's truce
+            if (Truce || s.inGrounds || SanctBlocks(s.pos, at)) return;   // the Quenching's truce; the kept twin house
             Vector2 to2 = at - s.pos;
             float len = to2.magnitude;
             Vector2 n = len > 1e-3f ? to2 / len : Vector2.up;
@@ -590,7 +596,7 @@ namespace StarForge.World
                     for (int i = gridHead[z * GRID + x]; i >= 0; i = gridNext[i])
                     {
                         var o = i < units.Count ? units[i] : null;
-                        if (o == null || o.dying || o.team == s.team || o.team == 2 || o.def.bodyRadius <= 0f) continue;
+                        if (o == null || o.dying || o.team == s.team || o.team == 2 || o.def.bodyRadius <= 0f || o.inGrounds) continue;
                         float t = Mathf.Clamp01(((o.pos.x - a.x) * dx + (o.pos.y - a.z) * dz) / flat2);
                         float ox = a.x + dx * t - o.pos.x, oz = a.z + dz * t - o.pos.y;
                         float d2 = ox * ox + oz * oz;
@@ -831,6 +837,7 @@ namespace StarForge.World
         {
             shelterTeam = u.team;
             best = default;
+            if (u.inGrounds) return false;   // in the kept twin house's grounds: nothing to take cover from
             Vector2 chosen = default;
             shelters.Clear();
             // A burnt-out tank, and a friend's that is still going, first: there are few, and after the rocks and
@@ -892,6 +899,8 @@ namespace StarForge.World
             void Try(Vector2 p, float apart = 1.2f)
             {
                 if (!map.InBounds(p, 2f) || !Walkable(p, 0.5f)) return;
+                // No cover in the kept twin house's grounds: a man goes in on an order, never for shelter.
+                if (Sanct != null && Sanct.Contains(p)) return;
                 float walk = (p - u.pos).magnitude;
                 if (walk > reach) return;
                 // A thin trunk shelters a third of him at best: not worth running for under fire.

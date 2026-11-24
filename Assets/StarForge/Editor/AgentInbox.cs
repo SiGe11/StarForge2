@@ -79,6 +79,7 @@ namespace StarForge.EditorTools
             StarForge.World.NightRules.Force = -1;             // the lore features' night switch (NightTrials)
             StarForge.World.NightRules.ForceDarkeningAt = -1f;
             StarForge.AI.MechSpeech.ForceCounsel = false;     // NightTrials.ForceCounsel
+            StarForge.World.GameWorld.SanctuaryForce = StarForge.World.GameWorld.CloisterForce = -1;   // SanctuaryTrials
         }
 
         /// <summary>A map held for every later Play on purpose (TacticalTrials.UseSeed1000, TacticalVehicles.UseLineBudgetSeed;
@@ -2951,7 +2952,7 @@ namespace StarForge.EditorTools
         static int Count(System.Collections.Generic.Dictionary<int, int> d, int id) => d.TryGetValue(id, out int v) ? v : 0;
 
         static int IslandMask(StarForge.World.Unit u) =>
-            u.agent != null && u.agent.areaMask == UnityEngine.AI.NavMesh.AllAreas ? NavIslands.WithRubble : NavIslands.Ground;
+            u.agent != null && (u.Type == StarForge.Sim.UnitType.Mauler || u.Type == StarForge.Sim.UnitType.Mech) ? NavIslands.WithRubble : NavIslands.Ground;
 
         static readonly string[] CommanderPoints = { "stagePoint", "rally", "harassTarget", "prongAt", "waveAt" };
 

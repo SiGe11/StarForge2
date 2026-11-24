@@ -244,7 +244,8 @@ namespace StarForge.World
             }
             var threat = world.NearestThreat(this, def.sight);
             if (throwing != Thrown.None) return;
-            if (threat != null && !world.Truce) TryThrow(threat);   // nothing thrown in the Quenching's truce
+            // Nothing thrown in the Quenching's truce, nor into, out of or across the kept twin house's grounds.
+            if (threat != null && !world.Truce && !inGrounds && !world.SanctBlocks(this, threat)) TryThrow(threat);
             if (throwing != Thrown.None) return;
             float courage = Courage();
 

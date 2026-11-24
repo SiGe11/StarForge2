@@ -256,7 +256,114 @@ def build_ruin_corner():
     return m
 
 
-COVER_BUILDERS = [build_wall_low, build_wall_short, build_ruin_wall, build_ruin_corner]
+# ------------------------------------------------------------ the Vesper twin house (lore section 4)
+MESH_VESPER_HOUSE = 38
+# Its plan, in the model's frame (front at -Z). GameWorld.Sanctuary reads the same numbers from the cover
+# meta below; change them together. Outer wall X +-12, Z +-8, 2.6 m, 0.6 thick; two gates 3 m wide in the
+# front (the vigil-sisters' and the watchmen's), a dividing wall from the front to the hall, and the shared
+# hall across the back (Z 2 .. 7.7), roofed, a bell-cote on its ridge.
+VH_X, VH_Z, VH_WALL, VH_THICK = 12.0, 8.0, 2.6, 0.6
+VH_GATES = (-6.0, 6.0)
+VH_GATE_W = 3.0
+VH_HALL_Z = 2.0
+
+
+def dressed_run(m, rng, x0, x1, z, top, thick, mat='rock', cap='armor'):
+    """A kept wall: dressed courses (none fallen), a coping slab along the top. Along X at z."""
+    x = x0
+    while x < x1 - 0.05:
+        w = min(x1 - x, rng.uniform(0.9, 1.4))
+        if x1 - (x + w) < 0.4:
+            w = x1 - x
+        y, course = 0.0, 0
+        while y < top - 0.2:
+            h = min(top - 0.12 - y, rng.uniform(0.42, 0.52))
+            d = thick * 0.5 - 0.01 + rng.uniform(-0.01, 0.01)
+            m.add(box((x + w * 0.5, y + h * 0.5, z), (w * 0.5 + 0.012, h * 0.5 + 0.01, d), mat, bevel_w=0.025, bevel_seg=1))
+            y += h
+            course += 1
+        x += w
+    # The coping stands proud of both faces (never flush with them).
+    m.add(box(((x0 + x1) * 0.5, top - 0.06, z), ((x1 - x0) * 0.5 + 0.04, 0.07, thick * 0.5 + 0.06), cap, bevel_w=0.02, bevel_seg=1))
+
+
+def build_vesper_house():
+    m = Model(MESH_VESPER_HOUSE, 'VESPER_HOUSE')
+    rng = random.Random(3871)
+    X, Z, H, T = VH_X, VH_Z, VH_WALL, VH_THICK
+    g0, g1, gw = VH_GATES[0], VH_GATES[1], VH_GATE_W * 0.5
+    # Footings under every wall, sunk, so a slope shows stone, not air.
+    for (cx, cz, hx, hz) in ((0, -Z, X + 0.2, 0.42), (0, Z, X + 0.2, 0.42), (-X, 0, 0.42, Z + 0.2), (X, 0, 0.42, Z + 0.2)):
+        m.add(box((cx, -0.45, cz), (hx, 0.5, hz), 'rock', bevel_w=0.03, bevel_seg=1))
+    # Front wall in three runs, the two gates between.
+    for (a, b) in ((-X, g0 - gw), (g0 + gw, g1 - gw), (g1 + gw, X)):
+        dressed_run(m, rng, a, b, -Z, H, T)
+    dressed_run(m, rng, -X, X, Z, H, T)
+    # Side walls and the dividing wall: built along X, turned onto Z, moved into place.
+    def along_z(x_at, z0, z1, top, thick):
+        tmp = Model(0, 'tmp')
+        # Turning by -90 about Y takes +X to +Z: build from z0 to z1 along X.
+        dressed_run(tmp, rng, z0, z1, 0.0, top, thick)
+        for p in tmp.parts:
+            B.rot(p, math.radians(-90.0), 'Y', (0.0, 0.0, 0.0))
+            S.xform(p, Matrix.Translation(Vector((x_at, 0.0, 0.0))))
+            m.add(p)
+    along_z(-X, -Z + T * 0.5, Z - T * 0.5, H, T)
+    along_z(X, -Z + T * 0.5, Z - T * 0.5, H, T)
+    along_z(0.0, -Z + T * 0.5, VH_HALL_Z - 0.05, H - 0.3, T * 0.8)
+    # The gates: posts taller than the wall, a lintel, a dark door leaf folded back, a lamp above.
+    for gx in (g0, g1):
+        for s in (-1, 1):
+            m.add(box((gx + s * (gw + 0.25), (H + 0.6) * 0.5, -Z), (0.28, (H + 0.6) * 0.5, T * 0.5 + 0.08), 'armor', bevel_w=0.03, bevel_seg=1))
+        m.add(box((gx, H + 0.45, -Z), (gw + 0.56, 0.18, T * 0.5 + 0.1), 'armor_dark', bevel_w=0.03, bevel_seg=1))
+        leaf = box((gx - gw + 0.06, 1.1, -Z + 0.75), (0.05, 1.1, 0.7), 'dark', bevel_w=0.01, bevel_seg=1)
+        m.add(leaf)
+        m.add(box((gx, H + 0.88, -Z - 0.12), (0.09, 0.14, 0.09), 'glow_warm', bevel_w=0.0))
+    # The shared hall across the back: walls of plaster on a stone base, a pitched roof of fired tile,
+    # a bell-cote on the ridge. Solid in the rules (no one walks in).
+    hz0, hz1 = VH_HALL_Z, Z - T * 0.5
+    hx = X - T * 0.5
+    hall_h = 3.4
+    m.add(box((0, 0.35, (hz0 + hz1) * 0.5), (hx, 0.36, (hz1 - hz0) * 0.5), 'rock', bevel_w=0.03, bevel_seg=1))
+    m.add(box((0, (hall_h + 0.7) * 0.5, (hz0 + hz1) * 0.5), (hx - 0.05, (hall_h - 0.7) * 0.5, (hz1 - hz0) * 0.5 - 0.05), 'armor_lit', bevel_w=0.03, bevel_seg=1))
+    # Doors in the facade, one into each court's half (the screen runs between them inside).
+    for dx in (-3.5, 3.5):
+        m.add(box((dx, 1.15, hz0 - 0.02), (0.75, 1.15, 0.06), 'dark', bevel_w=0.01, bevel_seg=1))
+    # Windows: narrow, dark, high.
+    for wx in (-9.0, -6.5, 6.5, 9.0):
+        m.add(box((wx, 2.5, hz0 - 0.02), (0.22, 0.5, 0.05), 'shadowed', bevel_w=0.0))
+    ridge = hall_h + 2.0
+    roof_d = (hz1 - hz0) * 0.5 + 0.45
+    for s in (-1, 1):
+        slope = math.atan2(ridge - hall_h, roof_d)
+        r = box((0, 0, 0), (hx + 0.4, 0.09, math.hypot(roof_d, ridge - hall_h) * 0.5 + 0.08), 'rust', bevel_w=0.02, bevel_seg=1)
+        B.rot(r, s * slope, "X", (0, 0, 0))
+        S.xform(r, Matrix.Translation(Vector((0, (hall_h + ridge) * 0.5, (hz0 + hz1) * 0.5 + s * roof_d * 0.5))))
+        m.add(r)
+    # Gable ends.
+    for gxs in (-1, 1):
+        gab = frustum((gxs * (hx - 0.12), hall_h + (ridge - hall_h) * 0.5, (hz0 + hz1) * 0.5),
+                      (0.14, (ridge - hall_h) * 0.5, roof_d - 0.3), top=(1.0, 0.04), mat='armor_lit', bevel_w=0.01)
+        m.add(gab)
+    # The bell-cote: two piers and a bell between, on the ridge over the screen.
+    bz = (hz0 + hz1) * 0.5
+    for s in (-1, 1):
+        m.add(box((s * 0.55, ridge + 0.75, bz), (0.14, 0.85, 0.22), 'armor_lit', bevel_w=0.02, bevel_seg=1))
+    m.add(box((0, ridge + 1.68, bz), (0.78, 0.1, 0.3), 'rust', bevel_w=0.02, bevel_seg=1))
+    m.add(cyl((0, ridge + 0.85, bz), 0.32, 0.16, 0.6, 10, 'steel', caps=True))
+    # Courts: a well in the sisters' court, a stone bench in the watchmen's.
+    m.add(cyl((-6.0, 0.0, -2.0), 0.75, 0.75, 0.75, 12, 'rock', caps=True))
+    m.add(cyl((-6.0, 0.70, -2.0), 0.58, 0.58, 0.08, 12, 'dark', caps=True))
+    m.add(box((6.0, 0.25, -1.0), (1.2, 0.25, 0.3), 'rock', bevel_w=0.03, bevel_seg=1))
+    # The rules' runs (ax, az, bx, bz, height, thickness): outer walls, divider, the hall's facade and ends.
+    segs = [(-X, -Z, g0 - gw, -Z, H, T), (g0 + gw, -Z, g1 - gw, -Z, H, T), (g1 + gw, -Z, X, -Z, H, T),
+            (-X, Z, X, Z, H, T), (-X, -Z, -X, Z, H, T), (X, -Z, X, Z, H, T),
+            (0.0, -Z, 0.0, VH_HALL_Z, H - 0.3, T * 0.8), (-hx, VH_HALL_Z, hx, VH_HALL_Z, hall_h, 0.4)]
+    cover_meta(m, segs)
+    return m
+
+
+COVER_BUILDERS = [build_wall_low, build_wall_short, build_ruin_wall, build_ruin_corner, build_vesper_house]
 ENV_BUILDERS = [build_rock_spire, build_rock_shelf, build_wreck, build_ruin_pylon] + COVER_BUILDERS
 
 

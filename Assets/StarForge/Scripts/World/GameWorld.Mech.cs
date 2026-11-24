@@ -261,7 +261,7 @@ namespace StarForge.World
 
         public void FireMechGun(Unit shooter, MechCore core, MechGun g, Unit target)
         {
-            if (!Unit.Live(target)) return;
+            if (!Unit.Live(target) || SanctBlocks(shooter, target)) return;   // the kept twin house
             var part = g.part;
             Vector3 muzzle = core.Muzzle(g);
             Vector3 aim = AimPoint(target);
@@ -342,6 +342,12 @@ namespace StarForge.World
                         var q2 = new Vector2(q.x, q.z);
                         if (!Map.InBounds(q2) || q.y < Map.HeightAt(q2) - 0.2f) { end = q; break; }
                     }
+                    // Nor through the kept twin house (ground to ground): the beam, its blast and its strike stop at it.
+                    if (Sanct != null && !target.def.flying)
+                    {
+                        float se = Sanct.Enter(new Vector2(muzzle.x, muzzle.z), new Vector2(end.x, end.z));
+                        if (se <= 1f) end = Vector3.Lerp(muzzle, end, se);
+                    }
                     Vector2 a2 = new Vector2(muzzle.x, muzzle.z), b2 = new Vector2(end.x, end.z);
                     FoesNear(shooter, reach + 2f, gunScratch);
                     // Nearest first along the line: each body it passes through takes a third
@@ -350,7 +356,7 @@ namespace StarForge.World
                     hitList.Clear();
                     foreach (var e in gunScratch)
                     {
-                        if (e.Untargetable || e.dying) continue;
+                        if (e.Untargetable || e.dying || SanctBlocks(shooter, e)) continue;   // the kept twin house: the beam stops at it
                         // Along the ground, or up at an aircraft: not both.
                         if (e.def.flying != target.def.flying) continue;
                         if (DistToSegment(e.pos, a2, b2) > e.def.radius + 0.8f) continue;
@@ -385,7 +391,7 @@ namespace StarForge.World
                     flameScratch.AddRange(gunScratch);
                     foreach (var e in flameScratch)
                     {
-                        if (e.Untargetable || e.dying || e.def.flying) continue;
+                        if (e.Untargetable || e.dying || e.def.flying || SanctBlocks(shooter, e)) continue;   // the flame does not wrap over the house
                         Vector2 d = e.pos - shooter.pos;
                         float dist = d.magnitude - e.def.radius;
                         if (dist > reach) continue;

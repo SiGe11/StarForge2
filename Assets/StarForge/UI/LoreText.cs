@@ -233,6 +233,7 @@ namespace StarForge.UI
             "The lance was licensed against knights and their cheap copies: a Mech-Hunter fells an Ironclad in two shots.",
             "Squads on the field net go by birth-star names. Point at a report and its soldiers are ringed on the field.",
             "A knight takes no orders. The Gantry Right owes you his guns, not his obedience.",
+            "The last twin house keeps the hours between the lines. Nobody fires on it, and nobody fires from it. A side with nothing left outside its walls is walked out after thirty seconds.",
             "One map in three is fought at night. The camps light their lamps at vespers, and soldiers call the celebrant who keeps them a lampwarden.",
             "Deserters cut the leads of their iron's masts first. The field net loses them, and by night their mast lights are dark.",
             "Inside every breastplate are the names of those who wore the iron before. Select one soldier to read them.",

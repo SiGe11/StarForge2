@@ -164,6 +164,7 @@ namespace StarForge.World
             var what = throwing;
             throwing = Thrown.None;
             if (mode == SoldierMode.Panic) return;
+            if (inGrounds || world.SanctBlocks(pos, throwAt)) return;   // the kept twin house
             float d = Dist(throwAt);
             if (what != Thrown.Smoke)
             {
@@ -186,7 +187,7 @@ namespace StarForge.World
         /// <summary>A frag has landed by him: away from it, whatever he was doing.</summary>
         public void DiveFrom(Vector2 at)
         {
-            if (noMind || deserted || hurry || mode == SoldierMode.Panic) return;
+            if (noMind || deserted || hurry || mode == SoldierMode.Panic || inGrounds) return;   // inside the kept twin house no burst reaches him
             Vector2 away = pos - at;
             float len = away.magnitude;
             away = len > 0.2f ? away / len : new Vector2(Mathf.Cos(id * 2.4f), Mathf.Sin(id * 2.4f));

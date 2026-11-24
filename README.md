@@ -82,6 +82,11 @@ The Mech's knight judges deserters with his order's repute leaning him (the Sabl
 
 The Field Manual has a page for the eight knightly orders, and the Chronicle tells the soldiers' lore (birth-stars, the Ninth Watch, Twins, the soldiers' words). **One soldier selected shows the names scratched inside their iron**: the wearer first, then those who wore it before. A fallen soldier's iron goes to the stores of whichever side had more soldiers within 15 m of the body, and that side's next recruit wears it; taken by the other wing it reads *painted-over*, and nobody reads out the names inside. It is told, not played: nothing in a match depends on it (`UI/IronLedger.cs`). **When both Mechs come from one order** the player's knight says so once and speaks soberly of the other's fall ("He was of my order: I carry his standard home"); the match itself is the same match (`AI/MechBrain.cs`). Checks: `LoreTrials.Iron`, `Orders`, `IronField`, `Halved` (`Editor/LoreTrials.cs`).
 
+### The kept twin house and the ruined cloisters
+
+About half the maps have the last twin house of Vesper standing between the lines, the one place on the field nobody fires on (matches deployed from the menu only: benchmarks, evaluations and trials never meet it). Its walled grounds have two courts, a gate to each, and the shared hall across the back. **Soldiers and Diggers may go in; tanks, Mechs, trucks and beasts cannot.** A unit inside can neither be fired on nor fire, and nothing crosses the grounds: no round, shell, grenade, flame or splash over or into them, and no gun holds a target across them. The sky above stays open: fire to and from aircraft passes over the walls, though it never reaches anyone inside. Nothing can be built on it or before its gates. **A side with nothing left outside, its last Digger hiding in a court, is turned out after 30 seconds**: its units are walked out of the gates, may not go back in that match, and once outside are fought like any (one still inside 30 seconds later no longer keeps its side alive). The house is placed when the match begins, on near-level ground clear of ore and scenery, with the trees and rocks under it cleared. A house that would cut a way between the bases or leave a court unreachable is taken away again, and what was cleared stands again.
+Some maps also have one or two **ruined twin cloisters** among the farmhouse ruins: two roofless courts with a wall between them and the stub of the hall, built of the same broken walls and standing in place of a plain ruin.
+
 ## Quick start
 
 1. Open this folder with Unity **6000.6.10f1**.
@@ -1362,6 +1367,9 @@ structure came apart); this last one is not yet identified.
 ![A blast: fireball, thrown debris, scorched ground and a damaged Sentinel glowing through its seams](docs/explosion.png)
 
 ## Measurement records
+
+### World: The kept twin house
+2026-11-24, Editor, 6000.6.10f1. `SanctuaryTrials.SweepHouse` (200 seeds, the house forced, two cloisters asked, 202 s): placed on 188 (94%), taken away 0; 29 plants and 2.2 rocks cleared a house; bases joined and ore reached on all; soldiers into both courts from both bases 188/188, out again 187/188; vehicle ways in 0; cover or ditches on it 0; grounds over Rubble, Vault or Wall 0; cloisters 224 of 400 asked (56%; 8% before they went ahead of the plain ruins). Before the user's clearing call the house fitted no map (0 of 800 spots on each of 4). `SanctuaryTrials.Run` (staged fight before the gates, the walk out, the sky): 0 hull lost and 0 shots from inside, 0 behind the house, 0 frames a ground gun held a target across it, a soldier and a Digger in and a Mauler and a Hauler out, 4/4 walked out; `Hide` 2/2 (turned out at 30.0 s, out by 31.0-31.1 s, not back in, the match won); `Match` (AI against AI at 8x, 300 s) 0 shots from inside, 0 errors. `BugTrials.MapSweepCover` unchanged (687 ditches, 10.4 clusters a map, 33 seeds under 8, every fault 0).
 
 Dated measurements, A/B histories and evaluation tallies that the area notes (the folder `CLAUDE.md` files) point to as `README › <area>: <block>`. The rule, reason or target each one supports stays in its area file; these are the records behind them, kept as they were written.
 

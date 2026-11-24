@@ -39,6 +39,9 @@ namespace StarForge.World
         public readonly List<Unit> Structures = new List<Unit>(64);
         Plant[] plantsSeen;
 
+        /// <summary>The kept twin house (GameWorld.Sanctuary): a line of fire stops where it enters its grounds.</summary>
+        public Sanctuary sanct;
+
         public SightMap(MapInfo map)
         {
             cell = map.mapSize / N;
@@ -339,6 +342,12 @@ namespace StarForge.World
                     float t = RayCircle(a.x, a.z, dx, dz, flat2, h.at.x, h.at.y, h.radius);
                     if (t < stop && a.y + dy * t < GroundAt(h.at.x, h.at.y) + h.height) stop = t;
                 }
+            if (sanct != null)
+            {
+                // Stopped where it meets the grounds below the walls' top: a line to or from an aircraft passes over.
+                float e = sanct.Enter(new Vector2(a.x, a.z), new Vector2(b.x, b.z));
+                if (e < stop && a.y + dy * e < GroundAt(a.x + dx * e, a.z + dz * e) + Sanctuary.WallTop + 0.5f) stop = e;
+            }
             int steps = Mathf.Max(2, Mathf.CeilToInt(flat * 2f * inv));
             float step = 1f / steps;
             int lastCell = -1;

@@ -307,7 +307,9 @@ namespace StarForge.World
             for (int m = 0; m < 2; m++)
             {
                 // The ground mask is GameWorld.GroundAreas: no Rubble, and no wall's band (Vault, Wall).
-                bool Uses(int i) => m == WithRubble || (polyArea[i] != rubble && polyArea[i] != MapGenerator.VaultArea && polyArea[i] != MapGenerator.WallArea);
+                // The kept twin house's grounds are on no island in either mode: no goal is snapped into them.
+                bool Uses(int i) => polyArea[i] != MapGenerator.SanctuaryArea &&
+                                    (m == WithRubble || (polyArea[i] != rubble && polyArea[i] != MapGenerator.VaultArea && polyArea[i] != MapGenerator.WallArea));
                 for (int i = 0; i < np; i++) label[i] = -1;
                 int count = 0;
                 for (int s0 = 0; s0 < np; s0++)

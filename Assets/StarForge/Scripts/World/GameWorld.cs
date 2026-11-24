@@ -235,6 +235,7 @@ namespace StarForge.World
                 if (rubble >= 0) m &= ~(1 << rubble);
                 if (vault >= 0) m &= ~(1 << vault);
                 if (wall >= 0) m &= ~(1 << wall);
+                m &= ~(1 << MapGenerator.SanctuaryArea);   // the kept twin house's grounds: on foot only
                 return m;
             }
         }
@@ -246,7 +247,8 @@ namespace StarForge.World
             get
             {
                 int vault = NavMesh.GetAreaFromName("Vault");
-                return vault < 0 ? GroundAreas : GroundAreas | (1 << vault);
+                int m = GroundAreas | (1 << MapGenerator.SanctuaryArea);
+                return vault < 0 ? m : m | (1 << vault);
             }
         }
 
@@ -710,13 +712,19 @@ namespace StarForge.World
             if (Reckoning) TickReckoning(dt);
             if (winner < 0)
             {
-                int a0 = 0, a1 = 0;
+                int a0 = 0, a1 = 0, in0 = 0, in1 = 0;
                 foreach (var u in units)
                 {
                     // A Digger gone over to the camp (only the cheat's reckoning takes one) builds no more.
                     if (u.dying || u.team > 1 || u.deserted) continue;
-                    if (u.def.building || u.def.builder) { if (u.team == 0) a0++; else a1++; }
+                    if (Sanct != null) KeepTurnedOut(u);
+                    if (!u.def.building && !u.def.builder) continue;
+                    // A Digger in the kept twin house's grounds counts apart: a side with nothing else is turned out.
+                    bool inside = Sanct != null && !u.def.building && Sanct.Contains(u.pos);
+                    if (u.team == 0) { if (inside) in0++; else a0++; } else { if (inside) in1++; else a1++; }
                 }
+                a0 = KeepsAlive(0, a0, in0);
+                a1 = KeepsAlive(1, a1, in1);
                 // Both sides' last structure and Digger gone in the same moment is a draw
                 // (2): left at -1, the match never ended.
                 if (Reckoning) { if ((ReckoningTeam == 0 ? a0 : a1) == 0) winner = 1 - ReckoningTeam; }
@@ -740,24 +748,32 @@ namespace StarForge.World
             Walls.Clear();
             Ditches.Clear();
             CoverPlaced = null;
+            ResetSanctuary();
             if (map != null && map.transform.Find("Cover") != null) MapGenerator.CoverRoot(map, true);
             if (map == null || navSurface == null) return;
             var rt = map.GetComponent<MapRuntime>();
             if (rt == null || rt.kit == null) return;
             uint mapSeed = MapRuntime.LastSeed != 0 ? MapRuntime.LastSeed : matchSeed;
+            // The kept twin house first (GameWorld.Sanctuary): the ditches and the cover keep off its ground.
+            PlaceSanctuary(rt.kit, mapSeed);
             // Ditches first: dug into the match's ground before the NavMesh is rebuilt over them.
             MapGenerator.DigDitches(map, GroundShape, mapSeed, Ditches);
-            CoverPlaced = MapGenerator.PlaceCover(map, rt.kit, mapSeed, Walls, Ditches);
+            CoverPlaced = MapGenerator.PlaceCover(map, rt.kit, mapSeed, Walls, Ditches, CloistersWanted(mapSeed), Sanct != null ? Sanct.piece : null);
+            MapGenerator.ClearSanctuaryReserve();
             CoverPlaced.ditches = Ditches.Count;
-            if (Walls.Count > 0 || Ditches.Count > 0)
+            if (Walls.Count > 0 || Ditches.Count > 0 || Sanct != null)
             {
                 // The data it replaces is Awake's copy: a match's own.
                 MapGenerator.Rebuild(navSurface);
+                // A way cut with the house standing: the house goes first (the cover alone cut 0 of 200 seeds), then
+                // whatever cover still cuts one.
+                // A court no soldier can walk into goes the same way.
+                if (Sanct != null && (MapGenerator.CoverCut(map, out _) || MapGenerator.CourtsCut(map, Sanct))) { DropSanctuary(); MapGenerator.Rebuild(navSurface); SanctuaryDropped++; }
                 CoverPlaced.dropped = MapGenerator.OpenCutWays(map, navSurface, Walls);
                 CoverPlaced.walls = Walls.Count;
                 Islands.Invalidate();
             }
-            Sight?.SetWalls(Walls);
+            Sight?.SetWalls(SightRuns());
             Debug.Log($"[StarForge] cover: {CoverPlaced}");
         }
 
@@ -886,7 +902,8 @@ namespace StarForge.World
                     {
                         var o = i < units.Count ? units[i] : null;
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable || !CanHit(u, o)) continue;
-                        if (!Sees(u.team, o)) continue;
+                        // Seen, and no line over the kept twin house's grounds (a gun locked across it stood silent).
+                        if (!Sees(u.team, o) || SanctBlocks(u, o)) continue;
                         if (fightsBackOnly && !FightsBack(o)) continue;
                         float within = reach + o.def.radius;
                         float d2 = (o.pos - u.pos).sqrMagnitude;
@@ -916,7 +933,8 @@ namespace StarForge.World
                     {
                         var o = i < units.Count ? units[i] : null;
                         if (o == null || o.dying || o.team == u.team || o.team == 2 || o.Untargetable || !CanHit(u, o)) continue;
-                        if (!Sees(u.team, o)) continue;
+                        // Seen, and no line over the kept twin house's grounds (a gun locked across it stood silent).
+                        if (!Sees(u.team, o) || SanctBlocks(u, o)) continue;
                         float d = (o.pos - u.pos).sqrMagnitude;
                         if (d < bestD) { bestD = d; best = o; }
                     }
@@ -1087,7 +1105,8 @@ namespace StarForge.World
         /// bases share, so the unit came out elsewhere (Unit.UpdateProduction).</summary>
         public int ExitsMovedOffPocket { get; set; }
 
-        static bool DrivesThroughRubble(Unit u) => u.agent != null && u.agent.areaMask == NavMesh.AllAreas;
+        // By type, not by mask: the heavies' mask leaves out the sanctuary's grounds (MapGenerator.SanctuaryArea).
+        static bool DrivesThroughRubble(Unit u) => u.agent != null && (u.Type == UnitType.Mauler || u.Type == UnitType.Mech);
 
         public bool Walkable(Vector2 p, float tolerance = 0.5f)
         {
@@ -1108,6 +1127,8 @@ namespace StarForge.World
             var D = Defs.Get(what);
             float r = D.radius;
             if (!map.InBounds(where, r + 2f)) return false;
+            // Nothing built on the kept twin house or before its gates (a footprint there closed a gate).
+            if (Sanct != null && Sanct.DistanceToPlan(where) < r + 2f) return false;
             float hMin = 1e9f, hMax = -1e9f;
             for (int ring = 0; ring <= 2; ring++)
             {
@@ -1183,7 +1204,8 @@ namespace StarForge.World
         public void Fire(Unit shooter, Unit target)
         {
             // The Night of the Quenching: no gun of any kind fires from the darkening to lauds (GameWorld.Night).
-            if (Truce) return;
+            // The kept twin house: nothing fires into, out of or across its grounds (GameWorld.Sanctuary).
+            if (Truce || SanctBlocks(shooter, target)) return;
             var D = shooter.def;
             // Small arms are decided when fired, at aircraft too (as real homing rounds they all but never missed).
             if (D.shotSpread > 0f && target.def.flying && !TacticalRules.LegacyRounds) { FireShotAtAir(shooter, target); return; }
@@ -1331,23 +1353,37 @@ namespace StarForge.World
                     p.vel = (np - p.pos) / Mathf.Max(dt, 1e-4f);
                 }
                 else np = p.pos + p.vel * dt;
+                // The kept twin house: a step that enters its grounds is cut where it meets them and, if it struck
+                // nothing on the way, ends there harmless (cut before the hit test, a round passing its target just
+                // outside was lost). Rounds to or from an aircraft pass over the walls (the sky stays open).
+                bool walled = false;
+                if (Sanct != null)
+                {
+                    float e = Sanct.Enter(new Vector2(p.pos.x, p.pos.z), new Vector2(np.x, np.z));
+                    if (e <= 1f)
+                    {
+                        Vector3 at = Vector3.Lerp(p.pos, np, e);
+                        bool air = (targetOk && t.def.flying) || (p.shooter != null && p.shooter.def != null && p.shooter.def.flying);
+                        if (!air || at.y < map.HeightAt(new Vector2(at.x, at.z)) + Sanctuary.WallTop + 0.5f) { np = at; walled = true; }
+                    }
+                }
                 bool hit = false;
                 Vector3 hitAt = np;
                 if (p.kind == 5)
                 {
-                    if (p.age >= p.flight) { hit = true; hitAt = p.aim; }
+                    if (p.age >= p.flight) { hit = true; hitAt = walled ? np : p.aim; }
                 }
                 else if (!ballistic)
                 {
                     if (targetOk)
                     {
                         Vector3 tp = AimPoint(t);
-                        if ((np - tp).magnitude < t.def.radius + 0.7f) { hit = true; hitAt = tp; }
+                        if ((np - tp).magnitude < t.def.radius + 0.7f) { hit = true; hitAt = walled && Sanct.Contains(new Vector2(tp.x, tp.z)) ? np : tp; }
                         // The nearest the round came to it over this step's flight. At an evaluation's 0.1 s
                         // steps a round moves 11-26 m and stepped past it, turned, and ran out of life without a
                         // hit; at a ground target, tested only where a step ended, a round that overshot at 25-40 fps
                         // or a sped-up clock turned back and looped round him to its 2 s life (2026-11-23).
-                        else if ((t.def.flying || !TacticalRules.LegacyRounds) && DistToSegment3(tp, p.pos, np) < t.def.radius + 0.7f) { hit = true; hitAt = tp; }
+                        else if ((t.def.flying || !TacticalRules.LegacyRounds) && DistToSegment3(tp, p.pos, np) < t.def.radius + 0.7f) { hit = true; hitAt = walled && Sanct.Contains(new Vector2(tp.x, tp.z)) ? np : tp; }
                     }
                     else if (p.life > 0.12f) p.life = 0.12f;
                 }
@@ -1363,6 +1399,7 @@ namespace StarForge.World
 
                 if (!hit)
                 {
+                    if (walled) { Recycle(k); continue; }
                     if (p.life <= 0f) { if (!ballistic && p.kind != 5) HomingExpired++; Recycle(k); continue; }
                     p.pos = np;
                     continue;
@@ -1458,6 +1495,8 @@ namespace StarForge.World
         }
 
         // ------------------------------------------------------------ commands
+        bool runIn;   // CmdMove: this unit's goal was taken into the kept twin house's grounds
+
         public void CmdMove(IReadOnlyList<Unit> sel, Vector2 dest, bool attackMove, bool hurry = false)
         {
             SquadFromOrder(sel, dest, null);
@@ -1481,9 +1520,20 @@ namespace StarForge.World
                 // attack-move asking again every second), and a goal inside a structure's
                 // footprint left it standing short of it with the order never done.
                 // An aircraft goes anywhere over the map.
+                Vector2 asked = goal;
                 if (u.def.flying) goal = ClampToMap(goal);
                 else if (ReachabilityOff) { if (n > 1) goal = NearestWalkable(goal, 8f); }
                 else goal = NearestReachable(u, goal);
+                // Into the kept twin house's grounds, on foot: the islands leave them out, so the point is taken as asked.
+                // The clicked point decides (not this unit's ring offset), and only the grounds' own NavMesh is taken.
+                if (!u.def.flying && Sanct != null && OnFoot(u) && !TurnedOut(u.team) && Sanct.Contains(dest) && Sanct.Contains(asked) &&
+                    u.agent != null && (u.agent.areaMask & (1 << MapGenerator.SanctuaryArea)) != 0 &&
+                    NavMesh.SamplePosition(map.Ground(asked), out var inside, 2f, 1 << MapGenerator.SanctuaryArea))
+                {
+                    goal = new Vector2(inside.position.x, inside.position.z);
+                    // Sent into the grounds he runs straight in: careful, the house's own wall read as cover by his goal.
+                    if (u.def.bodyRadius > 0f) runIn = true;
+                }
                 // The same order asked again does not set him walking out of his turn.
                 bool again = u.order == (attackMove ? Order.AttackMove : Order.Move) && (u.orderPos - goal).sqrMagnitude < 36f;
                 u.order = attackMove ? Order.AttackMove : Order.Move;
@@ -1491,7 +1541,8 @@ namespace StarForge.World
                 u.target = null;
                 u.harvestNode = null;
                 u.buildTarget = null;
-                u.hurry = hurry;
+                u.hurry = hurry || runIn;
+                runIn = false;
                 if ((!again || u.MayWalkNow) && !u.Stunned) u.MoveTo(goal);
                 i++;
             }
@@ -1499,7 +1550,8 @@ namespace StarForge.World
 
         public void CmdAttack(IReadOnlyList<Unit> sel, Unit target, bool hurry = false)
         {
-            if (!Unit.Live(target)) return;
+            // No one is attacked in the kept twin house's grounds (the player's order and the AI's alike).
+            if (!Unit.Live(target) || target.inGrounds) return;
             SquadFromOrder(sel, target.pos, target);
             List<Unit> cannot = null;
             foreach (var u in sel)

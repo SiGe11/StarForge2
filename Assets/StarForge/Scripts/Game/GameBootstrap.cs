@@ -120,9 +120,11 @@ namespace StarForge.Game
             PlayerProxy = null;
             gpu?.Dispose();
             uint seed = MatchSettings.MatchSeed();
-            world.BeginMatch(seed);
-            // Night maps (World/GameWorld.Night) and the core's counsel (AI/MechSpeech.Counsel): real matches only.
+            // Night maps (World/GameWorld.Night), the core's counsel (AI/MechSpeech.Counsel), the kept twin house and
+            // the ruined cloisters (World/GameWorld.Sanctuary, placed in BeginMatch): real matches only.
             bool realMatch = NightRules.RealMatch(StarForge.UI.MenuController.MatchFromMenu, MatchSettings.fixedSeed);
+            GameWorld.SanctuaryAllowed = realMatch;
+            world.BeginMatch(seed);
             MechSpeech.CounselAllowed = realMatch;
             world.SetNight(NightRules.ForMatch(world.Map.seed, realMatch));
 

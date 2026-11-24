@@ -55,12 +55,15 @@ namespace StarForge.World
         /// <summary>It leaves his hand: a little off where he meant, flying for a time worked out to land there.</summary>
         public void Throw(Unit s, Thrown what, Vector2 at)
         {
-            if (Truce) return;   // the Quenching's truce
+            if (Truce || s.inGrounds || SanctBlocks(s.pos, at)) return;   // the Quenching's truce; the kept twin house
             float meant = (at - s.pos).magnitude;
             Gauss(out float ex, out float ey);
             Vector2 err = new Vector2(ex, ey) * (meant * ThrowError);
             if (err.sqrMagnitude > ThrowErrorMax * ThrowErrorMax) err = err.normalized * ThrowErrorMax;
             Vector2 land = OffWhatStands(ClampToMap(at + err));
+            // Thrown wide over the kept twin house (only the aim was tested), it is not thrown: dropped short at the
+            // wall it could land by the thrower and his friends, whom FriendsClear judged at the aim.
+            if (Sanct != null && Sanct.Crosses(s.pos, land)) return;
             Vector2 flat = land - s.pos;
             float len = flat.magnitude;
             Vector3 fwd = len > 1e-3f ? new Vector3(flat.x / len, 0f, flat.y / len) : Vector3.forward;
@@ -312,7 +315,7 @@ namespace StarForge.World
         // ------------------------------------------------------------ pistol and knife
         public void FirePistol(Unit s, Unit t)
         {
-            if (Truce) return;   // the Quenching's truce
+            if (Truce || SanctBlocks(s, t)) return;   // the Quenching's truce; the kept twin house
             Unit struck = DecideShot(s, t, out Vector3 muzzle, out Vector3 end, out bool stopped, TacticalRules.PistolSpread);
             ShotsFired++;
             PistolShots++;
@@ -333,7 +336,7 @@ namespace StarForge.World
         /// <summary>At arm's length: no noise to give him away.</summary>
         public void Stab(Unit s, Unit t)
         {
-            if (Truce) return;   // the Quenching's truce
+            if (Truce || SanctBlocks(s, t)) return;   // the Quenching's truce; the kept twin house
             Stabs++;
             float dmg = TacticalRules.KnifeDamage * (1f + 0.15f * s.rank);
             Vector3 at = t.Ground + Vector3.up;

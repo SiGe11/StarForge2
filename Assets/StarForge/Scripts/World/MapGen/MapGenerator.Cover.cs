@@ -38,10 +38,17 @@ namespace StarForge.World
         const int CoverLines = 11, CoverRuins = 6, CoverTries = 700;
         const float CoverFromBase = 42f, CoverFromOre = 16f, CoverApart = 20f;
 
+        /// <summary>Cloisters placed since a trial last cleared it (SanctuaryTrials.SweepCloisters).</summary>
+        public static int CloistersPlaced;
+        /// <summary>Why cloister spots failed since a trial last cleared it: spacing, open ground, its shape, too few pieces.</summary>
+        public static readonly int[] CloisterFails = new int[4];
+        const int CloisterTries = 500;
+
         public sealed class CoverResult
         {
-            public int clusters, pieces, walls, dropped, ditches;
-            public override string ToString() => $"{clusters} clusters, {pieces} pieces, {walls} runs of wall, {ditches} ditches" + (dropped > 0 ? $", {dropped} dropped to keep the ways open" : "");
+            public int clusters, pieces, walls, dropped, ditches, cloisters;
+            public override string ToString() => $"{clusters} clusters, {pieces} pieces, {walls} runs of wall, {ditches} ditches" +
+                (cloisters > 0 ? $", {cloisters} ruined cloisters" : "") + (dropped > 0 ? $", {dropped} dropped to keep the ways open" : "");
         }
 
         const int DitchCount = 5;
@@ -53,9 +60,11 @@ namespace StarForge.World
         const float DitchAcross = 0.09f;
 
         /// <summary>What stands on the map already, as (x, z, radius), and the ore seams.</summary>
-        static void Standing(MapInfo info, List<Vector3> stands, List<Vector2> ore)
+        /// <param name="clearable">false: only what no placement may take away (scenery, ore): the kept twin
+        /// house clears the rocks and plants on its own ground.</param>
+        static void Standing(MapInfo info, List<Vector3> stands, List<Vector2> ore, bool clearable = true)
         {
-            if (info.boulderRoot != null)
+            if (clearable && info.boulderRoot != null)
                 foreach (var b in info.boulderRoot.GetComponentsInChildren<Boulder>())
                     if (!b.smashed) stands.Add(new Vector3(b.Pos.x, b.Pos.y, b.Radius));
             if (info.sceneryRoot != null)
@@ -68,13 +77,14 @@ namespace StarForge.World
             if (info.oreRoot != null)
                 foreach (Transform o in info.oreRoot) ore.Add(new Vector2(o.position.x, o.position.z));
             var v = info.vegetation;
-            if (v != null)
+            if (clearable && v != null)
                 for (int i = 0; i < v.plants.Length; i++)
                 {
                     var k = v.KindOf(i);
                     float r = k.blockRadius > 0f ? k.blockRadius * v.plants[i].scale : k.bush ? 0.6f * v.plants[i].scale : 0f;
                     if (r > 0f) stands.Add(new Vector3(v.plants[i].pos.x, v.plants[i].pos.z, r));
                 }
+            stands.AddRange(reserved);   // the kept twin house's ground (MapGenerator.Sanctuary)
         }
 
         /// <summary>A few ditches across open meadow (the new combat's; when a match begins, before the walls and
@@ -130,11 +140,15 @@ namespace StarForge.World
         /// <summary>The map's cover, from <paramref name="seed"/> (its own stream). Walls go into
         /// <paramref name="into"/>; their pieces under the Map's "Cover" child, each run of wall on Rubble.
         /// The NavMesh is not rebuilt here.</summary>
-        public static CoverResult PlaceCover(MapInfo info, MapKit kit, uint seed, List<CoverWall> into, List<(Vector2 a, Vector2 b)> ditches = null)
+        public static CoverResult PlaceCover(MapInfo info, MapKit kit, uint seed, List<CoverWall> into, List<(Vector2 a, Vector2 b)> ditches = null, int cloisters = 0, GameObject keep = null)
         {
             into.Clear();
             var res = new CoverResult();
-            var root = CoverRoot(info, true);
+            // Last match's pieces go; the kept twin house this match placed just before (keep) stays: cleared with the
+            // rest, it never stood. Only that one: a house left from another match goes like any piece.
+            var root = CoverRoot(info, false);
+            for (int i = root.childCount - 1; i >= 0; i--)
+                if (root.GetChild(i).gameObject != keep) KillCover(root.GetChild(i).gameObject);
             if (kit == null || kit.cover == null || kit.cover.Length == 0) return res;
             CoverPiece Piece(string n)
             {
@@ -213,7 +227,66 @@ namespace StarForge.World
 
             var plans = new List<Plan>(8);
             var clusters = new List<Vector2>();
-            int wantLines = CoverLines, wantRuins = corner != null ? CoverRuins : 0;
+            // Trials force the count (GameWorld.CloisterForce; MapSweepCover passes none).
+            if (cloisters == 0 && GameWorld.CloisterForce > 0) cloisters = GameWorld.CloisterForce;
+            // The ruined twin cloisters (lore section 4; MapGenerator.Sanctuary): two roofless courts side by side, a wall
+            // between, the hall's stub at the back, of the plain pieces. Their own stream, before the plain clusters
+            // (whose draws are untouched where none is drawn); each one placed takes the place of a plain ruin.
+            int cloistersPlaced = 0;
+            var crng = new Rng(seed ^ 0xC1015Eu ^ 0x9u);
+            for (int tries = 0; tries < CloisterTries && cloisters > 0 && corner != null; tries++)
+            {
+                var p = new Vector2(crng.Range(30f, Size - 30f), crng.Range(30f, Size - 30f));
+                float yaw = crng.Range(0f, 360f);
+                if ((p - baseA).magnitude < CoverFromBase + 6f || (p - baseB).magnitude < CoverFromBase + 6f) { CloisterFails[0]++; continue; }
+                bool near = false;
+                foreach (var c in clusters) if ((c - p).magnitude < CoverApart + 6f) { near = true; break; }
+                foreach (var o in ore) if ((o - p).magnitude < CoverFromOre + 6f) { near = true; break; }
+                if (near) { CloisterFails[0]++; continue; }
+                if (!Open(p, 9f)) { CloisterFails[1]++; continue; }
+                plans.Clear();
+                var rot = Quaternion.Euler(0f, yaw, 0f);
+                Vector2 Along(float x, float z) => p + Flat(rot * new Vector3(x, 0f, z));
+                float hw = crng.Range(8.0f, 9.0f), hd = crng.Range(3.4f, 4.0f);
+                // A corner's angle is at (-1.5, -1.3) in its own frame, its arms along +x and +z.
+                Vector2 angle = new Vector2(-1.5f, -1.3f);
+                // The first three are its shape (both corners, the wall between the courts): all must stand.
+                plans.Add(new Plan { piece = corner, at = Along(-hw - angle.x, -hd - angle.y), yaw = yaw });
+                plans.Add(new Plan { piece = corner, at = Along(hw + angle.x, hd + angle.y), yaw = yaw + 180f });
+                plans.Add(new Plan { piece = ruinWall, at = Along(0f, -hd + 1.8f), yaw = yaw + 90f });
+                // The hall's stub along the back, a low run in front, maybe a short wall at one end.
+                plans.Add(new Plan { piece = shortWall, at = Along(0f, hd - 1.2f), yaw = yaw - 90f });
+                plans.Add(new Plan { piece = ruinWall, at = Along(-hw * 0.5f, hd), yaw = yaw + 180f });
+                plans.Add(new Plan { piece = low, at = Along(hw * 0.5f, -hd), yaw = yaw });
+                if (crng.F01() < 0.5f) plans.Add(new Plan { piece = shortWall, at = Along(-hw, 0.6f), yaw = yaw + 90f });
+                bool shape = Fits(plans[0].piece, plans[0].at, plans[0].yaw) && Fits(plans[1].piece, plans[1].at, plans[1].yaw) &&
+                             Fits(plans[2].piece, plans[2].at, plans[2].yaw);
+                if (!shape) { CloisterFails[2]++; continue; }
+                int before = into.Count;
+                var placed = new List<GameObject>();
+                for (int pi = 0; pi < plans.Count; pi++)
+                {
+                    var pl = plans[pi];
+                    // The shape was tested alone; its pieces placed, the rest are tested against them.
+                    if (pi >= 3 && !Fits(pl.piece, pl.at, pl.yaw)) continue;
+                    placed.Add(PlacePiece(info, root, pl, clusters.Count, into));
+                }
+                if (placed.Count < 4)
+                {
+                    foreach (var go in placed) KillCover(go);
+                    into.RemoveRange(before, into.Count - before);
+                    CloisterFails[3]++;
+                    continue;
+                }
+                clusters.Add(p);
+                res.clusters++;
+                res.pieces += placed.Count;
+                res.cloisters++;
+                CloistersPlaced++;
+                cloistersPlaced++;
+                cloisters--;
+            }
+            int wantLines = CoverLines, wantRuins = corner != null ? Mathf.Max(0, CoverRuins - cloistersPlaced) : 0;
             for (int tries = 0; tries < CoverTries && (wantLines > 0 || wantRuins > 0); tries++)
             {
                 bool ruin = wantRuins > 0 && (wantLines == 0 || rng.F01() < 0.4f);

@@ -2029,7 +2029,7 @@ namespace StarForge.AI
                 bool victimPending = false;
                 foreach (var e in w.units)
                 {
-                    if (e == null || e.dying || e.team == team || e.team == 2 || !e.def.harvester || e.def.Heavy) continue;
+                    if (e == null || e.dying || e.team == team || e.team == 2 || !e.def.harvester || e.def.Heavy || e.inGrounds) continue;   // the kept twin house
                     if (!w.Sees(team, e)) continue;           // must actually see it
                     // ...and for its reaction time: until then it is neither taken nor read as "none in
                     // sight" (the raid was sent on to their base's middle for a pass or two, and back).
@@ -2631,7 +2631,7 @@ namespace StarForge.AI
             foreach (var e in w.units)
             {
                 if (best != null && bestScore < -1e29f) break;
-                if (e == null || e.dying || e.team == team || e.team == 2 || e.def.building) continue;
+                if (e == null || e.dying || e.team == team || e.team == 2 || e.def.building || e.inGrounds) continue;   // the kept twin house
                 if (!w.Sees(team, e) || (e == letGo && w.time < letGoUntil)) continue;
                 float d = (e.pos - c).magnitude;
                 if (d > 28f || (!LegacyReflex && !Perception.Reactable(e, reactionDelay))) continue;

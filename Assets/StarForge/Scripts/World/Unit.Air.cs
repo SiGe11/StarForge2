@@ -72,7 +72,7 @@ namespace StarForge.World
         void TickRockets(float now)
         {
             if (airRockets < 2 || now < rocketReadyAt || !Live(target) || target.def.flying || target.team == team || target.team > 1) return;
-            if ((order == Order.Move && !hurry) || !world.Sees(team, target)) return;
+            if ((order == Order.Move && !hurry) || !world.Sees(team, target) || world.SanctBlocks(this, target)) return;   // the kept twin house
             Vector2 to = target.pos - pos;
             float d = to.magnitude;
             if (d < TacticalRules.SwiftRocketMin || d > TacticalRules.SwiftRocketMax) return;

@@ -264,7 +264,7 @@ OWN = [
           'SF_ROCK_SPIRE.fbx', 'SF_RUIN_CORNER.fbx', 'SF_RUIN_PYLON.fbx', 'SF_RUIN_WALL.fbx', 'SF_SCORCHER.fbx',
           'SF_SENTINEL_BASE.fbx', 'SF_SENTINEL_BASE_CHUNKS.fbx', 'SF_SENTINEL_HEAD.fbx', 'SF_SKIMMER.fbx',
           'SF_SWIFT.fbx', 'SF_THUMPER.fbx', 'SF_TREE_DEAD.fbx', 'SF_TREE_DEAD_LOD1.fbx', 'SF_TROOPER.fbx',
-          'SF_WALL_LOW.fbx', 'SF_WALL_SHORT.fbx', 'SF_WORKER.fbx', 'SF_WORKSHOP.fbx', 'SF_WORKSHOP_CHUNKS.fbx',
+          'SF_VESPER_HOUSE.fbx', 'SF_WALL_LOW.fbx', 'SF_WALL_SHORT.fbx', 'SF_WORKER.fbx', 'SF_WORKSHOP.fbx', 'SF_WORKSHOP_CHUNKS.fbx',
           'SF_WRECK.fbx'),
     # Generated textures (THIRD-PARTY.md: Generated textures; armor.png's alpha: Battle marks)
     *_own(T, 'armor.png', 'armor_n.png', 'flames.png', 'foliage_broad.png', 'foliage_needle.png', 'smoke_puffs.png'),
