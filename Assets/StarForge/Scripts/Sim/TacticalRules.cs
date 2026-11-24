@@ -177,9 +177,16 @@ namespace StarForge.Sim
         public static bool LegacyMechSensors;
         /// <summary>Old Mech reach: its guns' pre-tactical ranges (most out-reached by a Mauler's 38 m and a rifle's 35).</summary>
         public static bool LegacyMechReach;
+        /// <summary>Old Mech toughness against armour: its frame hull and its damage to tanks as after fb2 (5.3 Maulers).</summary>
+        public static bool LegacyMechArmour;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetSwitches() { LegacyRounds = LegacySmoke = LegacyAir = LegacyMechPower = LegacyMechSensors = LegacyMechReach = false; }
+        static void ResetSwitches()
+        {
+            // -sffeedbackoff on the player: the round's old rules throughout, so one build measures both (fps A/B).
+            bool old = !Application.isEditor && System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-sffeedbackoff") >= 0;
+            LegacyRounds = LegacySmoke = LegacyAir = LegacyMechPower = LegacyMechSensors = LegacyMechReach = LegacyMechArmour = old;
+        }
 
         /// <summary>The Mech's guns under the new combat: 1.3x their reach, never past its own sight (flamers as they were).</summary>
         public const float MechReachMul = 1.3f;
@@ -212,6 +219,9 @@ namespace StarForge.Sim
         /// <summary>The Mech, a little stronger and most against infantry (the new combat's cover and spotting took the
         /// most from it there: a bare Mech fell to ~6 riflemen against ~10 before).</summary>
         public const float MechGunScale = 0.30f, MechVsSoldier = 1.3f;
+        /// <summary>The Mech against armour (2026-11-24, the user's "a little of both"): its guns x1.15 on heavy targets
+        /// that are not structures (the enemy Mech too), its frame hull x1.10; a bare Mech fell to 5.3 Maulers (target 6-7).</summary>
+        public const float MechVsArmour = 1.15f, MechHullMul = 1.10f;
 
         /// <summary>Phase 8's balance: creatures' hull under the new combat; a tank's machine gun by type (the Aegis
         /// and Ironclad won 12 of 16 duels with it at full weight).</summary>

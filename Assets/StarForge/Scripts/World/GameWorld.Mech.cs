@@ -415,7 +415,7 @@ namespace StarForge.World
             p.splash = splash;
             p.bonusVsWorkers = 1f;
             p.vsLight = part.vsLight;
-            p.vsHeavy = part.vsHeavy;
+            p.vsHeavy = part.VsHeavyNow;
             p.vsStructure = part.vsStructure;
             p.vsAir = part.vsLight;
             // Against infantry (2026-11-23): what cover and spotting took from the Mech most.

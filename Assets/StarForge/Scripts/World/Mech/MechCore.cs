@@ -106,7 +106,8 @@ namespace StarForge.World
             {
                 if (design == null) return unit != null ? unit.def.hp : 3000f;
                 return design.Frame.hp * MechParts.HullScale * design.Loco.hpMul * (1f + design.spare * MechParts.SparePointHp)
-                       * (1f + HullPerLevel * Level(MechUpgrade.Armour));
+                       * (1f + HullPerLevel * Level(MechUpgrade.Armour))
+                       * (TacticalRules.LegacyMechArmour ? 1f : TacticalRules.MechHullMul);
             }
         }
 

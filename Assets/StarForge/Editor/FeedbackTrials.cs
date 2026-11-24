@@ -30,9 +30,9 @@ namespace StarForge.EditorTools
         }
 
         static string Switches() =>
-            $"LegacyRounds={TacticalRules.LegacyRounds} LegacySmoke={TacticalRules.LegacySmoke} LegacyAir={TacticalRules.LegacyAir} LegacyMechPower={TacticalRules.LegacyMechPower} LegacyMechSensors={TacticalRules.LegacyMechSensors} LegacyMechReach={TacticalRules.LegacyMechReach}";
+            $"LegacyRounds={TacticalRules.LegacyRounds} LegacySmoke={TacticalRules.LegacySmoke} LegacyAir={TacticalRules.LegacyAir} LegacyMechPower={TacticalRules.LegacyMechPower} LegacyMechSensors={TacticalRules.LegacyMechSensors} LegacyMechReach={TacticalRules.LegacyMechReach} LegacyMechArmour={TacticalRules.LegacyMechArmour}";
 
-        static void MechAll(bool old) { TacticalRules.LegacyMechPower = TacticalRules.LegacyMechSensors = TacticalRules.LegacyMechReach = old; }
+        static void MechAll(bool old) { TacticalRules.LegacyMechPower = TacticalRules.LegacyMechSensors = TacticalRules.LegacyMechReach = TacticalRules.LegacyMechArmour = old; }
 
         /// <summary>Every switch to the old rules (until the next play entry), or back to the new.</summary>
         public static string AllOld() { TacticalRules.LegacyRounds = TacticalRules.LegacySmoke = TacticalRules.LegacyAir = true; MechAll(true); return Switches(); }
@@ -47,6 +47,8 @@ namespace StarForge.EditorTools
         public static string MechDuelNew() { MechAll(false); return MechDuel.RunBaseFreshAll() + " | " + Switches(); }
         /// <summary>Power and sensors new, reach old: what the reach alone is worth (read with MechDuelNew).</summary>
         public static string MechDuelNoReach() { MechAll(false); TacticalRules.LegacyMechReach = true; return MechDuel.RunBaseFreshAll() + " | " + Switches(); }
+        /// <summary>Everything new but the armour tune (fb2's Mech: 5.3 Maulers / 10.3 Troopers on 2026-11-23).</summary>
+        public static string MechDuelNoArmour() { MechAll(false); TacticalRules.LegacyMechArmour = true; return MechDuel.RunBaseFreshAll() + " | " + Switches(); }
         /// <summary>The Mech's sensors, old senses against new: riflemen 28 m off lying down, in smoke and standing (the
         /// control), seen by its side and the hull its guns took off them in 6 s; a man standing still in deep woods 25 m
         /// off; a man lying behind a boulder 20 m off with one in the open 22 m off. Targets: new sees all three and the
@@ -82,7 +84,7 @@ namespace StarForge.EditorTools
         protected override void OnDestroy()
         {
             TacticalRules.LegacyRounds = TacticalRules.LegacySmoke = TacticalRules.LegacyAir = false;
-            TacticalRules.LegacyMechPower = TacticalRules.LegacyMechSensors = TacticalRules.LegacyMechReach = false;
+            TacticalRules.LegacyMechPower = TacticalRules.LegacyMechSensors = TacticalRules.LegacyMechReach = TacticalRules.LegacyMechArmour = false;
             base.OnDestroy();
         }
     }
