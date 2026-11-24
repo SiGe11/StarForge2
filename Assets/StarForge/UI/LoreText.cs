@@ -195,7 +195,7 @@ namespace StarForge.UI
             "one knight and one core, once, for that field. Your Mech flies its order's standard and carries its motto.";
         /// <summary>Repute is hearsay, and the page says so (lore section 7, under the table).</summary>
         public const string OrdersFoot =
-            "Reputation leans a knight but does not bind him: in the field his own temper and pride decide the rest. Titles are offices, " +
+            "Reputation is hearsay: in the field a knight's own temper and pride decide, not the order. Titles are offices, " +
             "not ranks. A Castellan keeps an order's hold, a Seneschal its household, a Marshal its knights in the field and " +
             "a Knight-Warden a single core; a Paladin is a sworn champion, a Knight-Errant answers the gantries nobody else " +
             "will, and a Vigilant has served on the High Watch.";
