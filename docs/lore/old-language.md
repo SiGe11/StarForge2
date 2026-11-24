@@ -444,39 +444,68 @@ m, f, n = gender; adj = adjective; v = verb (infinitive); pl = plural; s = stron
 | 1 an | 2 twa | 3 thri | 4 fower | 5 fif |
 | 6 six | 7 seven | 8 eight | 9 nine | 10 ten |
 | 100 hundred | 1000 thousend | | | |
+| 11 elleven | 12 twelf | 13-19 thrittene, fowertene, fiftene, sixtene, seventene, eightene, ninetene | 20 twentig | 30 thrittig |
+| 40 fowertig | 50 fiftig | 60 sixtig | 70 seventig | 80 eightig, 90 ninetig |
+
+A number is built as English builds it, largest first, with no *and*: *twa hundred twelf* (212), *thrittig an* (31), *six hundred thri* (603). A year is that cardinal after its noun: *Compactas yeer twa hundred twelf*, "the year 212 of the Compact".
 
 Ordinals (they agree as adjectives): *first*, *other* (second), *third*, *fourth*, *ninth*.
 
-**Words of the three books** (added with [the-three-books.md](the-three-books.md), 2026-11-24). Four usages those pages rely on: the delative (*-of / -öf*) also means "about, concerning", as Hungarian's does (*Handtheof*, "of the hand", as a heading); the demonstratives *this* and *yon* take the article's place (*yon nightin*, "in that night"); a numeral above two takes the plural (*nine wecchen*); a numeral takes no agreement or case (*an anvilon*, "on one anvil").
+**Words of the three books** (added with [the-three-books.md](the-three-books.md), 2026-11-24). Five usages those pages rely on: a ruler's ordinal is bare in the masculine (*Temrik First*), feminine in *-e* (*Aveline Othere*), and, unlike other adjectives, takes the case of the name before it (*Temrik Firstem*, *Aveline Firstes*); the delative (*-of / -öf*) also means "about, concerning", as Hungarian's does (*Handtheof*, "of the hand", as a heading); the demonstratives *this* and *yon* take the article's place (*yon nightin*, "in that night"); a numeral above two takes the plural (*nine wecchen*); a numeral takes no agreement or case (*an anvilon*, "on one anvil").
 
 | Word | | Meaning |
 |---|---|---|
 | acolit | m | acolyte |
-| agen | postp | against (*hous hous agen*, house against house) |
+| admittan | v | admit (to the rite) |
 | again | adv | back, in return (as in *againgiveren*) |
+| agen | postp | against (*hous hous agen*, house against house) |
 | al | adj | all, whole (pl *alle*) |
 | andswaran | v | answer |
 | anes | adv | once |
 | anlike | adv | alike |
 | anly | adv | only |
+| arm | m | arm |
 | askan | v | ask; middle *askethsk*, asks itself |
 | bearung | f | bearing (of a child, of a lamp) |
+| becuman | v | become |
 | beginnan | v | begin |
+| bindan | v | bind |
+| birche | f | birch |
+| blaman | v | blame |
+| blessung | f | blessing |
 | bostan | v | boast |
+| breded | adj | bred (*bredan*, breed) |
+| breder | m | breeder (the Biolab's craft) |
 | bringan | v | bring |
 | byrthen | f | burden |
+| cald | n | cold |
 | callan | v | call, summon |
 | cheosan | v | choose |
+| cheosung | f | choosing, the Election |
+| clensan | v | clear (land of its people) |
 | closan | v | close (*closed*, closed) |
+| costan | v | cost |
+| counseil | m | counsel |
 | coveran | v | cover; bank (a fire) |
+| craft | m | craft |
 | cuman | v, s | come (*cumen*) |
 | cuttan | v | cut |
+| daeglight | n | daylight |
 | dark | n | dark, darkness (*darkin*, in the dark) |
 | delan | v | share, deal out |
+| delvan | v | dig, delve |
+| deman | v | judge, deem |
+| dew | m | dew |
+| deyan | v | die |
 | dohter | f | daughter (pl *dohtren*) |
+| don | v, s | do (*donen*) |
+| dora | f | door |
+| dredan | v | fear, dread |
+| drinker | m | drinker |
 | ech | adj | each, every |
 | eft | adv | again, once more |
 | eke | adv | also, too |
+| emtian | v | empty |
 | end | m | end |
 | endan | v | end |
 | endung | f | ending (of a word) |
@@ -484,68 +513,133 @@ Ordinals (they agree as adjectives): *first*, *other* (second), *third*, *fourth
 | eventid | f | evening |
 | failan | v | fail |
 | fedan | v | feed |
+| ferme | f | farm |
+| fewe | adj pl | few |
 | flamma | f | flame |
 | flint | m | flint |
+| forbedan | v | forbid |
+| forgetan | v | forget |
 | forth | adv | forth, on (*forth givan*, give on) |
 | forthy | adv | therefore |
+| fot | m | foot |
+| fourthdel | m | a quarter |
+| furwa | f | furrow |
+| gretan | v | greet |
+| grund | m | ground, reason |
+| halva | f | half |
+| halvan | v | halve |
+| hastan | v | hurry |
 | hearan | v | hear |
 | her | adv | here |
 | hevan | v | raise, heave |
+| hew | m | colour, hue |
+| hill | m | hill |
+| hostoath | m | the Host-oath |
 | knowan | v | know |
+| land | n | land |
 | lastan | v | last, endure |
 | laweful | adj | lawful |
 | leaf | n | leaf (of a book) |
+| leavan | v | leave |
 | ledan | v | lead, command |
 | leran | v | teach |
+| lerner | m | apprentice |
+| leve | f | leave, permission |
+| leyan | v | lay |
+| lian | v | lie (lie down) |
+| lifeoath | m | a vow for life |
+| lokan | v | look |
+| lokung | f | looking, a show |
 | lytel | adj | little, small (superlative *lytest*, least) |
 | magan | v | may, be able to |
+| maister | m | master |
 | makung | f | a making (*Makungas Boke*) |
 | mare | adj, adv | more; as a pronoun ("more", "a further thing") it does not decline |
 | menan | v | mean, intend |
 | merkan | v | mark, heed |
+| mete | n | measure |
+| misdede | f | wrongdoing |
 | Moderhall | m | the Mother Hall |
 | morgen | m | morning |
 | motan | v | must |
 | nan | adj, pron | no, none; *nan man*, nobody |
 | nawther | pron | neither |
 | nemnan | v | name, call |
+| nerer | adv | nearer |
 | noght | pron | nothing; does not decline |
+| ofermuche | adv | too much |
 | open | adj | open |
+| owan | v | owe |
 | palm | m | palm (of the hand) |
 | plogh | m | plough |
+| ploghman | m | ploughman |
+| pourung | f | pouring, a cast |
 | prechung | f | sermon |
 | purposan | v | give a purpose; purpose (*purposed*) |
 | redan | v | read |
+| rennan | v | run |
 | right | adj | right (hand); *righte*, rightly |
 | risan | v | rise (*Risung*, the Rising) |
+| same | adj | same |
+| seamreder | m | surveyor ("seam-reader") |
+| seilan | v | sail |
 | self | pron | self, as in *thou self*, thou thyself |
 | seon | v | see (only the infinitive is attested) |
 | seyan | v | say |
+| shadwe | f | shadow |
 | shap | n | shape |
+| shewan | v | show, point |
+| short | adj | short |
+| sighte | f | sight |
 | sith | postp | since |
 | smitan | v, s | strike (*smiten*) |
 | son | m | son (pl *sonan*) |
+| specan | v | speak |
 | spillan | v | spoil, ruin |
+| sprengan | v | sprinkle |
 | stan | m | stone |
+| standard | m | standard |
+| stede | m | place, stead |
 | steran | v | stir, move |
 | stille | adv | still, yet (and silent, as in *stilnesse*) |
+| stoppan | v | stop |
 | streght | adj, adv | straight |
 | sum | adj | some |
 | swerd | n | sword |
 | tellan | v | count, tell |
+| thanne | conj | than |
+| ther | adv | there |
 | this | adj | this |
+| threshold | m | threshold |
 | thurgh | postp | through, for (a span of time) |
+| tidung | f | report, tidings |
+| turnan | v | turn |
 | twies | adv | twice |
+| twain | adv | in two |
+| twin | m | twin (one of a pair) |
 | upward | adv | upward |
+| usan | v | use; *usung* f, use |
+| ut | adv | out |
 | walker | m | walker (a house-wars walker) |
 | wall | m | wall |
-| whan | conj | when |
+| wane | m | lack |
+| waschan | v | wash |
 | wer | m | man (a male; *man* is any person) |
+| werig | adj | weary |
+| whan | conj | when |
+| whar | adv | where |
+| what | pron | what; does not decline but takes the dative (*whatto*, for what) |
+| wheel | n | wheel |
+| wight | n | creature |
 | word | n | word |
+| workan | v | work |
 | wrath | m | anger |
 | writan | v, s | write (*writen*) |
+| wulf | m | wolf |
 | yeer | n | year (*years of the Night*: counted from the Quenching until the Compact) |
+| ynogh | n | enough |
 | yon | adj | that (*yon nightin*, in that night) |
+| yung | adj | young (*yunger*, younger) |
 
 **Proper names** keep their Vulgar spelling: Vesper, Matins, Terce, Harrow, Sext, Nones, and the orders' names. The Vulgar's hour-names (vespers, lauds, compline) are this language's words worn down.
 
