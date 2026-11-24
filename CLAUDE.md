@@ -25,7 +25,7 @@ This file holds only cross-cutting rules. **Lessons for an area are in that fold
 
 **This repository is public. Nothing goes into it whose licence has not been checked and written down.** Standing instruction from the user, for every round of work whether or not the request mentions assets; it covers anything from outside: model, texture, sound, font, animation, shader snippet, package, code sample.
 
-1. **Check the licence before using it, not after.** It must be free *and* allow redistribution in a public repo (`github.com/SiGe11/StarForge2`): in practice CC0 for art and audio. The Unity Asset Store EULA, CC-BY-NC and "free for personal use" are unusable, and so is anything whose terms you could not find. The UI fonts (Inter, OFL 1.1; Roboto Mono, Apache 2.0) are the only assets carrying conditions; their licence texts live in `LICENSES/`.
+1. **Check the licence before using it, not after.** It must be free *and* allow redistribution in a public repo (`github.com/SiGe11/StarForge2`): CC0 or CC-BY (attribution only; the user allowed CC-BY on 2026-11-24) for art and audio. A CC-BY asset is credited by author, title, source URL and licence in `THIRD-PARTY.md` and the README, with any change we made said. The Unity Asset Store and Fab licences, CGTrader "royalty free", Mixamo characters, CC-BY-NC, CC-BY-SA (share-alike would bind our changes) and "free for personal use" are unusable, and so is anything whose terms you could not find. The UI fonts (Inter, OFL 1.1; Roboto Mono, Apache 2.0) and CC-BY assets are the ones carrying conditions; the fonts' licence texts live in `LICENSES/`.
 2. **Record it in the same change that adds it**, in three places: fetch it in `Tools/fetch_assets.py`; register it in `THIRD-PARTY.md` (author, source URL, licence, which committed files come out of it); credit it in the README. An asset in the tree nobody recorded the origin of is a bug.
 3. **Run `python3 Tools/check_licences.py` before reporting a round that touched assets**, and say what it said. It re-checks every source page against the register and fails if any image, model, font or sound under `Assets/` is in neither the register nor its list of what we make ourselves. `--offline` skips the network half.
 4. **Say so plainly when something is doubtful** (unclear terms, an uploader who may not have held the rights, a "free" asset with strings): leave it out and tell the user.
@@ -65,7 +65,19 @@ Testing cheat: `Ctrl`/`Cmd`+`Shift`+`M` (+5000 ore, +100 supply, toggles 5x trai
 - **Generated content** (materials, prefabs, icons, map scene, pipeline asset) comes from `Editor/` generators: change the generator, never hand-edit output; Step 3 regenerates `Scenes/Battlefield.unity` from scratch; Step 2 preserves tuned `Data/Units/*.asset` values (hotkeys too: edit the asset as well).
 - **Shaders:** after adding shaders/keywords play a match and re-run Build step 5; alpha test only on tree foliage; no shader writes motion vectors (so no TAA/STP). Others: `Shaders/CLAUDE.md`.
 - **Measure, don't guess.** Nothing here can be listened to or watched from the agent's side: use the named `AgentPlay.*`/`MechTrials` helpers, burst capture and numeric checks, and report numbers.
-- **The lore is canon** (`docs/lore/starforge-lore.md`; its section 13 holds the writing rules): player-facing text, names, the Mech's lines and art prompts follow it; a change to the lore itself needs the user's OK; its section 11 questions are never answered. Generated pictures come from the prompts in `docs/lore/prompts.md`.
+- **The lore is canon** (`docs/lore/starforge-lore.md`; its section 13 holds the writing rules): player-facing text, names, the Mech's lines and art prompts follow it; a change to the lore itself needs the user's OK; its section 11 questions are never answered. Any Old Language text (liturgy, oaths, mottos, titles) is built from `docs/lore/old-language.md`. Generated pictures come from the prompts in `docs/lore/prompts.md`.
+
+## Definition of done (standing instruction, every session)
+
+A round is done only when all five hold; report each in the closing message:
+
+1. **Tested:** the named check for the change ran and its numbers are read against the target (`verify-change`); no "should work".
+2. **Reviewed:** `reviewer` for level-3+ changes (see Agents below), its findings fixed or answered; smaller changes get your own diff read.
+3. **Committed:** this session's files only, through `/checkpoint` (explicit paths, `.meta` and LFS files with them). The standing instruction is the user's word to commit; it does not cover push, which stays unasked.
+4. **Every open question answered:** decide with the safe default and say so, or ask the user once, explicitly, **with the `AskUserQuestion` tool** (a card: 2-4 options, the recommended one first; the user's rule 2026-11-24: never a question in prose at the end of a reply; **while the user has announced he is away (the table header of `Art/Source/staged/SESSION_TABLE.md` says so) ask nothing: take the default and say which; a commit, push or delete is not defaulted, it waits for him; unsure whether he is here: ask**); no "open" item left unnamed in the report. A follow-up that is real work goes on the list with an owner, not into silence.
+5. **Temp files cleaned:** delete what this session created and nothing reads again (`Temp/` captures, trial output in `/tmp`, staging folders outside `Assets/`, scratch scripts, stray `.meta` of deleted files, your own `caffeinate`, statics a trial set). Only what is surely unneeded and yours: another session's files, git-ignored source art (`Art/Source/llm/`) and anything you are unsure of stay; name what you left.
+
+Blender is 5.3 (updated by the user 2026-11-23): `/Applications/Blender.app/Contents/MacOS/Blender`; re-export after a version change only if a model's output differs, and check `check_palette_fbx.py` first.
 
 ## Reading and context discipline
 
