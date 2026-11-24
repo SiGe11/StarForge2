@@ -141,6 +141,23 @@ namespace StarForge.EditorTools
             return "started";
         }
 
+        /// <summary>Play mode, from the menu (a played match: the player's side has no Commander, theirs plays).
+        /// A 40 s truce from 1 s ahead; 4 s in, the player's army (eight riflemen, two Maulers) stands 14-20 m
+        /// from their Foundry, sent at it, beside their Sentinel and four riflemen of theirs. Counted: shots and
+        /// hits from 4 s into the truce to lauds, hull lost meanwhile; after lauds the first shot of each side,
+        /// shots and hull each side lost in 20 s; errors and exceptions logged. Targets: 0 shots, 0 hits, 0 hull
+        /// in the truce; both sides firing within 5 s of lauds and hull lost by both; 0 exceptions.</summary>
+        public static string TruceInvasion()
+        {
+            if (!Application.isPlaying) return "error: play mode only";
+            var boot = GameBootstrap.Instance;
+            if (boot == null || boot.State == MatchState.Playing) return "error: start from the menu (a played match)";
+            var go = new GameObject("NightTrialRun");
+            go.AddComponent<NightTrialRun>().StartCoroutine(go.GetComponent<NightTrialRun>().InvasionRun());
+            report = "running: staging";
+            return "started";
+        }
+
         /// <summary>Play mode. The camera on team 0's base close and at the overview, by day and then
         /// at full night (the plan set on the running world), mean luma of each frame and of the
         /// remembered ground; Temp/night_*.png. Target in DESIGN.md (night 0.30-0.45 of day).</summary>
@@ -276,6 +293,99 @@ namespace StarForge.EditorTools
             w = boot != null ? boot.world : FindAnyObjectByType<GameWorld>();
         }
 
+        int errors;
+        void OnLog(string msg, string stack, LogType type) { if (type == LogType.Exception || type == LogType.Error) errors++; }
+
+        public IEnumerator InvasionRun()
+        {
+            Application.logMessageReceived += OnLog;
+            try { foreach (var x in Invasion()) yield return x; }
+            finally { Application.logMessageReceived -= OnLog; }
+        }
+
+        IEnumerable Invasion()
+        {
+            yield return EnsureMatch(false);   // the player's side as played: no Commander of its own
+            wasScale = Time.timeScale;
+            if (w == null) { NightTrials.report = "FAILED: no world"; Destroy(gameObject); yield break; }
+            Time.timeScale = 2f;
+            Vector2 home = w.Map.StartPos(1), ours = w.Map.StartPos(0);
+            Vector2 toUs = (ours - home).normalized, side = new Vector2(-toUs.y, toUs.x);
+            Unit foundry = null;
+            foreach (var u in w.units) if (u != null && u.team == 1 && u.Type == UnitType.Foundry) { foundry = u; break; }
+            if (foundry == null) { NightTrials.report = "FAILED: no Foundry of theirs"; Destroy(gameObject); yield break; }
+            var theirs = new List<Unit> { w.Spawn(UnitType.Sentinel, 1, w.NearestWalkable(foundry.pos + toUs * 11f + side * 8f, 6f)) };
+            for (int i = 0; i < 4; i++) theirs.Add(w.Spawn(UnitType.Trooper, 1, w.NearestWalkable(foundry.pos + toUs * 9f - side * (4f + i * 1.6f), 4f)));
+            var plan = new NightPlan { night = true, quenching = true, darkeningAt = w.time + 1f, span = 40f };
+            float start = plan.darkeningAt, lauds = plan.LaudsAt;
+            w.SetNight(plan);
+            setNight = true;
+            w.Event += OnShot;
+            while (w.time < start + 4f) { string st = Stalled(); if (st != null) { NightTrials.report = $"INCOMPLETE ({st}) at the darkening"; Destroy(gameObject); yield break; } yield return null; }
+            // The player's army walked in under the truce: it stands in their base, sent at their Foundry.
+            var army = new List<Unit>();
+            for (int i = 0; i < 8; i++) army.Add(w.Spawn(UnitType.Trooper, 0, w.NearestWalkable(foundry.pos + toUs * 16f + side * (i * 1.6f - 6f), 4f)));
+            for (int i = 0; i < 2; i++) army.Add(w.Spawn(UnitType.Mauler, 0, w.NearestWalkable(foundry.pos + toUs * 20f + side * (i * 6f - 3f), 6f)));
+            yield return null;
+            w.CmdAttack(army, foundry);
+            var hp = new Dictionary<int, float>();
+            HullLost(hp);
+            truceCountFrom = w.time; truceFire = 0; truceHit = 0;
+            float truceHull = 0f, truceMobile = 0f;
+            int errorsAtStaging = errors;
+            while (w.time < lauds)
+            {
+                string st = Stalled(); if (st != null) { NightTrials.report = $"INCOMPLETE ({st}) in the truce"; Destroy(gameObject); yield break; }
+                truceHull += HullLost(hp, out float m); truceMobile += m;
+                NightTrials.report = $"running: truce, {truceFire} shots"; yield return null;
+            }
+            int truceShots = truceFire, truceHits = truceHit;
+            truceCountFrom = float.MaxValue;
+            float nearest = float.MaxValue;
+            foreach (var u in army) if (Unit.Live(u)) nearest = Mathf.Min(nearest, (u.pos - foundry.pos).magnitude);
+            float first0 = -1f, first1 = -1f;
+            int shots0 = 0, shots1 = 0;
+            void After(GameEvent e)
+            {
+                if ((e.kind != GameEventKind.Fire && e.kind != GameEventKind.Beam) || e.team > 1 || w.Truce) return;
+                if (e.team == 0) { shots0++; if (first0 < 0f) first0 = w.time - lauds; }
+                else { shots1++; if (first1 < 0f) first1 = w.time - lauds; }
+            }
+            w.Event += After;
+            float lost0 = 0f, lost1 = 0f;
+            var was = new Dictionary<int, float>();
+            foreach (var u in w.units) if (u != null) was[u.id] = u.hp;
+            // Drops only, frame by frame: a site going up gains hull, and the dead leave the list.
+            while (w.time < lauds + 20f)
+            {
+                string st = Stalled(); if (st != null) { w.Event -= After; NightTrials.report = $"INCOMPLETE ({st}) after lauds"; Destroy(gameObject); yield break; }
+                foreach (var u in w.units)
+                {
+                    if (u == null || u.team > 1) continue;
+                    float now = Mathf.Max(0f, u.hp);
+                    if (was.TryGetValue(u.id, out float h) && now < h) { if (u.team == 0) lost0 += h - now; else lost1 += h - now; }
+                    was[u.id] = now;
+                }
+                NightTrials.report = $"running: after lauds, shots {shots0}/{shots1}"; yield return null;
+            }
+            w.Event -= After;
+            int deadOurs = 0, deadTheirs = 0;
+            foreach (var u in army) if (!Unit.Live(u)) deadOurs++;
+            foreach (var u in theirs) if (!Unit.Live(u)) deadTheirs++;
+            w.Event -= OnShot;
+            Time.timeScale = wasScale; wasScale = -1f;
+            w.SetNight(default); setNight = false;
+            int errs = errors - errorsAtStaging;
+            bool pass = truceShots == 0 && truceHits == 0 && truceMobile <= 0.01f && first0 >= 0f && first0 <= 5f && first1 >= 0f && first1 <= 5f &&
+                        lost0 > 0f && lost1 > 0f && errs == 0;
+            NightTrials.report = $"{(pass ? "PASS" : "FAIL")} TruceInvasion: our army of {army.Count} in their base (nearest {nearest:0.0} m from their Foundry at lauds); " +
+                                 $"in the truce {truceShots} shots, {truceHits} hits (want 0, 0), hull lost {truceHull:0.0}, mobile {truceMobile:0.0} (want 0); " +
+                                 $"after lauds first shot ours {first0:0.0} s, theirs {first1:0.0} s (want both 0-5 s), shots {shots0}/{shots1} in 20 s, " +
+                                 $"hull lost ours {lost0:0}, theirs {lost1:0} (want both > 0), dead ours {deadOurs}/{army.Count}, theirs staged {deadTheirs}/{theirs.Count}; " +
+                                 $"errors and exceptions {errs} (want 0)";
+            Destroy(gameObject);
+        }
+
         public IEnumerator TruceRun()
         {
             yield return EnsureMatch(true);
@@ -330,13 +440,21 @@ namespace StarForge.EditorTools
             int stuck = 0, aliveA = 0, aliveB = 0;
             foreach (var u in sqA) if (Unit.Live(u)) aliveA++;
             foreach (var u in sqB) if (Unit.Live(u)) aliveB++;
+            // Each one named with what holds him (a man who cannot see or reach his foe is no truce fault).
+            var stuckNames = new List<string>();
             int Stuck(List<Unit> mine, List<Unit> theirs)
             {
                 int n = 0;
                 foreach (var u in mine)
                 {
                     if (!Unit.Live(u) || fired.Contains(u.id)) continue;
-                    foreach (var e in theirs) if (Unit.Live(e) && (e.pos - u.pos).magnitude <= u.def.range) { n++; break; }
+                    Unit near = null; float nd = float.MaxValue;
+                    foreach (var e in theirs) if (Unit.Live(e)) { float d = (e.pos - u.pos).magnitude; if (d < nd) { nd = d; near = e; } }
+                    if (near == null || nd > u.def.range) continue;
+                    n++;
+                    stuckNames.Add($"#{u.id} {u.Type} team {u.team}: {u.mode}, order {u.order}, nearest foe #{near.id} {nd:0.0} m " +
+                                   $"{(w.Sees(u.team, near) ? "seen" : "UNSEEN")} ({near.mode}), target {(u.target != null ? "#" + u.target.id : "none")}" +
+                                   $"{(u.fireBlocked ? ", no line" : "")}{(u.hiding ? ", hiding" : "")}{(u.Reloading ? ", reloading" : "")}, suppression {u.suppression:0.00}, rounds {u.rounds}");
                 }
                 return n;
             }
@@ -348,7 +466,7 @@ namespace StarForge.EditorTools
             bool pass = truceShots == 0 && truceHits == 0 && truceHullMobile <= 0.01f && shots - after0 > 0 && stuck == 0 && wasTruce;
             NightTrials.report = $"{(pass ? "PASS" : "FAIL")} Truce: before {before} shots; in the truce (from 4 s in to lauds) {truceShots} shots and {truceHits} hits with an attacker " +
                                  $"(want 0, 0), hull lost by mobile units {truceHullMobile:0.0} (want 0; structures, which a fire can still burn, {truceHull - truceHullMobile:0.0}), Truce read true throughout {wasTruce}; after lauds {shots - after0} shots, {afterHull:0} hull in 15 s (want > 0); " +
-                                 $"squads alive {aliveA}/{aliveB}, with an enemy in reach and silent since lauds {stuck} (want 0)";
+                                 $"squads alive {aliveA}/{aliveB}, with an enemy in reach and silent since lauds {stuck} (want 0){(stuckNames.Count > 0 ? ": " + string.Join("; ", stuckNames) : "")}";
             Destroy(gameObject);
         }
 

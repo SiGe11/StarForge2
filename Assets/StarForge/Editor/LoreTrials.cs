@@ -68,7 +68,19 @@ namespace StarForge.EditorTools
             Check(l32.Contains("painted-over iron") && !l32.Contains("before:"), "its recruit's iron is painted over, the names not read out: " + l32);
             // That iron lost again on its new side stays painted.
             a.Fallen(32, 1, 1, 32);
-            Check(a.Line(33, 1).Contains("painted-over iron"), "and stays painted when handed on: " + a.Line(33, 1));
+            string l33 = a.Line(33, 1);
+            Check(l33.Contains("painted-over iron"), "and stays painted when handed on: " + l33);
+            // Handed on within its new wing, the other wing's names keep their count and its own wearer is read out.
+            int Inside(string line)
+            {
+                int at = line.IndexOf("painted-over iron: ", System.StringComparison.Ordinal);
+                if (at < 0) return -1;
+                at += "painted-over iron: ".Length;
+                int end = line.IndexOf(' ', at);
+                return int.TryParse(line.Substring(at, end - at), out int n) ? n : -1;
+            }
+            Check(Inside(l33) == Inside(l32) && Inside(l32) > 0, $"the other wing's names counted as when painted: {Inside(l32)} then {Inside(l33)}");
+            Check(l33.Contains("before: " + Own(l32)), $"and its own wing's wearer since then read out ({Own(l32)}): {l33}");
 
             for (int id = 100; id < 160; id++) a.Fallen(id, 0, 0, 200);
             Check(a.Waiting(0) == 48, $"a side's stores hold 48 at most: {a.Waiting(0)} after 60 fell");
@@ -137,6 +149,8 @@ namespace StarForge.EditorTools
         public static string IronFieldReport() => StageReport();
         public static string Halved() => Stage(LoreStage.Kind.Halved, "HalvedReport");
         public static string HalvedReport() => StageReport();
+        /// <summary>The control pair: the same staging with their knight of another order. Good: "0 failed".</summary>
+        public static string HalvedControl() => Stage(LoreStage.Kind.HalvedControl, "HalvedReport");
 
         static string Stage(LoreStage.Kind kind, string report)
         {
@@ -157,7 +171,7 @@ namespace StarForge.EditorTools
     // Not named after its file: Unity refuses to add a MonoBehaviour whose script lies in an Editor folder.
     public sealed class LoreStage : MonoBehaviour
     {
-        public enum Kind { Iron, Halved }
+        public enum Kind { Iron, Halved, HalvedControl }
         public Kind kind;
         public string report = "staging";
         public float born;
@@ -203,7 +217,7 @@ namespace StarForge.EditorTools
             Time.timeScale = 1f;
             Vector2 mid = new Vector2(world.MapSize * 0.5f, world.MapSize * 0.5f);
             if (kind == Kind.Iron) yield return IronField(world, mid);
-            else yield return Halved(world, boot, mid);
+            else yield return Halved(world, boot, mid, kind == Kind.HalvedControl);
         }
 
         /// <summary>Good: "0 failed". Three of ours beside five of theirs and one of ours falls: the
@@ -259,7 +273,7 @@ namespace StarForge.EditorTools
         /// other is of his order ("my own order" / "of my order"; team 1's Mech never talks, so one call
         /// is all there is to hear); then theirs is killed and ours speaks of it soberly ("He was of my
         /// order"), not "Their Mech is down!".</summary>
-        IEnumerator Halved(GameWorld world, GameBootstrap boot, Vector2 mid)
+        IEnumerator Halved(GameWorld world, GameBootstrap boot, Vector2 mid, bool control)
         {
             var sb = new StringBuilder();
             int failed = 0;
@@ -274,7 +288,9 @@ namespace StarForge.EditorTools
                 {
                     locomotion = MechLocomotion.Biped, frame = MechFrame.Medium, utility = MechUtility.Shield,
                     className = "Medium-Biped", pilot = team == 0 ? "Marshal Anselm Wrenstar" : "Paladin Osric Larkstar",
-                    callsign = team == 0 ? "ANVIL" : "GREYWALL", order = "the Sable Oath",
+                    callsign = team == 0 ? "ANVIL" : "GREYWALL",
+                    // The control: their knight of another order, so no halved oath.
+                    order = control && team == 1 ? "the Ninth Vigil" : "the Sable Oath",
                 };
                 d.weapons.Add(MechWeapon.Autocannon);
                 var at = world.NearestWalkable(Vector2.Lerp(world.Map.StartPos(team), mid, 0.35f));
@@ -290,7 +306,13 @@ namespace StarForge.EditorTools
             while (Time.realtimeSinceStartup < until && Count("my own order", "of my order, Commander") < 1) yield return null;
             yield return new WaitForSecondsRealtime(3f);
             int halved = Count("my own order", "of my order, Commander");
-            Check(halved == 1, $"our knight names the halved oath, once: {halved} such call(s) heard");
+            int warned = Count("Enemy Mech on the field");
+            if (control)
+            {
+                Check(warned >= 1, $"control: our knight warned of their Mech: {warned} warning(s)");
+                Check(halved == 0, $"control (their knight of the Ninth Vigil): no halved oath named: {halved} such call(s) heard");
+            }
+            else Check(halved == 1, $"our knight names the halved oath, once: {halved} such call(s) heard");
 
             if (Unit.Live(mechs[1]))
             {
@@ -299,8 +321,17 @@ namespace StarForge.EditorTools
                 until = Time.realtimeSinceStartup + 20f;
                 while (Time.realtimeSinceStartup < until && Count("He was of my order") < 1 && Count("Their Mech is down!", "Their champion has fallen") < 1) yield return null;
                 yield return new WaitForSecondsRealtime(1f);
-                Check(Count("He was of my order") >= 1, $"the survivor speaks of his order's fallen: {Count("He was of my order")}");
-                Check(Count("Their Mech is down!", "Their champion has fallen") == 0, $"and not as of any other: {Count("Their Mech is down!", "Their champion has fallen")}");
+                int own = Count("He was of my order"), other = Count("Their Mech is down!", "Their champion has fallen");
+                if (control)
+                {
+                    Check(own == 0, $"control: no word of his order's fallen: {own}");
+                    Check(other >= 1, $"control: the plain call for a fallen enemy Mech: {other}");
+                }
+                else
+                {
+                    Check(own >= 1, $"the survivor speaks of his order's fallen: {own}");
+                    Check(other == 0, $"and not as of any other: {other}");
+                }
             }
             else Check(false, "their Mech fell before the trial killed it");
             Time.timeScale = scaleWas;

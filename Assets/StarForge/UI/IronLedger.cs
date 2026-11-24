@@ -15,6 +15,7 @@ namespace StarForge.UI
         {
             public readonly List<string> names = new List<string>(8);   // oldest first; the wearer's own last
             public bool painted;       // taken from another wing's dead
+            public int paintedAt;      // names in it when it was painted over: those are the other wing's, unread
             public int freeAfter;      // the newest unit id alive when it came back: only later recruits may wear it
             public string line;        // the card's text, built once per wearer
         }
@@ -93,20 +94,22 @@ namespace StarForge.UI
             sb.Clear();
             int own = iron.names.Count - 1;
             sb.Append(iron.names[own]);
-            if (iron.painted)
-                // Soldiers do not talk about whose names are inside another wing's iron.
-                sb.Append(" · painted-over iron: ").Append(own).Append(own == 1 ? " name inside, another wing's" : " names inside, another wing's");
-            else if (own > 0)
+            // Painted over, the names before the painting are the other wing's: counted, never read out
+            // (soldiers do not talk about them); those worn since, in this wing, are read as any.
+            int first = iron.painted ? System.Math.Min(iron.paintedAt, own) : 0;
+            if (own > first)
             {
                 sb.Append(" · in this iron before: ");
-                int from = own > NamesShown ? own - NamesShown : 0;
+                int from = own - first > NamesShown ? own - NamesShown : first;
                 for (int i = own - 1; i >= from; i--)
                 {
                     sb.Append(iron.names[i]);
                     if (i > from) sb.Append(", ");
                 }
-                if (from > 0) sb.Append(" and ").Append(from).Append(" worn smooth");
+                if (from > first) sb.Append(" and ").Append(from - first).Append(" worn smooth");
             }
+            if (iron.painted)
+                sb.Append(" · painted-over iron: ").Append(first).Append(first == 1 ? " name inside, another wing's" : " names inside, another wing's");
             return iron.line = sb.ToString();
         }
 
@@ -163,7 +166,8 @@ namespace StarForge.UI
             var iron = Wear(id, team);
             worn.Remove(id);
             iron.line = null;
-            if (toTeam != team) iron.painted = true;   // once painted over it stays another wing's iron
+            // Once painted over it stays another wing's iron; taken again, every name in it is the other wing's.
+            if (toTeam != team) { iron.painted = true; iron.paintedAt = iron.names.Count; }
             iron.freeAfter = newestId;
             var waiting = store[toTeam];
             if (waiting.Count >= StoreMax) waiting.RemoveAt(0);
