@@ -99,6 +99,43 @@ namespace StarForge.EditorTools
             return sb.ToString();
         }
 
+        /// <summary>Edit mode: the varied doctrine's LearnReach. A selector given remembered weights (the doctrine's
+        /// plus 0.3) at trust 0.7 runs 600 s on a snapshot whose army grows every window (a reward of ~0.7 each); the
+        /// largest move of any weight from where the match began is at most 0.02 with the varied doctrine and
+        /// unbounded with the legacy one, and the start is the blend.</summary>
+        public static string LearnReachCheck()
+        {
+            var sb = new StringBuilder();
+            bool was = StrategySelector.VariedDoctrine;
+            try
+            {
+                foreach (bool varied in new[] { true, false })
+                {
+                    StrategySelector.VariedDoctrine = varied;
+                    var probe = new StrategySelector(); probe.Init(1000u);
+                    float[] doc = probe.ExportWeights();
+                    var mem = new float[doc.Length];
+                    for (int i = 0; i < mem.Length; i++) mem[i] = doc[i] + 0.3f;
+                    var sel = new StrategySelector(); sel.Init(1000u, mem, 0.7f);
+                    float[] w0 = sel.ExportWeights();
+                    float blendErr = 0f;
+                    for (int i = 0; i < w0.Length; i++) blendErr = Mathf.Max(blendErr, Mathf.Abs(w0[i] - Mathf.Lerp(doc[i], mem[i], 0.7f)));
+                    var om = new OpponentModel(); om.Init();
+                    var s = new Snapshot { workers = 8, ore = 100, supplyCap = 10, supplyUsed = 8 };
+                    const float dt = 0.25f;
+                    float t = 0f;
+                    while (t < 600f) { t += dt; s.armyValue = 20f * t; sel.Update(s, om, t, dt); }
+                    float[] w1 = sel.ExportWeights();
+                    float move = 0f;
+                    for (int i = 0; i < w1.Length; i++) move = Mathf.Max(move, Mathf.Abs(w1[i] - w0[i]));
+                    sb.AppendLine($"{(varied ? "varied" : "legacy")}: largest move of a weight in 600 s {move:0.0000}" +
+                                  $"{(varied ? $" (bound {StrategySelector.LearnReach:0.00})" : " (no bound)")}, start against the blend {blendErr:0.000000}");
+                }
+            }
+            finally { StrategySelector.VariedDoctrine = was; }
+            return sb.ToString();
+        }
+
         /// <summary>Edit mode or play. The memory file's plan weights against a change of doctrine, read from
         /// strings (AIMemory.FromJson; the user's own file is never read or written): a file from before the field
         /// and one stamped with StrategySelector.DoctrineVersion keep them (version 0 is the legacy doctrine);
@@ -229,12 +266,18 @@ namespace StarForge.EditorTools
         public static string EvalTracedQuick() => EvalTraced("quick", 1, 720f, 0);
         /// <summary>The same with the varied doctrine on (mask bit 1024); the trace's game lines say which ran.</summary>
         public static string EvalTracedFullVaried() => EvalTraced("full_varied", 5, 900f, 1024);
+        /// <summary>Games 6-8 against every opponent (seeds 1185, 1222, 1259: Standard, Standard, EarlyGarrison, the
+        /// openings the Full's seeds never draw; AIReview.EvalOtherOpenings), traced, 900 s: the legacy doctrine, then
+        /// the varied one.</summary>
+        public static string EvalTracedOther() => EvalTraced("other", 3, 900f, 0, 5);
+        public static string EvalTracedOtherVaried() => EvalTraced("other_varied", 3, 900f, 1024, 5);
 
-        static string EvalTraced(string what, int games, float cap, int mask)
+        static string EvalTraced(string what, int games, float cap, int mask, int first = 0)
         {
             if (EditorApplication.isPlaying) return "playing: stop first";
             PlayerPrefs.DeleteKey(AIEvalRunner.PrefOnly);
             PlayerPrefs.DeleteKey(AIEvalRunner.PrefFirst);
+            if (first > 0) PlayerPrefs.SetInt(AIEvalRunner.PrefFirst, first);
             PlayerPrefs.DeleteKey(AIEvalRunner.PrefLegacy);
             PlayerPrefs.DeleteKey(AIEvalRunner.PrefLegacyAt);
             if (mask != 0)
@@ -305,6 +348,14 @@ namespace StarForge.EditorTools
         static GameWorld world;
         static readonly StringBuilder sb = new StringBuilder(1 << 20);
         static readonly float[] f = new float[StrategySelector.NFEAT];
+        // The Commander's wave state for the hand-off question (a forced end of a plan: does the army walk home?).
+        // Read by reflection so the trace needs no field in Commander.cs.
+        static readonly System.Reflection.FieldInfo WaveOnField = typeof(Commander).GetField("waveOn",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        static readonly System.Reflection.FieldInfo CommittedField = typeof(Commander).GetField("committed",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        static readonly System.Reflection.FieldInfo MainField = typeof(Commander).GetField("main",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
         public static int Games => game + 1;
         public static int Rows => rows;
@@ -360,13 +411,15 @@ namespace StarForge.EditorTools
               // The bar is the selector's rule, not the game's: legality stays Legal() alone and plan_replay applies the
               // cap from this stamp (the 2026-11-23 22:55 trace wrote a barred Feint as not legal: replay it --legal-rule).
               .Append(" feintcap ").Append(StrategySelector.VariedDoctrine ? $"{StrategySelector.FeintRun:0}/{StrategySelector.FeintRest:0}" : "off")
+              .Append(" learnreach ").Append(StrategySelector.VariedDoctrine ? StrategySelector.LearnReach.ToString("0.###", Inv) : "off")
+              .Append(" tracefields ").Append(WaveOnField != null && CommittedField != null && MainField != null ? "ok" : "MISSING")
               .Append(" personality ").Append(ai.Dbg.personality.Replace(',', ';')).Append('\n');
             sb.Append("game,t,dt,cur");
             for (int i = 0; i < (int)Strategy.Count; i++) sb.Append(",s").Append(i);
             for (int i = 0; i < (int)Strategy.Count; i++) sb.Append(",l").Append(i);
             for (int i = 0; i < (int)Strategy.Count; i++) sb.Append(",b").Append(i);
             for (int i = 0; i < StrategySelector.NFEAT; i++) sb.Append(",f").Append(i);
-            sb.Append(",army,earmy,workers,ore,garrisons,troopers,skimmers,eaway,ebaseknown\n");
+            sb.Append(",army,earmy,workers,ore,garrisons,troopers,skimmers,eaway,ebaseknown,wave,committed,armydist\n");
         }
 
         static void OnTick(float dt)
@@ -385,7 +438,18 @@ namespace StarForge.EditorTools
             for (int i = 0; i < StrategySelector.NFEAT; i++) sb.Append(',').Append(f[i].ToString("0.0000", Inv));
             sb.Append(',').Append(s.armyValue.ToString("0", Inv)).Append(',').Append(s.eArmyValue.ToString("0", Inv))
               .Append(',').Append(s.workers).Append(',').Append(s.ore).Append(',').Append(s.garrisons).Append(',').Append(s.troopers)
-              .Append(',').Append(s.skimmers).Append(',').Append(s.eArmyAwayFromHome.ToString("0", Inv)).Append(',').Append(s.enemyBaseKnown ? '1' : '0').Append('\n');
+              .Append(',').Append(s.skimmers).Append(',').Append(s.eArmyAwayFromHome.ToString("0", Inv)).Append(',').Append(s.enemyBaseKnown ? '1' : '0');
+            // wave/committed: 1, 0, or -1 where the field could not be read (the header says "tracefields MISSING");
+            // armydist: the centre of its main group (the wave, not the raiders, scouts or new men at home) to where it
+            // believes their base is (-1 with no group or no base known).
+            bool? wave = WaveOnField?.GetValue(ai) as bool?, com = CommittedField?.GetValue(ai) as bool?;
+            Vector2 sum = Vector2.zero; int n = 0;
+            if (MainField?.GetValue(ai) is List<Unit> main)
+                foreach (var u in main)
+                    if (u != null && !u.dying) { sum += u.pos; n++; }
+            float dist = n > 0 && s.enemyBaseKnown ? (sum / n - s.enemyBase).magnitude : -1f;
+            sb.Append(',').Append(wave == null ? "-1" : wave.Value ? "1" : "0").Append(',').Append(com == null ? "-1" : com.Value ? "1" : "0")
+              .Append(',').Append(dist.ToString("0", Inv)).Append('\n');
             rows++;
         }
 

@@ -10,7 +10,11 @@ doctrine the trace was recorded under it should agree with the recorded plan mos
 after 420 s (no exploration noise) its scores should match the recorded ones.
 
   /usr/bin/python3 Tools/plan_replay.py TRACE_DIR [--varied | --block Name] [--set Plan.Feature=v ...]
-                     [--setfile FILE] [--truth] [--draws 5] [--legal-rule --rule k=v] [--feint-cap RUN,REST] [--quiet]
+                     [--setfile FILE] [--truth] [--draws 5] [--legal-rule --rule k=v] [--feint-cap RUN,REST]
+                     [--clamp D] [--baseline K] [--fade T,S] [--score-cap D] [--lr k] [--quiet]
+--feint-cap and --clamp are StrategySelector's FeintRun/FeintRest and LearnReach (read from a trace header's feintcap and
+learnreach stamps when replaying the varied doctrine); --baseline, --fade, --score-cap and --lr are replay-only
+experiments (2026-11-24: none of them is in the game).
 Traces: Art/Source/staged/aiaudit/plans/traces/ (git-ignored). Run from the repo root.
 """
 import argparse, csv, glob, math, os, random, re, sys
@@ -67,10 +71,8 @@ def load(trace_dir):
 
 
 def kind_of(i, n):
-    if n == 20:
-        return KINDS[i // 5]
-    if n == 4:
-        return KINDS[i]
+    if n > 0 and n % 4 == 0:   # the runner plays each opponent's games together: 5 a Full, 3 the other openings, 1 a Quick
+        return KINDS[i // (n // 4)]
     return "?"
 
 
@@ -95,7 +97,8 @@ RULES = dict(rush_troopers=4, harass_units=3, push_army=300, counter_army=200, c
              expand_ore=350, expand_workers=10)
 
 
-def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, extra=None, feint_cap=None):
+def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, extra=None, feint_cap=None, baseline=0.0,
+           clamp=None, fade=None, score_cap=None, lr_scale=1.0):
     """Step StrategySelector.Update (the audit's code, LegacyLearning off) over a game's rows. feint_cap (run, rest):
     a Feint run ends after `run` s and Feint is barred for `rest` s (StrategySelector's FeintRun/FeintRest)."""
     w = [row[:] for row in w0]
@@ -112,14 +115,27 @@ def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, ex
     agree = 0
     resid = []
     picks = []
-    def reward(r, c):
+    base = [0.0]   # --baseline, a replay-only experiment: the trend of the reward, per second
+    tnow = [0.0]
+    def reward(r, c, window=18.0):
         if math.isnan(r) or math.isinf(r): return
+        if baseline > 0:
+            window = max(1.0, window)
+            rr = r - base[0] * window
+            base[0] += baseline * (window / 18.0) * (max(-1.0, min(1.0, r)) / window - base[0])
+            r = rr
         g = max(-1.0, min(1.0, r))
+        lr = 0.05 * lr_scale   # StrategySelector's learning rate (0.05), scaled by --lr
+        if fade is not None:   # --fade, a replay-only experiment: full rate to fade[0] s, none by fade[0] + fade[1] s
+            lr *= max(0.0, 1.0 - max(0.0, tnow[0] - fade[0]) / fade[1])
         for i in range(NF):
-            w[c][i] = max(-4.0, min(4.0, w[c][i] + 0.05 * g * lastFeat[i]))
+            v = max(-4.0, min(4.0, w[c][i] + lr * g * lastFeat[i]))
+            if clamp is not None:   # StrategySelector.LearnReach: a weight moves at most clamp from where the match began
+                v = max(w0[c][i] - clamp, min(w0[c][i] + clamp, v))
+            w[c][i] = v
         runPay[c] += g
     for r in rows:
-        t = float(r["t"]); dt = float(r["dt"])
+        t = float(r["t"]); dt = float(r["dt"]); tnow[0] = t
         feat = [float(r["f%d" % i]) for i in range(NF)]
         if truth_idx is not None:
             for i in range(7, 13):
@@ -133,7 +149,7 @@ def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, ex
         evalT += dt
         if evalT >= 18.0:
             a = adv(r)
-            if haveAdv: reward(a - lastAdv, cur)
+            if haveAdv: reward(a - lastAdv, cur, evalT)
             lastAdv = a; haveAdv = True; evalT = 0.0
         lastFeat = feat[:]
         best, second, bestS = -1e30, -1e30, 0
@@ -143,6 +159,9 @@ def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, ex
             if not legal or (si == 7 and t < feintRestUntil):
                 continue
             acc = sum(w[si][i] * feat[i] for i in range(NF))
+            if score_cap is not None:   # --score-cap, a replay-only experiment: learning moves a plan's score at most this
+                d0 = sum(w0[si][i] * feat[i] for i in range(NF))
+                acc = d0 + max(-score_cap, min(score_cap, acc - d0))
             acc += rng.uniform(-1, 1) * 0.10 * (1 - min(1.0, t / 420.0))
             b = float(r["b%d" % si])
             if extra is not None:
@@ -162,7 +181,7 @@ def replay(rows, w0, rng, truth_idx=None, legal_mode="recorded", rules=RULES, ex
         if bestS != cur:
             if bestS == pend:
                 if commitT <= 0:
-                    if haveAdv: reward(adv(r) - lastAdv, cur)
+                    if haveAdv: reward(adv(r) - lastAdv, cur, evalT)
                     was = cur
                     if runTime[was] > 120 and runPay[was] <= 0.05: fatigue[was] = min(0.25, fatigue[was] + 0.12)
                     runTime[was] = 0; runPay[was] = 0
@@ -199,6 +218,13 @@ def main():
     ap.add_argument("--feint-cap", help="RUN,REST: a Feint run ends after RUN s, then Feint is barred REST s (default: the "
                     "trace header's feintcap stamp; 1e9,0 turns it off). The 2026-11-23 22:55 trace has no stamp and wrote "
                     "the bar into its legality: replay it with --legal-rule")
+    ap.add_argument("--baseline", type=float, default=0.0, help="K: pay a plan its reward less the trend (an average of "
+                    "recent rewards per second, moved K of the way each 18 s window); replay-only experiment")
+    ap.add_argument("--clamp", type=float, help="D: in-match learning moves a weight at most D from its start (LearnReach; "
+                    "default: the trace header's learnreach stamp when replaying the varied doctrine; 99 turns it off)")
+    ap.add_argument("--fade", help="T,S: the learning rate fades from T s to nothing at T+S s; replay-only experiment")
+    ap.add_argument("--score-cap", type=float, help="D: what in-match learning adds to a plan's score is held to +-D; replay-only experiment")
+    ap.add_argument("--lr", type=float, default=1.0, help="k: the learning rate x k (0.05 x k); replay-only experiment")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()
     if not a.block and "void DoctrineLegacy" in open(a.cs).read():
@@ -217,16 +243,21 @@ def main():
     games = load(a.trace)
     n = len(games)
     meta = " ".join(m for _, m, _ in games[:1])
-    stamp = re.search(r" feintcap (\d+)/(\d+)", meta)
+    varied = a.block == "DoctrineVaried"   # the game applies the cap and the reach with the varied doctrine only
+    stamp = re.search(r" feintcap (\d+)/(\d+)", meta) if varied else None
     cap = tuple(float(x) for x in a.feint_cap.split(",")) if a.feint_cap else \
           ((float(stamp.group(1)), float(stamp.group(2))) if stamp else None)
     if stamp and not a.feint_cap:
         print(f"Feint cap from the trace header: {stamp.group(1)}/{stamp.group(2)} (--feint-cap 1e9,0 turns it off)")
+    reach = re.search(r" learnreach ([\d.]+)", meta) if varied else None
+    if reach and a.clamp is None:
+        a.clamp = float(reach.group(1))
+        print(f"learning reach from the trace header: {a.clamp} (--clamp 99 turns it off)")
     if " doctrine " in meta and (("doctrine varied" in meta) != (a.block == "DoctrineVaried")):
         print(f"WARNING: the trace was recorded under another doctrine ({meta.split(' doctrine ')[1].split()[0]}) than replayed ({a.block})")
     print(f"{n} games from {a.trace}; doctrine {a.block or os.path.basename(a.cs)}{'; ' + ', '.join(a.set) if a.set else ''}"
           f"{'; TRUE READ' if a.truth else ''}{'; legality by rule ' + str(rules) if a.legal_rule else ''}"
-          f"{f'; Feint capped {cap[0]:.0f} s, rest {cap[1]:.0f} s' if cap else ''}")
+          f"{f'; Feint capped {cap[0]:.0f} s, rest {cap[1]:.0f} s' if cap else ''}{f'; credit baseline {a.baseline}' if a.baseline else ''}{f'; learning clamp {a.clamp}' if a.clamp is not None else ''}{f'; score cap {a.score_cap}' if a.score_cap is not None else ''}{f'; learning rate x{a.lr}' if a.lr != 1.0 else ''}{f'; learning fade {a.fade}' if a.fade else ''}")
     allsh = [0.0] * S
     bykind = {}
     latek = {}
@@ -236,7 +267,8 @@ def main():
         sh = [0.0] * S; ag = 0.0
         for d in range(a.draws):
             s_, g_, res, lt = replay(rows, w, random.Random(1000 + 7 * gi + d), TRUTH.get(kind) if a.truth else None,
-                                     "rule" if a.legal_rule else "recorded", rules, feint_cap=cap)
+                                     "rule" if a.legal_rule else "recorded", rules, feint_cap=cap, baseline=a.baseline,
+                                     clamp=a.clamp, score_cap=a.score_cap, lr_scale=a.lr, fade=tuple(float(x) for x in a.fade.split(",")) if a.fade else None)
             sh = [x + y / a.draws for x, y in zip(sh, s_)]
             if lt is not None:
                 lk = latek.setdefault(kind, [0.0] * (S + 1))

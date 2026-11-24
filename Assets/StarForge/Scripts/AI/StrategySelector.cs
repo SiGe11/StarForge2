@@ -96,6 +96,7 @@ namespace StarForge.AI
             for (int s = 0; s < S; s++)
                 for (int f = 0; f < NFEAT; f++)
                     w[s, f] = Lerp(doctrine[s, f], haveMemory ? rememberedWeights[s * NFEAT + f] : 0f, k);
+            System.Array.Copy(w, start, w.Length);   // LearnReach's anchor
 
             cur = pending = Strategy.Eco;
             conf = commitT = lastAdv = evalT = 0f;
@@ -114,11 +115,8 @@ namespace StarForge.AI
         void W(Strategy s, F f, float v) => doctrine[(int)s, (int)f] = v;
 
         /// <summary>The varied doctrine, OFF by default (opt-in: AIEvalRunner.SetAuditSwitches bit 1024 turns it on; the
-        /// runner, the benchmark and AgentInbox's play stop clear it). First gate (2026-11-23, 6000.6.10f1): 16/20 won,
-        /// 0 lost, every plan used, Timing Push 49% -> 29% -- but Feint took 84% of the turtle's late game (the Feint
-        /// path starts no wave). With the Feint cap below: Feint 23% there, 17/20, 0 lost, but Expand took 64% of the
-        /// macro player's late game and 2 of its 5 games capped (3 caps against the legacy doctrine's 2 on the same
-        /// rules). Left off until no plan locks in late: the bandit credits the plan in force with the AI's growing lead.</summary>
+        /// runner, the benchmark and AgentInbox's play stop clear it). What it adds beyond its weights (FeintRun/FeintRest,
+        /// LearnReach), its gates and why it is still off: Scripts/AI/CLAUDE.md, the plan bandit paragraph.</summary>
         public static bool VariedDoctrine;
         /// <summary>With the varied doctrine a feint is one manoeuvre, not a plan to stay on: a Feint run ends after
         /// FeintRun s and Feint is barred for FeintRest s after it. Its attack starts no wave (no regroup, massing or
@@ -127,6 +125,15 @@ namespace StarForge.AI
         /// doctrine score within 0.3 of Timing Push's) and its runs there lasted 183-623 s.</summary>
         public const float FeintRun = 60f, FeintRest = 180f;
         float feintBarredUntil = -1f;
+        /// <summary>With the varied doctrine in-match learning moves a weight at most LearnReach from where the match
+        /// began (after the memory blend, so what was remembered is not clipped). The bandit pays the plan in force for
+        /// the AI's growing lead (every plan's mean reward was +0.1 to +0.6 an 18 s window, higher late), so whatever ran
+        /// long locked in: with Feint capped, Expand held 64% of the macro player's late game, learning adding +0.83 to
+        /// its score while Timing Push's fell 0.25. Small steps on many weights add up, so a per-weight bound of 0.2 did
+        /// nothing in the replay; 0.02 took that share to 27%. It also bounds what the memory file carries: a match
+        /// moves a weight at most 0.02, and the 0.7 blend keeps a remembered drift under ~0.07.</summary>
+        public const float LearnReach = 0.02f;
+        readonly float[,] start = new float[S, NFEAT];
         /// <summary>Feint barred after a run (the varied doctrine only); AuditTrials' plan trace records it as not legal.</summary>
         public bool Barred(Strategy st, float t) => VariedDoctrine && st == Strategy.Feint && t < feintBarredUntil;
         /// <summary>The doctrine the memory file's learned weights belong to: bumped by hand whenever the DEFAULT
@@ -305,6 +312,7 @@ namespace StarForge.AI
             for (int i = 0; i < NFEAT; i++)
             {
                 float v = w[c, i] + lr * g * lastFeat[i];
+                if (VariedDoctrine) v = Mathf.Clamp(v, start[c, i] - LearnReach, start[c, i] + LearnReach);
                 if (!float.IsNaN(v) && !float.IsInfinity(v)) w[c, i] = Clamp(v, -4f, 4f);
             }
             runPayoff[c] += g;

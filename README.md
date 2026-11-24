@@ -780,7 +780,10 @@ groups. A full run with it on gave 16 of 20, none lost; on the turtle's five see
 doctrine: a reworked one that gives every plan its turn cut Timing Push from 49% of the AI's time to 29% and brought the unused plans
 in, but against the turtle it spent 84% of the late game feinting and won 1 of 5 where the old one won 2. With a feint held to
 one minute and then rested three, feinting fell to 23% and the turtle was beaten 4 of 5 times, but expanding then took the macro
-player's late game and two of those matches ran to the time cap. It stays an option for testing, off.
+player's late game and two of those matches ran to the time cap. The cause was the AI's own learning, which paid whichever plan
+was running for a lead that grew anyway; held to small steps within a match, the reworked doctrine won 20 of 20 like the old one,
+with Timing Push down to a third of the time and every plan used, but on three openings the old runs never draw it let one of
+three turtle matches run to the cap. It stays an option for testing, off, and the AI you play still learns within a match.
 
 Runs vary: the same twenty seeds gave 13, 15, 12, 15 and 11 wins in the round that added
 the Mechs, 15, 10 and 12 in the round that added the loadouts picked at the drop, the
@@ -1553,6 +1556,10 @@ Traced Fulls on 6000.6.10f1 (Commander, 900 s, the same five seeds, Editor muted
 *From the AI notes (It met the variety target and is left off, now because Expand owns the macro player's late game):*
 
 The Feint cap's gate, 2026-11-23 22:56 (traced Full, varied doctrine with `FeintRun` 60 / `FeintRest` 180, Commander, 900 s, 6000.6.10f1, the tree also carrying the combat session's uncommitted fb1 rules, wall 1,693 s): **17/20 won, 0 lost, 3 caps** (Rusher 5, Macro 3 with 2 caps, Turtle 4 with 1, Harasser 5), 0 exception lines, desertion in 4 of 20, massing in no game. Base on the same rules (legacy doctrine, the combat session's Full that evening): 18/20, 0 lost, 2 caps (Turtle 3 of 5), massing in no game. Plan time Turtle/Tech 30.2%, Timing Push 28.5%, Expand 24.0%, Feint 6.3%, Economy 3.9%, Trooper Rush 3.7%, Harass 2.5%, Counter-Attack 0.8% (no plan at 0%); 21 Feint runs, the longest 63 s. After 480 s: against the turtle Feint 23%, Timing Push 52%, Expand 25% (legacy trace 26 / 21 / 53%); against the macro player Expand 64%, Turtle/Tech 22%, Feint 8%, Timing Push 4% (legacy 15 / 0 / 25 / 56%). Turtle games 413, 851, 900, 851, 790 s (base 824, 900, 900, 825, 676). The 23% is the cap binding (a ~63 s run and a ~183 s bar hold Feint to ~25%): the same trace replayed with rule legality and no cap gives Feint 63% after 480 s against the turtle (per-game mean; the replay over the uncapped 17:58 trace had predicted 19% with the cap and 62% without, against 84% recorded there, pooled). The gate written before the run asked for at most 2 caps: failed by one, so the varied doctrine stays off.
+
+*From the AI notes (It met the variety target and is left off: the user's call, and its last gate failed by one game against the turtle):*
+
+The learning bound's gate, 2026-11-24 (traced, Commander, 900 s, 6000.6.10f1, muted, AC; varied = the varied doctrine with the Feint cap and `LearnReach` 0.02; one rule set for all four runs, the only game file written during them this session's own). Offline first: on the two varied traces, rule legality and the cap, Expand after 480 s against the macro player 59% / 42% without the bound, 27% / 17% with 0.02 (Timing Push 8% / 33% to 35% / 47%); a bound of 0.2-0.5, a reward baseline (0.25: 38%) and a learning fade (420, 120 s: 45%) did not fix it. `AuditTrials.LearnReachCheck`: largest weight move in 600 s 0.0200 varied, 1.152 legacy. **Full pair** (11:03 / 11:34): varied **20/20, 0 lost, 0 caps**, legacy **20/20, 0 lost, 0 caps**, 0 exceptions both; Timing Push 33.6% / 43.1% of plan time, plans at 0% 0 / 1 (Trooper Rush); after 480 s against the turtle Feint 21% / 29%, Timing Push 51% / 27%; against the macro player Expand 13% / 23%, Timing Push 45% / 42%; 13 forced Feint ends, after none did the army walk home. **Other openings** (games 6-8, seeds 1185/1222/1259, 15:39 / 15:57): legacy **12/12**, varied **11/12, 1 cap** (Turtle game 8 at 900 s; game 6 won at 899 s), 0 lost, 0 exceptions; Timing Push 34.9% / 48.1%; after 480 s against the turtle Feint 28% / 16%. Over the 8 games per opponent the turtle went 7 of 8 with a cap against 8 of 8: the gate, written before the runs, failed by that one game.
 
 ### AI: Mech AI
 
