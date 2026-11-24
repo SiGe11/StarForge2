@@ -482,11 +482,14 @@ namespace StarForge.World
         // The pilots are a knightly order sworn to whichever side raises a Mech Bay:
         // allies, not soldiers, who fight for the same end in their own way. Knights are men and
         // renounce their house (lore section 7): a birth-star byname stands where a family name
-        // would. Array lengths are what the seeded draws index: keep them (Given 16, Byname 14, Calls 16).
+        // would. Array lengths are what the seeded draws index: keep them (Given 16, Byname 14; Calls 24 since 2026-11-24,
+        // 16 before: a seed's callsign changed then, nothing else, since IRange takes one draw at any length).
         static readonly string[] Titles = { "Castellan", "Knight-Warden", "Paladin", "Knight-Errant", "Seneschal", "Marshal", "Vigilant" };
         static readonly string[] Given = { "Aurek", "Osric", "Tavish", "Lucan", "Corvan", "Brannoc", "Halvard", "Ivo", "Severin", "Varro", "Hale", "Rodric", "Edmar", "Anselm", "Tobin", "Teodor" };
         static readonly string[] Byname = { "Wrenstar", "Larkstar", "Heronstar", "Cranestar", "Hartstar", "Houndstar", "Ploughstar", "Sicklestar", "Harpstar", "Spindlestar", "Bellstar", "Millstar", "Weaverstar", "Ternstar" };
-        static readonly string[] Calls = { "STEADFAST", "BASTION", "HALBERD", "WARBELL", "EMBERFALL", "GRAVEN", "SUNDER", "TEMPEST", "OBELISK", "PALISADE", "GREYWALL", "CINDER", "ANVIL", "BULWARK", "LODESTAR", "RAMPART" };
+        static readonly string[] Calls = { "STEADFAST", "BASTION", "HALBERD", "WARBELL", "EMBERFALL", "GRAVEN", "SUNDER", "TEMPEST", "OBELISK", "PALISADE", "GREYWALL", "CINDER", "ANVIL", "BULWARK", "LODESTAR", "RAMPART",
+            // Field names in the lore's own style (section 7: "the Third Lantern"). Appended: one draw whatever the length.
+            "THIRD LANTERN", "NINTH BELL", "LAST EMBER", "LONG WATCH", "COLD ANVIL", "GREY VIGIL", "FIRST STAR", "SEVENTH LAMP" };
         static readonly string[] Orders = { "the Ashen Covenant", "the Order of the Iron Lantern", "the Ninth Vigil", "the Sable Oath", "the Order of the Broken Crown", "the Emberguard", "the Wardens of the Long Night", "the Brazen Host" };
 
         static void Name(MechDesign d, Rng r)

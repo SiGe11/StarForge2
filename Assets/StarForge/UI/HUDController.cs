@@ -898,7 +898,7 @@ namespace StarForge.UI
                 mechStripDevice.EnableInClassList("mech-strip-device--shown", device != null);
             }
             var m = world.MechOf(me);
-            string name = d == null ? "MECH" : F.designChosen ? $"{d.callsign} · {d.className}".ToUpperInvariant() : $"{d.callsign} · loadout picked at the drop".ToUpperInvariant();
+            string name = d == null ? "MECH" : F.designChosen ? $"{d.callsign} · {d.className.Replace("-class", "")}".ToUpperInvariant() : $"{d.callsign} · loadout picked at the drop".ToUpperInvariant();
             mechStripTitle.text = name;
             if (m != null && m.mech.Landed)
             {

@@ -890,7 +890,7 @@ namespace StarForge.UI
             oppName.text = DifficultyName(d);
             SetTier(oppName, oppPortrait, (int)d);
             // Headings use the world's names (lore section 13): the staff across the field, by its grade.
-            oppPortraitTag.text = setupSpectate ? $"BOTH STAFFS  ·  {DifficultyName(d)}" : $"OPPOSING STAFF  ·  {DifficultyName(d)}";
+            oppPortraitTag.text = setupSpectate ? $"BOTH STAFFS  ·  GRADE {(int)d + 1}" : $"OPPOSING STAFF  ·  GRADE {(int)d + 1}";   // the name beside it says which
             oppBlurb.text = DifficultyBlurb(d) + (setupSpectate ? "\nTwo of them, one a side. Spectated matches teach the AI nothing about you." : "");
             oppBars.Clear();
             float apm = Apm(d), react = Reaction(d);
@@ -1730,7 +1730,7 @@ namespace StarForge.UI
             SetTier(endOppName, endPortrait, (int)diff);
             endOppName.text = DifficultyName(diff);
             endPortraitP.dim = result == 1;
-            endPortraitTag.text = result == 1 ? "SIGNAL LOST" : $"OPPOSING STAFF  ·  {DifficultyName(diff)}";
+            endPortraitTag.text = result == 1 ? "SIGNAL LOST" : $"OPPOSING STAFF  ·  GRADE {(int)diff + 1}";
             endOppLine.text = (result == 1 ? "Outfought. " : result == 0 ? "It held the field. " : "Neither side stands. ")
                 + $"{Apm(diff):0} actions a minute, {Reaction(diff):0.00} s reactions.";
 
