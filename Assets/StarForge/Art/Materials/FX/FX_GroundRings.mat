@@ -31,6 +31,9 @@ Material:
     m_Floats:
     - _DstBlend: 1
     - _SrcBlend: 1
+    - _StencilComp: 8
+    - _StencilPass: 0
+    - _StencilRef: 0
     m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1

@@ -61,4 +61,3 @@ MonoBehaviour:
   icon: {fileID: 2800000, guid: 1d035211bcf0348b7a1fdbc4e933dad4, type: 3}
   visualRadius: 2.4
   visualHeight: 2.175
-  tacticalOnly: 0
