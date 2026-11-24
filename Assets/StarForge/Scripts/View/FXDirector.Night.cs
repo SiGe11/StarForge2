@@ -378,6 +378,7 @@ namespace StarForge.View
         void ClearNight()
         {
             nightK = 0f;
+            foreach (var l in wreckLights) if (l != null) l.enabled = false;
             NightExposureNudge = 0f;
             Shader.SetGlobalFloat(NightId, 0f);
             Shader.SetGlobalFloat(LampsOutId, 0f);

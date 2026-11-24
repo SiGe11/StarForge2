@@ -76,6 +76,8 @@ About one map in three is fought at night (the map's own draw, and only in match
 
 On about one night map in nine without a Quenching the Great Liturgy reaches its height mid-match: every lamp but the Foundries' goes out one by one and the light is passed out again from them, nearest first (the Taking of the Light; nothing else changes). By night each soldier's two field-net masts show a faint light. Deserters cut their leads first, so theirs are dark, and the field net reports contact lost.
 
+By night the fighting lights the field: blasts and gunfire flash brighter and further and leave a glow, burning trees, buildings and wrecks light the ground round them (day is unchanged; `View/CLAUDE.md`, Lights by night).
+
 The Mech's knight judges deserters with his order's repute leaning him (the Sable Oath almost always punishes, the Emberguard seldom does), and now and then the core's quiet line disagrees with the knight's call.
 
 ### The orders, the iron and a halved oath

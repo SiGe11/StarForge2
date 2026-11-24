@@ -176,9 +176,9 @@ namespace StarForge.View
         readonly List<int> waterGone = new List<int>();
 
         // Firelight: a few flickering lights on the burning trees nearest the camera.
-        readonly Light[] fireLights = new Light[4];
+        readonly Light[] fireLights = new Light[8];
         // Burning buildings have two of their own: a wood on fire never takes them.
-        readonly Light[] houseLights = new Light[2];
+        readonly Light[] houseLights = new Light[4];
         readonly List<(Unit u, float heat)> houseFires = new List<(Unit, float)>(8);
         // When each building was last seen burning (world time), for the smoulder after.
         readonly Dictionary<int, float> houseBurnt = new Dictionary<int, float>();
@@ -189,7 +189,14 @@ namespace StarForge.View
         readonly Dictionary<Projectile, (Vector3 last, float age)> trailState = new Dictionary<Projectile, (Vector3, float)>();
         readonly List<Projectile> trailGone = new List<Projectile>();
         const float TrailSpacing = 1.4f;
-        readonly FlashSlot[] flashes = new FlashSlot[8];
+        readonly FlashSlot[] flashes = new FlashSlot[16];
+        // By day the pools stand at their old sizes (the day's look and cost as before); by night they grow, the
+        // field being dark enough for every blast, fire and wreck to show what it lights (the user's call, 2026-11-24).
+        const int DayFlashes = 8, DayFireLights = 4, DayHouseLights = 2;
+        int FlashesNow => nightK > 0.05f ? flashes.Length : DayFlashes;
+        /// <summary>A light's gain by night: 1 by day, up to 1 + <paramref name="gain"/> at full night.</summary>
+        float NightGain(float gain) => 1f + gain * nightK;
+        readonly Light[] wreckLights = new Light[3];
         float nextFlash;
 
         static readonly int GustsId = Shader.PropertyToID("_SF_Gusts");
@@ -287,6 +294,18 @@ namespace StarForge.View
                 houseLights[i] = l;
             }
 
+            for (int i = 0; i < wreckLights.Length; i++)
+            {
+                var go = new GameObject("WreckFireLight" + i);
+                go.transform.SetParent(transform, false);
+                var l = go.AddComponent<Light>();
+                l.type = LightType.Point;
+                l.shadows = LightShadows.None;
+                l.color = new Color(1f, 0.48f, 0.18f);
+                l.range = 10f;
+                l.enabled = false;
+                wreckLights[i] = l;
+            }
             for (int i = 0; i < flashes.Length; i++)
             {
                 var go = new GameObject("Flash" + i);
@@ -1006,16 +1025,19 @@ namespace StarForge.View
                 foreach (int i in smoulderDone) smoulder.Remove(i);
 
                 fireOrder.Sort((a, b) => a.d.CompareTo(b.d));
-                for (; lights < fireLights.Length && lights < fireOrder.Count; lights++)
+                int fireCap = nightK > 0.05f ? fireLights.Length : DayFireLights;
+                for (; lights < fireCap && lights < fireOrder.Count; lights++)
                 {
                     int i = fireOrder[lights].i;
                     var l = fireLights[lights];
                     var k = veg.KindOf(i);
                     l.transform.position = veg.Pose(i).MultiplyPoint3x4(k.HasCrown ? k.crownCenter * 0.8f : Vector3.up * k.height * 0.5f);
+                    // By night it hangs lower, nearer the ground it lights (at the crown's height the light fell off before it got there).
+                    if (nightK > 0.05f) l.transform.position = Vector3.Lerp(l.transform.position, veg.plants[i].pos + Vector3.up * 2.5f, 0.6f * nightK);
                     // Two rates of flicker, so the light breathes and gutters like flame.
                     float flicker = 0.7f + 0.2f * Mathf.PerlinNoise(Time.time * 6f, i * 0.37f) + 0.1f * Mathf.PerlinNoise(Time.time * 17f, i * 1.3f);
-                    l.intensity = 5f * veg.live[i].fire * flicker;
-                    l.range = 10f + 4f * veg.plants[i].scale;
+                    l.intensity = 5f * veg.live[i].fire * flicker * NightGain(4f);
+                    l.range = (10f + 4f * veg.plants[i].scale) * NightGain(0.8f);
                     l.color = Color.Lerp(new Color(1f, 0.45f, 0.15f), new Color(1f, 0.62f, 0.3f), flicker - 0.6f);
                     l.enabled = true;
                 }
@@ -1242,7 +1264,9 @@ namespace StarForge.View
         void HouseLights()
         {
             Vector2 focus = rig != null ? rig.Focus : Vector2.zero;
-            for (int k = 0; k < houseLights.Length; k++)
+            int houseCap = nightK > 0.05f ? houseLights.Length : DayHouseLights;
+            for (int k = houseCap; k < houseLights.Length; k++) houseLights[k].enabled = false;
+            for (int k = 0; k < houseCap; k++)
             {
                 int best = -1;
                 float bestScore = 0f;
@@ -1261,8 +1285,8 @@ namespace StarForge.View
                 float crest = roof != null ? Mathf.Max(roof[1], 0.5f) : u.def.visualHeight;
                 l.transform.position = u.Ground + Vector3.up * (crest + 1.6f);
                 float flicker = 0.7f + 0.2f * Mathf.PerlinNoise(Time.time * 6f, u.id * 0.37f) + 0.1f * Mathf.PerlinNoise(Time.time * 17f, u.id * 1.3f);
-                l.intensity = 8f * h * flicker;
-                l.range = 10f + 2.5f * u.def.radius;
+                l.intensity = 8f * h * flicker * NightGain(3f);
+                l.range = (10f + 2.5f * u.def.radius) * NightGain(0.7f);
                 l.color = Color.Lerp(new Color(1f, 0.45f, 0.15f), new Color(1f, 0.62f, 0.3f), flicker - 0.6f);
                 l.enabled = true;
             }
@@ -1334,6 +1358,9 @@ namespace StarForge.View
             Color c = TeamColor(e.team);
             Vector3 fwd = e.dir.sqrMagnitude > 1e-4f ? e.dir.normalized : Vector3.forward;
             Vector3 side = Vector3.Cross(Vector3.up, fwd).normalized;
+            // By night every gun lights the ground round its muzzle for a moment (by day only the big guns' flashes
+            // cast light); the weakest in the pool, it gives way to any blast (Flash).
+            if (nightK > 0.05f && e.projectileKind != 1) Flash(e.pos + fwd * 0.6f, new Color(1f, 0.72f, 0.42f), 2.6f * nightK, 7f, 0.06f);
             switch (e.projectileKind)
             {
                 case 1:
@@ -1511,8 +1538,9 @@ namespace StarForge.View
             }
 
             // 1. The flash: a white-hot core for a tenth of a second.
-            Emit(glow, at + Vector3.up * 0.6f * scale, Vector3.zero, 6.5f * scale, 0.12f, new Color(1f, 0.9f, 0.7f));
-            Emit(glow, at + Vector3.up * scale, Vector3.zero, 9f * scale, 0.3f, new Color(1f, 0.5f, 0.18f));
+            // By night the fireball's halo spreads wider over the dark (by day as before).
+            Emit(glow, at + Vector3.up * 0.6f * scale, Vector3.zero, 6.5f * scale * NightGain(0.4f), 0.12f, new Color(1f, 0.9f, 0.7f));
+            Emit(glow, at + Vector3.up * scale, Vector3.zero, 9f * scale * NightGain(0.5f), 0.3f * NightGain(0.6f), new Color(1f, 0.5f, 0.18f));
 
             // 2. The fireball. With the simulated sheet: one burst (two for a building)
             // standing on the ground, playing from the flash through the rolling
@@ -1656,6 +1684,8 @@ namespace StarForge.View
                 });
             }
             Flash(at + Vector3.up * 2f, new Color(1f, 0.55f, 0.22f), 9f * scale, 10f * scale, 0.4f);
+            // By night the fireball's glow hangs on over the ground it lit, deep orange, a second and more.
+            if (nightK > 0.05f) Flash(at + Vector3.up * 1.2f, new Color(1f, 0.38f, 0.1f), 3.2f * scale * nightK, 15f * Mathf.Sqrt(scale), 1.1f);
 
             // The blast shoves what is lying loose: wrecks (a rifleman's body is thrown,
             // a tank's hull only rocks) and a building's chunks still tumbling.
@@ -1800,14 +1830,28 @@ namespace StarForge.View
 
         void Flash(Vector3 at, Color color, float intensity, float range, float life)
         {
-            int slot = -1;
-            float oldest = float.MaxValue;
-            for (int i = 0; i < flashes.Length; i++)
+            // By night a flash is brighter, reaches further and dies slower (by day all three gains are 1).
+            intensity *= NightGain(1.4f);
+            range *= NightGain(0.6f);
+            life *= NightGain(0.8f);
+            int slot = -1, n = FlashesNow;
+            float weakest = float.MaxValue, now = Time.time;
+            for (int i = 0; i < n; i++)
             {
                 if (!flashes[i].light.enabled) { slot = i; break; }
-                if (flashes[i].t < oldest) { oldest = flashes[i].t; slot = i; }
+                if (nightK <= 0.05f)
+                {
+                    // By day the oldest goes, as before.
+                    if (flashes[i].t < weakest) { weakest = flashes[i].t; slot = i; }
+                    continue;
+                }
+                // By night the weakest left goes, and only for a stronger one: a rifle's flash never puts out a blast's.
+                float k = Mathf.Clamp01((now - flashes[i].t) / Mathf.Max(0.01f, flashes[i].life));
+                float left = flashes[i].intensity * (1f - k) * (1f - k) * flashes[i].light.range;
+                if (left < weakest) { weakest = left; slot = i; }
             }
             if (slot < 0) return;
+            if (nightK > 0.05f && flashes[slot].light.enabled && weakest > intensity * range) return;
             ref var f = ref flashes[slot];
             f.t = Time.time;
             f.life = life;
@@ -1903,6 +1947,38 @@ namespace StarForge.View
         /// <summary>Wrecks (UnitWreck) burning where they came to rest: flames off the hull
         /// and a column of smoke leaning downwind while the fire lasts, fading with it;
         /// and a Skimmer sliding on its belly throws up dust, or spray on the water.</summary>
+        // The burning wrecks' lights this frame, hottest kept (night only; WreckLight fills, WreckLightsDone shows).
+        readonly Vector4[] wreckLit = new Vector4[3];
+        int wreckLitCount;
+
+        void WreckLight(Vector3 at, float heat)
+        {
+            int slot = wreckLitCount < wreckLit.Length ? wreckLitCount++ : -1;
+            if (slot < 0)
+            {
+                float low = float.MaxValue;
+                for (int i = 0; i < wreckLit.Length; i++) if (wreckLit[i].w < low) { low = wreckLit[i].w; slot = i; }
+                if (low >= heat) return;
+            }
+            wreckLit[slot] = new Vector4(at.x, at.y, at.z, heat);
+        }
+
+        void WreckLightsDone()
+        {
+            for (int i = 0; i < wreckLights.Length; i++)
+            {
+                var l = wreckLights[i];
+                if (i >= wreckLitCount) { l.enabled = false; continue; }
+                var w = wreckLit[i];
+                float flicker = 0.75f + 0.25f * Mathf.PerlinNoise(Time.time * 7f, i * 0.71f);
+                l.transform.position = new Vector3(w.x, w.y + 1.4f, w.z);
+                l.intensity = 16f * Mathf.Clamp01(w.w) * flicker * nightK;
+                l.range = 12f + 6f * Mathf.Clamp01(w.w);
+                l.enabled = true;
+            }
+            wreckLitCount = 0;
+        }
+
         void Wrecks(float dt, Vector3 camFocus, Vector3 wind)
         {
             int burning = 0;
@@ -1926,6 +2002,7 @@ namespace StarForge.View
                 if (heat <= 0.02f || at.y < water || burning >= 14) continue;
                 burning++;
                 float size = Mathf.Clamp(w.Size, 0.7f, 2.2f);
+                if (nightK > 0.05f && heat > 0.15f) WreckLight(at, heat * Mathf.Sqrt(size));
                 for (int n = Mathf.FloorToInt(heat * (5f + 4f * size) * dt + Random.value); n > 0; n--)
                 {
                     var off = Random.insideUnitCircle * size * 0.55f;
@@ -2494,6 +2571,7 @@ namespace StarForge.View
                               new Vector3(w2.x, 0f, w2.y));
                 Wrecks(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,
                        new Vector3(w2.x, 0f, w2.y));
+                WreckLightsDone();
                 FlameJets(dt);
                 SmokeScreens(dt);
                 MechEffects(dt, rig != null ? new Vector3(rig.Focus.x, 0f, rig.Focus.y) : Vector3.zero,

@@ -105,6 +105,9 @@ namespace StarForge.EditorTools
                 ("StarForge/Rock", Srp, "_CLUSTER_LIGHT_LOOP _LIGHT_COOKIES _MAIN_LIGHT_SHADOWS_CASCADE _SCREEN_SPACE_OCCLUSION _SHADOWS_SOFT"),
                 ("StarForge/Rock", Srp, "_CLUSTER_LIGHT_LOOP _MAIN_LIGHT_SHADOWS_CASCADE"),
                 ("StarForge/Rock", Shadow, ""),
+                // The night's field celebrant (Resources/Celebrant, FXDirector.Night): URP/Lit on a skinned mesh, so
+                // its shadow pass is the plain one, which no instanced prop records.
+                ("Universal Render Pipeline/Lit", Shadow, ""),
             };
             int added = 0;
             foreach (var (name, pass, keywords) in table)
