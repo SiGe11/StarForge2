@@ -14,13 +14,13 @@ namespace StarForge.UI
 {
     public sealed partial class HUDController
     {
-        // The Host's colours: grey iron, bronze edges, gilt for news, ember for trouble, the
-        // wing's blue for what the interface itself says.
+        // The Host's colours: grey iron, steel-blue edges, the Brightest Star's blue-white for
+        // news, ember for trouble, the wing's brighter cyan for what the interface itself says.
         static readonly Color DispatchFill = new Color(0.062f, 0.060f, 0.064f, 0.90f);
-        static readonly Color DispatchEdge = new Color(0.79f, 0.64f, 0.38f, 0.30f);
-        static readonly Color Gilt = new Color(0.87f, 0.72f, 0.43f);
+        static readonly Color DispatchEdge = new Color(0.47f, 0.65f, 0.82f, 0.30f);
+        static readonly Color StarLight = new Color(0.66f, 0.83f, 1f);
         static readonly Color Ember = new Color(0.92f, 0.37f, 0.26f);
-        static readonly Color Ash = new Color(0.66f, 0.63f, 0.58f);
+        static readonly Color Ash = new Color(0.62f, 0.64f, 0.67f);
         static readonly Color WingBlue = new Color(0.31f, 0.82f, 1f);
 
         const int KeptPlaces = 8;
@@ -227,7 +227,7 @@ namespace StarForge.UI
                 }
             if (alerts.childCount >= 4) alerts.RemoveAt(0);
 
-            Color ink = cls == "alert--warn" ? Ember : cls == "alert--refused" ? Ash : cls == "alert--hint" ? WingBlue : Gilt;
+            Color ink = cls == "alert--warn" ? Ember : cls == "alert--refused" ? Ash : cls == "alert--hint" ? WingBlue : StarLight;
             var card = new SFFrame { Cut = 9f, Tab = true, Fill = DispatchFill, Edge = DispatchEdge, Accent = ink, pickingMode = PickingMode.Ignore };
             card.AddToClassList("dispatch");
             card.AddToClassList(cls);

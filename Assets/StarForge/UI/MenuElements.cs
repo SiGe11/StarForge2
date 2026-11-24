@@ -103,14 +103,15 @@ namespace StarForge.UI
     }
 
     /// <summary>A panel with cut corners (top-left and bottom-right), a hairline edge and a
-    /// bright tab along the top: the menus' card.</summary>
+    /// bright tab along the top: the menus' card. Defaults are the HUD's iron, steel and star blue
+    /// (HUDController.UX's dispatch colours).</summary>
     [UxmlElement]
     public partial class SFFrame : VisualElement
     {
         [UxmlAttribute] public float Cut { get; set; } = 18f;
-        [UxmlAttribute] public Color Fill { get; set; } = new Color(0.02f, 0.035f, 0.06f, 0.86f);
-        [UxmlAttribute] public Color Edge { get; set; } = new Color(0.31f, 0.82f, 1f, 0.28f);
-        [UxmlAttribute] public Color Accent { get; set; } = new Color(0.31f, 0.82f, 1f, 0.95f);
+        [UxmlAttribute] public Color Fill { get; set; } = new Color(0.062f, 0.060f, 0.064f, 0.86f);
+        [UxmlAttribute] public Color Edge { get; set; } = new Color(0.47f, 0.65f, 0.82f, 0.30f);
+        [UxmlAttribute] public Color Accent { get; set; } = new Color(0.66f, 0.83f, 1f, 0.95f);
         [UxmlAttribute] public bool Tab { get; set; } = true;
 
         public SFFrame() => generateVisualContent += Draw;
@@ -156,11 +157,12 @@ namespace StarForge.UI
         }
     }
 
-    /// <summary>The StarForge mark: a forge-star inside a hexagon, a slowly turning broken ring.</summary>
+    /// <summary>The StarForge mark: a forge-star inside a hexagon, a slowly turning broken ring.
+    /// The Brightest Star's blue-white with an amber core.</summary>
     [UxmlElement]
     public partial class SFEmblem : VisualElement
     {
-        [UxmlAttribute] public Color Ink { get; set; } = new Color(0.31f, 0.82f, 1f, 1f);
+        [UxmlAttribute] public Color Ink { get; set; } = new Color(0.70f, 0.86f, 1f, 1f);
         [UxmlAttribute] public Color Core { get; set; } = new Color(1f, 0.71f, 0.28f, 1f);
         float spin;
         IVisualElementScheduledItem tick;
@@ -287,7 +289,7 @@ namespace StarForge.UI
             var p = mgc.painter2D;
             Vector2 At(Vector2 n) => new Vector2(n.x * w, (1f - n.y) * h);
 
-            p.strokeColor = new Color(0.31f, 0.82f, 1f, 0.13f);
+            p.strokeColor = new Color(0.47f, 0.65f, 0.82f, 0.14f);
             p.lineWidth = 1f;
             for (int i = 1; i < 8; i++)
             {
@@ -299,13 +301,14 @@ namespace StarForge.UI
             p.fillColor = new Color(0.78f, 0.55f, 1f, 0.9f);
             foreach (var o in Ore) { Circle(p, At(o), 2.6f); p.Fill(); }
 
-            // The scan line and its fading wake.
+            // The scan line and its fading wake. Grid, scan and frame in steel and the star's blue; the
+            // bases keep the wings' blue and red (the legend's dots).
             float sy = scan * h;
             for (int i = 0; i < 6; i++)
             {
                 float y = sy - i * 3f;
                 if (y < 0f) break;
-                p.strokeColor = new Color(0.31f, 0.82f, 1f, 0.32f * (1f - i / 6f));
+                p.strokeColor = new Color(0.66f, 0.83f, 1f, 0.30f * (1f - i / 6f));
                 p.lineWidth = i == 0 ? 1.5f : 1f;
                 p.BeginPath(); p.MoveTo(new Vector2(0f, y)); p.LineTo(new Vector2(w, y)); p.Stroke();
             }
@@ -313,7 +316,7 @@ namespace StarForge.UI
             Marker(p, At(BaseA), new Color(0.31f, 0.82f, 1f, 1f));
             Marker(p, At(BaseB), new Color(1f, 0.35f, 0.31f, 1f));
 
-            p.strokeColor = new Color(0.31f, 0.82f, 1f, 0.45f);
+            p.strokeColor = new Color(0.47f, 0.65f, 0.82f, 0.45f);
             p.lineWidth = 1f;
             p.BeginPath();
             p.MoveTo(new Vector2(0.5f, 0.5f)); p.LineTo(new Vector2(w - 0.5f, 0.5f)); p.LineTo(new Vector2(w - 0.5f, h - 0.5f));
@@ -389,7 +392,7 @@ namespace StarForge.UI
             for (int i = 0; i < n; i++)
             {
                 float t = i / (float)(n - 1);
-                Color on = Color.Lerp(new Color(0.20f, 0.62f, 0.85f, 1f), new Color(0.40f, 0.88f, 1f, 1f), t);
+                Color on = Color.Lerp(new Color(0.30f, 0.45f, 0.62f, 1f), new Color(0.66f, 0.83f, 1f, 1f), t); // steel to the star's blue
                 Paint.Rect(p, i * (sw + gap), 0f, sw, h, i < lit ? on : new Color(1f, 1f, 1f, 0.08f));
             }
         }
@@ -416,7 +419,7 @@ namespace StarForge.UI
             p.strokeColor = new Color(1f, 1f, 1f, 0.08f);
             p.BeginPath(); p.Arc(c, r, Angle.Degrees(0f), Angle.Degrees(360f)); p.Stroke();
             if (value <= 0.001f) return;
-            p.strokeColor = new Color(0.35f, 0.89f, 0.55f, 1f);
+            p.strokeColor = new Color(0.66f, 0.83f, 1f, 1f); // star blue, as a win's badge
             p.BeginPath(); p.Arc(c, r, Angle.Degrees(-90f), Angle.Degrees(-90f + 360f * value)); p.Stroke();
         }
     }

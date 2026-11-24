@@ -1,12 +1,17 @@
 /* StarForgeMenu.uss — the menus (MenuController). Laid out for the panel's 1920x1080
    reference: the MacBook's panel comes out about 1820x1140, the Editor's Game view about
-   2120x980, so nothing here may need more than ~980 px of height. */
+   2120x980, so nothing here may need more than ~980 px of height.
+   The Host's look, as the HUD's (StarForgeHUD.uss :root): grey iron panels, steel-blue
+   edges, headings in Cinzel in the Brightest Star's blue-white, ember for danger. The wing's
+   brighter cyan for hover, focus and the active tab, and as the player's side (your base,
+   YOU); the red wing keeps its red.
+   Cinzel is wider than Inter: its letter-spacing is about half what Inter had. */
 
 .m-root {
     position: absolute;
     left: 0; top: 0; right: 0; bottom: 0;
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-Regular.ttf");
-    color: #e6eef6;
+    color: #e2e6ea;
     font-size: 15px;
 }
 
@@ -14,15 +19,15 @@
 .m-grow { flex-grow: 1; }
 .m-row { flex-direction: row; }
 
-.m-text { font-size: 15px; white-space: normal; color: #d7e2ec; }
-.m-text--muted { color: #8ea3b6; }
+.m-text { font-size: 15px; white-space: normal; color: #d4d9df; }
+.m-text--muted { color: #969ea8; }
 .m-mono { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 13px; letter-spacing: 1px; }
-.m-mono--muted { color: #8ea3b6; }
+.m-mono--muted { color: #969ea8; }
 .m-kicker {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 12px;
-    letter-spacing: 4px;
-    color: #4fd1ff;
+    letter-spacing: 3px;
+    color: #a8d4ff;
 }
 .m-kicker--center { -unity-text-align: middle-center; }
 
@@ -33,7 +38,7 @@
 .m-shade-top { position: absolute; left: 0; right: 0; top: 0; height: 170px; }
 .m-shade-bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 260px; }
 .m-deep {
-    background-color: rgba(2, 6, 11, 0.62);
+    background-color: rgba(6, 6, 8, 0.62);
     opacity: 0;
     transition-property: opacity;
     transition-duration: 0.3s;
@@ -69,16 +74,16 @@
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 13px;
     letter-spacing: 3px;
-    color: #8ea3b6;
+    color: #969ea8;
 }
 .m-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 44px;
-    letter-spacing: 10px;
-    color: #ffffff;
-    text-shadow: 0 0 14px rgba(79, 209, 255, 0.45);
+    letter-spacing: 6px;
+    color: #dcecff;
+    text-shadow: 0 0 14px rgba(110, 185, 255, 0.35);
 }
-.m-title--big { font-size: 64px; letter-spacing: 16px; margin-bottom: 4px; }
+.m-title--big { font-size: 64px; letter-spacing: 10px; margin-bottom: 4px; }
 
 .m-body { flex-grow: 1; flex-shrink: 1; min-height: 0; }
 .m-col-body { flex-direction: column; }
@@ -101,26 +106,26 @@
 .m-brand { flex-direction: row; align-items: center; margin-bottom: 54px; }
 .m-emblem { width: 96px; height: 96px; margin-right: 22px; }
 .m-logo {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 60px;
-    letter-spacing: 14px;
-    color: #ffffff;
-    text-shadow: 0 0 24px rgba(79, 209, 255, 0.8);
+    letter-spacing: 9px;
+    color: #e6f2ff;
+    text-shadow: 0 0 22px rgba(110, 185, 255, 0.60);
 }
 .m-logo-sub {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 13px;
-    letter-spacing: 9px;
-    color: #4fd1ff;
+    letter-spacing: 6px;
+    color: #a8d4ff;
     margin-left: 4px;
 }
 /* The war college's motto in the Old Language under the tagline (docs/lore/old-language.md). */
 .m-logo-motto {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
-    font-size: 10px;
-    letter-spacing: 7px;
-    color: #4fd1ff;
-    opacity: 0.5;
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Regular.ttf");
+    font-size: 11px;
+    letter-spacing: 5px;
+    color: #a8d4ff;
+    opacity: 0.6;
     margin-left: 4px;
     margin-top: 3px;
 }
@@ -134,14 +139,14 @@
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
     font-size: 22px;
     letter-spacing: 3px;
-    color: #ffffff;
+    color: #f2f5f8;
     margin-top: 4px;
 }
 .m-profile-sub {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 12px;
     letter-spacing: 2px;
-    color: #8ea3b6;
+    color: #969ea8;
     margin-top: 2px;
 }
 .m-side-card { width: 430px; margin: 12px 0 0 0; }
@@ -164,16 +169,16 @@
 .m-nav-index {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 13px;
-    color: #5f7487;
+    color: #66707a;
     width: 40px;
     -unity-text-align: middle-left;
 }
 .m-nav-text { flex-grow: 1; }
 .m-nav-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 29px;
-    letter-spacing: 5px;
-    color: rgba(230, 238, 246, 0.70);
+    letter-spacing: 3px;
+    color: rgba(226, 230, 234, 0.72);
     -unity-text-align: middle-left;
     transition-property: color, translate;
     transition-duration: 0.15s, 0.18s;
@@ -181,7 +186,7 @@
 .m-nav-desc {
     -unity-text-align: upper-left;
     font-size: 14px;
-    color: #9fb4c6;
+    color: #a3abb4;
     white-space: normal;
     display: none;
     margin-top: 2px;
@@ -192,21 +197,21 @@
 .m-nav-item--focus .m-nav-title { color: #ffffff; translate: 8px 0; }
 .m-nav-item--focus .m-nav-index { color: #4fd1ff; }
 .m-nav-item--focus .m-nav-desc { display: flex; }
-.m-nav-item--danger .m-nav-title { color: rgba(255, 140, 130, 0.75); }
-.m-nav-item--danger.m-nav-item--focus .m-nav-title { color: #ff8a80; }
+.m-nav-item--danger .m-nav-title { color: rgba(242, 154, 130, 0.75); }
+.m-nav-item--danger.m-nav-item--focus .m-nav-title { color: #f7a890; }
 .m-nav--compact .m-nav-item { min-height: 46px; padding: 5px 18px 5px 0; }
-.m-nav--compact .m-nav-title { font-size: 23px; letter-spacing: 4px; }
+.m-nav--compact .m-nav-title { font-size: 23px; letter-spacing: 2px; }
 .m-nav--compact .m-nav-bar { height: 28px; }
 
 /* ------------------------------------------------------------ buttons and chips */
 .m-btn {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 16px;
-    letter-spacing: 3px;
-    color: #e6eef6;
-    background-color: rgba(255, 255, 255, 0.04);
+    letter-spacing: 2px;
+    color: #e2e6ea;
+    background-color: rgba(255, 255, 255, 0.03);
     border-width: 1px;
-    border-color: rgba(255, 255, 255, 0.18);
+    border-color: rgba(110, 150, 190, 0.55);
     border-radius: 0;
     margin: 0 10px 0 0;
     padding: 12px 34px;
@@ -219,11 +224,11 @@
     color: #ffffff;
 }
 .m-btn--primary {
-    background-color: rgba(79, 209, 255, 0.22);
-    border-color: #4fd1ff;
-    color: #ffffff;
+    background-color: rgba(168, 212, 255, 0.16);
+    border-color: #a8d4ff;
+    color: #f0f6ff;
     font-size: 21px;
-    letter-spacing: 6px;
+    letter-spacing: 4px;
     padding: 15px 64px;
     margin-right: 0;
 }
@@ -231,17 +236,17 @@
     background-color: rgba(79, 209, 255, 0.42);
     scale: 1.03 1.03;
 }
-.m-btn--danger { background-color: rgba(255, 90, 79, 0.16); border-color: rgba(255, 90, 79, 0.8); margin-right: 0; }
-.m-btn--danger:hover, .m-btn--danger.m-focus { background-color: rgba(255, 90, 79, 0.36); border-color: #ff5a4f; }
+.m-btn--danger { background-color: rgba(235, 94, 66, 0.16); border-color: rgba(235, 94, 66, 0.8); margin-right: 0; }
+.m-btn--danger:hover, .m-btn--danger.m-focus { background-color: rgba(235, 94, 66, 0.36); border-color: #eb5e42; }
 
 .m-chip {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 12px;
     letter-spacing: 2px;
-    color: #4fd1ff;
-    background-color: rgba(79, 209, 255, 0.06);
+    color: #a8d4ff;
+    background-color: rgba(168, 212, 255, 0.06);
     border-width: 1px;
-    border-color: rgba(79, 209, 255, 0.40);
+    border-color: rgba(110, 150, 190, 0.55);
     border-radius: 0;
     margin: 0;
     padding: 6px 12px;
@@ -252,10 +257,10 @@
 .m-card { padding: 20px 24px; margin: 0 12px 0 0; }
 .m-card--list { padding: 14px 10px 14px 14px; }
 .m-card-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
-    font-size: 12px;
-    letter-spacing: 3px;
-    color: #4fd1ff;
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: #a8d4ff;
     margin-bottom: 12px;
 }
 .m-scroll { flex-grow: 1; }
@@ -277,7 +282,7 @@
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
     font-size: 16px;
     letter-spacing: 2px;
-    color: rgba(230, 238, 246, 0.8);
+    color: rgba(226, 230, 234, 0.8);
     flex-grow: 1;
 }
 .m-setrow.m-focus .m-setrow-label { color: #ffffff; }
@@ -286,7 +291,7 @@
 .m-arrow {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 22px;
-    color: rgba(79, 209, 255, 0.55);
+    color: rgba(120, 165, 210, 0.65);
     padding: 0 12px;
 }
 .m-arrow:hover { color: #ffffff; }
@@ -296,33 +301,33 @@
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
     font-size: 17px;
     letter-spacing: 2px;
-    color: #ffffff;
+    color: #f2f5f8;
     -unity-text-align: middle-center;
 }
 .m-pips { flex-direction: row; justify-content: center; margin-top: 5px; }
 .m-pip { width: 16px; height: 3px; margin: 0 2px; background-color: rgba(255, 255, 255, 0.16); }
-.m-pip--on { background-color: #4fd1ff; }
+.m-pip--on { background-color: #a8d4ff; }
 .m-slider { width: 290px; height: 14px; }
 .m-slider-value {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 14px;
     width: 72px;
     -unity-text-align: middle-right;
-    color: #ffffff;
+    color: #f2f5f8;
 }
 .m-rowaction {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 13px;
     letter-spacing: 2px;
-    color: #4fd1ff;
+    color: #a8d4ff;
 }
 
 .m-desc-card { width: 470px; margin-right: 0; }
 .m-desc-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 22px;
-    letter-spacing: 3px;
-    color: #ffffff;
+    letter-spacing: 2px;
+    color: #dcecff;
     margin-bottom: 12px;
     white-space: normal;
 }
@@ -333,14 +338,14 @@
     align-items: flex-end;
     flex-shrink: 0;
     border-bottom-width: 1px;
-    border-color: rgba(79, 209, 255, 0.22);
+    border-color: rgba(120, 165, 210, 0.30);
     margin-bottom: 16px;
 }
 .m-tab {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 15px;
-    letter-spacing: 3px;
-    color: #8ea3b6;
+    letter-spacing: 2px;
+    color: #969ea8;
     padding: 10px 26px;
     border-bottom-width: 2px;
     border-color: rgba(0, 0, 0, 0);
@@ -353,13 +358,13 @@
 .m-key {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
     font-size: 12px;
-    color: #ffffff;
+    color: #f2f5f8;
     padding: 2px 8px;
     border-width: 1px;
     border-bottom-width: 2px;
-    border-color: rgba(255, 255, 255, 0.38);
+    border-color: rgba(150, 158, 168, 0.55);
     border-radius: 3px;
-    background-color: rgba(255, 255, 255, 0.07);
+    background-color: rgba(255, 255, 255, 0.06);
     margin-right: 6px;
 }
 .m-footer {
@@ -370,8 +375,8 @@
     align-items: center;
     padding: 0 48px;
     border-top-width: 1px;
-    border-color: rgba(79, 209, 255, 0.12);
-    background-color: rgba(2, 6, 11, 0.6);
+    border-color: rgba(120, 165, 210, 0.22);
+    background-color: rgba(10, 10, 12, 0.66);
     display: none;
 }
 .m-footer--visible { display: flex; }
@@ -381,13 +386,13 @@
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 11px;
     letter-spacing: 2px;
-    color: #8ea3b6;
+    color: #969ea8;
 }
 .m-version {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 11px;
     letter-spacing: 2px;
-    color: #5f7487;
+    color: #66707a;
 }
 
 /* ------------------------------------------------------------ operation setup */
@@ -402,10 +407,10 @@
     background-color: rgba(0, 0, 0, 0.5);
 }
 .m-map-name {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 22px;
-    letter-spacing: 5px;
-    color: #ffffff;
+    letter-spacing: 3px;
+    color: #dcecff;
     margin-top: 14px;
 }
 .m-legend { flex-direction: row; align-items: center; margin-top: 10px; }
@@ -417,16 +422,16 @@
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 11px;
     letter-spacing: 2px;
-    color: #8ea3b6;
+    color: #969ea8;
     margin-right: 22px;
 }
 .m-setup-col { flex-grow: 1; }
 .m-setup-col > .m-card { margin-right: 0; margin-bottom: 12px; }
 .m-opp-name {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 26px;
-    letter-spacing: 8px;
-    color: #ffb547;
+    letter-spacing: 4px;
+    color: #a8d4ff;
     margin-bottom: 6px;
 }
 .m-opp-bars { margin: 8px 0 8px 0; flex-shrink: 0; }
@@ -435,27 +440,27 @@
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 12px;
     letter-spacing: 2px;
-    color: #8ea3b6;
+    color: #969ea8;
     width: 200px;
 }
 .m-statbar { flex-grow: 1; height: 6px; background-color: rgba(255, 255, 255, 0.08); flex-direction: row; }
-.m-statbar-fill { height: 100%; background-color: #4fd1ff; }
+.m-statbar-fill { height: 100%; background-color: #a8d4ff; }
 .m-statbar-fill--amber { background-color: #ffb547; }
 .m-statrow-value {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 13px;
     width: 96px;
     -unity-text-align: middle-right;
-    color: #ffffff;
+    color: #f2f5f8;
 }
 
 /* ------------------------------------------------------------ field manual */
 .m-unit-list-card { width: 400px; flex-shrink: 0; }
 .m-list-head {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
-    font-size: 11px;
-    letter-spacing: 3px;
-    color: #4fd1ff;
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: #a8d4ff;
     margin: 14px 0 4px 12px;
 }
 .m-unit-item {
@@ -469,17 +474,17 @@
 .m-unit-item.m-focus { border-left-color: #4fd1ff; background-color: rgba(79, 209, 255, 0.08); }
 .m-unit-item--selected { background-color: rgba(255, 181, 71, 0.10); border-left-color: #ffb547; }
 .m-unit-item-icon { width: 30px; height: 30px; margin-right: 12px; }
-.m-unit-item-name { font-size: 15px; color: rgba(230, 238, 246, 0.85); flex-grow: 1; }
+.m-unit-item-name { font-size: 15px; color: rgba(226, 230, 234, 0.85); flex-grow: 1; }
 .m-unit-item.m-focus .m-unit-item-name { color: #ffffff; }
-.m-unit-item-cost { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; color: #8ea3b6; }
+.m-unit-item-cost { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; color: #969ea8; }
 .m-unit-detail { margin-right: 0; }
 .m-unit-head { align-items: center; margin-bottom: 14px; }
-.m-unit-icon { width: 120px; height: 120px; margin-right: 22px; background-color: rgba(79, 209, 255, 0.06); border-width: 1px; border-color: rgba(79, 209, 255, 0.25); }
+.m-unit-icon { width: 120px; height: 120px; margin-right: 22px; background-color: rgba(168, 212, 255, 0.05); border-width: 1px; border-color: rgba(120, 165, 210, 0.30); }
 .m-unit-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 40px;
-    letter-spacing: 6px;
-    color: #ffffff;
+    letter-spacing: 4px;
+    color: #dcecff;
 }
 .m-unit-blurb { margin-bottom: 14px; font-size: 16px; }
 .m-unit-stats { margin-bottom: 14px; }
@@ -488,30 +493,30 @@
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 11px;
     letter-spacing: 2px;
-    color: #4fd1ff;
+    color: #a8d4ff;
     padding: 4px 10px;
     border-width: 1px;
-    border-color: rgba(79, 209, 255, 0.4);
+    border-color: rgba(110, 150, 190, 0.55);
     margin: 0 8px 8px 0;
 }
-.m-tag--warn { color: #ffb547; border-color: rgba(255, 181, 71, 0.5); }
+.m-tag--warn { color: #f29a82; border-color: rgba(235, 94, 66, 0.55); }
 
 .m-prose-head {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 17px;
-    letter-spacing: 2px;
-    color: #ffb547;
+    letter-spacing: 1px;
+    color: #a8d4ff;
     margin: 18px 12px 0 12px;
     white-space: normal;
 }
-.m-prose-text { font-size: 15px; white-space: normal; color: #d7e2ec; margin: 6px 24px 0 12px; }
+.m-prose-text { font-size: 15px; white-space: normal; color: #d4d9df; margin: 6px 24px 0 12px; }
 /* A Chronicle entry with a picture: the plate at the left, the entry beside it. */
 .m-prose-entry { flex-direction: row; align-items: flex-start; margin-top: 18px; }
 .m-prose-col { flex-grow: 1; flex-shrink: 1; flex-basis: 0; }
 .m-prose-col > .m-prose-head { margin-top: 0; }
 .m-plate {
     width: 380px; height: 212px; flex-shrink: 0; margin: 4px 0 0 12px;
-    border-width: 1px; border-color: rgba(79, 209, 255, 0.25);
+    border-width: 1px; border-color: rgba(120, 165, 210, 0.35);
     -unity-background-scale-mode: scale-and-crop;
 }
 .m-plate--quenching { background-image: url("project://database/Assets/StarForge/UI/Art/plate_quenching.jpg"); }
@@ -522,10 +527,10 @@
 .m-plate--iron { background-image: url("project://database/Assets/StarForge/UI/Art/plate_iron.jpg"); }
 
 .m-keys-head {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
-    font-size: 12px;
-    letter-spacing: 3px;
-    color: #4fd1ff;
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: #a8d4ff;
     margin: 16px 0 6px 12px;
 }
 .m-keyrow {
@@ -537,7 +542,7 @@
     border-color: rgba(255, 255, 255, 0.05);
 }
 .m-keyrow-keys { flex-direction: row; align-items: center; width: 360px; flex-wrap: wrap; }
-.m-keyrow-text { font-size: 15px; color: #d7e2ec; flex-grow: 1; white-space: normal; }
+.m-keyrow-text { font-size: 15px; color: #d4d9df; flex-grow: 1; white-space: normal; }
 
 /* ------------------------------------------------------------ service record */
 .m-tiles { flex-direction: row; flex-shrink: 0; margin-bottom: 12px; }
@@ -547,16 +552,16 @@
 .m-tile-value {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
     font-size: 38px;
-    color: #ffffff;
+    color: #f2f5f8;
 }
 .m-tile-label {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 11px;
     letter-spacing: 3px;
-    color: #8ea3b6;
+    color: #969ea8;
     margin-bottom: 6px;
 }
-.m-tile-sub { font-size: 13px; color: #8ea3b6; }
+.m-tile-sub { font-size: 13px; color: #969ea8; }
 .m-ring { width: 84px; height: 84px; margin-right: 14px; }
 .m-record-card { width: 520px; flex-shrink: 0; }
 .m-recent-row {
@@ -576,20 +581,20 @@
     margin-right: 16px;
     border-width: 1px;
 }
-.m-badge--win { color: #59e38c; border-color: rgba(89, 227, 140, 0.55); background-color: rgba(89, 227, 140, 0.08); }
-.m-badge--loss { color: #ff5a4f; border-color: rgba(255, 90, 79, 0.55); background-color: rgba(255, 90, 79, 0.08); }
-.m-badge--draw { color: #ffb547; border-color: rgba(255, 181, 71, 0.55); background-color: rgba(255, 181, 71, 0.08); }
+.m-badge--win { color: #a8d4ff; border-color: rgba(168, 212, 255, 0.55); background-color: rgba(168, 212, 255, 0.08); }
+.m-badge--loss { color: #eb5e42; border-color: rgba(235, 94, 66, 0.55); background-color: rgba(235, 94, 66, 0.08); }
+.m-badge--draw { color: #c3c8ce; border-color: rgba(195, 200, 206, 0.45); background-color: rgba(195, 200, 206, 0.06); }
 .m-recent-text { font-size: 15px; flex-grow: 1; }
-.m-recent-when { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; color: #8ea3b6; }
+.m-recent-when { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; color: #969ea8; }
 
 /* ------------------------------------------------------------ credits */
 .m-credits-viewport { overflow: hidden; align-items: center; }
 .m-credits-roll { position: absolute; top: 0; width: 900px; align-items: center; }
 .m-credit-head {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
-    font-size: 12px;
-    letter-spacing: 5px;
-    color: #4fd1ff;
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: #a8d4ff;
     margin-top: 38px;
     margin-bottom: 8px;
 }
@@ -597,14 +602,14 @@
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
     font-size: 26px;
     letter-spacing: 3px;
-    color: #ffffff;
+    color: #f2f5f8;
     -unity-text-align: middle-center;
     white-space: normal;
 }
-.m-credit-text { font-size: 15px; color: #a9bccc; -unity-text-align: middle-center; white-space: normal; margin-top: 2px; }
+.m-credit-text { font-size: 15px; color: #adb5be; -unity-text-align: middle-center; white-space: normal; margin-top: 2px; }
 
 /* ------------------------------------------------------------ pause */
-.m-dim { background-color: rgba(2, 6, 11, 0.42); }
+.m-dim { background-color: rgba(6, 6, 8, 0.42); }
 .m-pause-shade { position: absolute; left: 0; top: 0; bottom: 0; width: 62%; }
 .m-pause-col {
     width: 600px;
@@ -615,8 +620,8 @@
 .m-pause-col > .m-nav { margin-top: 30px; }
 .m-sitrep { position: absolute; right: 80px; top: 110px; width: 430px; margin-right: 0; }
 .m-sitrep-row { flex-direction: row; align-items: center; min-height: 30px; border-bottom-width: 1px; border-color: rgba(255, 255, 255, 0.05); }
-.m-sitrep-label { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; letter-spacing: 2px; color: #8ea3b6; flex-grow: 1; }
-.m-sitrep-value { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 15px; color: #ffffff; }
+.m-sitrep-label { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; letter-spacing: 2px; color: #969ea8; flex-grow: 1; }
+.m-sitrep-value { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 15px; color: #f2f5f8; }
 
 /* ------------------------------------------------------------ after-action report */
 .m-debrief {
@@ -626,12 +631,12 @@
 }
 .m-debrief--hidden { display: none; }
 .m-end-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 92px;
-    letter-spacing: 26px;
+    letter-spacing: 16px;
     -unity-text-align: middle-center;
-    color: #59e38c;
-    text-shadow: 0 0 26px rgba(89, 227, 140, 0.7);
+    color: #d6ebff;
+    text-shadow: 0 0 26px rgba(110, 185, 255, 0.7);
     scale: 1.18 1.18;
     opacity: 0;
     transition-property: scale, opacity;
@@ -639,13 +644,13 @@
     transition-timing-function: ease-out-cubic, ease-out-cubic;
 }
 .m-page--in .m-end-title { scale: 1 1; opacity: 1; }
-.m-end-title--defeat { color: #ff5a4f; text-shadow: 0 0 26px rgba(255, 90, 79, 0.7); }
-.m-end-title--draw { color: #ffb547; text-shadow: 0 0 26px rgba(255, 181, 71, 0.7); }
+.m-end-title--defeat { color: #eb5e42; text-shadow: 0 0 26px rgba(235, 94, 66, 0.65); }
+.m-end-title--draw { color: #cfd4da; text-shadow: 0 0 26px rgba(207, 212, 218, 0.45); }
 .m-end-sub {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 14px;
     letter-spacing: 3px;
-    color: #a9bccc;
+    color: #adb5be;
     -unity-text-align: middle-center;
     margin-bottom: 22px;
     white-space: normal;
@@ -657,14 +662,14 @@
 .m-vs-side--you { color: #4fd1ff; }
 .m-vs-side--them { color: #ff5a4f; }
 .m-vsrow { flex-direction: row; align-items: center; min-height: 34px; }
-.m-vs-val { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 16px; width: 74px; color: #ffffff; }
+.m-vs-val { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 16px; width: 74px; color: #f2f5f8; }
 .m-vs-val--right { -unity-text-align: middle-right; }
 .m-vs-bar { flex-grow: 1; flex-basis: 0; height: 8px; background-color: rgba(255, 255, 255, 0.07); flex-direction: row; }
 .m-vs-bar--left { flex-direction: row-reverse; }
 .m-vs-fill { height: 100%; }
 .m-vs-fill--you { background-color: #4fd1ff; }
 .m-vs-fill--them { background-color: #ff5a4f; }
-.m-vs-label { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; letter-spacing: 2px; width: 220px; -unity-text-align: middle-center; color: #a9bccc; }
+.m-vs-label { -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf"); font-size: 12px; letter-spacing: 2px; width: 220px; -unity-text-align: middle-center; color: #adb5be; }
 .m-end-record { margin-top: 14px; }
 .m-show-report { position: absolute; bottom: 70px; left: 50%; translate: -50% 0; display: none; }
 .m-show-report--visible { display: flex; }
@@ -680,10 +685,10 @@
 .m-modal--visible { display: flex; }
 .m-modal-card { width: 580px; padding: 30px 34px; }
 .m-modal-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 26px;
-    letter-spacing: 6px;
-    color: #ffffff;
+    letter-spacing: 3px;
+    color: #dcecff;
     margin-bottom: 12px;
 }
 
@@ -700,25 +705,25 @@
 .m-splash--out { opacity: 0; }
 .m-splash-emblem { width: 150px; height: 150px; margin-bottom: 26px; }
 .m-splash-logo {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 108px;
-    letter-spacing: 34px;
-    color: #ffffff;
-    text-shadow: 0 0 32px rgba(79, 209, 255, 0.85);
-    margin-left: 34px;
+    letter-spacing: 22px;
+    color: #e6f2ff;
+    text-shadow: 0 0 30px rgba(110, 185, 255, 0.75);
+    margin-left: 22px;
 }
 .m-splash-sub {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 16px;
-    letter-spacing: 14px;
-    color: #4fd1ff;
-    margin-left: 14px;
+    letter-spacing: 10px;
+    color: #a8d4ff;
+    margin-left: 10px;
 }
 .m-splash-prompt {
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 15px;
     letter-spacing: 7px;
-    color: #ffffff;
+    color: #f2f5f8;
     margin-top: 120px;
     transition-property: opacity;
     transition-duration: 0.6s;
@@ -726,7 +731,7 @@
 
 .m-veil {
     position: absolute; left: 0; top: 0; right: 0; bottom: 0;
-    background-color: rgb(2, 6, 11);
+    background-color: rgb(8, 8, 10);
     align-items: center;
     justify-content: center;
     display: none;
@@ -738,21 +743,22 @@
 .m-veil--in { opacity: 1; }
 .m-veil-emblem { width: 92px; height: 92px; margin-bottom: 26px; }
 .m-veil-title {
-    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Inter-SemiBold.ttf");
+    -unity-font: url("project://database/Assets/StarForge/UI/Fonts/Cinzel-Bold.ttf");
     font-size: 30px;
-    letter-spacing: 14px;
-    color: #ffffff;
-    margin-left: 14px;
+    letter-spacing: 9px;
+    color: #dcecff;
+    margin-left: 9px;
 }
-.m-veil-bar { width: 380px; height: 2px; background-color: rgba(79, 209, 255, 0.15); margin-top: 22px; flex-direction: row; }
-.m-veil-fill { height: 100%; background-color: #4fd1ff; width: 0; }
-.m-veil-tip { font-size: 15px; color: #a9bccc; margin-top: 22px; width: 640px; -unity-text-align: middle-center; white-space: normal; }
+.m-veil-bar { width: 380px; height: 2px; background-color: rgba(168, 212, 255, 0.15); margin-top: 22px; flex-direction: row; }
+.m-veil-fill { height: 100%; background-color: #a8d4ff; width: 0; }
+.m-veil-tip { font-size: 15px; color: #adb5be; margin-top: 22px; width: 640px; -unity-text-align: middle-center; white-space: normal; }
 
 /* ============================================================ illustrations
    Art/keyart.jpg behind the splash and the veil; Art/opponent_*.jpg as the opponent's hologram
    (made with Google Gemini for StarForge: THIRD-PARTY.md). MenuController drifts the key art's
    scale and flickers the holograms' tint; MenuTrials.ImportArt set their import settings (.meta).
-   The holograms are wide (1.83:1): tiles crop them from the top, so the helmet stays in. */
+   The holograms are wide (1.83:1): tiles crop them from the top, so the helmet stays in.
+   The grades keep their holograms' colours: recruit blue, veteran amber, commander red. */
 .m-art {
     position: absolute; left: 0; top: 0; right: 0; bottom: 0;
     background-image: url("project://database/Assets/StarForge/UI/Art/keyart.jpg");
@@ -763,9 +769,9 @@
     background-repeat: no-repeat;
     background-position-x: center;
     background-position-y: top;
-    background-color: #03070c;
+    background-color: #0a0a0c;
     border-width: 1px;
-    border-color: rgba(79, 209, 255, 0.22);
+    border-color: rgba(120, 165, 210, 0.30);
     overflow: hidden;
     justify-content: flex-end;
 }
@@ -776,7 +782,7 @@
     -unity-font: url("project://database/Assets/StarForge/UI/Fonts/RobotoMono-Bold.ttf");
     font-size: 11px;
     letter-spacing: 2px;
-    color: #d8e4ee;
+    color: #e2e6ea;
     margin: 0 0 8px 10px;
 }
 .m-tier--0 { color: #4fd1ff; }
@@ -789,4 +795,4 @@
 .m-end-opp { width: 340px; flex-shrink: 0; }
 #endOpponentColumn { margin-right: 0; }
 .m-end-portrait { height: 190px; flex-shrink: 0; margin-bottom: 12px; }
-.m-end-opp-name { font-size: 22px; letter-spacing: 6px; }
+.m-end-opp-name { font-size: 22px; letter-spacing: 3px; }
