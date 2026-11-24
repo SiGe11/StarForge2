@@ -240,7 +240,8 @@ Soldiers of every wing share all of it: they were one Host until the Division.
 | A new map every match | A new area of operations along a seam |
 | Teal ore, mirrored fields | Quenchstone and its twin seams |
 | Field walls, ruined houses | Farms emptied by the Clearance |
-| A ruined twin cloister on some maps (planned) | A twin house emptied by the Clearance |
+| A ruined twin cloister on some maps | A twin house emptied by the Clearance |
+| The kept house between the lines, nobody fires on it | The last twin house of Vesper |
 | One Mech Bay, one Mech, never replaced | The Gantry Right: one core per field |
 | Parts chosen nine seconds before the drop | The High Watch fitting-out |
 | Tagged calls vs quiet quoted lines | The knight's voice vs the core's |
